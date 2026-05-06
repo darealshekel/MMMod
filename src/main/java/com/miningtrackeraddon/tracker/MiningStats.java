@@ -77,7 +77,7 @@ public final class MiningStats
         }
 
         GoalNotificationManager.clear();
-        CloudSyncManager.syncHeartbeat();
+        CloudSyncManager.syncNow("world join");
     }
 
     public static SessionData finaliseSession()

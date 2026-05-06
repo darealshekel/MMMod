@@ -33,6 +33,8 @@ public class WorldLoadListener implements IWorldLoadListener
         if (worldBefore != null && worldAfter == null)
         {
             SessionData finished = MiningStats.finaliseSession();
+            CloudSyncManager.syncNow("world exit");
+            SyncQueueManager.forceFlush("world exit");
             if (FeatureToggle.TWEAK_SUMMARY_ON_EXIT.getBooleanValue() && finished.totalBlocks > 0)
             {
                 pendingSummary = finished;

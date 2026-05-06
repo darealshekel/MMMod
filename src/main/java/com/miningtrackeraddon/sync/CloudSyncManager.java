@@ -31,6 +31,7 @@ public final class CloudSyncManager
 {
     private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
+    private static final long PERIODIC_SYNC_INTERVAL_MS = 300_000L;
     private static final long AETERNUM_SCOREBOARD_SCAN_INTERVAL_MS = 3_000L;
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
@@ -108,6 +109,21 @@ public final class CloudSyncManager
         lastLiveBlockSyncMs = now;
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
         queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()));
+    }
+
+    public static void syncNow(String reason)
+    {
+        if (canSync() == false || hasLiveContext() == false)
+        {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        lastHeartbeatMs = now;
+        lastLiveBlockSyncMs = now;
+        SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
+        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
+        SyncQueueManager.forceFlush(reason == null || reason.isBlank() ? "manual sync" : reason);
     }
 
     public static void syncFinishedSession(SessionData session)
@@ -355,7 +371,7 @@ public final class CloudSyncManager
 
     public static long getSyncIntervalMs()
     {
-        return Configs.normalizeWebsiteSyncIntervalMs(Configs.websiteSyncIntervalMs);
+        return PERIODIC_SYNC_INTERVAL_MS;
     }
 
     public static String getSyncTier()
@@ -384,16 +400,23 @@ public final class CloudSyncManager
 
     private static void queueLivePayload(JsonObject payload)
     {
+        queueLivePayload(payload, false);
+    }
+
+    private static void queueLivePayload(JsonObject payload, boolean force)
+    {
         String fingerprint = livePayloadFingerprint(payload);
 
-        if (fingerprint != null
+        if (!force
+                && fingerprint != null
                 && fingerprint.equals(lastSuccessfulLiveFingerprint)
                 && syncStatus == SyncStatus.SYNCED)
         {
             return;
         }
 
-        if (fingerprint != null
+        if (!force
+                && fingerprint != null
                 && fingerprint.equals(lastQueuedLiveFingerprint)
                 && syncStatus == SyncStatus.QUEUED)
         {
