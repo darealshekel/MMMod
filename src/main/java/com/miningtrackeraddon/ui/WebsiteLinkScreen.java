@@ -341,6 +341,8 @@ public class WebsiteLinkScreen extends Screen
         Configs.websiteLinkedMinecraftUuid = "";
         Configs.websiteLinkedMinecraftUsername = "";
         Configs.websiteLinkedAtMs = 0L;
+        Configs.websiteGlobalTotalBlocks = 0L;
+        Configs.websiteGlobalTotalUpdatedAtMs = 0L;
         Configs.saveToFile();
         WebsiteLinkManager.reset();
         refreshState();

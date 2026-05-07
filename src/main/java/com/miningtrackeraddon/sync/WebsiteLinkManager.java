@@ -164,9 +164,18 @@ public final class WebsiteLinkManager
             return;
         }
 
-        Configs.websiteLinkedMinecraftUuid = client.player.getUuidAsString();
-        Configs.websiteLinkedMinecraftUsername = linkedUsername == null || linkedUsername.isBlank() ? resolveUsername(client) : linkedUsername;
+        String nextUuid = client.player.getUuidAsString();
+        String nextUsername = linkedUsername == null || linkedUsername.isBlank() ? resolveUsername(client) : linkedUsername;
+        boolean identityChanged = nextUuid.equalsIgnoreCase(Configs.websiteLinkedMinecraftUuid) == false
+                || nextUsername.equalsIgnoreCase(Configs.websiteLinkedMinecraftUsername) == false;
+        Configs.websiteLinkedMinecraftUuid = nextUuid;
+        Configs.websiteLinkedMinecraftUsername = nextUsername;
         Configs.websiteLinkedAtMs = System.currentTimeMillis();
+        if (identityChanged)
+        {
+            Configs.websiteGlobalTotalBlocks = 0L;
+            Configs.websiteGlobalTotalUpdatedAtMs = 0L;
+        }
         Configs.saveToFile();
     }
 

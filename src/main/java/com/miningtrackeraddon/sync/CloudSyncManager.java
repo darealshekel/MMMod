@@ -464,12 +464,22 @@ public final class CloudSyncManager
             JsonObject playerProfile = getObject(root, "player_profile");
             if (playerProfile != null)
             {
-                long globalTotal = Math.max(0L, getLong(playerProfile, "global_total_blocks", Configs.websiteGlobalTotalBlocks));
-                if (playerProfile.has("global_total_blocks") && globalTotal != Configs.websiteGlobalTotalBlocks)
+                long currentGlobalTotal = Math.max(0L, Configs.websiteGlobalTotalBlocks);
+                long globalTotal = Math.max(0L, getLong(playerProfile, "global_total_blocks", currentGlobalTotal));
+                if (playerProfile.has("global_total_blocks") && globalTotal > 0L && (currentGlobalTotal <= 0L || globalTotal >= currentGlobalTotal))
                 {
                     Configs.websiteGlobalTotalBlocks = globalTotal;
                     Configs.websiteGlobalTotalUpdatedAtMs = System.currentTimeMillis();
                     changed = true;
+                }
+                else if (playerProfile.has("global_total_blocks") && globalTotal > 0L && currentGlobalTotal > 0L && globalTotal < currentGlobalTotal)
+                {
+                    MmmDebugLogger.info(
+                            "website-global-total-stale",
+                            30_000L,
+                            "[MMM_SYNC] ignored lower website global total candidate={} current={}",
+                            globalTotal,
+                            currentGlobalTotal);
                 }
             }
 
