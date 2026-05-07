@@ -11,6 +11,7 @@ public final class MiningPaceEstimator
     private static final long FIVE_MINUTES_MS = 300_000L;
     private static final long UPDATE_INTERVAL_MS = 500L;
     private static final long IDLE_DELAY_MS = 5_000L;
+    private static final long IDLE_ZERO_MS = 20_000L;
     private static final double MAX_REASONABLE_BLOCKS_PER_HOUR = 72_000D;
     private static final double RECENT_SENSITIVITY = 0.68D;
     private static final double SMOOTHING_STRENGTH = 0.62D;
@@ -102,16 +103,18 @@ public final class MiningPaceEstimator
         }
         else if (paceState == PaceState.SLOWING)
         {
-            predictedBase *= 0.93D;
+            predictedBase *= 0.86D;
         }
 
         if (paceState == PaceState.PAUSED)
         {
-            double idleDecay = Math.max(0.15D, 1.0D - Math.max(0L, idleMs - idleDelayMs) / 20_000.0D);
-            predictedBase = Math.max(sessionRate * 0.40D, predictedBase * idleDecay);
+            double idleDecay = idleMs >= IDLE_ZERO_MS
+                    ? 0D
+                    : Math.max(0D, 1.0D - Math.max(0L, idleMs - idleDelayMs) / (double) Math.max(1L, IDLE_ZERO_MS - idleDelayMs));
+            predictedBase *= idleDecay * idleDecay;
         }
 
-        if (USE_SESSION_FALLBACK && predictedBase <= 0D)
+        if (USE_SESSION_FALLBACK && predictedBase <= 0D && idleMs <= idleDelayMs)
         {
             predictedBase = sessionRate;
         }
@@ -122,20 +125,15 @@ public final class MiningPaceEstimator
         }
         else if (predictedBase > 0D)
         {
-            double smoothingStrength = clamp(SMOOTHING_STRENGTH, 0.1D, 0.95D);
-            double alpha = clamp(0.95D - smoothingStrength, 0.08D, 0.65D);
+            double alpha = alphaForState(paceState);
             this.emaBlocksPerHour = this.emaBlocksPerHour + alpha * (predictedBase - this.emaBlocksPerHour);
         }
         else
         {
-            this.emaBlocksPerHour *= 0.98D;
+            this.emaBlocksPerHour = paceState == PaceState.PAUSED ? 0D : this.emaBlocksPerHour * 0.90D;
         }
 
         double confidence = computeConfidence(count10, count30, count60, count5m, sessionBlocks, idleMs, idleDelayMs);
-        if (confidence < 0.15D && sessionRate > 0D && USE_SESSION_FALLBACK)
-        {
-            this.emaBlocksPerHour = Math.max(this.emaBlocksPerHour, sessionRate * 0.75D);
-        }
 
         double predicted = clamp(this.emaBlocksPerHour, 0D, MAX_REASONABLE_BLOCKS_PER_HOUR);
         this.snapshot = new MiningRateSnapshot(now, count10, count30, count60, count5m, rate10, rate30, rate60, rate5m, sessionRate, predicted, confidence, paceState);
@@ -175,9 +173,11 @@ public final class MiningPaceEstimator
 
         if (paceState == PaceState.SLOWING)
         {
-            shortWeight -= 0.08D;
-            longWeight += 0.05D;
-            sessionWeight += 0.03D;
+            shortWeight += 0.12D;
+            mediumWeight += 0.08D;
+            oneMinuteWeight -= 0.04D;
+            longWeight -= 0.06D;
+            sessionWeight = 0.0D;
         }
         else if (paceState == PaceState.RAMPING_UP)
         {
@@ -187,11 +187,11 @@ public final class MiningPaceEstimator
         }
         else if (paceState == PaceState.PAUSED)
         {
-            shortWeight = 0.10D;
-            mediumWeight = 0.18D;
-            oneMinuteWeight = 0.22D;
-            longWeight = 0.22D;
-            sessionWeight = 0.28D;
+            shortWeight = 0.62D;
+            mediumWeight = 0.26D;
+            oneMinuteWeight = 0.10D;
+            longWeight = 0.02D;
+            sessionWeight = 0.0D;
         }
 
         double sum = shortWeight + mediumWeight + oneMinuteWeight + longWeight + sessionWeight;
@@ -219,6 +219,21 @@ public final class MiningPaceEstimator
         }
 
         return clamp(sampleConfidence, 0D, 1.0D);
+    }
+
+    private double alphaForState(PaceState paceState)
+    {
+        if (paceState == PaceState.PAUSED)
+        {
+            return 0.85D;
+        }
+        if (paceState == PaceState.SLOWING)
+        {
+            return 0.58D;
+        }
+
+        double smoothingStrength = clamp(SMOOTHING_STRENGTH, 0.1D, 0.95D);
+        return clamp(0.95D - smoothingStrength, 0.08D, 0.65D);
     }
 
     private double clamp(double value, double min, double max)

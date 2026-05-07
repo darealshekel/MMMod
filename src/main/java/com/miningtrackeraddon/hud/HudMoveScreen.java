@@ -158,17 +158,21 @@ public class HudMoveScreen extends Screen
 
     private void drawPreview(DrawContext context, int x, int y, double scale)
     {
-        List<String> lines = new ArrayList<>();
-        lines.add("MMM");
+        List<PreviewLine> lines = new ArrayList<>();
+        lines.add(new PreviewLine("MMM", MmmUi.ACCENT_BRIGHT));
         MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
         MiningStats.PredictionSnapshot prediction = MiningStats.getPredictionSnapshot();
-        lines.add("Project: " + UiFormat.truncate(project.name(), 18) + " | " + UiFormat.formatBlocks(project.blocksMined()));
-        lines.add("World Total: " + UiFormat.formatBlocks(MiningStats.getCurrentSourceTotalMined()));
-        lines.add("Session Total: " + UiFormat.formatBlocks(MiningStats.getSessionBlocksMined()));
-        lines.add("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())));
-        lines.add("Session Time: " + MiningStats.getSessionDurationClock());
+        long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
+        long worldTotal = MiningStats.getCurrentSourceTotalMined();
+        long sessionTotal = MiningStats.getSessionBlocksMined();
+        lines.add(new PreviewLine("Project: " + UiFormat.truncate(project.name(), 18) + " | " + UiFormat.formatBlocks(project.blocksMined()), UiFormat.getBlocksMinedMilestoneColor(project.blocksMined())));
+        lines.add(new PreviewLine("Global Total: " + UiFormat.formatBlocks(globalTotal), UiFormat.getBlocksMinedMilestoneColor(globalTotal)));
+        lines.add(new PreviewLine("World Total: " + UiFormat.formatBlocks(worldTotal), UiFormat.getBlocksMinedMilestoneColor(worldTotal)));
+        lines.add(new PreviewLine("Session Total: " + UiFormat.formatBlocks(sessionTotal), UiFormat.getBlocksMinedMilestoneColor(sessionTotal)));
+        lines.add(new PreviewLine("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())), MmmUi.TEXT));
+        lines.add(new PreviewLine("Session Time: " + MiningStats.getSessionDurationClock(), MmmUi.TEXT));
 
-        int width = Math.max(lines.stream().mapToInt(this.textRenderer::getWidth).max().orElse(190), 190);
+        int width = Math.max(lines.stream().mapToInt(line -> this.textRenderer.getWidth(line.text())).max().orElse(190), 190);
         int lineHeight = this.textRenderer.fontHeight + 2;
         int padding = 4;
         int totalHeight = lines.size() * lineHeight + 24 + padding * 2;
@@ -179,11 +183,12 @@ public class HudMoveScreen extends Screen
         MmmUi.card(context, -padding, -padding, width + padding * 2, totalHeight, MmmUi.PANEL, MmmUi.BORDER);
 
         int drawY = 0;
-        context.drawText(this.textRenderer, Text.literal(lines.getFirst()), 0, drawY, MmmUi.ACCENT_BRIGHT, true);
+        context.drawText(this.textRenderer, Text.literal(lines.getFirst().text()), 0, drawY, lines.getFirst().color(), true);
         drawY += lineHeight;
         for (int i = 1; i < lines.size(); i++)
         {
-            context.drawText(this.textRenderer, Text.literal(lines.get(i)), 0, drawY, MmmUi.TEXT, false);
+            PreviewLine line = lines.get(i);
+            context.drawText(this.textRenderer, Text.literal(line.text()), 0, drawY, line.color(), false);
             drawY += lineHeight;
         }
 
@@ -200,5 +205,9 @@ public class HudMoveScreen extends Screen
         context.fill(0, barY, fillWidth, barY + 6, fillColor);
         context.drawBorder(0, barY, width, 6, MmmUi.BORDER_SOFT);
         context.getMatrices().popMatrix();
+    }
+
+    private record PreviewLine(String text, int color)
+    {
     }
 }

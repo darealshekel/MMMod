@@ -41,16 +41,16 @@ public class GuiConfigs extends GuiConfigsBase
         super.initGui();
         this.clearOptions();
 
+        ConfigGuiTab[] tabs = ConfigGuiTab.values();
+        int gap = 2;
+        int availableWidth = Math.max(1, this.width - 20 - gap * (tabs.length - 1));
+        int tabWidth = Math.max(34, availableWidth / tabs.length);
         int x = 10;
         int y = 26;
-        for (ConfigGuiTab configTab : ConfigGuiTab.values())
+        for (ConfigGuiTab configTab : tabs)
         {
-            if (configTab == ConfigGuiTab.WEBSITE_LINK)
-            {
-                x = 10;
-                y = 48;
-            }
-            x += this.createTabButton(x, y, configTab);
+            this.createTabButton(x, y, tabWidth, configTab);
+            x += tabWidth + gap;
         }
 
     }
@@ -106,12 +106,11 @@ public class GuiConfigs extends GuiConfigsBase
         return new BooleanHotkeyGuiWrapper(config.getName(), config, config.getKeybind());
     }
 
-    private int createTabButton(int x, int y, ConfigGuiTab configTab)
+    private void createTabButton(int x, int y, int width, ConfigGuiTab configTab)
     {
-        ButtonGeneric button = new ButtonGeneric(x, y, -1, 20, configTab.getDisplayName());
+        ButtonGeneric button = new ButtonGeneric(x, y, width, 20, configTab.getDisplayName());
         button.setEnabled(tab != configTab);
         this.addButton(button, new TabButtonListener(configTab, this));
-        return button.getWidth() + 2;
     }
 
     private static class TabButtonListener implements IButtonActionListener
@@ -169,10 +168,10 @@ public class GuiConfigs extends GuiConfigsBase
     {
         GENERIC("Generic"),
         TWEAKS("Toggles"),
-        HOTKEYS("Hotkeys"),
+        HOTKEYS("Keys"),
         PROJECTS("Projects"),
         PROFILE("Profile"),
-        WEBSITE_LINK("Website Link"),
+        WEBSITE_LINK("Website"),
         SUMMARY("Summary"),
         HISTORY("History");
 

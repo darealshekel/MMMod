@@ -45,36 +45,46 @@ public final class MiningHudRenderer
             return;
         }
 
-        List<String> lines = new ArrayList<>();
-        lines.add("MMM");
+        List<HudLine> lines = new ArrayList<>();
+        lines.add(new HudLine("MMM", HUD_TITLE_COLOR));
 
         MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
         MiningStats.PredictionSnapshot prediction = MiningStats.getPredictionSnapshot();
-        lines.add("Project: " + UiFormat.truncate(project.name(), 18) + " | " + UiFormat.formatBlocks(project.blocksMined()));
+        lines.add(new HudLine(
+                "Project: " + UiFormat.truncate(project.name(), 18) + " | " + UiFormat.formatBlocks(project.blocksMined()),
+                UiFormat.getBlocksMinedMilestoneColor(project.blocksMined())));
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue())
         {
-            lines.add("World Total: " + UiFormat.formatBlocks(MiningStats.getCurrentSourceTotalMined()));
-            lines.add("Session Total: " + UiFormat.formatBlocks(MiningStats.getSessionBlocksMined()));
-            lines.add("Today / Week: " + UiFormat.formatCompact(MiningStats.getDailyBlocksMined()) + " / " + UiFormat.formatCompact(MiningStats.getWeeklyBlocksMined()));
-            lines.add("PR Day / Week: " + UiFormat.formatCompact(MiningStats.getPersonalRecordDailyBlocks()) + " / " + UiFormat.formatCompact(MiningStats.getPersonalRecordWeeklyBlocks()));
-            lines.add("Fastest 100K: " + MiningStats.getFastest100kClock());
+            long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
+            long worldTotal = MiningStats.getCurrentSourceTotalMined();
+            long sessionTotal = MiningStats.getSessionBlocksMined();
+            long dailyBlocks = MiningStats.getDailyBlocksMined();
+            long weeklyBlocks = MiningStats.getWeeklyBlocksMined();
+            long dailyRecord = MiningStats.getPersonalRecordDailyBlocks();
+            long weeklyRecord = MiningStats.getPersonalRecordWeeklyBlocks();
+            lines.add(new HudLine("Global Total: " + UiFormat.formatBlocks(globalTotal), UiFormat.getBlocksMinedMilestoneColor(globalTotal)));
+            lines.add(new HudLine("World Total: " + UiFormat.formatBlocks(worldTotal), UiFormat.getBlocksMinedMilestoneColor(worldTotal)));
+            lines.add(new HudLine("Session Total: " + UiFormat.formatBlocks(sessionTotal), UiFormat.getBlocksMinedMilestoneColor(sessionTotal)));
+            lines.add(new HudLine("Today / Week: " + UiFormat.formatCompact(dailyBlocks) + " / " + UiFormat.formatCompact(weeklyBlocks), UiFormat.getBlocksMinedMilestoneColor(Math.max(dailyBlocks, weeklyBlocks))));
+            lines.add(new HudLine("PR Day / Week: " + UiFormat.formatCompact(dailyRecord) + " / " + UiFormat.formatCompact(weeklyRecord), UiFormat.getBlocksMinedMilestoneColor(Math.max(dailyRecord, weeklyRecord))));
+            lines.add(new HudLine("Fastest 100K: " + MiningStats.getFastest100kClock(), HUD_TEXT_COLOR));
         }
         if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue())
         {
             if (MiningStats.hasActualBlocksPerHour())
             {
-                lines.add("Blocks/hr: " + UiFormat.formatBlocksPerHour(MiningStats.getActualBlocksPerHour()));
+                lines.add(new HudLine("Blocks/hr: " + UiFormat.formatBlocksPerHour(MiningStats.getActualBlocksPerHour()), HUD_TEXT_COLOR));
             }
-            lines.add("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())));
+            lines.add(new HudLine("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())), HUD_TEXT_COLOR));
         }
-        lines.add("Session Time: " + MiningStats.getSessionDurationClock());
+        lines.add(new HudLine("Session Time: " + MiningStats.getSessionDurationClock(), HUD_TEXT_COLOR));
         if (FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue())
         {
-            lines.add("Daily Reset In: " + MiningStats.getDailyResetCountdownClock());
+            lines.add(new HudLine("Daily Reset In: " + MiningStats.getDailyResetCountdownClock(), HUD_TEXT_COLOR));
         }
         if (FeatureToggle.TWEAK_HUD_ETA.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue())
         {
-            lines.add("ETA To Goal: " + MiningStats.getEstimatedTimeToDailyGoal());
+            lines.add(new HudLine("ETA To Goal: " + MiningStats.getEstimatedTimeToDailyGoal(), HUD_TEXT_COLOR));
         }
 
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
@@ -106,7 +116,7 @@ public final class MiningHudRenderer
         int drawY = 0;
         long now = System.currentTimeMillis();
         boolean syncHealthy = CloudSyncManager.isHudHealthy(now) && DigsSyncManager.isHudHealthy(now);
-        String title = lines.getFirst();
+        String title = lines.getFirst().text();
         int titleTextWidth = client.textRenderer.getWidth(title);
         if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
         {
@@ -117,11 +127,12 @@ public final class MiningHudRenderer
         drawY += lineHeight;
         for (int i = 1; i < lines.size(); i++)
         {
+            HudLine line = lines.get(i);
             if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
             {
-                drawLineBox(context, 0, drawY, client.textRenderer.getWidth(lines.get(i)));
+                drawLineBox(context, 0, drawY, client.textRenderer.getWidth(line.text()));
             }
-            context.drawText(client.textRenderer, Text.literal(lines.get(i)), 0, drawY, HUD_TEXT_COLOR, false);
+            context.drawText(client.textRenderer, Text.literal(line.text()), 0, drawY, line.color(), false);
             drawY += lineHeight;
         }
 
@@ -139,6 +150,7 @@ public final class MiningHudRenderer
         List<String> lines = new ArrayList<>();
         lines.add("MMM");
         lines.add("Project: Example Project | 12.3K blocks");
+        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Global Total: 123M blocks");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("World Total: 12.3K blocks");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Session Total: 890 blocks");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Today / Week: 12.3K / 84.2K");
@@ -164,6 +176,10 @@ public final class MiningHudRenderer
         int x = resolveHudX(client, scaledWidth);
         int y = resolveHudY(client, scaledHeight);
         return new int[] { x, y, x + scaledWidth, y + scaledHeight };
+    }
+
+    private record HudLine(String text, int color)
+    {
     }
 
     private static int resolveHudX(MinecraftClient client, int scaledWidth)
@@ -226,6 +242,16 @@ public final class MiningHudRenderer
         for (String line : lines)
         {
             width = Math.max(width, client.textRenderer.getWidth(Text.literal(line)));
+        }
+        return width;
+    }
+
+    private static int getTextWidth(MinecraftClient client, Iterable<HudLine> lines)
+    {
+        int width = 0;
+        for (HudLine line : lines)
+        {
+            width = Math.max(width, client.textRenderer.getWidth(Text.literal(line.text())));
         }
         return width;
     }

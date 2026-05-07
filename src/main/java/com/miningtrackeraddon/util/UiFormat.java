@@ -123,6 +123,30 @@ public final class UiFormat
         return RED;
     }
 
+    public static int getBlocksMinedMilestoneColor(long value)
+    {
+        long safeValue = Math.max(0L, value);
+        if (safeValue >= 250_000_000L) return 0xFFFFFFFF;
+        if (safeValue >= 225_000_000L) return 0xFFFFE4E4;
+        if (safeValue >= 200_000_000L) return 0xFFFFD1D1;
+        if (safeValue >= 175_000_000L) return 0xFFFF9E9E;
+        if (safeValue >= 150_000_000L) return 0xFFFF6B6B;
+        if (safeValue >= 125_000_000L) return 0xFFFF3B3B;
+        if (safeValue >= 100_000_000L) return 0xFFFF0000;
+        if (safeValue >= 90_000_000L) return 0xFF9B00FF;
+        if (safeValue >= 80_000_000L) return 0xFF5A00FF;
+        if (safeValue >= 60_000_000L) return 0xFF0055FF;
+        if (safeValue >= 50_000_000L) return 0xFF0088FF;
+        if (safeValue >= 40_000_000L) return 0xFF00C3FF;
+        if (safeValue >= 30_000_000L) return 0xFF00FFE5;
+        if (safeValue >= 25_000_000L) return 0xFF00FF88;
+        if (safeValue >= 20_000_000L) return 0xFF4CFF00;
+        if (safeValue >= 17_500_000L) return 0xFFB6FF00;
+        if (safeValue >= 15_000_000L) return 0xFFFFB300;
+        if (safeValue >= 12_500_000L) return 0xFFFF7A1F;
+        return 0xFFFF5A1F;
+    }
+
     public static String truncate(String value, int maxLength)
     {
         if (value == null || value.length() <= maxLength)

@@ -87,21 +87,25 @@ public class PlayerProfileScreen extends Screen
 
     private void drawTotalsCard(DrawContext context, int x, int y, int width, int height)
     {
-        long globalTotal = Configs.websiteGlobalTotalBlocks > 0L ? Configs.websiteGlobalTotalBlocks : Configs.totalBlocksMined;
+        long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
         long worldTotal = MiningStats.getCurrentSourceTotalMined();
         MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
         drawCardTitle(context, x, y, "Totals");
-        drawMetric(context, x, y + 30, width, "Global Total", UiFormat.formatBlocks(globalTotal), MmmUi.ACCENT_BRIGHT);
-        drawMetric(context, x, y + 56, width, "World Total", UiFormat.formatBlocks(worldTotal), MmmUi.TEXT);
+        drawMetric(context, x, y + 30, width, "Global Total", UiFormat.formatBlocks(globalTotal), UiFormat.getBlocksMinedMilestoneColor(globalTotal));
+        drawMetric(context, x, y + 56, width, "World Total", UiFormat.formatBlocks(worldTotal), UiFormat.getBlocksMinedMilestoneColor(worldTotal));
         context.drawText(this.textRenderer, Text.literal(lastGlobalUpdateText()), x + CARD_PADDING, y + height - 14, MmmUi.MUTED, false);
     }
 
     private void drawRecordsCard(DrawContext context, int x, int y, int width, int height)
     {
+        long dailyBlocks = MiningStats.getDailyBlocksMined();
+        long weeklyBlocks = MiningStats.getWeeklyBlocksMined();
+        long dailyRecord = MiningStats.getPersonalRecordDailyBlocks();
+        long weeklyRecord = MiningStats.getPersonalRecordWeeklyBlocks();
         MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
         drawCardTitle(context, x, y, "Records");
-        drawMetric(context, x, y + 28, width, "Today / Week", UiFormat.formatCompact(MiningStats.getDailyBlocksMined()) + " / " + UiFormat.formatCompact(MiningStats.getWeeklyBlocksMined()), MmmUi.TEXT);
-        drawMetric(context, x, y + 52, width, "PR Day / Week", UiFormat.formatCompact(MiningStats.getPersonalRecordDailyBlocks()) + " / " + UiFormat.formatCompact(MiningStats.getPersonalRecordWeeklyBlocks()), MmmUi.TEXT);
+        drawMetric(context, x, y + 28, width, "Today / Week", UiFormat.formatCompact(dailyBlocks) + " / " + UiFormat.formatCompact(weeklyBlocks), UiFormat.getBlocksMinedMilestoneColor(Math.max(dailyBlocks, weeklyBlocks)));
+        drawMetric(context, x, y + 52, width, "PR Day / Week", UiFormat.formatCompact(dailyRecord) + " / " + UiFormat.formatCompact(weeklyRecord), UiFormat.getBlocksMinedMilestoneColor(Math.max(dailyRecord, weeklyRecord)));
         drawMetric(context, x, y + 76, width, "Fastest 100K", MiningStats.getFastest100kMs() > 0L ? MiningStats.getFastest100kClock() : "-", MmmUi.TEXT);
     }
 
@@ -140,7 +144,7 @@ public class PlayerProfileScreen extends Screen
             context.fill(x + CARD_PADDING, rowY - 3, x + width - CARD_PADDING, rowY + 12, rowColor);
             context.drawText(this.textRenderer, Text.literal(formatBlockId(entry.getKey())), x + CARD_PADDING + 6, rowY, MmmUi.TEXT, false);
             String count = UiFormat.formatCompact(entry.getValue());
-            context.drawText(this.textRenderer, Text.literal(count), x + width - CARD_PADDING - 6 - this.textRenderer.getWidth(count), rowY, MmmUi.ACCENT_BRIGHT, false);
+            context.drawText(this.textRenderer, Text.literal(count), x + width - CARD_PADDING - 6 - this.textRenderer.getWidth(count), rowY, UiFormat.getBlocksMinedMilestoneColor(entry.getValue()), false);
             rowY += 16;
             index++;
         }
