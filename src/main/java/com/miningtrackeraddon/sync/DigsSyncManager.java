@@ -399,7 +399,8 @@ public final class DigsSyncManager
 
     private static String fingerprint(PlayerDigsModel model, String blockBreakdownFingerprint)
     {
-        return dedupeKey(model) + "|" + (blockBreakdownFingerprint == null ? "" : blockBreakdownFingerprint);
+        return dedupeKey(model) + "|" + currentWorldTotalFingerprint(WorldSessionContext.getCurrentWorldInfo()) + "|"
+                + (blockBreakdownFingerprint == null ? "" : blockBreakdownFingerprint);
     }
 
     private static String fingerprint(JsonObject payload)
@@ -413,10 +414,26 @@ public final class DigsSyncManager
         String username = digs.has("username") ? digs.get("username").getAsString() : "";
         String server = digs.has("server") ? digs.get("server").getAsString() : "";
         long total = digs.has("total_digs") ? digs.get("total_digs").getAsLong() : 0L;
+        long worldTotal = payload.has("current_world_totals") && payload.get("current_world_totals").isJsonObject()
+                ? payload.getAsJsonObject("current_world_totals").has("total_blocks")
+                    ? payload.getAsJsonObject("current_world_totals").get("total_blocks").getAsLong()
+                    : -1L
+                : -1L;
         String blockBreakdownFingerprint = payload.has("current_world_block_breakdown")
                 ? BlockBreakdownPayloads.fingerprint(payload.getAsJsonObject("current_world_block_breakdown"))
                 : "";
-        return username.toLowerCase(Locale.ROOT) + "|" + server.toLowerCase(Locale.ROOT) + "|" + total + "|" + blockBreakdownFingerprint;
+        return username.toLowerCase(Locale.ROOT) + "|" + server.toLowerCase(Locale.ROOT) + "|" + total + "|"
+                + worldTotal + "|" + blockBreakdownFingerprint;
+    }
+
+    private static long currentWorldTotalFingerprint(WorldSessionContext.WorldInfo worldInfo)
+    {
+        Configs.WorldStatsEntry worldStats = Configs.getOrCreateWorldStats(
+                worldInfo.id(),
+                worldInfo.displayName(),
+                worldInfo.kind(),
+                worldInfo.host());
+        return Math.max(0L, worldStats.totalBlocks);
     }
 
     private static void clearStaleModel(long now)

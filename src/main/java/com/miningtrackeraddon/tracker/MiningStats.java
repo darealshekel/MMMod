@@ -301,8 +301,8 @@ public final class MiningStats
             resetPeriodStatsIfNeeded(now);
         }
 
-        CloudSyncManager.onClientTick(now);
         DigsSyncManager.onClientTick(now);
+        CloudSyncManager.onClientTick(now);
         BlockBreakdownTracker.onClientTick(client, now);
         MiningValidationTracker.onClientTick(now);
         SyncQueueManager.onClientTick(now);
@@ -399,23 +399,22 @@ public final class MiningStats
         if (totalDigs < previousSourceTotal)
         {
             long correction = previousSourceTotal - totalDigs;
-            if (correction <= 100L)
+            worldStats.totalBlocks = totalDigs;
+            worldStats.lastSeenAt = now;
+            Configs.totalBlocksMined = Math.max(0L, Configs.totalBlocksMined - correction);
+            if (sessionActive)
             {
-                worldStats.totalBlocks = totalDigs;
-                Configs.totalBlocksMined = Math.max(0L, Configs.totalBlocksMined - correction);
-                if (sessionActive)
-                {
-                    sessionStartTotalMined = Math.max(0L, sessionStartTotalMined - correction);
-                    currentSession.totalBlocks = Math.max(0L, currentSession.totalBlocks - correction);
-                }
-                debugAttribution("authoritative-correction", previousSourceTotal, worldStats.totalBlocks, 0L);
-                return;
+                sessionStartTotalMined = Math.max(0L, sessionStartTotalMined - correction);
+                currentSession.totalBlocks = Math.max(0L, currentSession.totalBlocks - correction);
             }
+            debugAttribution("authoritative-correction", previousSourceTotal, worldStats.totalBlocks, 0L);
+            Configs.saveToFile();
             return;
         }
 
         long delta = Math.max(0L, totalDigs - previousSourceTotal);
         worldStats.totalBlocks = totalDigs;
+        worldStats.lastSeenAt = now;
         if (delta > 0L)
         {
             Configs.totalBlocksMined += delta;

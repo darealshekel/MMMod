@@ -464,8 +464,8 @@ public final class CloudSyncManager
             JsonObject playerProfile = getObject(root, "player_profile");
             if (playerProfile != null)
             {
-                long globalTotal = getLong(playerProfile, "global_total_blocks", Configs.websiteGlobalTotalBlocks);
-                if (globalTotal > Configs.websiteGlobalTotalBlocks)
+                long globalTotal = Math.max(0L, getLong(playerProfile, "global_total_blocks", Configs.websiteGlobalTotalBlocks));
+                if (playerProfile.has("global_total_blocks") && globalTotal != Configs.websiteGlobalTotalBlocks)
                 {
                     Configs.websiteGlobalTotalBlocks = globalTotal;
                     Configs.websiteGlobalTotalUpdatedAtMs = System.currentTimeMillis();
