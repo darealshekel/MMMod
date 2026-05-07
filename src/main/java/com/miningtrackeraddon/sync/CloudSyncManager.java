@@ -107,7 +107,7 @@ public final class CloudSyncManager
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
-        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()));
+        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
     }
 
     public static void syncNow(String reason)
@@ -392,7 +392,7 @@ public final class CloudSyncManager
         lastLiveBlockSyncMs = now;
         lastHeartbeatMs = now;
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
-        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()));
+        queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
     }
 
     private static void queueLivePayload(JsonObject payload)

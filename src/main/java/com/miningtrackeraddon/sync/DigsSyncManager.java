@@ -88,7 +88,8 @@ public final class DigsSyncManager
 
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         String fingerprint = fingerprint(latestModel, BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(worldInfo));
-        if (fingerprint.equals(lastSuccessfulFingerprint) && status == SyncStatus.SYNCED)
+        boolean cadenceDue = lastQueueAttemptMs <= 0L || now - lastQueueAttemptMs >= CloudSyncManager.getSyncIntervalMs();
+        if (fingerprint.equals(lastSuccessfulFingerprint) && status == SyncStatus.SYNCED && cadenceDue == false)
         {
             return;
         }
@@ -98,7 +99,7 @@ public final class DigsSyncManager
             return;
         }
 
-        if (lastQueueAttemptMs > 0L && now - lastQueueAttemptMs < CloudSyncManager.getSyncIntervalMs())
+        if (cadenceDue == false)
         {
             return;
         }
