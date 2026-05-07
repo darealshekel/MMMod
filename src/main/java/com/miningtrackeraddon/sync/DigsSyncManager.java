@@ -217,12 +217,29 @@ public final class DigsSyncManager
         Candidate parser = validate("parser", parserTotal, strongest);
         Candidate cached = validate("cached", cachedTotal, strongest);
 
-        if (tab.valid()) return tab;
-        if (sidebar.valid()) return sidebar;
-        if (parser.valid()) return parser;
+        Candidate live = strongestValid(tab, sidebar, parser);
+        if (live.valid()) return live;
         if (cached.valid()) return cached;
 
         return new Candidate("none", 0L, false, "no-valid-total");
+    }
+
+    private static Candidate strongestValid(Candidate... candidates)
+    {
+        Candidate best = new Candidate("none", 0L, false, "no-valid-live-total");
+        for (Candidate candidate : candidates)
+        {
+            if (candidate.valid() == false)
+            {
+                continue;
+            }
+
+            if (best.valid() == false || candidate.total() > best.total())
+            {
+                best = candidate;
+            }
+        }
+        return best;
     }
 
     private static Candidate validate(String source, long total, long strongest)
@@ -260,7 +277,7 @@ public final class DigsSyncManager
         world.addProperty("source_key", ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo));
         world.addProperty("source_name", ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo));
         payload.add("world", world);
-        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo));
+        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo, model.totalDigs()));
         payload.add("mining_records", buildMiningRecords());
 
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
@@ -291,7 +308,7 @@ public final class DigsSyncManager
         return payload;
     }
 
-    private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo)
+    private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo, long authoritativeTotal)
     {
         Configs.WorldStatsEntry worldStats = Configs.getOrCreateWorldStats(
                 worldInfo.id(),
@@ -304,7 +321,7 @@ public final class DigsSyncManager
         totals.addProperty("display_name", worldStats.displayName);
         totals.addProperty("kind", normaliseWorldKind(worldStats.kind));
         totals.addProperty("host", (String) null);
-        totals.addProperty("total_blocks", worldStats.totalBlocks);
+        totals.addProperty("total_blocks", Math.max(0L, authoritativeTotal));
         totals.addProperty("last_seen_at", Instant.ofEpochMilli(Math.max(worldStats.lastSeenAt, System.currentTimeMillis())).toString());
         return totals;
     }
