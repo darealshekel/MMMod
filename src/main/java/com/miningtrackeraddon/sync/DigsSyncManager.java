@@ -260,6 +260,7 @@ public final class DigsSyncManager
         world.addProperty("source_key", ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo));
         world.addProperty("source_name", ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo));
         payload.add("world", world);
+        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo));
         payload.add("mining_records", buildMiningRecords());
 
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
@@ -288,6 +289,24 @@ public final class DigsSyncManager
                 sessionEndMs));
 
         return payload;
+    }
+
+    private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo)
+    {
+        Configs.WorldStatsEntry worldStats = Configs.getOrCreateWorldStats(
+                worldInfo.id(),
+                worldInfo.displayName(),
+                worldInfo.kind(),
+                worldInfo.host());
+
+        JsonObject totals = new JsonObject();
+        totals.addProperty("world_key", worldStats.worldId);
+        totals.addProperty("display_name", worldStats.displayName);
+        totals.addProperty("kind", normaliseWorldKind(worldStats.kind));
+        totals.addProperty("host", (String) null);
+        totals.addProperty("total_blocks", worldStats.totalBlocks);
+        totals.addProperty("last_seen_at", Instant.ofEpochMilli(Math.max(worldStats.lastSeenAt, System.currentTimeMillis())).toString());
+        return totals;
     }
 
     private static JsonObject buildMiningRecords()
