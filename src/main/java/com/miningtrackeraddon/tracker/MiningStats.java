@@ -649,10 +649,22 @@ public final class MiningStats
         return Math.max(0L, Configs.dailyBlocksMined);
     }
 
+    public static String getDailyBlocksDate()
+    {
+        resetPeriodStatsIfNeeded(System.currentTimeMillis());
+        return Configs.dailyBlocksDate == null ? "" : Configs.dailyBlocksDate;
+    }
+
     public static long getWeeklyBlocksMined()
     {
         resetPeriodStatsIfNeeded(System.currentTimeMillis());
         return Math.max(0L, Configs.weeklyBlocksMined);
+    }
+
+    public static String getWeeklyBlocksWeek()
+    {
+        resetPeriodStatsIfNeeded(System.currentTimeMillis());
+        return Configs.weeklyBlocksWeek == null ? "" : Configs.weeklyBlocksWeek;
     }
 
     public static long getPersonalRecordDailyBlocks()
@@ -826,6 +838,7 @@ public final class MiningStats
         String todayKey = dateKey(now, zoneId);
         String weekKey = weekKey(now, zoneId);
         boolean changed = false;
+        boolean resetPeriod = false;
 
         if (Configs.dailyBlocksDate == null || Configs.dailyBlocksDate.isBlank())
         {
@@ -838,6 +851,7 @@ public final class MiningStats
             Configs.dailyBlocksMined = 0L;
             Configs.dailyBlocksDate = todayKey;
             changed = true;
+            resetPeriod = true;
         }
 
         if (Configs.weeklyBlocksWeek == null || Configs.weeklyBlocksWeek.isBlank())
@@ -851,12 +865,17 @@ public final class MiningStats
             Configs.weeklyBlocksMined = 0L;
             Configs.weeklyBlocksWeek = weekKey;
             changed = true;
+            resetPeriod = true;
         }
 
         if (changed)
         {
             Configs.saveToFile();
-            CloudSyncManager.syncHeartbeat();
+            if (resetPeriod)
+            {
+                CloudSyncManager.syncNow("mining records period reset");
+                DigsSyncManager.syncNow("mining records period reset");
+            }
         }
     }
 

@@ -683,6 +683,9 @@ public final class CloudSyncManager
     private static JsonObject buildMiningRecords()
     {
         JsonObject records = new JsonObject();
+        records.addProperty("captured_at", toIso(System.currentTimeMillis()));
+        records.addProperty("daily_blocks_date", MiningStats.getDailyBlocksDate());
+        records.addProperty("weekly_blocks_week", MiningStats.getWeeklyBlocksWeek());
         records.addProperty("daily_blocks_mined", MiningStats.getDailyBlocksMined());
         records.addProperty("weekly_blocks_mined", MiningStats.getWeeklyBlocksMined());
         records.addProperty("personal_record_daily_blocks", MiningStats.getPersonalRecordDailyBlocks());
