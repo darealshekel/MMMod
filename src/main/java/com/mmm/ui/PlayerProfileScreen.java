@@ -106,7 +106,8 @@ public class PlayerProfileScreen extends Screen
         drawCardTitle(context, x, y, width, "Records");
         drawDualBlocksMetric(context, x, y + 28, width, "Today / Week", dailyBlocks, weeklyBlocks);
         drawDualBlocksMetric(context, x, y + 52, width, "PR Day / Week", dailyRecord, weeklyRecord);
-        drawMetric(context, x, y + 76, width, "Fastest 100K", MiningStats.getFastest100kMs() > 0L ? MiningStats.getFastest100kClock() : "-", MmmUi.TEXT);
+        String fastest100k = MiningStats.getFastest100kClock();
+        drawMetric(context, x, y + 76, width, "Fastest 100K", fastest100k, "--".equals(fastest100k) ? MmmUi.INACTIVE : MmmUi.TEXT);
     }
 
     private void drawSourceCard(DrawContext context, int x, int y, int width, int height)

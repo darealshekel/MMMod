@@ -43,6 +43,7 @@ public class SessionHistoryScreen extends Screen
     private static final int TEXT = MmmUi.TEXT;
     private static final int LABEL = MmmUi.LABEL;
     private static final int MUTED = MmmUi.MUTED;
+    private static final int INACTIVE = MmmUi.INACTIVE;
     private static final int ROW_SEL = MmmUi.ROW_SELECTED;
     private static final int ROW_HOVER = MmmUi.ROW_HOVER;
     private static final int ROW_ALT = MmmUi.ROW_ALT;
@@ -378,7 +379,7 @@ public class SessionHistoryScreen extends Screen
         c.drawText(this.textRenderer, Text.literal(endLabel), x + w - endWidth, y + h - 10, MUTED, false);
     }
     private void row(DrawContext c,int lx,int rx,int y,String label,String value){ int width=rx-lx; int valueWidth=Math.min(this.textRenderer.getWidth(value), Math.max(32, width/2)); MmmUi.drawTextWithin(c,this.textRenderer,label,lx,y,Math.max(0,width-valueWidth-8),LABEL,false); MmmUi.drawTextRightWithin(c,this.textRenderer,value,rx,y,valueWidth,TEXT,false); }
-    private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ int tw=w-C*2; card(c,x,y,w,h,SOFT,BORDER_SOFT); MmmUi.drawTextWithin(c,this.textRenderer,l,x+C,y+9,tw,LABEL,false); MmmUi.drawTextWithin(c,this.textRenderer,v,x+C,y+24,tw,TEXT,false); MmmUi.drawTextWithin(c,this.textRenderer,s,x+C,y+38,tw,MUTED,false); }
+    private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ int tw=w-C*2; card(c,x,y,w,h,SOFT,BORDER_SOFT); MmmUi.drawTextWithin(c,this.textRenderer,l,x+C,y+9,tw,LABEL,false); MmmUi.drawTextWithin(c,this.textRenderer,v,x+C,y+24,tw,inactiveValueColor(v),false); MmmUi.drawTextWithin(c,this.textRenderer,s,x+C,y+38,tw,MUTED,false); }
     private void pill(DrawContext c,int x,int y,int w,int h,String t){ String clipped=MmmUi.truncate(this.textRenderer,t,w-8); card(c,x,y,w,h,CARD,ACCENT); c.drawText(this.textRenderer, Text.literal(clipped), x+Math.max(4,(w-this.textRenderer.getWidth(clipped))/2), y+4, ACCENT, false); }
     private void card(DrawContext c,int x,int y,int w,int h,int fill,int border){ MmmUi.card(c,x,y,w,h,fill,border); }
     private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); int col=this.draggingList?MmmUi.SCROLLBAR_THUMB_ACTIVE:isOverListBar(mx,my)?MmmUi.SCROLLBAR_THUMB_HOVER:MmmUi.SCROLLBAR_THUMB; c.fill(x+1,ty,x+SBW-1,ty+th,col); }
@@ -410,6 +411,7 @@ public class SessionHistoryScreen extends Screen
     private void playClick(){ MinecraftClient client=MinecraftClient.getInstance(); if(client!=null&&client.getSoundManager()!=null) client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK,1.0F)); }
     private void curve(DrawContext c,float sx,float sy,float ex,float ey,float py,float ny){ int steps=Math.max(6,Math.round(Math.abs(ex-sx)*1.5F)); for(int s=0;s<=steps;s++){ float t=s/(float)steps, px=MathHelper.lerp(t,sx,ex), ts=(ey-py)*0.5F, te=(ny-sy)*0.5F, t2=t*t, t3=t2*t; float yy=(2.0F*t3-3.0F*t2+1.0F)*sy+(t3-2.0F*t2+t)*ts+(-2.0F*t3+3.0F*t2)*ey+(t3-t2)*te; int ix=Math.round(px), iy=Math.round(yy); c.fill(ix,iy,ix+2,iy+2,ACCENT); c.fill(ix,iy+2,ix+2,iy+3,GRAPH_FILL);} }
     private String formatClock(long ms){ long s=Math.max(0L,ms/1000L), h=s/3600L, m=(s%3600L)/60L, sec=s%60L; return String.format("%02d:%02d:%02d",h,m,sec); }
+    private static int inactiveValueColor(String value){ String text=value==null?"":value.trim(); return "--".equals(text)||"Paused".equals(text)||"00:00:00".equals(text)?INACTIVE:TEXT; }
     private SessionData getSelected(){ return this.selectedIndex>=0&&this.selectedIndex<this.sessions.size()?this.sessions.get(this.selectedIndex):null; }
     private String getTopBlock(SessionData session){ String id=null; long count=0L; for(Map.Entry<String,Long> e:session.blockBreakdown.entrySet()) if(e.getValue()>count){ id=e.getKey(); count=e.getValue(); } return id==null?"No breakdown":resolveName(id)+" ("+UiFormat.formatCompact(count)+")"; }
     private String resolveName(String id){ try{ Identifier i=Identifier.tryParse(id); if(i!=null){ var b=net.minecraft.registry.Registries.BLOCK.get(i); if(b!=null) return b.getName().getString(); } }catch(Exception ignored){} return id; }

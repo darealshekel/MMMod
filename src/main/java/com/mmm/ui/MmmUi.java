@@ -27,6 +27,7 @@ public final class MmmUi
     public static final int TEXT = 0xFFF6F3EF;
     public static final int LABEL = 0xD8C9CDD5;
     public static final int MUTED = 0x9A828893;
+    public static final int INACTIVE = 0xFF949494;
     public static final int SUCCESS = 0xFF43D483;
     public static final int WARNING = 0xFFFFC857;
     public static final int ERROR = 0xFFFF5965;

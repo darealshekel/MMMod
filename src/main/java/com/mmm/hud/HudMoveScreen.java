@@ -166,6 +166,7 @@ public class HudMoveScreen extends Screen
         long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
         long worldTotal = MiningStats.getCurrentSourceTotalMined();
         long sessionTotal = MiningStats.getSessionBlocksMined();
+        boolean sessionPaused = MiningStats.isSessionPaused();
         if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue())
         {
             MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
@@ -174,8 +175,9 @@ public class HudMoveScreen extends Screen
         lines.add(PreviewLine.blocksMined("Global Total: ", globalTotal));
         lines.add(PreviewLine.blocksMined("World Total: ", worldTotal));
         lines.add(PreviewLine.blocksMined("Session Total: ", sessionTotal));
-        lines.add(PreviewLine.text("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())), MmmUi.TEXT));
-        lines.add(PreviewLine.text("Session Time: " + MiningStats.getSessionDurationClock(), MmmUi.TEXT));
+        lines.add(PreviewLine.text("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())), sessionPaused ? MmmUi.INACTIVE : MmmUi.TEXT));
+        String sessionClock = MiningStats.getSessionDurationClock();
+        lines.add(PreviewLine.text("Session Time: " + sessionClock, inactiveTextColor(sessionClock, sessionPaused)));
 
         int width = Math.max(lines.stream().mapToInt(line -> line.width(this.textRenderer)).max().orElse(190), 190);
         int lineHeight = this.textRenderer.fontHeight + 2;
@@ -250,5 +252,11 @@ public class HudMoveScreen extends Screen
                 drawX += renderer.getWidth(segment.text());
             }
         }
+    }
+
+    private static int inactiveTextColor(String value, boolean sessionPaused)
+    {
+        String text = value == null ? "" : value.trim();
+        return sessionPaused || "--".equals(text) || "Paused".equals(text) || "00:00:00".equals(text) ? MmmUi.INACTIVE : MmmUi.TEXT;
     }
 }

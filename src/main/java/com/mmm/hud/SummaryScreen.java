@@ -52,6 +52,7 @@ public class SummaryScreen extends Screen
     private static final int COLOR_VALUE = MmmUi.TEXT;
     private static final int COLOR_LABEL = MmmUi.LABEL;
     private static final int COLOR_MUTED = MmmUi.MUTED;
+    private static final int COLOR_INACTIVE = MmmUi.INACTIVE;
     private static final int COLOR_SUCCESS = MmmUi.SUCCESS;
     private static final Map<String, String> NAME_CACHE = new LinkedHashMap<>();
     private static final Map<String, ItemStack> ICON_CACHE = new LinkedHashMap<>();
@@ -428,7 +429,7 @@ public class SummaryScreen extends Screen
         fillRoundedCard(context, x, y, width, height, COLOR_CARD_SOFT, COLOR_BORDER_SOFT);
         int textWidth = width - CARD_PADDING * 2;
         MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y + 9, textWidth, COLOR_LABEL, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, value, x + CARD_PADDING, y + 24, textWidth, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, value, x + CARD_PADDING, y + 24, textWidth, inactiveValueColor(value), false);
         if (suffix.isBlank() == false)
         {
             MmmUi.drawTextWithin(context, this.textRenderer, suffix, x + CARD_PADDING, y + 38, textWidth, COLOR_MUTED, false);
@@ -736,6 +737,12 @@ public class SummaryScreen extends Screen
         long minutes = (totalSeconds % 3600L) / 60L;
         long seconds = totalSeconds % 60L;
         return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+    }
+
+    private static int inactiveValueColor(String value)
+    {
+        String text = value == null ? "" : value.trim();
+        return "--".equals(text) || "Paused".equals(text) || "00:00:00".equals(text) ? COLOR_INACTIVE : COLOR_VALUE;
     }
 
     private String formatGraphTimeLabel(long totalSeconds)
