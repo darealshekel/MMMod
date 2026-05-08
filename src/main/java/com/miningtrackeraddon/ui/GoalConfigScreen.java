@@ -53,16 +53,17 @@ public class GoalConfigScreen extends Screen
         updateBounds(layout);
         MmmUi.backdrop(context, this.width, this.height);
         MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
-        context.drawText(this.textRenderer, this.title, layout.contentX, layout.headerY, MmmUi.TEXT, true);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, MmmUi.TEXT, true);
         MmmUi.pill(context, this.textRenderer, layout.contentX, layout.headerY + 18, 116, 16, "Daily Target");
 
         int summaryY = layout.headerY + 46;
         MmmUi.card(context, layout.contentX, summaryY, layout.contentWidth, 54, MmmUi.CARD, MmmUi.BORDER_SOFT);
         MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
-        context.drawText(this.textRenderer, Text.literal("Progress"), layout.contentX + CARD_PADDING, summaryY + 10, MmmUi.LABEL, false);
-        context.drawText(this.textRenderer, Text.literal(UiFormat.formatProgress(progress.current(), progress.target())), layout.contentX + CARD_PADDING, summaryY + 24, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Progress", layout.contentX + CARD_PADDING, summaryY + 10, layout.contentWidth - CARD_PADDING * 2, MmmUi.LABEL, false);
         String percent = progress.getPercent() + "%";
-        context.drawText(this.textRenderer, Text.literal(percent), layout.contentX + layout.contentWidth - CARD_PADDING - this.textRenderer.getWidth(percent), summaryY + 24, MmmUi.ACCENT_BRIGHT, false);
+        int percentWidth = this.textRenderer.getWidth(percent);
+        MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatProgress(progress.current(), progress.target()), layout.contentX + CARD_PADDING, summaryY + 24, Math.max(0, layout.contentWidth - CARD_PADDING * 2 - percentWidth - 8), MmmUi.TEXT, false);
+        MmmUi.drawTextRightWithin(context, this.textRenderer, percent, layout.contentX + layout.contentWidth - CARD_PADDING, summaryY + 24, percentWidth, MmmUi.ACCENT_BRIGHT, false);
 
         context.drawText(this.textRenderer, Text.literal("Daily Goal"), layout.fieldX, layout.goalLabelY, MmmUi.LABEL, false);
         context.drawText(this.textRenderer, Text.literal("Current Progress"), layout.fieldX, layout.progressLabelY, MmmUi.LABEL, false);
@@ -74,7 +75,7 @@ public class GoalConfigScreen extends Screen
         if (!isPositive(this.dailyGoalField.getText()) || !isNonNegative(this.dailyProgressField.getText()))
         {
             MmmUi.card(context, layout.contentX, layout.errorY, layout.contentWidth, 24, MmmUi.INSET, MmmUi.ERROR);
-            context.drawText(this.textRenderer, Text.literal("Goal must be above 0. Progress must be 0 or more."), layout.contentX + 10, layout.errorY + 8, MmmUi.ERROR, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "Goal must be above 0. Progress must be 0 or more.", layout.contentX + 10, layout.errorY + 8, layout.contentWidth - 20, MmmUi.ERROR, false);
         }
     }
 

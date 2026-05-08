@@ -86,9 +86,10 @@ public class GuiConfigs extends GuiConfigsBase
     {
         int headerWidth = Math.max(1, this.width - 20);
         MmmUi.card(context, 10, 8, headerWidth, 16, MmmUi.PANEL, MmmUi.BORDER);
-        context.drawText(this.textRenderer, Text.literal("MMM"), 16, 12, MmmUi.ACCENT_BRIGHT, false);
-        context.drawText(this.textRenderer, Text.literal(tab.getDisplayName()), 52, 12, MmmUi.LABEL, false);
-        context.drawText(this.textRenderer, Text.literal(Reference.MOD_VERSION), this.width - 16 - this.textRenderer.getWidth(Reference.MOD_VERSION), 12, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 16, 12, 30, MmmUi.ACCENT_BRIGHT, false);
+        int versionWidth = this.textRenderer.getWidth(Reference.MOD_VERSION);
+        MmmUi.drawTextWithin(context, this.textRenderer, tab.getDisplayName(), 52, 12, Math.max(0, this.width - 76 - versionWidth), MmmUi.LABEL, false);
+        MmmUi.drawTextRightWithin(context, this.textRenderer, Reference.MOD_VERSION, this.width - 16, 12, versionWidth, MmmUi.MUTED, false);
     }
 
     @Override

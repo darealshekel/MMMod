@@ -56,9 +56,9 @@ public class PlayerProfileScreen extends Screen
         MmmUi.backdrop(context, this.width, this.height);
         MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
 
-        context.drawText(this.textRenderer, this.title, layout.contentX, layout.headerY, MmmUi.TEXT, true);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, Math.max(0, layout.contentWidth - 196), MmmUi.TEXT, true);
         MmmUi.statusChip(context, this.textRenderer, layout.contentX, layout.headerY + 18, syncLabel(), syncColor());
-        context.drawText(this.textRenderer, Text.literal("Local mining data is stored on this client and sent on your account cadence."), layout.contentX, layout.headerY + 42, MmmUi.LABEL, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Local mining data is stored on this client and sent on your account cadence.", layout.contentX, layout.headerY + 42, layout.contentWidth, MmmUi.LABEL, false);
 
         drawTotalsCard(context, layout.leftX, layout.cardsY, layout.cardWidth, 102);
         drawRecordsCard(context, layout.rightX, layout.cardsY, layout.cardWidth, 102);
@@ -90,10 +90,10 @@ public class PlayerProfileScreen extends Screen
         long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
         long worldTotal = MiningStats.getCurrentSourceTotalMined();
         MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
-        drawCardTitle(context, x, y, "Totals");
+        drawCardTitle(context, x, y, width, "Totals");
         drawBlocksMetric(context, x, y + 30, width, "Global Total", globalTotal);
         drawBlocksMetric(context, x, y + 56, width, "World Total", worldTotal);
-        context.drawText(this.textRenderer, Text.literal(lastGlobalUpdateText()), x + CARD_PADDING, y + height - 14, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, lastGlobalUpdateText(), x + CARD_PADDING, y + height - 14, width - CARD_PADDING * 2, MmmUi.MUTED, false);
     }
 
     private void drawRecordsCard(DrawContext context, int x, int y, int width, int height)
@@ -103,7 +103,7 @@ public class PlayerProfileScreen extends Screen
         long dailyRecord = MiningStats.getPersonalRecordDailyBlocks();
         long weeklyRecord = MiningStats.getPersonalRecordWeeklyBlocks();
         MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
-        drawCardTitle(context, x, y, "Records");
+        drawCardTitle(context, x, y, width, "Records");
         drawDualBlocksMetric(context, x, y + 28, width, "Today / Week", dailyBlocks, weeklyBlocks);
         drawDualBlocksMetric(context, x, y + 52, width, "PR Day / Week", dailyRecord, weeklyRecord);
         drawMetric(context, x, y + 76, width, "Fastest 100K", MiningStats.getFastest100kMs() > 0L ? MiningStats.getFastest100kClock() : "-", MmmUi.TEXT);
@@ -113,7 +113,7 @@ public class PlayerProfileScreen extends Screen
     {
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
         MmmUi.card(context, x, y, width, height, MmmUi.CARD_SOFT, MmmUi.BORDER);
-        drawCardTitle(context, x, y, "Current Source");
+        drawCardTitle(context, x, y, width, "Current Source");
         drawMetric(context, x, y + 30, width, "Name", MmmUi.truncate(this.textRenderer, world.displayName(), width - 92), MmmUi.TEXT);
         drawMetric(context, x, y + 56, width, "Type", world.kind(), MmmUi.TEXT);
         drawMetric(context, x, y + 82, width, "Estimated Pace", UiFormat.formatDetailedBlocksPerHour(Math.round(MiningStats.getPredictionSnapshot().blocksPerHour())), MmmUi.TEXT);
@@ -125,11 +125,11 @@ public class PlayerProfileScreen extends Screen
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
         Configs.WorldStatsEntry stats = Configs.getOrCreateWorldStats(world.id(), world.displayName(), world.kind(), world.host());
         MmmUi.card(context, x, y, width, height, MmmUi.CARD_SOFT, MmmUi.BORDER);
-        drawCardTitle(context, x, y, "Mined Blocks");
+        drawCardTitle(context, x, y, width, "Mined Blocks");
 
         if (stats.blockBreakdown == null || stats.blockBreakdown.isEmpty())
         {
-            context.drawText(this.textRenderer, Text.literal("No per-block data stored for this source yet."), x + CARD_PADDING, y + 34, MmmUi.MUTED, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "No per-block data stored for this source yet.", x + CARD_PADDING, y + 34, width - CARD_PADDING * 2, MmmUi.MUTED, false);
             return;
         }
 
@@ -142,45 +142,75 @@ public class PlayerProfileScreen extends Screen
         {
             int rowColor = index % 2 == 0 ? MmmUi.ROW_ALT : MmmUi.INSET;
             context.fill(x + CARD_PADDING, rowY - 3, x + width - CARD_PADDING, rowY + 12, rowColor);
-            context.drawText(this.textRenderer, Text.literal(formatBlockId(entry.getKey())), x + CARD_PADDING + 6, rowY, MmmUi.TEXT, false);
             String count = UiFormat.formatCompact(entry.getValue());
-            context.drawText(this.textRenderer, Text.literal(count), x + width - CARD_PADDING - 6 - this.textRenderer.getWidth(count), rowY, UiFormat.getBlocksMinedMilestoneColor(entry.getValue()), false);
+            int countWidth = this.textRenderer.getWidth(count);
+            int nameMaxWidth = Math.max(0, width - CARD_PADDING * 2 - countWidth - 20);
+            MmmUi.drawTextWithin(context, this.textRenderer, formatBlockId(entry.getKey()), x + CARD_PADDING + 6, rowY, nameMaxWidth, MmmUi.TEXT, false);
+            MmmUi.drawTextRightWithin(context, this.textRenderer, count, x + width - CARD_PADDING - 6, rowY, countWidth, UiFormat.getBlocksMinedMilestoneColor(entry.getValue()), false);
             rowY += 16;
             index++;
         }
     }
 
-    private void drawCardTitle(DrawContext context, int x, int y, String title)
+    private void drawCardTitle(DrawContext context, int x, int y, int width, String title)
     {
-        context.drawText(this.textRenderer, Text.literal(title), x + CARD_PADDING, y + 10, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, title, x + CARD_PADDING, y + 10, width - CARD_PADDING * 2, MmmUi.TEXT, false);
     }
 
     private void drawMetric(DrawContext context, int x, int y, int width, String label, String value, int valueColor)
     {
-        context.drawText(this.textRenderer, Text.literal(label), x + CARD_PADDING, y, MmmUi.MUTED, false);
-        String clipped = MmmUi.truncate(this.textRenderer, value, width - CARD_PADDING * 2 - 88);
-        context.drawText(this.textRenderer, Text.literal(clipped), x + width - CARD_PADDING - this.textRenderer.getWidth(clipped), y, valueColor, false);
+        int labelWidth = Math.min(86, Math.max(58, (width - CARD_PADDING * 2) / 2));
+        int valueWidth = Math.max(0, width - CARD_PADDING * 2 - labelWidth - 8);
+        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y, labelWidth, MmmUi.MUTED, false);
+        MmmUi.drawTextRightWithin(context, this.textRenderer, value, x + width - CARD_PADDING, y, valueWidth, valueColor, false);
     }
 
     private void drawBlocksMetric(DrawContext context, int x, int y, int width, String label, long value)
     {
-        context.drawText(this.textRenderer, Text.literal(label), x + CARD_PADDING, y, MmmUi.MUTED, false);
+        int labelWidth = Math.min(86, Math.max(58, (width - CARD_PADDING * 2) / 2));
+        int valueWidth = Math.max(0, width - CARD_PADDING * 2 - labelWidth - 8);
+        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y, labelWidth, MmmUi.MUTED, false);
         String number = UiFormat.formatCompact(value);
         String suffix = " blocks";
         int suffixWidth = this.textRenderer.getWidth(suffix);
         int numberWidth = this.textRenderer.getWidth(number);
+        if (numberWidth + suffixWidth > valueWidth)
+        {
+            suffix = "";
+            suffixWidth = 0;
+        }
+        if (numberWidth > valueWidth)
+        {
+            MmmUi.drawTextRightWithin(context, this.textRenderer, number, x + width - CARD_PADDING, y, valueWidth, UiFormat.getBlocksMinedMilestoneColor(value), false);
+            return;
+        }
         int drawX = x + width - CARD_PADDING - numberWidth - suffixWidth;
         context.drawText(this.textRenderer, Text.literal(number), drawX, y, UiFormat.getBlocksMinedMilestoneColor(value), false);
-        context.drawText(this.textRenderer, Text.literal(suffix), drawX + numberWidth, y, MmmUi.TEXT, false);
+        if (suffix.isEmpty() == false)
+        {
+            context.drawText(this.textRenderer, Text.literal(suffix), drawX + numberWidth, y, MmmUi.TEXT, false);
+        }
     }
 
     private void drawDualBlocksMetric(DrawContext context, int x, int y, int width, String label, long left, long right)
     {
-        context.drawText(this.textRenderer, Text.literal(label), x + CARD_PADDING, y, MmmUi.MUTED, false);
+        int labelWidth = Math.min(86, Math.max(58, (width - CARD_PADDING * 2) / 2));
+        int valueWidth = Math.max(0, width - CARD_PADDING * 2 - labelWidth - 8);
+        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y, labelWidth, MmmUi.MUTED, false);
         String leftText = UiFormat.formatCompact(left);
         String separator = " / ";
         String rightText = UiFormat.formatCompact(right);
         int totalWidth = this.textRenderer.getWidth(leftText) + this.textRenderer.getWidth(separator) + this.textRenderer.getWidth(rightText);
+        if (totalWidth > valueWidth)
+        {
+            separator = "/";
+            totalWidth = this.textRenderer.getWidth(leftText) + this.textRenderer.getWidth(separator) + this.textRenderer.getWidth(rightText);
+        }
+        if (totalWidth > valueWidth)
+        {
+            MmmUi.drawTextRightWithin(context, this.textRenderer, rightText, x + width - CARD_PADDING, y, valueWidth, UiFormat.getBlocksMinedMilestoneColor(right), false);
+            return;
+        }
         int drawX = x + width - CARD_PADDING - totalWidth;
         context.drawText(this.textRenderer, Text.literal(leftText), drawX, y, UiFormat.getBlocksMinedMilestoneColor(left), false);
         drawX += this.textRenderer.getWidth(leftText);

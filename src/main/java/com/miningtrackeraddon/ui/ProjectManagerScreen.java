@@ -231,16 +231,16 @@ public class ProjectManagerScreen extends Screen
 
     private void drawHeader(DrawContext context, Layout layout)
     {
-        context.drawText(this.textRenderer, this.title, layout.contentX, layout.headerY, COLOR_VALUE, true);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
         drawPill(context, layout.contentX, layout.headerY + 18, Math.min(220, layout.contentWidth / 2), 16, "Project Progress", COLOR_CARD, COLOR_ACCENT);
-        context.drawText(this.textRenderer, Text.literal("Stored progress and active project edits stay in one clean panel."), layout.contentX + 2, layout.headerY + 34, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Stored progress and active project edits stay in one clean panel.", layout.contentX + 2, layout.headerY + 34, layout.contentWidth - 4, COLOR_LABEL, false);
     }
 
     private void drawProjectList(DrawContext context, Layout layout, int mouseX, int mouseY)
     {
         fillCard(context, layout.listX, layout.listY, layout.listWidth, layout.listHeight, COLOR_CARD_SOFT, COLOR_BORDER);
-        context.drawText(this.textRenderer, Text.literal("Projects"), layout.listX + CARD_PADDING, layout.listY + 10, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal("Choose a project to edit or switch active progress."), layout.listX + CARD_PADDING, layout.listY + 24, COLOR_MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Projects", layout.listX + CARD_PADDING, layout.listY + 10, layout.listWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Choose a project to edit or switch active progress.", layout.listX + CARD_PADDING, layout.listY + 24, layout.listWidth - CARD_PADDING * 2, COLOR_MUTED, false);
 
         int listX = layout.listX + CARD_PADDING;
         int listY = layout.listY + 44;
@@ -267,18 +267,18 @@ public class ProjectManagerScreen extends Screen
             ProjectEntry project = Configs.PROJECTS.get(projectIndex);
             int rowY = drawY + row * ROW_HEIGHT;
             boolean hovered = mouseX >= listX && mouseX <= listX + viewportWidth && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 4;
-            int rowColor = projectIndex == this.selectedIndex ? COLOR_ROW_SELECTED : hovered ? COLOR_ROW_HOVER : ((row & 1) == 0 ? COLOR_ROW_ALT : 0x120E1116);
+            int rowColor = projectIndex == this.selectedIndex ? COLOR_ROW_SELECTED : hovered ? COLOR_ROW_HOVER : ((row & 1) == 0 ? COLOR_ROW_ALT : COLOR_INSET);
             context.fill(listX + 4, rowY, listX + viewportWidth - 4, rowY + ROW_HEIGHT - 4, rowColor);
-
-            String name = truncateToWidth(project.name, viewportWidth - 110);
-            context.drawText(this.textRenderer, Text.literal(name), listX + 12, rowY + 6, COLOR_VALUE, false);
 
             String stats = UiFormat.formatCompact(project.progress) + " blocks";
             int statsWidth = this.textRenderer.getWidth(stats);
-            context.drawText(this.textRenderer, Text.literal(stats), listX + viewportWidth - statsWidth - 12, rowY + 6, COLOR_ACCENT, false);
+            int statsMaxWidth = Math.min(statsWidth, Math.max(42, viewportWidth / 2 - 16));
+            int nameMaxWidth = Math.max(0, viewportWidth - statsMaxWidth - 36);
+            MmmUi.drawTextWithin(context, this.textRenderer, project.name, listX + 12, rowY + 6, nameMaxWidth, COLOR_VALUE, false);
+            MmmUi.drawTextRightWithin(context, this.textRenderer, stats, listX + viewportWidth - 12, rowY + 6, statsMaxWidth, COLOR_ACCENT, false);
 
             String state = project.id.equals(Configs.activeProjectId) ? "Active" : "Stored";
-            context.drawText(this.textRenderer, Text.literal(state), listX + 12, rowY + 18, project.id.equals(Configs.activeProjectId) ? COLOR_SUCCESS : COLOR_MUTED, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, state, listX + 12, rowY + 18, viewportWidth - 24, project.id.equals(Configs.activeProjectId) ? COLOR_SUCCESS : COLOR_MUTED, false);
         }
 
         context.disableScissor();
@@ -288,13 +288,13 @@ public class ProjectManagerScreen extends Screen
     private void drawDetailCard(DrawContext context, Layout layout)
     {
         fillCard(context, layout.detailX, layout.detailY, layout.detailWidth, layout.detailHeight, COLOR_CARD, COLOR_BORDER);
-        context.drawText(this.textRenderer, Text.literal("Project Detail"), layout.detailX + CARD_PADDING, layout.detailY + 10, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal("Edit the saved project name and total without leaving the panel."), layout.detailX + CARD_PADDING, layout.detailY + 24, COLOR_MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Project Detail", layout.detailX + CARD_PADDING, layout.detailY + 10, layout.detailWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Edit the saved project name and total without leaving the panel.", layout.detailX + CARD_PADDING, layout.detailY + 24, layout.detailWidth - CARD_PADDING * 2, COLOR_MUTED, false);
 
         ProjectEntry selected = getSelectedProject();
         if (selected == null)
         {
-            context.drawText(this.textRenderer, Text.literal("No project selected."), layout.detailX + CARD_PADDING, layout.detailY + 34, COLOR_MUTED, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "No project selected.", layout.detailX + CARD_PADDING, layout.detailY + 34, layout.detailWidth - CARD_PADDING * 2, COLOR_MUTED, false);
             return;
         }
 
@@ -490,22 +490,24 @@ public class ProjectManagerScreen extends Screen
     {
         int width = this.textRenderer.getWidth(label) + 14;
         fillCard(context, x, y, width, 16, COLOR_INSET, accentColor);
-        context.drawText(this.textRenderer, Text.literal(label), x + 7, y + 4, accentColor, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, label, x + 7, y + 4, width - 14, accentColor, false);
     }
 
     private void drawStatCard(DrawContext context, int x, int y, int width, int height, String label, String value, String suffix)
     {
         fillCard(context, x, y, width, height, COLOR_CARD_SOFT, COLOR_BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(label), x + CARD_PADDING, y + 7, COLOR_LABEL, false);
-        context.drawText(this.textRenderer, Text.literal(value), x + CARD_PADDING, y + 20, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal(suffix), x + CARD_PADDING, y + 32, COLOR_MUTED, false);
+        int textWidth = width - CARD_PADDING * 2;
+        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y + 7, textWidth, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, value, x + CARD_PADDING, y + 20, textWidth, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, suffix, x + CARD_PADDING, y + 32, textWidth, COLOR_MUTED, false);
     }
 
     private void drawPill(DrawContext context, int x, int y, int width, int height, String text, int fillColor, int borderColor)
     {
         fillCard(context, x, y, width, height, fillColor, borderColor);
-        int textX = x + (width - this.textRenderer.getWidth(text)) / 2;
-        context.drawText(this.textRenderer, Text.literal(text), textX, y + 4, COLOR_ACCENT, false);
+        String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
+        int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
+        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, COLOR_ACCENT, false);
     }
 
     private void fillCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
@@ -615,18 +617,7 @@ public class ProjectManagerScreen extends Screen
 
     private String truncateToWidth(String value, int maxWidth)
     {
-        if (this.textRenderer.getWidth(value) <= maxWidth)
-        {
-            return value;
-        }
-
-        String ellipsis = "...";
-        String trimmed = value;
-        while (trimmed.length() > 1 && this.textRenderer.getWidth(trimmed + ellipsis) > maxWidth)
-        {
-            trimmed = trimmed.substring(0, trimmed.length() - 1);
-        }
-        return trimmed + ellipsis;
+        return MmmUi.truncate(this.textRenderer, value, maxWidth);
     }
 
     private Layout computeLayout()

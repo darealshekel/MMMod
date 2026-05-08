@@ -53,7 +53,7 @@ public class NotificationSettingsScreen extends Screen
         updateBounds(layout);
         MmmUi.backdrop(context, this.width, this.height);
         MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
-        context.drawText(this.textRenderer, this.title, layout.contentX, layout.headerY, MmmUi.TEXT, true);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, MmmUi.TEXT, true);
         MmmUi.pill(context, this.textRenderer, layout.contentX, layout.headerY + 18, 136, 16, "Goal Alerts");
 
         MmmUi.card(context, layout.contentX, layout.headerY + 46, layout.contentWidth, 48, MmmUi.CARD, MmmUi.BORDER_SOFT);
@@ -69,7 +69,7 @@ public class NotificationSettingsScreen extends Screen
         if (parseThresholds(this.thresholdField.getText()) == null || parseSound(this.soundThresholdField.getText()) == null)
         {
             MmmUi.card(context, layout.contentX, layout.errorY, layout.contentWidth, 24, MmmUi.INSET, MmmUi.ERROR);
-            context.drawText(this.textRenderer, Text.literal("Use percentages from 1 to 100, separated with commas."), layout.contentX + 10, layout.errorY + 8, MmmUi.ERROR, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "Use percentages from 1 to 100, separated with commas.", layout.contentX + 10, layout.errorY + 8, layout.contentWidth - 20, MmmUi.ERROR, false);
         }
     }
 

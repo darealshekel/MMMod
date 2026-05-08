@@ -218,9 +218,9 @@ public class SummaryScreen extends Screen
 
     private void drawHeader(DrawContext context, Layout layout)
     {
-        context.drawText(this.textRenderer, Text.literal(this.heading), layout.contentX, layout.headerY, COLOR_VALUE, true);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.heading, layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
         drawPill(context, layout.contentX, layout.headerY + 18, Math.min(200, layout.graphWidth - 20), 16, this.worldName, COLOR_CARD, COLOR_ACCENT);
-        context.drawText(this.textRenderer, Text.literal("Session pace, goals, and block mix in the MMM website style."), layout.contentX + 2, layout.headerY + 40, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Session pace, goals, and block mix in the MMM website style.", layout.contentX + 2, layout.headerY + 40, layout.contentWidth - 4, COLOR_LABEL, false);
     }
 
     private void drawStatCards(DrawContext context, Layout layout)
@@ -237,8 +237,8 @@ public class SummaryScreen extends Screen
     private void drawGraphCard(DrawContext context, Layout layout, int mouseX, int mouseY, float animation)
     {
         fillRoundedCard(context, layout.graphX, layout.graphY, layout.graphWidth, layout.graphHeight, COLOR_CARD, COLOR_BORDER);
-        context.drawText(this.textRenderer, Text.literal("Mining Rate"), layout.graphX + CARD_PADDING, layout.graphY + 10, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal("Blocks per hour over active session time"), layout.graphX + CARD_PADDING, layout.graphY + 24, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Mining Rate", layout.graphX + CARD_PADDING, layout.graphY + 10, layout.graphWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Blocks per hour over active session time", layout.graphX + CARD_PADDING, layout.graphY + 24, layout.graphWidth - CARD_PADDING * 2, COLOR_LABEL, false);
 
         int chartX = layout.graphX + CARD_PADDING;
         int chartY = layout.graphY + 42;
@@ -250,7 +250,7 @@ public class SummaryScreen extends Screen
     private void drawGoalCard(DrawContext context, Layout layout)
     {
         fillRoundedCard(context, layout.goalX, layout.goalY, layout.goalWidth, layout.goalHeight, COLOR_CARD, COLOR_BORDER);
-        context.drawText(this.textRenderer, Text.literal("Daily Goal"), layout.goalX + CARD_PADDING, layout.goalY + 10, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Daily Goal", layout.goalX + CARD_PADDING, layout.goalY + 10, layout.goalWidth - CARD_PADDING * 2, COLOR_VALUE, false);
 
         MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
         if (progress.enabled() == false)
@@ -264,25 +264,25 @@ public class SummaryScreen extends Screen
         int barY = layout.goalY + 42;
         int barWidth = layout.goalWidth - CARD_PADDING * 2;
         int percentWidth = this.textRenderer.getWidth(progress.getPercent() + "%");
-        context.drawText(this.textRenderer, Text.literal(UiFormat.formatProgress(progress.current(), progress.target())), barX, layout.goalY + 27, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal(progress.getPercent() + "%"), barX + barWidth - percentWidth, layout.goalY + 27, goalColor, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatProgress(progress.current(), progress.target()), barX, layout.goalY + 27, Math.max(0, barWidth - percentWidth - 8), COLOR_VALUE, false);
+        MmmUi.drawTextRightWithin(context, this.textRenderer, progress.getPercent() + "%", barX + barWidth, layout.goalY + 27, percentWidth, goalColor, false);
 
         int fillWidth = progress.target() <= 0 ? 0 : (int) Math.round(barWidth * Math.min(1.0D, progress.current() / (double) progress.target()));
-        context.fill(barX, barY, barX + barWidth, barY + 8, 0x33293B4E);
+        context.fill(barX, barY, barX + barWidth, barY + 8, MmmUi.INSET);
         context.fill(barX, barY, barX + fillWidth, barY + 8, goalColor);
         context.drawBorder(barX, barY, barWidth, 8, COLOR_BORDER);
 
         String etaText = "ETA: " + MiningStats.getEstimatedTimeToDailyGoal();
         String streakText = "Best Streak: " + this.session.bestStreakSeconds + "s";
-        context.drawText(this.textRenderer, Text.literal(etaText), barX, barY + 16, COLOR_LABEL, false);
-        context.drawText(this.textRenderer, Text.literal(streakText), barX, barY + 30, COLOR_MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, etaText, barX, barY + 16, barWidth, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, streakText, barX, barY + 30, barWidth, COLOR_MUTED, false);
     }
 
     private void drawBreakdownCard(DrawContext context, Layout layout, int mouseX, int mouseY)
     {
         fillRoundedCard(context, layout.breakdownX, layout.breakdownY, layout.breakdownWidth, layout.breakdownHeight, COLOR_CARD_SOFT, COLOR_BORDER);
-        context.drawText(this.textRenderer, Text.literal("Block Breakdown"), layout.breakdownX + CARD_PADDING, layout.breakdownY + 10, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal("Search and scan the blocks that shaped the run."), layout.breakdownX + CARD_PADDING, layout.breakdownY + 21, COLOR_MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Block Breakdown", layout.breakdownX + CARD_PADDING, layout.breakdownY + 10, layout.breakdownWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Search and scan the blocks that shaped the run.", layout.breakdownX + CARD_PADDING, layout.breakdownY + 21, layout.breakdownWidth - CARD_PADDING * 2, COLOR_MUTED, false);
 
         int listX = layout.breakdownX + CARD_PADDING;
         int listY = layout.breakdownY + 60;
@@ -290,8 +290,8 @@ public class SummaryScreen extends Screen
         int listHeight = layout.breakdownHeight - 72;
         int viewportWidth = listWidth - SCROLLBAR_WIDTH - 6;
 
-        context.fill(listX, listY, listX + listWidth, listY + listHeight, 0x22131B27);
-        context.drawBorder(listX, listY, listWidth, listHeight, 0x663A5368);
+        context.fill(listX, listY, listX + listWidth, listY + listHeight, MmmUi.INSET);
+        context.drawBorder(listX, listY, listWidth, listHeight, COLOR_BORDER_SOFT);
 
         context.enableScissor(listX, listY, listX + viewportWidth, listY + listHeight);
         int drawY = listY + 6 - this.breakdownScrollOffset;
@@ -316,7 +316,7 @@ public class SummaryScreen extends Screen
 
     private void drawBreakdownRow(DrawContext context, int x, int y, int width, BlockBreakdownEntry entry)
     {
-        int rowColor = ((y / BREAKDOWN_ROW_HEIGHT) & 1) == 0 ? 0x141B2431 : 0x0D151F2A;
+        int rowColor = ((y / BREAKDOWN_ROW_HEIGHT) & 1) == 0 ? MmmUi.ROW_ALT : MmmUi.INSET;
         context.fill(x - 2, y - 1, x + width, y + BREAKDOWN_ROW_HEIGHT - 2, rowColor);
         context.drawItem(entry.icon(), x, y + 1);
 
@@ -333,7 +333,7 @@ public class SummaryScreen extends Screen
     private void drawMiningRateGraph(DrawContext context, int x, int y, int width, int height, float animation)
     {
         List<Double> rates = buildGraphRates();
-        context.fill(x, y, x + width, y + height, 0x1C0B121C);
+        context.fill(x, y, x + width, y + height, MmmUi.INSET);
 
         for (int i = 0; i < 4; i++)
         {
@@ -390,7 +390,7 @@ public class SummaryScreen extends Screen
         {
             int pointX = pointsX[column];
             int pointY = Math.round(pointsY[column]);
-            context.fill(pointX, pointY, pointX + 2, fillBaseY, 0x1426D6FF);
+            context.fill(pointX, pointY, pointX + 2, fillBaseY, MmmUi.ACCENT_SOFT);
         }
 
         for (int column = 0; column < revealColumns - 1; column++)
@@ -423,11 +423,12 @@ public class SummaryScreen extends Screen
     private void drawStatCard(DrawContext context, int x, int y, int width, int height, String label, String value, String suffix)
     {
         fillRoundedCard(context, x, y, width, height, COLOR_CARD_SOFT, COLOR_BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(label), x + CARD_PADDING, y + 9, COLOR_LABEL, false);
-        context.drawText(this.textRenderer, Text.literal(value), x + CARD_PADDING, y + 24, COLOR_VALUE, false);
+        int textWidth = width - CARD_PADDING * 2;
+        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y + 9, textWidth, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, value, x + CARD_PADDING, y + 24, textWidth, COLOR_VALUE, false);
         if (suffix.isBlank() == false)
         {
-            context.drawText(this.textRenderer, Text.literal(suffix), x + CARD_PADDING, y + 38, COLOR_MUTED, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, suffix, x + CARD_PADDING, y + 38, textWidth, COLOR_MUTED, false);
         }
     }
 
@@ -464,8 +465,9 @@ public class SummaryScreen extends Screen
     private void drawPill(DrawContext context, int x, int y, int width, int height, String text, int fillColor, int borderColor)
     {
         fillRoundedCard(context, x, y, width, height, fillColor, borderColor);
-        int textX = x + (width - this.textRenderer.getWidth(text)) / 2;
-        context.drawText(this.textRenderer, Text.literal(text), textX, y + 4, COLOR_ACCENT, false);
+        String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
+        int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
+        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, COLOR_ACCENT, false);
     }
 
     private void fillRoundedCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)

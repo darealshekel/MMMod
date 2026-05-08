@@ -140,7 +140,7 @@ public class WebsiteLinkScreen extends Screen
 
     private void drawHeader(DrawContext context, Layout layout)
     {
-        context.drawText(this.textRenderer, this.title, layout.contentX, layout.headerY, COLOR_VALUE, true);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
         drawPill(context, layout.contentX, layout.headerY + 18, 126, 16, "Account Sync");
         drawWrappedText(
                 context,
@@ -154,8 +154,8 @@ public class WebsiteLinkScreen extends Screen
     private void drawStepsCard(DrawContext context, Layout layout)
     {
         fillCard(context, layout.stepsX, layout.stepsY, layout.stepsWidth, layout.stepsHeight, COLOR_CARD, COLOR_BORDER);
-        context.drawText(this.textRenderer, Text.literal("How It Works"), layout.stepsX + CARD_PADDING, layout.stepsY + 10, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal("Three direct actions. No filler controls."), layout.stepsX + CARD_PADDING, layout.stepsY + 23, COLOR_MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "How It Works", layout.stepsX + CARD_PADDING, layout.stepsY + 10, layout.stepsWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Three direct actions. No filler controls.", layout.stepsX + CARD_PADDING, layout.stepsY + 23, layout.stepsWidth - CARD_PADDING * 2, COLOR_MUTED, false);
 
         int rowY = layout.stepsY + 46;
         int rowWidth = layout.stepsWidth - CARD_PADDING * 2;
@@ -169,10 +169,10 @@ public class WebsiteLinkScreen extends Screen
     private void drawLinkCard(DrawContext context, Layout layout)
     {
         fillCard(context, layout.linkX, layout.linkY, layout.linkWidth, layout.linkHeight, COLOR_CARD_SOFT, COLOR_BORDER);
-        context.drawText(this.textRenderer, Text.literal("Link Code"), layout.linkX + CARD_PADDING, layout.linkY + 10, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal("Paste the code from the site and finish the account link from here."), layout.linkX + CARD_PADDING, layout.linkY + 23, COLOR_MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Link Code", layout.linkX + CARD_PADDING, layout.linkY + 10, layout.linkWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Paste the code from the site and finish the account link from here.", layout.linkX + CARD_PADDING, layout.linkY + 23, layout.linkWidth - CARD_PADDING * 2, COLOR_MUTED, false);
         context.drawText(this.textRenderer, Text.literal("Website"), layout.linkX + CARD_PADDING, layout.linkY + 46, COLOR_LABEL, false);
-        context.drawText(this.textRenderer, Text.literal(WEBSITE_LOGIN_URL), layout.linkX + CARD_PADDING + 52, layout.linkY + 46, COLOR_ACCENT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, WEBSITE_LOGIN_URL, layout.linkX + CARD_PADDING + 52, layout.linkY + 46, layout.linkWidth - CARD_PADDING * 2 - 52, COLOR_ACCENT, false);
         context.drawText(this.textRenderer, Text.literal("Website Code"), layout.linkX + CARD_PADDING, layout.linkY + 64, COLOR_LABEL, false);
     }
 
@@ -203,7 +203,7 @@ public class WebsiteLinkScreen extends Screen
         };
 
         fillCard(context, layout.statusX, layout.statusY, layout.statusWidth, layout.statusHeight, COLOR_CARD_SOFT, COLOR_BORDER);
-        context.drawText(this.textRenderer, Text.literal("Saved Link"), layout.statusX + CARD_PADDING, layout.statusY + 10, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Saved Link", layout.statusX + CARD_PADDING, layout.statusY + 10, layout.statusWidth - CARD_PADDING * 2, COLOR_VALUE, false);
         drawStatusChip(context, layout.statusX + CARD_PADDING, layout.statusY + 28, stateLabel, stateColor);
 
         int summaryY = layout.statusY + 52;
@@ -228,7 +228,7 @@ public class WebsiteLinkScreen extends Screen
                 default -> COLOR_MUTED;
             };
             fillCard(context, layout.statusX + CARD_PADDING, summaryY + 72, layout.statusWidth - CARD_PADDING * 2, 54, COLOR_INSET, COLOR_BORDER_SOFT);
-            context.drawText(this.textRenderer, Text.literal("Latest Status"), layout.statusX + CARD_PADDING + 10, summaryY + 80, COLOR_LABEL, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "Latest Status", layout.statusX + CARD_PADDING + 10, summaryY + 80, layout.statusWidth - CARD_PADDING * 2 - 20, COLOR_LABEL, false);
             drawWrappedText(context, state.detail(), layout.statusX + CARD_PADDING + 10, summaryY + 92, layout.statusWidth - CARD_PADDING * 2 - 20, detailColor);
         }
     }
@@ -237,7 +237,7 @@ public class WebsiteLinkScreen extends Screen
     {
         fillCard(context, x, y, width, 64, COLOR_INSET, COLOR_BORDER_SOFT);
         context.drawText(this.textRenderer, Text.literal(number), x + 10, y + 10, COLOR_ACCENT, false);
-        context.drawText(this.textRenderer, Text.literal(title), x + 24, y + 10, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, title, x + 24, y + 10, width - 34, COLOR_VALUE, false);
         drawWrappedText(context, description, x + 10, y + 27, width - 20, COLOR_MUTED);
     }
 
@@ -269,14 +269,15 @@ public class WebsiteLinkScreen extends Screen
     private void drawPill(DrawContext context, int x, int y, int width, int height, String text)
     {
         fillCard(context, x, y, width, height, COLOR_CARD, COLOR_ACCENT);
-        context.drawText(this.textRenderer, Text.literal(text), x + (width - this.textRenderer.getWidth(text)) / 2, y + 4, COLOR_ACCENT, false);
+        String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
+        context.drawText(this.textRenderer, Text.literal(clipped), x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2), y + 4, COLOR_ACCENT, false);
     }
 
     private void drawStatusChip(DrawContext context, int x, int y, String text, int borderColor)
     {
         int width = this.textRenderer.getWidth(text) + 16;
         fillCard(context, x, y, width, 16, COLOR_INSET, borderColor);
-        context.drawText(this.textRenderer, Text.literal(text), x + 8, y + 4, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, text, x + 8, y + 4, width - 16, COLOR_VALUE, false);
     }
 
     private void fillCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)

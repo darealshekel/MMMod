@@ -11,33 +11,35 @@ import net.minecraft.text.Text;
 
 public final class MmmUi
 {
-    public static final int OVERLAY = 0xF2030305;
-    public static final int PANEL = 0xF507080B;
-    public static final int CARD = 0xE80A0B10;
-    public static final int CARD_SOFT = 0xD806070A;
-    public static final int INSET = 0xD0020305;
+    public static final int BLACK = 0xFF1F1F1F;
+    public static final int RED = 0xFFE00000;
+    public static final int OVERLAY = 0xF21F1F1F;
+    public static final int PANEL = BLACK;
+    public static final int CARD = 0xF21F1F1F;
+    public static final int CARD_SOFT = 0xE81F1F1F;
+    public static final int INSET = 0xD81F1F1F;
     public static final int BORDER = 0xB01E232B;
     public static final int BORDER_SOFT = 0x66303945;
-    public static final int ACCENT = 0xFFFF1E2D;
-    public static final int ACCENT_BRIGHT = 0xFFFF4A55;
-    public static final int ACCENT_SOFT = 0x4A320007;
-    public static final int ACCENT_ROW = 0x4A210006;
+    public static final int ACCENT = RED;
+    public static final int ACCENT_BRIGHT = RED;
+    public static final int ACCENT_SOFT = 0x33E00000;
+    public static final int ACCENT_ROW = 0x3DE00000;
     public static final int TEXT = 0xFFF6F3EF;
     public static final int LABEL = 0xD8C9CDD5;
     public static final int MUTED = 0x9A828893;
     public static final int SUCCESS = 0xFF43D483;
     public static final int WARNING = 0xFFFFC857;
     public static final int ERROR = 0xFFFF5965;
-    public static final int BLUE = 0xFF5FB8FF;
-    public static final int ROW_SELECTED = 0x5C260007;
-    public static final int ROW_HOVER = 0x381E080D;
-    public static final int ROW_ALT = 0x1E0A0B10;
-    public static final int GRAPH_FILL = 0xBFFF1E2D;
-    public static final int GRAPH_GRID = 0x28FF1E2D;
-    public static final int SCROLLBAR_TRACK = 0x44101014;
-    public static final int SCROLLBAR_THUMB = 0xFF9D2430;
-    public static final int SCROLLBAR_THUMB_HOVER = 0xFFFF3A47;
-    public static final int SCROLLBAR_THUMB_ACTIVE = 0xFFFF6770;
+    public static final int BLUE = RED;
+    public static final int ROW_SELECTED = 0x52E00000;
+    public static final int ROW_HOVER = 0x26E00000;
+    public static final int ROW_ALT = 0x221F1F1F;
+    public static final int GRAPH_FILL = 0xBFE00000;
+    public static final int GRAPH_GRID = 0x28E00000;
+    public static final int SCROLLBAR_TRACK = 0x441F1F1F;
+    public static final int SCROLLBAR_THUMB = RED;
+    public static final int SCROLLBAR_THUMB_HOVER = RED;
+    public static final int SCROLLBAR_THUMB_ACTIVE = RED;
 
     private MmmUi()
     {
@@ -56,7 +58,7 @@ public final class MmmUi
     {
         context.fill(0, 0, width, height, OVERLAY);
 
-        int gridColor = 0x16FF1E2D;
+        int gridColor = 0x16E00000;
         for (int x = 0; x < width; x += 24)
         {
             context.fill(x, 0, x + 1, height, gridColor);
@@ -82,15 +84,16 @@ public final class MmmUi
     public static void pill(DrawContext context, TextRenderer renderer, int x, int y, int width, int height, String text)
     {
         card(context, x, y, width, height, CARD, ACCENT);
-        int textX = x + Math.max(4, (width - renderer.getWidth(text)) / 2);
-        context.drawText(renderer, Text.literal(text), textX, y + 4, ACCENT_BRIGHT, false);
+        String clipped = truncate(renderer, text, width - 8);
+        int textX = x + Math.max(4, (width - renderer.getWidth(clipped)) / 2);
+        context.drawText(renderer, Text.literal(clipped), textX, y + 4, ACCENT_BRIGHT, false);
     }
 
     public static void statusChip(DrawContext context, TextRenderer renderer, int x, int y, String text, int borderColor)
     {
         int width = renderer.getWidth(text) + 14;
         card(context, x, y, width, 16, INSET, borderColor);
-        context.drawText(renderer, Text.literal(text), x + 7, y + 4, TEXT, false);
+        drawTextWithin(context, renderer, text, x + 7, y + 4, width - 14, TEXT, false);
     }
 
     public static void wrappedText(DrawContext context, TextRenderer renderer, String text, int x, int y, int maxWidth, int color)
@@ -104,9 +107,34 @@ public final class MmmUi
         }
     }
 
+    public static void drawTextWithin(DrawContext context, TextRenderer renderer, String value, int x, int y, int maxWidth, int color, boolean shadow)
+    {
+        if (maxWidth <= 0)
+        {
+            return;
+        }
+
+        context.drawText(renderer, Text.literal(truncate(renderer, value, maxWidth)), x, y, color, shadow);
+    }
+
+    public static void drawTextRightWithin(DrawContext context, TextRenderer renderer, String value, int rightX, int y, int maxWidth, int color, boolean shadow)
+    {
+        if (maxWidth <= 0)
+        {
+            return;
+        }
+
+        String clipped = truncate(renderer, value, maxWidth);
+        context.drawText(renderer, Text.literal(clipped), rightX - renderer.getWidth(clipped), y, color, shadow);
+    }
+
     public static String truncate(TextRenderer renderer, String value, int maxWidth)
     {
         if (value == null)
+        {
+            return "";
+        }
+        if (maxWidth <= 0)
         {
             return "";
         }
@@ -116,10 +144,19 @@ public final class MmmUi
         }
 
         String ellipsis = "...";
+        if (renderer.getWidth(ellipsis) > maxWidth)
+        {
+            return "";
+        }
+
         String trimmed = value;
         while (trimmed.length() > 1 && renderer.getWidth(trimmed + ellipsis) > maxWidth)
         {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        if (renderer.getWidth(trimmed + ellipsis) > maxWidth)
+        {
+            return ellipsis;
         }
         return trimmed + ellipsis;
     }

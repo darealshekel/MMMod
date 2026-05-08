@@ -183,7 +183,7 @@ public class SessionHistoryScreen extends Screen
     private void drawList(DrawContext context, Layout l, int mouseX, int mouseY)
     {
         card(context, l.contentX, l.contentY, l.leftWidth, l.contentHeight, SOFT, BORDER);
-        context.drawText(this.textRenderer, Text.literal("Runs"), l.contentX + C, l.contentY + 10, TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Runs", l.contentX + C, l.contentY + 10, l.leftWidth - C * 2, TEXT, false);
         int x = l.contentX + C;
         int y = l.contentY + 44;
         int width = l.leftWidth - C * 2;
@@ -202,10 +202,10 @@ public class SessionHistoryScreen extends Screen
             SessionData session = this.sessions.get(index);
             int rowY = drawY + row * RH;
             boolean hovered = mouseX >= x && mouseX <= x + viewportWidth && mouseY >= rowY && mouseY <= rowY + RH - 4;
-            int rowColor = index == this.selectedIndex ? ROW_SEL : hovered ? ROW_HOVER : ((row & 1) == 0 ? ROW_ALT : 0x120E1116);
+            int rowColor = index == this.selectedIndex ? ROW_SEL : hovered ? ROW_HOVER : ((row & 1) == 0 ? ROW_ALT : INSET);
             context.fill(x + 4, rowY, x + viewportWidth - 4, rowY + RH - 4, rowColor);
-            context.drawText(this.textRenderer, Text.literal("#" + (index + 1) + "  " + DATE_FMT.format(new Date(session.startTimeMs))), x + 12, rowY + 6, TEXT, false);
-            context.drawText(this.textRenderer, Text.literal(UiFormat.formatCompact(session.totalBlocks) + " blocks  |  " + session.getDurationString() + "  |  " + UiFormat.formatCompact(session.getAverageBlocksPerHour()) + "/hr"), x + 12, rowY + 19, MUTED, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "#" + (index + 1) + "  " + DATE_FMT.format(new Date(session.startTimeMs)), x + 12, rowY + 6, viewportWidth - 24, TEXT, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatCompact(session.totalBlocks) + " blocks  |  " + session.getDurationString() + "  |  " + UiFormat.formatCompact(session.getAverageBlocksPerHour()) + "/hr", x + 12, rowY + 19, viewportWidth - 24, MUTED, false);
         }
         context.disableScissor();
         drawListBar(context, x + width - SBW, y, height, mouseX, mouseY, visibleRows);
@@ -214,16 +214,16 @@ public class SessionHistoryScreen extends Screen
     private void drawDetail(DrawContext context, Layout l, int mouseX, int mouseY)
     {
         card(context, l.detailX, l.contentY, l.detailWidth, l.contentHeight, CARD, BORDER);
-        context.drawText(this.textRenderer, Text.literal("Session Detail"), l.detailX + C, l.contentY + 10, TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Session Detail", l.detailX + C, l.contentY + 10, l.detailWidth - C * 2, TEXT, false);
         SessionData session = getSelected();
-        if (session == null) { context.drawText(this.textRenderer, Text.literal("Select a run to inspect it."), l.detailX + C, l.contentY + 34, MUTED, false); return; }
+        if (session == null) { MmmUi.drawTextWithin(context, this.textRenderer, "Select a run to inspect it.", l.detailX + C, l.contentY + 34, l.detailWidth - C * 2, MUTED, false); return; }
         int vx = l.detailX + C;
         int vy = l.contentY + 28;
         int vw = l.detailWidth - C * 2 - SBW - 6;
         int vh = l.contentHeight - 40;
         int drawY = vy - this.detailScroll;
         context.enableScissor(vx, vy, vx + vw, vy + vh);
-        context.drawText(this.textRenderer, Text.literal(DATE_FMT.format(new Date(session.startTimeMs))), vx, drawY, MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, DATE_FMT.format(new Date(session.startTimeMs)), vx, drawY, vw, MUTED, false);
         int cardWidth = (vw - G) / 2;
         int statY = drawY + 16;
         stat(context, vx, statY, cardWidth, 50, "Total Mined", UiFormat.formatCompact(session.totalBlocks), "blocks");
@@ -232,8 +232,8 @@ public class SessionHistoryScreen extends Screen
         stat(context, vx + cardWidth + G, statY + 56, cardWidth, 50, "Peak Rate", UiFormat.formatCompact(session.peakBlocksPerHour), "blocks/hr");
         int graphY = statY + 118;
         card(context, vx, graphY, vw, 92, SOFT, BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal("Session Pace"), vx + 10, graphY + 8, TEXT, false);
-        context.drawText(this.textRenderer, Text.literal("Blocks per hour across the session"), vx + 10, graphY + 20, MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Session Pace", vx + 10, graphY + 8, vw - 20, TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Blocks per hour across the session", vx + 10, graphY + 20, vw - 20, MUTED, false);
         drawGraph(context, vx + 10, graphY + 34, vw - 20, 50, session, mouseX, mouseY);
         int infoY = graphY + 102;
         row(context, vx, vx + vw, infoY, "Best Streak", session.bestStreakSeconds + "s");
@@ -259,7 +259,7 @@ public class SessionHistoryScreen extends Screen
         this.breakdownViewportWidth = viewportWidth;
         this.breakdownScrollbarX = x + width - 8;
         this.breakdownEntryCount = entries.size();
-        if (entries.isEmpty()) { context.drawText(this.textRenderer, Text.literal("No block breakdown recorded."), listX, listY + 2, MUTED, false); return; }
+        if (entries.isEmpty()) { MmmUi.drawTextWithin(context, this.textRenderer, "No block breakdown recorded.", listX, listY + 2, viewportWidth, MUTED, false); return; }
         context.enableScissor(listX, listY, listX + viewportWidth, listY + listHeight);
         int rowY = listY - this.breakdownScroll;
         for (Map.Entry<String, Long> entry : entries)
@@ -377,9 +377,9 @@ public class SessionHistoryScreen extends Screen
         c.drawText(this.textRenderer, Text.literal(startLabel), x, y + h - 10, MUTED, false);
         c.drawText(this.textRenderer, Text.literal(endLabel), x + w - endWidth, y + h - 10, MUTED, false);
     }
-    private void row(DrawContext c,int lx,int rx,int y,String label,String value){ c.drawText(this.textRenderer, Text.literal(label), lx, y, LABEL, false); int w=this.textRenderer.getWidth(value); c.drawText(this.textRenderer, Text.literal(value), rx-w, y, TEXT, false); }
-    private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ card(c,x,y,w,h,SOFT,BORDER_SOFT); c.drawText(this.textRenderer, Text.literal(l), x+C, y+9, LABEL, false); c.drawText(this.textRenderer, Text.literal(v), x+C, y+24, TEXT, false); c.drawText(this.textRenderer, Text.literal(s), x+C, y+38, MUTED, false); }
-    private void pill(DrawContext c,int x,int y,int w,int h,String t){ card(c,x,y,w,h,CARD,ACCENT); c.drawText(this.textRenderer, Text.literal(t), x+(w-this.textRenderer.getWidth(t))/2, y+4, ACCENT, false); }
+    private void row(DrawContext c,int lx,int rx,int y,String label,String value){ int width=rx-lx; int valueWidth=Math.min(this.textRenderer.getWidth(value), Math.max(32, width/2)); MmmUi.drawTextWithin(c,this.textRenderer,label,lx,y,Math.max(0,width-valueWidth-8),LABEL,false); MmmUi.drawTextRightWithin(c,this.textRenderer,value,rx,y,valueWidth,TEXT,false); }
+    private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ int tw=w-C*2; card(c,x,y,w,h,SOFT,BORDER_SOFT); MmmUi.drawTextWithin(c,this.textRenderer,l,x+C,y+9,tw,LABEL,false); MmmUi.drawTextWithin(c,this.textRenderer,v,x+C,y+24,tw,TEXT,false); MmmUi.drawTextWithin(c,this.textRenderer,s,x+C,y+38,tw,MUTED,false); }
+    private void pill(DrawContext c,int x,int y,int w,int h,String t){ String clipped=MmmUi.truncate(this.textRenderer,t,w-8); card(c,x,y,w,h,CARD,ACCENT); c.drawText(this.textRenderer, Text.literal(clipped), x+Math.max(4,(w-this.textRenderer.getWidth(clipped))/2), y+4, ACCENT, false); }
     private void card(DrawContext c,int x,int y,int w,int h,int fill,int border){ MmmUi.card(c,x,y,w,h,fill,border); }
     private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); int col=this.draggingList?MmmUi.SCROLLBAR_THUMB_ACTIVE:isOverListBar(mx,my)?MmmUi.SCROLLBAR_THUMB_HOVER:MmmUi.SCROLLBAR_THUMB; c.fill(x+1,ty,x+SBW-1,ty+th,col); }
     private void drawDetailBar(DrawContext c,Layout l,int mx,int my){ int max=Math.max(0,getDetailContentHeight()-(l.contentHeight-40)); if(max<=0) return; int x=l.detailX+l.detailWidth-C-SBW,y=l.contentY+28,h=l.contentHeight-40,th=Math.max(SBM,Math.min(h,(int)Math.round((h/(double)getDetailContentHeight())*h))), off=(int)Math.round((this.detailScroll/(double)max)*(h-th)); simpleBar(c,x,y,h,th,off,this.draggingDetail||isOverDetailBar(mx,my)); }
@@ -413,7 +413,7 @@ public class SessionHistoryScreen extends Screen
     private SessionData getSelected(){ return this.selectedIndex>=0&&this.selectedIndex<this.sessions.size()?this.sessions.get(this.selectedIndex):null; }
     private String getTopBlock(SessionData session){ String id=null; long count=0L; for(Map.Entry<String,Long> e:session.blockBreakdown.entrySet()) if(e.getValue()>count){ id=e.getKey(); count=e.getValue(); } return id==null?"No breakdown":resolveName(id)+" ("+UiFormat.formatCompact(count)+")"; }
     private String resolveName(String id){ try{ Identifier i=Identifier.tryParse(id); if(i!=null){ var b=net.minecraft.registry.Registries.BLOCK.get(i); if(b!=null) return b.getName().getString(); } }catch(Exception ignored){} return id; }
-    private String truncate(String value,int maxWidth){ if(this.textRenderer.getWidth(value)<=maxWidth) return value; String e="...", t=value; while(t.length()>1&&this.textRenderer.getWidth(t+e)>maxWidth) t=t.substring(0,t.length()-1); return t+e; }
+    private String truncate(String value,int maxWidth){ return MmmUi.truncate(this.textRenderer, value, maxWidth); }
     private Layout layout(){ int panelWidth=Math.min(760,Math.max(580,this.width-M*2)), panelHeight=Math.min(520,Math.max(420,this.height-28)), panelX=(this.width-panelWidth)/2, panelY=(this.height-panelHeight)/2, contentX=panelX+P, contentWidth=panelWidth-P*2, headerY=panelY+P, contentY=headerY+58, overviewY=headerY+58, leftWidth=Math.max(300,(int)(contentWidth*0.50F))-G/2, detailX=contentX+leftWidth+G, detailWidth=contentWidth-leftWidth-G, contentHeight=panelY+panelHeight-P-contentY; return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight); }
     private record Layout(int panelX,int panelY,int panelWidth,int panelHeight,int panelRight,int contentX,int contentWidth,int headerY,int overviewY,int contentY,int leftWidth,int detailX,int detailWidth,int contentHeight){ private Layout move(int delta){ return new Layout(panelX,panelY+delta,panelWidth,panelHeight,panelRight,contentX,contentWidth,headerY+delta,overviewY+delta,contentY+delta,leftWidth,detailX,detailWidth,contentHeight); } }
     private record BreakdownMetrics(int listX,int listY,int listHeight,int viewportWidth,int scrollbarX){}
