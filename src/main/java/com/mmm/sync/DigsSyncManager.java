@@ -154,7 +154,8 @@ public final class DigsSyncManager
 
     public static boolean isHudHealthy(long now)
     {
-        if (Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false
+                || Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false
                 || Configs.cloudSyncEndpoint == null
                 || Configs.cloudSyncEndpoint.isBlank())
         {
@@ -383,6 +384,18 @@ public final class DigsSyncManager
 
     private static boolean canSync()
     {
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            logSyncUnavailable("websiteSyncEnabled_false");
+            return false;
+        }
+
+        if (Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            logSyncUnavailable("totalDigsSyncEnabled_false");
+            return false;
+        }
+
         if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
         {
             logSyncUnavailable("endpoint_blank");

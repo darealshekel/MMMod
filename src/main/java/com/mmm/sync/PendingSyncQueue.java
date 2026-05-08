@@ -13,6 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 public final class PendingSyncQueue
 {
@@ -49,6 +50,7 @@ public final class PendingSyncQueue
     private final Sender sender;
     private final Listener listener;
     private final ExecutorService flushExecutor;
+    private final Predicate<QueuedSyncItem> dueItemFilter;
     private final AtomicBoolean flushScheduled = new AtomicBoolean(false);
 
     private final List<QueuedSyncItem> items = new ArrayList<>();
@@ -57,19 +59,35 @@ public final class PendingSyncQueue
 
     public PendingSyncQueue(Path storePath, Sender sender, Listener listener)
     {
-        this(storePath, sender, listener, runnable -> {
-            Thread thread = new Thread(runnable, "MMM-SyncQueue");
-            thread.setDaemon(true);
-            return thread;
-        });
+        this(storePath, sender, listener, item -> true, defaultThreadFactory());
+    }
+
+    PendingSyncQueue(Path storePath, Sender sender, Listener listener, Predicate<QueuedSyncItem> dueItemFilter)
+    {
+        this(storePath, sender, listener, dueItemFilter, defaultThreadFactory());
     }
 
     PendingSyncQueue(Path storePath, Sender sender, Listener listener, ThreadFactory threadFactory)
     {
+        this(storePath, sender, listener, item -> true, threadFactory);
+    }
+
+    PendingSyncQueue(Path storePath, Sender sender, Listener listener, Predicate<QueuedSyncItem> dueItemFilter, ThreadFactory threadFactory)
+    {
         this.store = new PendingSyncStore(storePath);
         this.sender = sender;
         this.listener = listener;
+        this.dueItemFilter = dueItemFilter == null ? (item -> true) : dueItemFilter;
         this.flushExecutor = Executors.newSingleThreadExecutor(threadFactory);
+    }
+
+    private static ThreadFactory defaultThreadFactory()
+    {
+        return runnable -> {
+            Thread thread = new Thread(runnable, "MMM-SyncQueue");
+            thread.setDaemon(true);
+            return thread;
+        };
     }
 
     public void initialize()
@@ -127,6 +145,11 @@ public final class PendingSyncQueue
 
     public void requestFlush(String reason)
     {
+        if (hasDueItem() == false)
+        {
+            return;
+        }
+
         if (this.flushScheduled.compareAndSet(false, true) == false)
         {
             MMM.LOGGER.info("{} send-skipped-flush-guard reason={} detail=flush_already_scheduled_or_active",
@@ -157,6 +180,16 @@ public final class PendingSyncQueue
         synchronized (this.lock)
         {
             return snapshotLocked();
+        }
+    }
+
+    public boolean hasDueItem()
+    {
+        synchronized (this.lock)
+        {
+            long now = System.currentTimeMillis();
+            return this.items.stream()
+                    .anyMatch(item -> item.nextRetryAtMs <= now && this.dueItemFilter.test(item));
         }
     }
 
@@ -263,6 +296,7 @@ public final class PendingSyncQueue
             long now = System.currentTimeMillis();
             return this.items.stream()
                     .filter(item -> item.nextRetryAtMs <= now)
+                    .filter(this.dueItemFilter)
                     .min(Comparator.comparingLong(item -> item.createdAtMs))
                     .map(QueuedSyncItem::copy)
                     .orElse(null);

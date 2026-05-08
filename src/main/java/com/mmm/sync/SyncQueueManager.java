@@ -35,7 +35,11 @@ public final class SyncQueueManager
         }
 
         Path queuePath = FileUtils.getConfigDirectory().toPath().resolve(Reference.STORAGE_ID + "-sync-queue.json");
-        queue = new PendingSyncQueue(queuePath, SyncQueueManager::send, new QueueListener());
+        queue = new PendingSyncQueue(
+                queuePath,
+                SyncQueueManager::send,
+                new QueueListener(),
+                (java.util.function.Predicate<QueuedSyncItem>) SyncQueueManager::isSyncEnabledFor);
         queue.initialize();
         MMM.LOGGER.info("{} queue-initialized endpoint={} linkEndpoint={}",
                 LOG_PREFIX,
@@ -83,6 +87,12 @@ public final class SyncQueueManager
 
     public static void enqueueCloudLiveState(JsonObject payload)
     {
+        if (isSyncEnabledFor(SyncItemType.CLOUD_LIVE_STATE) == false)
+        {
+            logEnqueueSkippedDisabled(SyncItemType.CLOUD_LIVE_STATE);
+            return;
+        }
+
         initialize();
         queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, "cloud-live-state", payload, true);
         requestFlush("enqueue cloud live state");
@@ -90,6 +100,12 @@ public final class SyncQueueManager
 
     public static void enqueueCloudFinishedSession(String sessionKey, JsonObject payload)
     {
+        if (isSyncEnabledFor(SyncItemType.CLOUD_FINISHED_SESSION) == false)
+        {
+            logEnqueueSkippedDisabled(SyncItemType.CLOUD_FINISHED_SESSION);
+            return;
+        }
+
         initialize();
         queue.enqueue(SyncItemType.CLOUD_FINISHED_SESSION, sessionKey == null ? "" : sessionKey, payload, false);
         requestFlush("enqueue finished session");
@@ -97,6 +113,12 @@ public final class SyncQueueManager
 
     public static void enqueuePlayerTotalDigs(String dedupeKey, JsonObject payload)
     {
+        if (isSyncEnabledFor(SyncItemType.PLAYER_TOTAL_DIGS) == false)
+        {
+            logEnqueueSkippedDisabled(SyncItemType.PLAYER_TOTAL_DIGS);
+            return;
+        }
+
         initialize();
         queue.enqueue(SyncItemType.PLAYER_TOTAL_DIGS, dedupeKey == null ? "" : dedupeKey, payload, true);
         requestFlush("enqueue player total digs");
@@ -123,6 +145,16 @@ public final class SyncQueueManager
             {
                 MMM.LOGGER.warn("{} send-skipped-item-invalid reason=invalid_queue_item", LOG_PREFIX);
                 return SyncSendResult.drop(-1, "Invalid queue item.", "");
+            }
+
+            if (isSyncEnabledFor(item.type) == false)
+            {
+                MmmDebugLogger.info("syncqueue-send-disabled-" + item.type.name(), 10_000L,
+                        "{} send-skipped-disabled id={} type={}",
+                        LOG_PREFIX,
+                        item.id,
+                        item.type);
+                return SyncSendResult.retry(-1, "Sync disabled by config.", "");
             }
 
             String endpoint = resolveEndpoint(item.type);
@@ -240,6 +272,35 @@ public final class SyncQueueManager
             case CLOUD_LIVE_STATE, CLOUD_FINISHED_SESSION, PLAYER_TOTAL_DIGS -> Configs.cloudSyncEndpoint;
             case WEBSITE_LINK_CLAIM -> LINK_ENDPOINT;
         };
+    }
+
+    private static boolean isSyncEnabledFor(QueuedSyncItem item)
+    {
+        return item != null && isSyncEnabledFor(item.type);
+    }
+
+    private static boolean isSyncEnabledFor(SyncItemType type)
+    {
+        if (type == SyncItemType.WEBSITE_LINK_CLAIM)
+        {
+            return true;
+        }
+
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            return false;
+        }
+
+        return type != SyncItemType.PLAYER_TOTAL_DIGS
+                || Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue();
+    }
+
+    private static void logEnqueueSkippedDisabled(SyncItemType type)
+    {
+        MmmDebugLogger.info("syncqueue-enqueue-disabled-" + type.name(), 10_000L,
+                "{} enqueue-skipped-disabled type={}",
+                LOG_PREFIX,
+                type);
     }
 
     private static boolean isPermanentLinkFailure(int statusCode, String body)
