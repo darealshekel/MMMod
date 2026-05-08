@@ -29,6 +29,7 @@ import fi.dy.masa.malilib.gui.widgets.WidgetBase;
 import fi.dy.masa.malilib.gui.widgets.WidgetConfigOption;
 import fi.dy.masa.malilib.gui.widgets.WidgetListConfigOptions;
 import fi.dy.masa.malilib.gui.widgets.WidgetListConfigOptionsBase;
+import fi.dy.masa.malilib.gui.GuiTextFieldGeneric;
 import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.MinecraftClient;
@@ -210,7 +211,8 @@ public class GuiConfigs extends GuiConfigsBase
                 fill = MmmUi.ROW_HOVER;
             }
 
-            MmmUi.card(context, this.x + 1, this.y, Math.max(1, this.width - 2), Math.max(1, this.height - 1), fill, MmmUi.BORDER_SOFT);
+            RowBounds bounds = this.getContentBounds();
+            MmmUi.card(context, bounds.x(), this.y + 1, bounds.width(), Math.max(1, this.height - 3), fill, MmmUi.BORDER_SOFT);
             this.drawStyledButtonShells(context, mouseX, mouseY);
             super.render(context, mouseX, mouseY, selected);
         }
@@ -245,6 +247,33 @@ public class GuiConfigs extends GuiConfigsBase
                     MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), hovered ? MmmUi.CARD : MmmUi.INSET, hovered ? MmmUi.ACCENT_BRIGHT : MmmUi.BORDER);
                 }
             }
+        }
+
+        private RowBounds getContentBounds()
+        {
+            int minX = this.x;
+            int maxX = this.x;
+
+            for (WidgetBase widget : this.subWidgets)
+            {
+                minX = Math.min(minX, widget.getX());
+                maxX = Math.max(maxX, widget.getX() + widget.getWidth());
+            }
+
+            if (this.textField != null && this.textField.getTextField() != null)
+            {
+                GuiTextFieldGeneric field = this.textField.getTextField();
+                minX = Math.min(minX, field.getX());
+                maxX = Math.max(maxX, field.getX() + field.getWidth());
+            }
+
+            int rowX = Math.max(this.x - 8, minX - 8);
+            int rowRight = Math.min(this.x + this.width, Math.max(rowX + 96, maxX + 8));
+            return new RowBounds(rowX, Math.max(1, rowRight - rowX));
+        }
+
+        private record RowBounds(int x, int width)
+        {
         }
     }
 

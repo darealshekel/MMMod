@@ -57,16 +57,6 @@ public final class MmmUi
     public static void backdrop(DrawContext context, int width, int height)
     {
         context.fill(0, 0, width, height, OVERLAY);
-
-        int gridColor = 0x16E00000;
-        for (int x = 0; x < width; x += 24)
-        {
-            context.fill(x, 0, x + 1, height, gridColor);
-        }
-        for (int y = 0; y < height; y += 24)
-        {
-            context.fill(0, y, width, y + 1, gridColor);
-        }
     }
 
     public static void card(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
