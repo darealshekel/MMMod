@@ -277,15 +277,17 @@ public class GuiConfigs extends GuiConfigsBase
             }
 
             boolean hovered = this.enabled && this.isMouseOver(mouseX, mouseY);
-            int fill = this.selected ? MmmUi.ACCENT_SOFT : hovered ? MmmUi.CARD : MmmUi.CARD_SOFT;
-            int border = this.selected ? MmmUi.ACCENT : hovered ? MmmUi.ACCENT_BRIGHT : MmmUi.BORDER;
-            int textColor = this.selected || hovered ? MmmUi.TEXT : MmmUi.LABEL;
+            int textColor = this.selected ? MmmUi.ACCENT : hovered ? MmmUi.TEXT : MmmUi.LABEL;
             String label = MmmUi.truncate(this.textRenderer, this.displayString, this.width - 8);
             int textX = this.x + Math.max(4, (this.width - this.textRenderer.getWidth(label)) / 2);
             int textY = this.y + (this.height - this.fontHeight) / 2 + 1;
 
-            MmmUi.card(context, this.x, this.y, this.width, this.height, fill, border);
             context.drawText(this.textRenderer, Text.literal(label), textX, textY, textColor, false);
+            if (this.selected || hovered)
+            {
+                int underlineColor = this.selected ? MmmUi.ACCENT : MmmUi.ACCENT_SOFT;
+                context.fill(this.x + 5, this.y + this.height - 2, this.x + this.width - 5, this.y + this.height - 1, underlineColor);
+            }
         }
     }
 
