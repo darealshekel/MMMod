@@ -66,7 +66,6 @@ public class WebsiteLinkScreen extends Screen
         this.codeField = new TextFieldWidget(this.textRenderer, getCodeFieldX(layout), layout.linkY + 78, getCodeFieldWidth(layout), INPUT_HEIGHT, Text.empty());
         this.codeField.setMaxLength(12);
         this.codeField.setDrawsBackground(false);
-        this.codeField.setCentered(false);
         this.codeField.setEditableColor(COLOR_VALUE);
         this.codeField.setUneditableColor(COLOR_MUTED);
         this.codeField.setChangedListener(text -> {
@@ -137,7 +136,7 @@ public class WebsiteLinkScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

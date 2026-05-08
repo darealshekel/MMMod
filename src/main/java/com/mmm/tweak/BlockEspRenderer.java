@@ -2,14 +2,23 @@ package com.mmm.tweak;
 
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
+import com.mojang.blaze3d.systems.RenderSystem;
 
-import fi.dy.masa.malilib.render.RenderUtils;
-import fi.dy.masa.malilib.util.data.Color4f;
+import fi.dy.masa.malilib.util.Color4f;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BufferRenderer;
+import net.minecraft.client.render.GameRenderer;
+import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.render.VertexFormats;
+import net.minecraft.client.render.WorldRenderer;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 
 public final class BlockEspRenderer
@@ -28,9 +37,9 @@ public final class BlockEspRenderer
         Configs.Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(Configs.normalizeBlockEspHexColor(Configs.Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
     }
 
-    public static void render(MinecraftClient client, Matrix4f positionMatrix, Matrix4f projectionMatrix)
+    public static void render(MinecraftClient client, MatrixStack matrices, Matrix4f projectionMatrix)
     {
-        if (positionMatrix == null || Configs.isBlockEspOutlineOnly())
+        if (matrices == null || Configs.isBlockEspOutlineOnly())
         {
             return;
         }
@@ -44,8 +53,30 @@ public final class BlockEspRenderer
         Color4f baseColor = getCurrentColor(client);
         Color4f fillColor = Color4f.fromColor(baseColor, Configs.getBlockEspOpacity());
         Color4f outlineColor = Color4f.fromColor(baseColor, Math.min(1.0F, Configs.getBlockEspOpacity() + 0.25F));
-        RenderUtils.renderAreaSides(targetPos, targetPos, fillColor, positionMatrix);
-        RenderUtils.renderBlockOutlineOverlapping(targetPos, BOX_EXPAND, OUTLINE_WIDTH, fillColor, outlineColor, outlineColor, positionMatrix);
+        Vec3d cameraPos = client.gameRenderer.getCamera().getPos();
+        double minX = targetPos.getX() - cameraPos.x - BOX_EXPAND;
+        double minY = targetPos.getY() - cameraPos.y - BOX_EXPAND;
+        double minZ = targetPos.getZ() - cameraPos.z - BOX_EXPAND;
+        double maxX = targetPos.getX() + 1.0D - cameraPos.x + BOX_EXPAND;
+        double maxY = targetPos.getY() + 1.0D - cameraPos.y + BOX_EXPAND;
+        double maxZ = targetPos.getZ() + 1.0D - cameraPos.z + BOX_EXPAND;
+
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableCull();
+        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+
+        BufferBuilder buffer = Tessellator.getInstance().getBuffer();
+        buffer.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+        WorldRenderer.renderFilledBox(matrices, buffer, minX, minY, minZ, maxX, maxY, maxZ, fillColor.r, fillColor.g, fillColor.b, fillColor.a);
+        BufferRenderer.drawWithGlobalProgram(buffer.end());
+
+        buffer.begin(VertexFormat.DrawMode.DEBUG_LINES, VertexFormats.POSITION_COLOR);
+        WorldRenderer.drawBox(matrices, buffer, minX, minY, minZ, maxX, maxY, maxZ, outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+        BufferRenderer.drawWithGlobalProgram(buffer.end());
+
+        RenderSystem.enableCull();
+        RenderSystem.disableBlend();
     }
 
     private static Color4f getCurrentColor(MinecraftClient client)

@@ -84,23 +84,19 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
         return this.comment;
     }
 
-    @Override
     public String getTranslatedName()
     {
         return this.name;
     }
 
-    @Override
     public void setPrettyName(String s)
     {
     }
 
-    @Override
     public void setTranslatedName(String s)
     {
     }
 
-    @Override
     public void setComment(String s)
     {
     }

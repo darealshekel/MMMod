@@ -7,7 +7,6 @@ import java.util.Comparator;
 import java.util.Optional;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
 import net.minecraft.scoreboard.ScoreboardObjective;
 
 public final class AeternumLeaderboardReader
@@ -34,12 +33,12 @@ public final class AeternumLeaderboardReader
                 worldInfo
         );
 
-        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(Scoreboard.SIDEBAR_DISPLAY_SLOT_ID);
         ScoreboardParser.Candidate sidebarCandidate = ScoreboardParser.parse(
                 username,
                 detectedServerName,
                 sidebar,
-                sidebar == null ? java.util.List.of() : scoreboard.getScoreboardEntries(sidebar)
+                sidebar == null ? java.util.List.of() : scoreboard.getAllPlayerScores(sidebar)
         );
 
         ScoreboardParser.Candidate chosen = null;
@@ -55,7 +54,7 @@ public final class AeternumLeaderboardReader
                             username,
                             detectedServerName,
                             objective,
-                            scoreboard.getScoreboardEntries(objective)))
+                            scoreboard.getAllPlayerScores(objective)))
                     .filter(candidate -> candidate != null && candidate.snapshot().isValid())
                     .max(Comparator.comparingInt(ScoreboardParser.Candidate::confidence));
 

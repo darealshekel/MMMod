@@ -29,22 +29,30 @@ dependencies {
 processResources {
     inputs.property "version", project.version
     inputs.property "minecraft_dependency", project.findProperty("minecraft_dependency") ?: project.minecraft_version
+    inputs.property "fabric_api_dependency", project.findProperty("fabric_api_dependency") ?: project.fabric_version
+    inputs.property "malilib_dependency", project.findProperty("malilib_dependency") ?: project.malilib_version
+    inputs.property "tweakeroo_dependency", project.findProperty("tweakeroo_dependency") ?: project.tweakeroo_version
 
     filesMatching("fabric.mod.json") {
         expand(
                 "version": project.version,
-                "minecraft_dependency": project.findProperty("minecraft_dependency") ?: project.minecraft_version
+                "minecraft_dependency": project.findProperty("minecraft_dependency") ?: project.minecraft_version,
+                "fabric_api_dependency": project.findProperty("fabric_api_dependency") ?: project.fabric_version,
+                "malilib_dependency": project.findProperty("malilib_dependency") ?: project.malilib_version,
+                "tweakeroo_dependency": project.findProperty("tweakeroo_dependency") ?: project.tweakeroo_version
         )
     }
 }
 
+def configuredJavaVersion = (project.findProperty("java_version") ?: "21") as Integer
+
 tasks.withType(JavaCompile).configureEach {
-    it.options.release = 21
+    it.options.release = configuredJavaVersion
     it.options.encoding = "UTF-8"
 }
 
 java {
     withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.toVersion(configuredJavaVersion)
+    targetCompatibility = JavaVersion.toVersion(configuredJavaVersion)
 }

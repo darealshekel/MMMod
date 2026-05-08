@@ -111,24 +111,24 @@ public class SessionHistoryScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount)
     {
         if (isInBreakdown(mouseX, mouseY))
         {
-            setBreakdownScroll(this.breakdownScroll + (verticalAmount < 0 ? 16 : -16));
+            setBreakdownScroll(this.breakdownScroll + (amount < 0 ? 16 : -16));
             return true;
         }
         if (isInDetail(mouseX, mouseY))
         {
-            setDetailScroll(this.detailScroll + (verticalAmount < 0 ? 24 : -24));
+            setDetailScroll(this.detailScroll + (amount < 0 ? 24 : -24));
             return true;
         }
         if (isInList(mouseX, mouseY))
         {
-            setListScroll(this.listScroll + (verticalAmount < 0 ? 1 : -1));
+            setListScroll(this.listScroll + (amount < 0 ? 1 : -1));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, amount);
     }
 
     @Override
@@ -177,7 +177,7 @@ public class SessionHistoryScreen extends Screen
     @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers){ if(keyCode==256){close(); return true;} if(keyCode==264||keyCode==341){moveSelection(1); return true;} if(keyCode==265||keyCode==328){moveSelection(-1); return true;} return super.keyPressed(keyCode, scanCode, modifiers); }
     @Override public void close(){ MinecraftClient.getInstance().setScreen(this.parent); }
     @Override public boolean shouldPause(){ return false; }
-    @Override public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta){}
+    @Override public void renderBackground(DrawContext context){}
 
     private void ensureCursorVisible(){ MinecraftClient client=MinecraftClient.getInstance(); if(client!=null&&client.mouse!=null) client.mouse.unlockCursor(); }
 

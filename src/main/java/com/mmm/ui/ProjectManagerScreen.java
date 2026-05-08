@@ -130,14 +130,14 @@ public class ProjectManagerScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount)
     {
         if (isMouseInsideList(mouseX, mouseY))
         {
-            setScrollOffset(this.scrollOffset + (verticalAmount < 0 ? 1 : -1));
+            setScrollOffset(this.scrollOffset + (amount < 0 ? 1 : -1));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, amount);
     }
 
     @Override
@@ -216,7 +216,7 @@ public class ProjectManagerScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 
@@ -362,7 +362,6 @@ public class ProjectManagerScreen extends Screen
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         field.setMaxLength(maxLength);
         field.setDrawsBackground(false);
-        field.setCentered(false);
         field.setEditableColor(COLOR_VALUE);
         field.setUneditableColor(COLOR_MUTED);
         field.setChangedListener(value -> refreshButtons());
@@ -478,7 +477,7 @@ public class ProjectManagerScreen extends Screen
         Configs.PROJECTS.remove(selected);
         if (selected.id.equals(Configs.activeProjectId))
         {
-            Configs.activeProjectId = Configs.PROJECTS.getFirst().id;
+            Configs.activeProjectId = Configs.PROJECTS.get(0).id;
         }
         this.deleteConfirm = false;
         Configs.saveToFile();

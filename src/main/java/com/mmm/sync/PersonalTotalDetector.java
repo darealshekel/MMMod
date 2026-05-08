@@ -10,11 +10,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.scoreboard.ReadableScoreboardScore;
-import net.minecraft.scoreboard.ScoreHolder;
 import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
 import net.minecraft.scoreboard.ScoreboardObjective;
+import net.minecraft.scoreboard.ScoreboardPlayerScore;
 
 final class PersonalTotalDetector
 {
@@ -68,7 +66,7 @@ final class PersonalTotalDetector
         }
 
         Scoreboard scoreboard = client.world.getScoreboard();
-        ScoreboardObjective objective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        ScoreboardObjective objective = scoreboard.getObjectiveForSlot(Scoreboard.SIDEBAR_DISPLAY_SLOT_ID);
         if (objective == null)
         {
             return new SidebarResult(0L, "no-sidebar-objective", "", 0L, "");
@@ -103,7 +101,7 @@ final class PersonalTotalDetector
         }
 
         Scoreboard scoreboard = client.world.getScoreboard();
-        ScoreboardObjective objective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.LIST);
+        ScoreboardObjective objective = scoreboard.getObjectiveForSlot(Scoreboard.LIST_DISPLAY_SLOT_ID);
         long rawScore = objective == null ? 0L : readDirectScore(scoreboard, objective, client.player.getGameProfile(), username);
         String objectiveTitle = objective == null ? "no-tab-objective" : clean(objective.getDisplayName().getString());
 
@@ -197,18 +195,22 @@ final class PersonalTotalDetector
 
     private static long readDirectScore(Scoreboard scoreboard, ScoreboardObjective objective, GameProfile profile, String username)
     {
-        long fromProfile = readScore(scoreboard, objective, ScoreHolder.fromProfile(profile));
-        long fromName = readScore(scoreboard, objective, ScoreHolder.fromName(username));
+        long fromProfile = readScore(scoreboard, objective, profile == null ? null : profile.getName());
+        long fromName = readScore(scoreboard, objective, username);
         return Math.max(fromProfile, fromName);
     }
 
-    private static long readScore(Scoreboard scoreboard, ScoreboardObjective objective, ScoreHolder holder)
+    private static long readScore(Scoreboard scoreboard, ScoreboardObjective objective, String playerName)
     {
-        if (holder == null)
+        if (scoreboard == null || objective == null || playerName == null || playerName.isBlank())
         {
             return 0L;
         }
-        ReadableScoreboardScore score = scoreboard.getScore(holder, objective);
+        if (scoreboard.playerHasObjective(playerName, objective) == false)
+        {
+            return 0L;
+        }
+        ScoreboardPlayerScore score = scoreboard.getPlayerScore(playerName, objective);
         return score == null ? 0L : Math.max(0L, score.getScore());
     }
 

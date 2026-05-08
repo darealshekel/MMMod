@@ -106,9 +106,9 @@ public final class MiningHudRenderer
         int x = resolveHudX(client, scaledWidth);
         int y = resolveHudY(client, scaledHeight);
 
-        context.getMatrices().pushMatrix();
-        context.getMatrices().translate(x, y);
-        context.getMatrices().scale(scale, scale);
+        context.getMatrices().push();
+        context.getMatrices().translate(x, y, 0);
+        context.getMatrices().scale(scale, scale, 1.0F);
 
         if (FeatureToggle.TWEAK_HUD_BOUNDING_BOX.getBooleanValue())
         {
@@ -122,7 +122,7 @@ public final class MiningHudRenderer
         int drawY = 0;
         long now = System.currentTimeMillis();
         boolean syncHealthy = CloudSyncManager.isHudHealthy(now) && DigsSyncManager.isHudHealthy(now);
-        String title = lines.getFirst().text();
+        String title = lines.get(0).text();
         int titleTextWidth = client.textRenderer.getWidth(title);
         if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
         {
@@ -147,7 +147,7 @@ public final class MiningHudRenderer
             drawGoalProgress(context, client, 0, drawY + 2, width, dailyGoal);
         }
 
-        context.getMatrices().popMatrix();
+        context.getMatrices().pop();
         GoalNotificationManager.render(context, client);
     }
 

@@ -56,7 +56,11 @@ public final class PerimeterWallDigHelper
     {
         try
         {
-            Identifier identifier = Identifier.of(name);
+            Identifier identifier = Identifier.tryParse(name);
+            if (identifier == null)
+            {
+                return null;
+            }
             return Registries.BLOCK.containsId(identifier) ? Registries.BLOCK.get(identifier) : null;
         }
         catch (Exception ignored)

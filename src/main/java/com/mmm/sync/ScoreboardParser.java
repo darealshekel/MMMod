@@ -9,8 +9,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
+import net.minecraft.scoreboard.ScoreboardPlayerScore;
 
 final class ScoreboardParser
 {
@@ -35,7 +35,7 @@ final class ScoreboardParser
     {
     }
 
-    static Candidate parse(String currentUsername, String serverName, ScoreboardObjective objective, Collection<ScoreboardEntry> entries)
+    static Candidate parse(String currentUsername, String serverName, ScoreboardObjective objective, Collection<ScoreboardPlayerScore> entries)
     {
         if (objective == null || entries == null || entries.isEmpty())
         {
@@ -73,10 +73,10 @@ final class ScoreboardParser
         );
     }
 
-    private static ScoreboardLine toLine(ScoreboardEntry entry)
+    private static ScoreboardLine toLine(ScoreboardPlayerScore entry)
     {
-        String owner = clean(entry.owner());
-        String raw = entry.display() != null ? entry.display().getString() : entry.name().getString();
+        String owner = clean(entry.getPlayerName());
+        String raw = owner;
         if (raw == null || raw.isBlank())
         {
             raw = owner;
@@ -97,7 +97,7 @@ final class ScoreboardParser
                 owner,
                 cleaned,
                 extractNumber(cleaned),
-                Math.max(0, entry.value()),
+                Math.max(0, entry.getScore()),
                 extractDeclaredRank(cleaned),
                 extractUsername(owner, cleaned)
         );

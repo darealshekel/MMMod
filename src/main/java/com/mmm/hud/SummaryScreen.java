@@ -98,7 +98,6 @@ public class SummaryScreen extends Screen
         this.searchField = new TextFieldWidget(this.textRenderer, layout.breakdownX + CARD_PADDING, layout.breakdownY + 28, layout.breakdownWidth - CARD_PADDING * 2, SEARCH_HEIGHT, Text.empty());
         this.searchField.setMaxLength(64);
         this.searchField.setDrawsBackground(false);
-        this.searchField.setCentered(false);
         this.searchField.setEditableColor(COLOR_VALUE);
         this.searchField.setUneditableColor(COLOR_MUTED);
         this.searchField.setChangedListener(value -> refreshFilteredEntries());
@@ -151,14 +150,14 @@ public class SummaryScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount)
     {
         if (isMouseInsideBreakdown(mouseX, mouseY))
         {
-            setBreakdownScrollOffset(this.breakdownScrollOffset + (verticalAmount < 0 ? BREAKDOWN_ROW_HEIGHT : -BREAKDOWN_ROW_HEIGHT));
+            setBreakdownScrollOffset(this.breakdownScrollOffset + (amount < 0 ? BREAKDOWN_ROW_HEIGHT : -BREAKDOWN_ROW_HEIGHT));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, amount);
     }
 
     @Override
@@ -207,7 +206,7 @@ public class SummaryScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

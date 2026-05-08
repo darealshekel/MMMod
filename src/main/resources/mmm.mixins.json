@@ -1,11 +1,10 @@
 {
   "required": true,
   "package": "com.mmm.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_17",
   "client": [
     "ClientPlayNetworkHandlerMixin",
-    "ClientPlayerInteractionManagerMixin",
-    "WorldRendererMixin"
+    "ClientPlayerInteractionManagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

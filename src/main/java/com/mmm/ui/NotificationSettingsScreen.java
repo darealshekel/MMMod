@@ -80,7 +80,7 @@ public class NotificationSettingsScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 
@@ -104,7 +104,6 @@ public class NotificationSettingsScreen extends Screen
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         field.setMaxLength(64);
         field.setDrawsBackground(false);
-        field.setCentered(false);
         field.setEditableColor(MmmUi.TEXT);
         field.setUneditableColor(MmmUi.MUTED);
         field.setText(value);

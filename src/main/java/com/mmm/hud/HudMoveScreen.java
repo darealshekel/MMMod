@@ -120,9 +120,9 @@ public class HudMoveScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount)
     {
-        adjustScale(verticalAmount > 0 ? 0.05D : -0.05D);
+        adjustScale(amount > 0 ? 0.05D : -0.05D);
         return true;
     }
 
@@ -140,7 +140,7 @@ public class HudMoveScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 
@@ -184,13 +184,13 @@ public class HudMoveScreen extends Screen
         int padding = 4;
         int totalHeight = lines.size() * lineHeight + 24 + padding * 2;
 
-        context.getMatrices().pushMatrix();
-        context.getMatrices().translate(x, y);
-        context.getMatrices().scale((float) scale, (float) scale);
+        context.getMatrices().push();
+        context.getMatrices().translate(x, y, 0);
+        context.getMatrices().scale((float) scale, (float) scale, 1.0F);
         MmmUi.card(context, -padding, -padding, width + padding * 2, totalHeight, MmmUi.PANEL, MmmUi.BORDER);
 
         int drawY = 0;
-        lines.getFirst().draw(context, this.textRenderer, 0, drawY, true);
+        lines.get(0).draw(context, this.textRenderer, 0, drawY, true);
         drawY += lineHeight;
         for (int i = 1; i < lines.size(); i++)
         {
@@ -211,7 +211,7 @@ public class HudMoveScreen extends Screen
         context.fill(0, barY, width, barY + 6, MmmUi.INSET);
         context.fill(0, barY, fillWidth, barY + 6, fillColor);
         context.drawBorder(0, barY, width, 6, MmmUi.BORDER_SOFT);
-        context.getMatrices().popMatrix();
+        context.getMatrices().pop();
     }
 
     private record PreviewSegment(String text, int color)
