@@ -84,8 +84,6 @@ public class GuiConfigs extends GuiConfigsBase
     @Override
     protected void drawTitle(DrawContext context, int mouseX, int mouseY, float partialTicks)
     {
-        int headerWidth = Math.max(1, this.width - 20);
-        MmmUi.card(context, 10, 8, headerWidth, 16, MmmUi.PANEL, MmmUi.BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 16, 12, 30, MmmUi.ACCENT_BRIGHT, false);
         int versionWidth = this.textRenderer.getWidth(Reference.MOD_VERSION);
         MmmUi.drawTextWithin(context, this.textRenderer, tab.getDisplayName(), 52, 12, Math.max(0, this.width - 76 - versionWidth), MmmUi.LABEL, false);
@@ -95,12 +93,6 @@ public class GuiConfigs extends GuiConfigsBase
     @Override
     public void drawContents(DrawContext context, int mouseX, int mouseY, float partialTicks)
     {
-        int panelX = Math.max(6, this.getListX() - 6);
-        int panelY = Math.max(TAB_Y + TAB_HEIGHT + 4, this.getListY() - 6);
-        int panelWidth = Math.max(1, Math.min(this.width - panelX - 6, this.getBrowserWidth() + 12));
-        int panelHeight = Math.max(1, Math.min(this.height - panelY - 6, this.getBrowserHeight() + 12));
-
-        MmmUi.card(context, panelX, panelY, panelWidth, panelHeight, MmmUi.CARD_SOFT, MmmUi.BORDER_SOFT);
         super.drawContents(context, mouseX, mouseY, partialTicks);
     }
 
