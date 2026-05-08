@@ -214,8 +214,8 @@ public class GuiConfigs extends GuiConfigsBase
         @Override
         protected GuiTextFieldGeneric createTextField(int x, int y, int width, int height)
         {
-            GuiTextFieldGeneric field = super.createTextField(x, y, width, height);
-            field.setCentered(true);
+            GuiTextFieldGeneric field = super.createTextField(x + 5, y + 1, Math.max(32, width - 10), Math.max(12, height - 2));
+            field.setCentered(false);
             field.setDrawsBackground(false);
             return field;
         }
@@ -249,6 +249,15 @@ public class GuiConfigs extends GuiConfigsBase
                     boolean hovered = button.isMouseOver(mouseX, mouseY);
                     MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), hovered ? MmmUi.CARD : MmmUi.INSET, hovered ? MmmUi.ACCENT_BRIGHT : MmmUi.BORDER);
                 }
+            }
+
+            if (this.textField != null && this.textField.getTextField() != null)
+            {
+                GuiTextFieldGeneric field = this.textField.getTextField();
+                int x = field.getX();
+                int y = field.getY();
+                int width = field.getWidth();
+                MmmUi.card(context, x - 5, y - 2, width + 10, 18, MmmUi.INSET, field.isFocusedWrapper() ? MmmUi.ACCENT_BRIGHT : MmmUi.BORDER);
             }
         }
 

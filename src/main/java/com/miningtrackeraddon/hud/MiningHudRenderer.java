@@ -21,15 +21,14 @@ import net.minecraft.text.Text;
 public final class MiningHudRenderer
 {
     private static final int LINE_BOX_COLOR = MmmUi.INSET;
-    private static final int LINE_BOX_BORDER_COLOR = MmmUi.BORDER_SOFT;
     private static final int SYNC_OK_COLOR = MmmUi.SUCCESS;
     private static final int SYNC_FAIL_COLOR = MmmUi.ERROR;
     private static final int BBOX_FILL_COLOR = MmmUi.PANEL;
-    private static final int BBOX_BORDER_COLOR = MmmUi.BORDER;
+    private static final int HUD_NEUTRAL_BORDER_COLOR = 0x66090909;
     private static final int HUD_TITLE_COLOR = MmmUi.ACCENT_BRIGHT;
     private static final int HUD_TEXT_COLOR = MmmUi.TEXT;
     private static final int GOAL_BAR_BG = MmmUi.INSET;
-    private static final int GOAL_BAR_BORDER = MmmUi.BORDER;
+    private static final int GOAL_BAR_BORDER = HUD_NEUTRAL_BORDER_COLOR;
 
     private MiningHudRenderer()
     {
@@ -112,7 +111,7 @@ public final class MiningHudRenderer
             int bboxY = -2;
             int bboxW = width + padding * 2;
             int bboxH = lines.size() * lineHeight + extraHeight + 4;
-            MmmUi.card(context, bboxX, bboxY, bboxW, bboxH, BBOX_FILL_COLOR, BBOX_BORDER_COLOR);
+            context.fill(bboxX, bboxY, bboxX + bboxW, bboxY + bboxH, BBOX_FILL_COLOR);
         }
 
         int drawY = 0;
@@ -269,8 +268,8 @@ public final class MiningHudRenderer
     private static void drawLineBox(DrawContext context, int x, int y, int textWidth)
     {
         context.fill(x - 4, y - 2, x + textWidth + 5, y + 11, LINE_BOX_COLOR);
-        context.fill(x - 3, y - 1, x + textWidth + 4, y, MmmUi.ACCENT_SOFT);
-        context.drawBorder(x - 4, y - 2, textWidth + 9, 13, LINE_BOX_BORDER_COLOR);
+        context.fill(x - 3, y - 1, x + textWidth + 4, y, HUD_NEUTRAL_BORDER_COLOR);
+        context.drawBorder(x - 4, y - 2, textWidth + 9, 13, HUD_NEUTRAL_BORDER_COLOR);
     }
 
     private static void drawSyncIndicator(DrawContext context, int centerX, int centerY, int color)

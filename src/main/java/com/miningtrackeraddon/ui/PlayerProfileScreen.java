@@ -171,7 +171,7 @@ public class PlayerProfileScreen extends Screen
         int valueWidth = Math.max(0, width - CARD_PADDING * 2 - labelWidth - 8);
         MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y, labelWidth, MmmUi.MUTED, false);
         String number = UiFormat.formatCompact(value);
-        String suffix = " blocks";
+        String suffix = " Blocks Mined";
         int suffixWidth = this.textRenderer.getWidth(suffix);
         int numberWidth = this.textRenderer.getWidth(number);
         if (numberWidth + suffixWidth > valueWidth)

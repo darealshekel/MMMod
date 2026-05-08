@@ -233,7 +233,7 @@ public class ProjectManagerScreen extends Screen
     {
         MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
         drawPill(context, layout.contentX, layout.headerY + 18, Math.min(220, layout.contentWidth / 2), 16, "Project Progress", COLOR_CARD, COLOR_ACCENT);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Stored progress and active project edits stay in one clean panel.", layout.contentX + 2, layout.headerY + 34, layout.contentWidth - 4, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Stored progress and active project edits stay in one clean panel.", layout.contentX + 2, layout.headerY + 38, layout.contentWidth - 4, COLOR_LABEL, false);
     }
 
     private void drawProjectList(DrawContext context, Layout layout, int mouseX, int mouseY)
@@ -362,7 +362,7 @@ public class ProjectManagerScreen extends Screen
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         field.setMaxLength(maxLength);
         field.setDrawsBackground(false);
-        field.setCentered(true);
+        field.setCentered(false);
         field.setEditableColor(COLOR_VALUE);
         field.setUneditableColor(COLOR_MUTED);
         field.setChangedListener(value -> refreshButtons());

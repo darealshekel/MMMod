@@ -66,7 +66,7 @@ public class WebsiteLinkScreen extends Screen
         this.codeField = new TextFieldWidget(this.textRenderer, getCodeFieldX(layout), layout.linkY + 78, getCodeFieldWidth(layout), INPUT_HEIGHT, Text.empty());
         this.codeField.setMaxLength(12);
         this.codeField.setDrawsBackground(false);
-        this.codeField.setCentered(true);
+        this.codeField.setCentered(false);
         this.codeField.setEditableColor(COLOR_VALUE);
         this.codeField.setUneditableColor(COLOR_MUTED);
         this.codeField.setChangedListener(text -> {
@@ -119,7 +119,7 @@ public class WebsiteLinkScreen extends Screen
         if (this.codeField != null && this.codeField.getText().isBlank() && this.codeField.isFocused() == false)
         {
             String placeholder = MmmUi.truncate(this.textRenderer, "ENTER WEBSITE CODE", this.codeField.getWidth() - 10);
-            int placeholderX = this.codeField.getX() + Math.max(5, (this.codeField.getWidth() - this.textRenderer.getWidth(placeholder)) / 2);
+            int placeholderX = this.codeField.getX() + 5;
             context.drawText(this.textRenderer, Text.literal(placeholder), placeholderX, this.codeField.getY() + 8, COLOR_MUTED, false);
         }
     }
