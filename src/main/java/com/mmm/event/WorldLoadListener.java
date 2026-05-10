@@ -68,6 +68,7 @@ public class WorldLoadListener implements IWorldLoadListener
             GoalNotificationManager.clear();
             CloudSyncManager.resetForDisconnect();
             DigsSyncManager.resetForDisconnect();
+            MiningStats.resetRollingMetrics();
         }
     }
 

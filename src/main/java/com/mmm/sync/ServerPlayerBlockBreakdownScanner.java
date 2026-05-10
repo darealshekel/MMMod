@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mmm.storage.WorldSessionContext;
+import com.mmm.util.BlockBreakdownCatalog;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -36,7 +37,7 @@ public final class ServerPlayerBlockBreakdownScanner
         for (ScoreboardReader.ObjectiveSnapshot snapshot : ScoreboardReader.readObjectives(client))
         {
             String blockId = extractMinedBlockId(snapshot.criterionName());
-            if (blockId == null)
+            if (BlockBreakdownCatalog.isValid(blockId) == false)
             {
                 continue;
             }

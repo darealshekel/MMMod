@@ -596,7 +596,6 @@ public final class CloudSyncManager
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
         MiningStats.ProjectProgress projectProgress = MiningStats.getActiveProjectProgress();
-        MiningStats.PredictionSnapshot prediction = MiningStats.getPredictionSnapshot();
 
         JsonObject payload = new JsonObject();
         payload.addProperty("client_id", Configs.cloudClientId);
@@ -635,7 +634,7 @@ public final class CloudSyncManager
 
         payload.add("projects", buildProjects());
         payload.add("daily_goal", buildDailyGoal(dailyGoal));
-        payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal, prediction));
+        payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
         payload.add("session_state", buildSessionState());
         payload.add("validation", buildValidationTelemetry(client, worldInfo, session));
 
@@ -877,11 +876,10 @@ public final class CloudSyncManager
     }
 
     private static JsonObject buildSyncedStats(MiningStats.ProjectProgress projectProgress,
-                                               MiningStats.GoalProgress dailyGoal,
-                                               MiningStats.PredictionSnapshot prediction)
+                                               MiningStats.GoalProgress dailyGoal)
     {
         JsonObject syncedStats = new JsonObject();
-        syncedStats.addProperty("blocks_per_hour", (int) Math.round(prediction.blocksPerHour()));
+        syncedStats.addProperty("blocks_per_hour", MiningStats.getEstimatedBlocksPerHour());
         syncedStats.addProperty("estimated_finish_seconds", (String) null);
         syncedStats.addProperty("current_project_name", projectProgress.name());
         syncedStats.addProperty("current_project_progress", projectProgress.blocksMined());
@@ -905,11 +903,12 @@ public final class CloudSyncManager
         sessionObject.addProperty("active_seconds", session.getDurationMs() / 1000L);
         sessionObject.addProperty("total_blocks", session.totalBlocks);
         sessionObject.addProperty("average_bph", session.getAverageBlocksPerHour());
-        sessionObject.addProperty("peak_bph", session.peakBlocksPerHour);
+        sessionObject.addProperty("peak_bph", session.getPeakBlocksPerHour());
         sessionObject.addProperty("best_streak_seconds", session.bestStreakSeconds);
-        sessionObject.addProperty("top_block", getTopBlock(session.blockBreakdown));
+        Map<String, Long> sanitizedBreakdown = Configs.sanitizeBlockBreakdown(session.blockBreakdown);
+        sessionObject.addProperty("top_block", getTopBlock(sanitizedBreakdown));
         sessionObject.addProperty("status", status);
-        sessionObject.add("block_breakdown", buildBreakdown(session.blockBreakdown));
+        sessionObject.add("block_breakdown", buildBreakdown(sanitizedBreakdown));
         sessionObject.add("rate_points", buildRatePoints(session.miningRateBuckets));
         return sessionObject;
     }

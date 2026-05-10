@@ -49,6 +49,26 @@ public final class Callbacks
             config.setValueFromString(Configs.normalizeBlockEspHexColor(config.getStringValue()));
             Configs.saveToFile();
         });
+        Configs.Generic.HUD_TITLE_HEX_COLOR.setValueChangeCallback(config -> {
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#E00000"));
+            Configs.saveToFile();
+        });
+        Configs.Generic.HUD_TEXT_HEX_COLOR.setValueChangeCallback(config -> {
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#F6F3EF"));
+            Configs.saveToFile();
+        });
+        Configs.Generic.HUD_NUMBER_HEX_COLOR.setValueChangeCallback(config -> {
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#FFFFFF"));
+            Configs.saveToFile();
+        });
+        Configs.Generic.HUD_INACTIVE_HEX_COLOR.setValueChangeCallback(config -> {
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#949494"));
+            Configs.saveToFile();
+        });
+        Configs.Generic.BPS_SMOOTHING.setValueChangeCallback(config -> {
+            MiningStats.onBpsSmoothingChanged();
+            Configs.saveToFile();
+        });
         Configs.Generic.BLOCK_ESP_COLOR_MODE.setValueChangeCallback(config -> Configs.saveToFile());
         Configs.Generic.BLOCK_ESP_RENDER_MODE.setValueChangeCallback(config -> Configs.saveToFile());
         Configs.Generic.BLOCK_ESP_OPACITY.setValueChangeCallback(config -> Configs.saveToFile());

@@ -1,6 +1,7 @@
 package com.mmm.tracker;
 
 import com.mmm.storage.WorldSessionContext;
+import com.mmm.util.BlockBreakdownCatalog;
 import com.mmm.util.MmmDebugLogger;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -74,7 +75,7 @@ public final class BlockBreakdownTracker
             }
 
             String blockId = Registries.BLOCK.getId(block).toString();
-            if (blockId.isBlank() == false && "minecraft:air".equals(blockId) == false)
+            if (BlockBreakdownCatalog.isValid(blockId))
             {
                 minedBlocks.put(blockId, (long) count);
             }

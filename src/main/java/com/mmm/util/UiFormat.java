@@ -14,6 +14,7 @@ public final class UiFormat
     private static final DecimalFormat COMPACT_FORMAT_MEDIUM = new DecimalFormat("0.#", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat COMPACT_FORMAT_LARGE = new DecimalFormat("0", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat WHOLE_NUMBER_FORMAT = new DecimalFormat("#,###", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat BLOCKS_PER_SECOND_FORMAT = new DecimalFormat("0.0", DecimalFormatSymbols.getInstance(Locale.US));
 
     public static final int YELLOW = 0xFFF2D24B;
     public static final int TEXT_PRIMARY = 0xFFFFFFFF;
@@ -37,7 +38,7 @@ public final class UiFormat
 
         long absolute = Math.abs(value);
         if (absolute < 1_000L) return Long.toString(value);
-        if (absolute < 1_000_000L) return suffix(value, 1_000D, "K");
+        if (absolute < 1_000_000L) return suffix(value, 1_000D, "k");
         if (absolute < 1_000_000_000L) return suffix(value, 1_000_000D, "M");
         if (absolute < 1_000_000_000_000L) return suffix(value, 1_000_000_000D, "B");
         return suffix(value, 1_000_000_000_000D, "T");
@@ -65,6 +66,12 @@ public final class UiFormat
             return formatCompact(value) + " blocks/hr";
         }
         return WHOLE_NUMBER_FORMAT.format(Math.max(0L, value)) + " blocks/hr";
+    }
+
+    public static String formatBlocksPerSecond(double value)
+    {
+        double safeValue = Math.max(0D, Math.min(20D, value));
+        return BLOCKS_PER_SECOND_FORMAT.format(safeValue);
     }
 
     public static String formatDuration(long totalSeconds)
