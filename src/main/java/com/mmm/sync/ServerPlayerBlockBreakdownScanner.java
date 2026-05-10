@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mmm.storage.WorldSessionContext;
+import com.mmm.util.BlockBreakdownCatalog;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -36,7 +37,7 @@ public final class ServerPlayerBlockBreakdownScanner
         for (ScoreboardReader.ObjectiveSnapshot snapshot : ScoreboardReader.readObjectives(client))
         {
             String blockId = extractMinedBlockId(snapshot.criterionName());
-            if (blockId == null)
+            if (BlockBreakdownCatalog.isValid(blockId) == false)
             {
                 continue;
             }
@@ -124,7 +125,7 @@ public final class ServerPlayerBlockBreakdownScanner
 
         String statBlockName = normalized.substring(MINED_CRITERION_PREFIX.length());
         Identifier identifier = resolveStatIdentifier(statBlockName);
-        if (identifier == null || Registries.BLOCK.getOrEmpty(identifier).isEmpty())
+        if (identifier == null || !Registries.BLOCK.containsId(identifier))
         {
             return null;
         }
@@ -134,7 +135,7 @@ public final class ServerPlayerBlockBreakdownScanner
     private static Identifier resolveStatIdentifier(String statBlockName)
     {
         Identifier direct = Identifier.tryParse(statBlockName);
-        if (direct != null && Registries.BLOCK.getOrEmpty(direct).isPresent())
+        if (direct != null && Registries.BLOCK.containsId(direct))
         {
             return direct;
         }

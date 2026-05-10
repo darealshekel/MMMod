@@ -139,8 +139,7 @@ public class HudMoveScreen extends Screen
         return false;
     }
 
-    @Override
-    public void renderBackground(DrawContext context)
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
     {
     }
 
@@ -161,12 +160,12 @@ public class HudMoveScreen extends Screen
     private void drawPreview(DrawContext context, int x, int y, double scale)
     {
         List<PreviewLine> lines = new ArrayList<>();
-        lines.add(PreviewLine.text("MMM", MmmUi.ACCENT_BRIGHT));
-        MiningStats.PredictionSnapshot prediction = MiningStats.getPredictionSnapshot();
+        lines.add(PreviewLine.text("MMM", Configs.getHudTitleColor()));
         long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
         long worldTotal = MiningStats.getCurrentSourceTotalMined();
         long sessionTotal = MiningStats.getSessionBlocksMined();
         boolean sessionPaused = MiningStats.isSessionPaused();
+        boolean sessionInactive = MiningStats.isSessionActive() == false || sessionPaused;
         if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue())
         {
             MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
@@ -174,8 +173,8 @@ public class HudMoveScreen extends Screen
         }
         lines.add(PreviewLine.blocksMined("Global Total: ", globalTotal));
         lines.add(PreviewLine.blocksMined("World Total: ", worldTotal));
-        lines.add(PreviewLine.blocksMined("Session Total: ", sessionTotal));
-        lines.add(PreviewLine.text("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())), sessionPaused ? MmmUi.INACTIVE : MmmUi.TEXT));
+        lines.add(PreviewLine.blocksMined("Session Total: ", sessionTotal, sessionInactive));
+        lines.add(PreviewLine.bphBps(MiningStats.getDisplayedBlocksPerHour(), MiningStats.getDisplayedBlocksPerSecond(), false));
         String sessionClock = MiningStats.getSessionDurationClock();
         lines.add(PreviewLine.text("Session Time: " + sessionClock, inactiveTextColor(sessionClock, sessionPaused)));
 
@@ -185,7 +184,7 @@ public class HudMoveScreen extends Screen
         int totalHeight = lines.size() * lineHeight + 24 + padding * 2;
 
         context.getMatrices().push();
-        context.getMatrices().translate(x, y, 0);
+        context.getMatrices().translate(x, y, 0.0D);
         context.getMatrices().scale((float) scale, (float) scale, 1.0F);
         MmmUi.card(context, -padding, -padding, width + padding * 2, totalHeight, MmmUi.PANEL, MmmUi.BORDER);
 
@@ -203,8 +202,8 @@ public class HudMoveScreen extends Screen
         String progressText = UiFormat.formatProgress(dailyGoal.current(), dailyGoal.target());
         String percentText = dailyGoal.getPercent() + "%";
         int fillColor = UiFormat.getGoalColor(dailyGoal);
-        context.drawText(this.textRenderer, Text.literal("Daily Goal"), 0, drawY + 2, MmmUi.ACCENT_BRIGHT, false);
-        context.drawText(this.textRenderer, Text.literal(progressText), 72, drawY + 2, MmmUi.TEXT, false);
+        context.drawText(this.textRenderer, Text.literal("Daily Goal"), 0, drawY + 2, Configs.getHudTitleColor(), false);
+        context.drawText(this.textRenderer, Text.literal(progressText), 72, drawY + 2, Configs.getHudTextColor(), false);
         context.drawText(this.textRenderer, Text.literal(percentText), width - this.textRenderer.getWidth(percentText), drawY + 2, fillColor, false);
         int barY = drawY + 13;
         int fillWidth = dailyGoal.target() <= 0 ? 0 : (int) Math.min(width, (width * (double) dailyGoal.current()) / dailyGoal.target());
@@ -227,10 +226,26 @@ public class HudMoveScreen extends Screen
 
         static PreviewLine blocksMined(String label, long value)
         {
+            return blocksMined(label, value, false);
+        }
+
+        static PreviewLine blocksMined(String label, long value, boolean inactive)
+        {
             return new PreviewLine(List.of(
-                    new PreviewSegment(label, MmmUi.TEXT),
-                    new PreviewSegment(UiFormat.formatCompact(value), UiFormat.getBlocksMinedMilestoneColor(value)),
-                    new PreviewSegment(" Blocks Mined", MmmUi.TEXT)));
+                    new PreviewSegment(label, inactive ? Configs.getHudInactiveColor() : Configs.getHudTextColor()),
+                    new PreviewSegment(UiFormat.formatCompact(value), inactive ? Configs.getHudInactiveColor() : Configs.getHudNumberColor()),
+                    new PreviewSegment(" Blocks Mined", inactive ? Configs.getHudInactiveColor() : Configs.getHudTextColor())));
+        }
+
+        static PreviewLine bphBps(long blocksPerHour, double blocksPerSecond, boolean inactive)
+        {
+            int numberColor = inactive ? Configs.getHudInactiveColor() : Configs.getHudNumberColor();
+            int labelColor = inactive ? Configs.getHudInactiveColor() : Configs.getHudTextColor();
+            return new PreviewLine(List.of(
+                    new PreviewSegment("BPH: ", labelColor),
+                    new PreviewSegment(UiFormat.formatCompact(Math.max(0L, blocksPerHour)), numberColor),
+                    new PreviewSegment(" / BPS: ", labelColor),
+                    new PreviewSegment(UiFormat.formatBlocksPerSecond(blocksPerSecond), numberColor)));
         }
 
         int width(TextRenderer renderer)
@@ -257,6 +272,6 @@ public class HudMoveScreen extends Screen
     private static int inactiveTextColor(String value, boolean sessionPaused)
     {
         String text = value == null ? "" : value.trim();
-        return sessionPaused || "--".equals(text) || "Paused".equals(text) || "00:00:00".equals(text) ? MmmUi.INACTIVE : MmmUi.TEXT;
+        return sessionPaused || "--".equals(text) || "Paused".equals(text) || "00:00:00".equals(text) ? Configs.getHudInactiveColor() : Configs.getHudTextColor();
     }
 }

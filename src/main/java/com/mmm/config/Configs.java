@@ -13,6 +13,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mmm.Reference;
+import com.mmm.util.BlockBreakdownCatalog;
 
 import fi.dy.masa.malilib.config.ConfigUtils;
 import fi.dy.masa.malilib.config.IConfigBase;
@@ -56,6 +57,11 @@ public class Configs implements IConfigHandler
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
         public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.75D, 1.75D, "Mining HUD scale.");
         public static final ConfigBoolean HUD_TEXT_BACKGROUND = new ConfigBoolean("hudTextBackground", false, "Draw small background boxes behind individual MMM HUD text lines.");
+        public static final ConfigColor HUD_TITLE_HEX_COLOR = new ConfigColor("hudTitleHexColor", "#E00000", "Title color used by the MMM HUD.");
+        public static final ConfigColor HUD_TEXT_HEX_COLOR = new ConfigColor("hudTextHexColor", "#F6F3EF", "Label/text color used by the MMM HUD.");
+        public static final ConfigColor HUD_NUMBER_HEX_COLOR = new ConfigColor("hudNumberHexColor", "#FFFFFF", "Number color used by MMM HUD and UI numeric values.");
+        public static final ConfigColor HUD_INACTIVE_HEX_COLOR = new ConfigColor("hudInactiveHexColor", "#949494", "Inactive/paused text color used by the MMM HUD.");
+        public static final ConfigOptionList BPS_SMOOTHING = new ConfigOptionList("bpsSmoothing", BpsSmoothing.FAST, "BPS Smoothing");
         public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
         public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", "#55FF55", "Block ESP custom color. Used when the color mode is Single Color.");
         public static final ConfigOptionList BLOCK_ESP_RENDER_MODE = new ConfigOptionList("blockEspRenderMode", BlockEspRenderMode.FULL_BLOCK, "Block ESP render mode.");
@@ -76,6 +82,11 @@ public class Configs implements IConfigHandler
                 HUD_ALIGNMENT,
                 HUD_SCALE,
                 HUD_TEXT_BACKGROUND,
+                HUD_TITLE_HEX_COLOR,
+                HUD_TEXT_HEX_COLOR,
+                HUD_NUMBER_HEX_COLOR,
+                HUD_INACTIVE_HEX_COLOR,
+                BPS_SMOOTHING,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -102,6 +113,11 @@ public class Configs implements IConfigHandler
                 HUD_ALIGNMENT,
                 HUD_SCALE,
                 HUD_TEXT_BACKGROUND,
+                HUD_TITLE_HEX_COLOR,
+                HUD_TEXT_HEX_COLOR,
+                HUD_NUMBER_HEX_COLOR,
+                HUD_INACTIVE_HEX_COLOR,
+                BPS_SMOOTHING,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -238,6 +254,10 @@ public class Configs implements IConfigHandler
         }
         Generic.NOTIFICATION_THRESHOLDS.setValueFromString(String.join(",", thresholds.stream().map(String::valueOf).toList()));
         Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(normalizeBlockEspHexColor(Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
+        Generic.HUD_TITLE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TITLE_HEX_COLOR.getStringValue(), "#E00000"));
+        Generic.HUD_TEXT_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TEXT_HEX_COLOR.getStringValue(), "#F6F3EF"));
+        Generic.HUD_NUMBER_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_NUMBER_HEX_COLOR.getStringValue(), "#FFFFFF"));
+        Generic.HUD_INACTIVE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), "#949494"));
         Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
 
         if (syncIdentityGenerated || migratedLegacySyncEndpoint || dailyGoalMigrated)
@@ -389,13 +409,54 @@ public class Configs implements IConfigHandler
         {
             normalized = normalized.substring(1);
         }
+        if (normalized.startsWith("0x") || normalized.startsWith("0X"))
+        {
+            normalized = normalized.substring(2);
+        }
 
-        if (normalized.matches("(?i)[0-9a-f]{6}([0-9a-f]{2})?"))
+        if (normalized.matches("(?i)[0-9a-f]{8}"))
+        {
+            return "#" + normalized.substring(2).toUpperCase();
+        }
+
+        if (normalized.matches("(?i)[0-9a-f]{6}"))
         {
             return "#" + normalized.toUpperCase();
         }
 
         return fallback;
+    }
+
+    public static int getHudNumberColor()
+    {
+        return parseOpaqueHexColor(Generic.HUD_NUMBER_HEX_COLOR.getStringValue(), "#FFFFFF");
+    }
+
+    public static int getHudTitleColor()
+    {
+        return parseOpaqueHexColor(Generic.HUD_TITLE_HEX_COLOR.getStringValue(), "#E00000");
+    }
+
+    public static int getHudTextColor()
+    {
+        return parseOpaqueHexColor(Generic.HUD_TEXT_HEX_COLOR.getStringValue(), "#F6F3EF");
+    }
+
+    public static int getHudInactiveColor()
+    {
+        return parseOpaqueHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), "#949494");
+    }
+
+    private static int parseOpaqueHexColor(String value, String fallback)
+    {
+        String hex = normalizeHexColor(value, fallback);
+        long parsed = Long.parseLong(hex.substring(1), 16) & 0x00FFFFFFL;
+        return (int) (0xFF000000L | parsed);
+    }
+
+    public static BpsSmoothing getBpsSmoothingMode()
+    {
+        return (BpsSmoothing) Generic.BPS_SMOOTHING.getOptionListValue();
     }
 
     @Override
@@ -618,17 +679,7 @@ public class Configs implements IConfigHandler
 
     public static Map<String, Long> sanitizeBlockBreakdown(Map<String, Long> breakdown)
     {
-        Map<String, Long> sanitized = new LinkedHashMap<>();
-        if (breakdown == null)
-        {
-            return sanitized;
-        }
-
-        breakdown.entrySet().stream()
-                .filter(entry -> entry.getKey() != null && entry.getKey().isBlank() == false && entry.getValue() != null && entry.getValue() > 0L)
-                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry.comparingByKey()))
-                .forEach(entry -> sanitized.put(entry.getKey(), entry.getValue()));
-        return sanitized;
+        return BlockBreakdownCatalog.sanitize(breakdown);
     }
 
     public static String sanitizeBlockBreakdownSource(String source)
@@ -860,6 +911,68 @@ public class Configs implements IConfigHandler
             }
 
             return TOP_LEFT;
+        }
+    }
+
+    public enum BpsSmoothing implements IConfigOptionListEntry
+    {
+        UNSTABLE("unstable", "Unstable", 20, 20),
+        FAST("fast", "Fast", 60, 40),
+        STABLE("stable", "Stable", 100, 20);
+
+        private final String value;
+        private final String displayName;
+        private final int windowTicks;
+        private final int preferredMinimumTicks;
+
+        BpsSmoothing(String value, String displayName, int windowTicks, int preferredMinimumTicks)
+        {
+            this.value = value;
+            this.displayName = displayName;
+            this.windowTicks = windowTicks;
+            this.preferredMinimumTicks = preferredMinimumTicks;
+        }
+
+        public int getWindowTicks()
+        {
+            return this.windowTicks;
+        }
+
+        public int getPreferredMinimumTicks()
+        {
+            return this.preferredMinimumTicks;
+        }
+
+        @Override
+        public String getStringValue()
+        {
+            return this.value;
+        }
+
+        @Override
+        public String getDisplayName()
+        {
+            return this.displayName;
+        }
+
+        @Override
+        public IConfigOptionListEntry cycle(boolean forward)
+        {
+            return values()[(this.ordinal() + (forward ? 1 : values().length - 1)) % values().length];
+        }
+
+        @Override
+        public IConfigOptionListEntry fromString(String value)
+        {
+            for (BpsSmoothing mode : values())
+            {
+                if (mode.value.equalsIgnoreCase(value) || mode.displayName.equalsIgnoreCase(value))
+                {
+                    return mode;
+                }
+            }
+
+            return FAST;
         }
     }
 

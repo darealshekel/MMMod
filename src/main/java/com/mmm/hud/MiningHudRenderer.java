@@ -25,8 +25,6 @@ public final class MiningHudRenderer
     private static final int SYNC_FAIL_COLOR = MmmUi.ERROR;
     private static final int BBOX_FILL_COLOR = MmmUi.PANEL;
     private static final int HUD_NEUTRAL_BORDER_COLOR = 0x66090909;
-    private static final int HUD_TITLE_COLOR = MmmUi.ACCENT_BRIGHT;
-    private static final int HUD_TEXT_COLOR = MmmUi.TEXT;
     private static final int GOAL_BAR_BG = MmmUi.INSET;
     private static final int GOAL_BAR_BORDER = HUD_NEUTRAL_BORDER_COLOR;
     private static final String ZERO_CLOCK = "00:00:00";
@@ -47,10 +45,10 @@ public final class MiningHudRenderer
         }
 
         List<HudLine> lines = new ArrayList<>();
-        lines.add(HudLine.text("MMM", HUD_TITLE_COLOR));
+        lines.add(HudLine.text("MMM", hudTitleColor()));
 
-        MiningStats.PredictionSnapshot prediction = MiningStats.getPredictionSnapshot();
         boolean sessionPaused = MiningStats.isSessionPaused();
+        boolean sessionInactive = MiningStats.isSessionActive() == false || sessionPaused;
         if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue())
         {
             MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
@@ -67,25 +65,21 @@ public final class MiningHudRenderer
             long weeklyRecord = MiningStats.getPersonalRecordWeeklyBlocks();
             lines.add(HudLine.blocksMined("Global Total: ", globalTotal));
             lines.add(HudLine.blocksMined("World Total: ", worldTotal));
-            lines.add(HudLine.blocksMined("Session Total: ", sessionTotal));
+            lines.add(HudLine.blocksMined("Session Total: ", sessionTotal, sessionInactive));
             lines.add(HudLine.dualBlocksMined("Today / Week: ", dailyBlocks, weeklyBlocks));
             lines.add(HudLine.dualBlocksMined("PR Day / Week: ", dailyRecord, weeklyRecord));
             String fastest100k = MiningStats.getFastest100kClock();
-            lines.add(HudLine.text("Fastest 100K: " + fastest100k, inactiveTextColor(fastest100k, false)));
+            lines.add(HudLine.text("Fastest 100k: " + fastest100k, inactiveTextColor(fastest100k, false)));
         }
         if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue())
         {
-            if (MiningStats.hasActualBlocksPerHour())
-            {
-                lines.add(HudLine.text("Blocks/hr: " + UiFormat.formatBlocksPerHour(MiningStats.getActualBlocksPerHour()), sessionPaused ? MmmUi.INACTIVE : HUD_TEXT_COLOR));
-            }
-            lines.add(HudLine.text("Est. Blocks/Hr: " + UiFormat.formatDetailedBlocksPerHour(Math.round(prediction.blocksPerHour())), sessionPaused ? MmmUi.INACTIVE : HUD_TEXT_COLOR));
+            lines.add(HudLine.bphBps(MiningStats.getDisplayedBlocksPerHour(), MiningStats.getDisplayedBlocksPerSecond(), false));
         }
         String sessionClock = MiningStats.getSessionDurationClock();
         lines.add(HudLine.text("Session Time: " + sessionClock, inactiveTextColor(sessionClock, sessionPaused)));
         if (FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue())
         {
-            lines.add(HudLine.text("Daily Reset In: " + MiningStats.getDailyResetCountdownClock(), HUD_TEXT_COLOR));
+            lines.add(HudLine.text("Daily Reset In: " + MiningStats.getDailyResetCountdownClock(), hudTextColor()));
         }
         if (FeatureToggle.TWEAK_HUD_ETA.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue())
         {
@@ -107,7 +101,7 @@ public final class MiningHudRenderer
         int y = resolveHudY(client, scaledHeight);
 
         context.getMatrices().push();
-        context.getMatrices().translate(x, y, 0);
+        context.getMatrices().translate(x, y, 0.0D);
         context.getMatrices().scale(scale, scale, 1.0F);
 
         if (FeatureToggle.TWEAK_HUD_BOUNDING_BOX.getBooleanValue())
@@ -129,7 +123,7 @@ public final class MiningHudRenderer
             drawLineBox(context, 0, drawY, titleTextWidth + 12);
         }
         drawSyncIndicator(context, 3, drawY + 5, syncHealthy ? SYNC_OK_COLOR : SYNC_FAIL_COLOR);
-        context.drawText(client.textRenderer, Text.literal(title), 10, drawY, HUD_TITLE_COLOR, true);
+        context.drawText(client.textRenderer, Text.literal(title), 10, drawY, hudTitleColor(), true);
         drawY += lineHeight;
         for (int i = 1; i < lines.size(); i++)
         {
@@ -155,18 +149,14 @@ public final class MiningHudRenderer
     {
         List<String> lines = new ArrayList<>();
         lines.add("MMM");
-        if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue()) lines.add("Project: Example Project | 12.3K Blocks Mined");
+        if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue()) lines.add("Project: Example Project | 12.3k Blocks Mined");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Global Total: 123M Blocks Mined");
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("World Total: 12.3K Blocks Mined");
+        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("World Total: 12.3k Blocks Mined");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Session Total: 890 Blocks Mined");
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Today / Week: 12.3K / 84.2K Blocks Mined");
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("PR Day / Week: 21.5K / 120K Blocks Mined");
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Fastest 100K: 8h 20m");
-        if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue())
-        {
-            lines.add("Blocks/hr: 12.3K blocks/hr");
-            lines.add("Est. Blocks/Hr: 12,450 blocks/hr");
-        }
+        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Today / Week: 12.3k / 84.2k Blocks Mined");
+        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("PR Day / Week: 21.5k / 120k Blocks Mined");
+        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Fastest 100k: 8h 20m");
+        if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue()) lines.add("BPH: 12.3k / BPS: 3.4");
         lines.add("Session Time: 01:23:45");
         if (FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()) lines.add("Daily Reset In: 23:59:59");
         if (FeatureToggle.TWEAK_HUD_ETA.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()) lines.add("ETA To Goal: 1h 12m");
@@ -197,20 +187,36 @@ public final class MiningHudRenderer
 
         static HudLine blocksMined(String label, long value)
         {
+            return blocksMined(label, value, false);
+        }
+
+        static HudLine blocksMined(String label, long value, boolean inactive)
+        {
             return new HudLine(List.of(
-                    new HudSegment(label, HUD_TEXT_COLOR),
-                    new HudSegment(UiFormat.formatCompact(value), UiFormat.getBlocksMinedMilestoneColor(value)),
-                    new HudSegment(" Blocks Mined", HUD_TEXT_COLOR)));
+                    new HudSegment(label, inactive ? hudInactiveColor() : hudTextColor()),
+                    new HudSegment(UiFormat.formatCompact(value), inactive ? hudInactiveColor() : Configs.getHudNumberColor()),
+                    new HudSegment(" Blocks Mined", inactive ? hudInactiveColor() : hudTextColor())));
         }
 
         static HudLine dualBlocksMined(String label, long left, long right)
         {
             return new HudLine(List.of(
-                    new HudSegment(label, HUD_TEXT_COLOR),
-                    new HudSegment(UiFormat.formatCompact(left), UiFormat.getBlocksMinedMilestoneColor(left)),
-                    new HudSegment(" / ", HUD_TEXT_COLOR),
-                    new HudSegment(UiFormat.formatCompact(right), UiFormat.getBlocksMinedMilestoneColor(right)),
-                    new HudSegment(" Blocks Mined", HUD_TEXT_COLOR)));
+                    new HudSegment(label, hudTextColor()),
+                    new HudSegment(UiFormat.formatCompact(left), Configs.getHudNumberColor()),
+                    new HudSegment(" / ", hudTextColor()),
+                    new HudSegment(UiFormat.formatCompact(right), Configs.getHudNumberColor()),
+                    new HudSegment(" Blocks Mined", hudTextColor())));
+        }
+
+        static HudLine bphBps(long blocksPerHour, double blocksPerSecond, boolean inactive)
+        {
+            int numberColor = inactive ? hudInactiveColor() : Configs.getHudNumberColor();
+            int labelColor = inactive ? hudInactiveColor() : hudTextColor();
+            return new HudLine(List.of(
+                    new HudSegment("BPH: ", labelColor),
+                    new HudSegment(UiFormat.formatCompact(Math.max(0L, blocksPerHour)), numberColor),
+                    new HudSegment(" / BPS: ", labelColor),
+                    new HudSegment(UiFormat.formatBlocksPerSecond(blocksPerSecond), numberColor)));
         }
 
         String text()
@@ -288,8 +294,8 @@ public final class MiningHudRenderer
         int fillColor = UiFormat.getGoalColor(progress);
         int fillWidth = progress.target() <= 0 ? 0 : (int) Math.min(width, (width * (double) progress.current()) / progress.target());
         String percentText = progress.getPercent() + "%";
-        context.drawText(client.textRenderer, Text.literal("Daily Goal"), x, y, HUD_TITLE_COLOR, false);
-        context.drawText(client.textRenderer, Text.literal(UiFormat.formatProgress(progress.current(), progress.target())), x + 72, y, HUD_TEXT_COLOR, false);
+        context.drawText(client.textRenderer, Text.literal("Daily Goal"), x, y, hudTitleColor(), false);
+        context.drawText(client.textRenderer, Text.literal(UiFormat.formatProgress(progress.current(), progress.target())), x + 72, y, hudTextColor(), false);
         context.drawText(client.textRenderer, Text.literal(percentText), x + width - client.textRenderer.getWidth(Text.literal(percentText)), y, fillColor, false);
 
         int barY = y + 11;
@@ -321,6 +327,21 @@ public final class MiningHudRenderer
     private static int inactiveTextColor(String value, boolean sessionPaused)
     {
         String text = value == null ? "" : value.trim();
-        return sessionPaused || "--".equals(text) || "Paused".equals(text) || ZERO_CLOCK.equals(text) ? MmmUi.INACTIVE : HUD_TEXT_COLOR;
+        return sessionPaused || "--".equals(text) || "Paused".equals(text) || ZERO_CLOCK.equals(text) ? hudInactiveColor() : hudTextColor();
+    }
+
+    private static int hudTitleColor()
+    {
+        return Configs.getHudTitleColor();
+    }
+
+    private static int hudTextColor()
+    {
+        return Configs.getHudTextColor();
+    }
+
+    private static int hudInactiveColor()
+    {
+        return Configs.getHudInactiveColor();
     }
 }

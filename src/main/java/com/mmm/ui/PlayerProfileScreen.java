@@ -80,8 +80,7 @@ public class PlayerProfileScreen extends Screen
         return false;
     }
 
-    @Override
-    public void renderBackground(DrawContext context)
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
     {
     }
 
@@ -107,7 +106,7 @@ public class PlayerProfileScreen extends Screen
         drawDualBlocksMetric(context, x, y + 28, width, "Today / Week", dailyBlocks, weeklyBlocks);
         drawDualBlocksMetric(context, x, y + 52, width, "PR Day / Week", dailyRecord, weeklyRecord);
         String fastest100k = MiningStats.getFastest100kClock();
-        drawMetric(context, x, y + 76, width, "Fastest 100K", fastest100k, "--".equals(fastest100k) ? MmmUi.INACTIVE : MmmUi.TEXT);
+        drawMetric(context, x, y + 76, width, "Fastest 100k", fastest100k, "--".equals(fastest100k) ? MmmUi.INACTIVE : MmmUi.TEXT);
     }
 
     private void drawSourceCard(DrawContext context, int x, int y, int width, int height)
@@ -117,7 +116,7 @@ public class PlayerProfileScreen extends Screen
         drawCardTitle(context, x, y, width, "Current Source");
         drawMetric(context, x, y + 30, width, "Name", MmmUi.truncate(this.textRenderer, world.displayName(), width - 92), MmmUi.TEXT);
         drawMetric(context, x, y + 56, width, "Type", world.kind(), MmmUi.TEXT);
-        drawMetric(context, x, y + 82, width, "Estimated Pace", UiFormat.formatDetailedBlocksPerHour(Math.round(MiningStats.getPredictionSnapshot().blocksPerHour())), MmmUi.TEXT);
+        drawMetric(context, x, y + 82, width, "Estimated Pace", UiFormat.formatDetailedBlocksPerHour(MiningStats.getEstimatedBlocksPerHour()), MmmUi.TEXT);
         drawMetric(context, x, y + 108, width, "Sync Every", UiFormat.formatDuration(CloudSyncManager.getSyncIntervalMs() / 1000L), MmmUi.TEXT);
     }
 
@@ -147,7 +146,7 @@ public class PlayerProfileScreen extends Screen
             int countWidth = this.textRenderer.getWidth(count);
             int nameMaxWidth = Math.max(0, width - CARD_PADDING * 2 - countWidth - 20);
             MmmUi.drawTextWithin(context, this.textRenderer, formatBlockId(entry.getKey()), x + CARD_PADDING + 6, rowY, nameMaxWidth, MmmUi.TEXT, false);
-            MmmUi.drawTextRightWithin(context, this.textRenderer, count, x + width - CARD_PADDING - 6, rowY, countWidth, UiFormat.getBlocksMinedMilestoneColor(entry.getValue()), false);
+            MmmUi.drawTextRightWithin(context, this.textRenderer, count, x + width - CARD_PADDING - 6, rowY, countWidth, Configs.getHudNumberColor(), false);
             rowY += 16;
             index++;
         }
@@ -182,11 +181,11 @@ public class PlayerProfileScreen extends Screen
         }
         if (numberWidth > valueWidth)
         {
-            MmmUi.drawTextRightWithin(context, this.textRenderer, number, x + width - CARD_PADDING, y, valueWidth, UiFormat.getBlocksMinedMilestoneColor(value), false);
+            MmmUi.drawTextRightWithin(context, this.textRenderer, number, x + width - CARD_PADDING, y, valueWidth, Configs.getHudNumberColor(), false);
             return;
         }
         int drawX = x + width - CARD_PADDING - numberWidth - suffixWidth;
-        context.drawText(this.textRenderer, Text.literal(number), drawX, y, UiFormat.getBlocksMinedMilestoneColor(value), false);
+        context.drawText(this.textRenderer, Text.literal(number), drawX, y, Configs.getHudNumberColor(), false);
         if (suffix.isEmpty() == false)
         {
             context.drawText(this.textRenderer, Text.literal(suffix), drawX + numberWidth, y, MmmUi.TEXT, false);
@@ -209,15 +208,15 @@ public class PlayerProfileScreen extends Screen
         }
         if (totalWidth > valueWidth)
         {
-            MmmUi.drawTextRightWithin(context, this.textRenderer, rightText, x + width - CARD_PADDING, y, valueWidth, UiFormat.getBlocksMinedMilestoneColor(right), false);
+            MmmUi.drawTextRightWithin(context, this.textRenderer, rightText, x + width - CARD_PADDING, y, valueWidth, Configs.getHudNumberColor(), false);
             return;
         }
         int drawX = x + width - CARD_PADDING - totalWidth;
-        context.drawText(this.textRenderer, Text.literal(leftText), drawX, y, UiFormat.getBlocksMinedMilestoneColor(left), false);
+        context.drawText(this.textRenderer, Text.literal(leftText), drawX, y, Configs.getHudNumberColor(), false);
         drawX += this.textRenderer.getWidth(leftText);
         context.drawText(this.textRenderer, Text.literal(separator), drawX, y, MmmUi.TEXT, false);
         drawX += this.textRenderer.getWidth(separator);
-        context.drawText(this.textRenderer, Text.literal(rightText), drawX, y, UiFormat.getBlocksMinedMilestoneColor(right), false);
+        context.drawText(this.textRenderer, Text.literal(rightText), drawX, y, Configs.getHudNumberColor(), false);
     }
 
     private String syncLabel()

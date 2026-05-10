@@ -15,11 +15,16 @@ import com.mmm.util.MmmDebugLogger;
 import fi.dy.masa.malilib.interfaces.IWorldLoadListener;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.registry.DynamicRegistryManager;
 
 public class WorldLoadListener implements IWorldLoadListener
 {
     private static SessionData pendingSummary;
     private static String pendingSummaryName = "Unknown";
+
+    public void onWorldLoadImmutable(DynamicRegistryManager.Immutable immutable)
+    {
+    }
 
     @Override
     public void onWorldLoadPre(ClientWorld worldBefore, ClientWorld worldAfter, MinecraftClient mc)
@@ -62,6 +67,7 @@ public class WorldLoadListener implements IWorldLoadListener
             GoalNotificationManager.clear();
             CloudSyncManager.resetForDisconnect();
             DigsSyncManager.resetForDisconnect();
+            MiningStats.resetRollingMetrics();
         }
     }
 

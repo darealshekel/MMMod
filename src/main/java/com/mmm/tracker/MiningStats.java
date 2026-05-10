@@ -2,6 +2,7 @@ package com.mmm.tracker;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.time.Instant;
@@ -13,7 +14,6 @@ import java.util.stream.Collectors;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
-import net.minecraft.registry.Registries;
 import net.minecraft.util.math.BlockPos;
 import com.mmm.config.Configs;
 import com.mmm.config.Configs.ProjectEntry;
@@ -26,6 +26,7 @@ import com.mmm.sync.CloudSyncManager;
 import com.mmm.sync.DigsSyncManager;
 import com.mmm.sync.ScoreboardSourceResolver;
 import com.mmm.sync.SyncQueueManager;
+import com.mmm.util.BlockBreakdownCatalog;
 import com.mmm.util.MmmDebugLogger;
 import com.mmm.util.UiFormat;
 
@@ -36,11 +37,24 @@ public final class MiningStats
     private static final long MIN_SYNCED_SESSION_DURATION_MS = 10L * 60L * 1000L;
     private static final long MIN_SYNCED_SESSION_BLOCKS = 1_000L;
     private static final long STREAK_GAP_MS = 5_000L;
+    private static final long AUTO_MINING_REQUIRED_MS = 10_000L;
+    private static final long AUTO_MINING_GAP_MS = 2_000L;
+    private static final long AUTO_PAUSE_IDLE_MS = 90_000L;
     private static final long FASTEST_100K_TARGET = 100_000L;
+    private static final int TICKS_PER_SECOND = 20;
+    private static final int METRIC_UPDATE_INTERVAL_TICKS = 20;
+    private static final int BPH_WINDOW_TICKS = 72_000;
+    private static final double BPH_ANIMATION_RISE_ALPHA = 0.28D;
+    private static final double BPH_ANIMATION_FALL_ALPHA = 0.16D;
+    private static final double BPS_ANIMATION_RISE_ALPHA = 0.38D;
+    private static final double BPS_ANIMATION_FALL_ALPHA = 0.22D;
+    private static final double BPH_ANIMATION_SNAP_THRESHOLD = 12D;
+    private static final double BPS_ANIMATION_SNAP_THRESHOLD = 0.02D;
     private static final boolean SMART_ETA_ENABLED = true;
 
     private static final Deque<Long> MINE_EVENTS = new ArrayDeque<>();
     private static final Deque<Long> FASTEST_100K_EVENT_TIMES = new ArrayDeque<>();
+    private static final Deque<TickBlockCount> METRIC_TICK_COUNTS = new ArrayDeque<>();
     private static final MiningPaceEstimator PACE_ESTIMATOR = new MiningPaceEstimator();
     private static SessionData currentSession = new SessionData(System.currentTimeMillis());
     private static String currentWorldId = "default";
@@ -52,6 +66,17 @@ public final class MiningStats
     private static long pausedSessionMinedOffset;
     private static long lastPersistedTotalMinedMs;
     private static boolean session100kRecorded;
+    private static long autoMiningStreakStartMs;
+    private static long lastValidBlockMineMs;
+    private static boolean sessionAutoPaused;
+    private static long metricTickIndex;
+    private static long lastMetricUpdateTick;
+    private static int currentTickValidBlocks;
+    private static double rollingBlocksPerSecond;
+    private static double rollingBlocksPerHour;
+    private static double displayedBlocksPerSecond;
+    private static double displayedBlocksPerHour;
+    private static Configs.BpsSmoothing lastBpsSmoothing = Configs.BpsSmoothing.FAST;
 
     private static long streakStartMs;
     private static long lastMineMs;
@@ -66,6 +91,7 @@ public final class MiningStats
         currentWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
         sessionActive = false;
         resetSession();
+        resetRollingMetrics();
         touchCurrentWorldStats(System.currentTimeMillis());
 
         resetDailyProgressIfNeeded();
@@ -88,6 +114,7 @@ public final class MiningStats
             pausedAccumulatedMs += Math.max(0L, System.currentTimeMillis() - pausedAtMs);
             pausedAtMs = 0L;
             sessionPaused = false;
+            sessionAutoPaused = false;
         }
 
         resetDailyProgressIfNeeded();
@@ -118,6 +145,14 @@ public final class MiningStats
     public static void recordBlockMined(Block block, BlockPos pos, BlockState previousState)
     {
         long now = System.currentTimeMillis();
+        if (BlockBreakdownCatalog.isValid(block) == false)
+        {
+            return;
+        }
+
+        handleAutoSessionOnValidMine(now);
+        recordSuccessfulHarvestForRollingMetrics();
+
         boolean authoritativeMode = DigsSyncManager.hasAuthoritativeTotalDigs();
         long beforeLifetime = Configs.totalBlocksMined;
         Configs.WorldStatsEntry beforeWorldStats = getCurrentWorldStats();
@@ -158,7 +193,7 @@ public final class MiningStats
             currentSession.totalBlocks++;
             currentSession.endTimeMs = now;
             currentSession.recordMineEvent(getActiveElapsedMs(now));
-            currentSession.peakBlocksPerHour = Math.max(currentSession.peakBlocksPerHour, getEstimatedBlocksPerHourAt(now));
+            updateCurrentSessionPeakFromRollingBph();
             recordFastest100kIfReached(now);
 
             if (lastMineMs == 0L || now - lastMineMs > STREAK_GAP_MS)
@@ -170,7 +205,7 @@ public final class MiningStats
 
             if (block != null)
             {
-                String key = Registries.BLOCK.getId(block).toString();
+                String key = BlockBreakdownCatalog.blockId(block);
                 currentSession.blockBreakdown.merge(key, 1L, Long::sum);
             }
         }
@@ -220,6 +255,9 @@ public final class MiningStats
         sessionStartTotalMined = Math.max(0L, getCurrentSourceTotalMined());
         pausedSessionMinedOffset = 0L;
         session100kRecorded = false;
+        autoMiningStreakStartMs = 0L;
+        lastValidBlockMineMs = 0L;
+        sessionAutoPaused = false;
     }
 
     public static void startNewSession()
@@ -264,11 +302,13 @@ public final class MiningStats
             pausedAccumulatedMs += Math.max(0L, now - pausedAtMs);
             pausedAtMs = 0L;
             sessionPaused = false;
+            sessionAutoPaused = false;
         }
         else
         {
             pausedAtMs = now;
             sessionPaused = true;
+            sessionAutoPaused = false;
         }
 
         CloudSyncManager.syncHeartbeat();
@@ -289,7 +329,8 @@ public final class MiningStats
     public static void onClientTick()
     {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.world != null && client.player != null)
+        boolean hasMiningContext = client != null && client.world != null && client.player != null;
+        if (hasMiningContext)
         {
             WorldSessionContext.update(client);
         }
@@ -302,24 +343,38 @@ public final class MiningStats
             resetPeriodStatsIfNeeded(now);
         }
 
+        updateRollingMetrics(hasMiningContext);
         DigsSyncManager.onClientTick(now);
         CloudSyncManager.onClientTick(now);
         BlockBreakdownTracker.onClientTick(client, now);
         MiningValidationTracker.onClientTick(now);
         SyncQueueManager.onClientTick(now);
+        maybeAutoPauseSession(now);
     }
 
     public static int getBlocksPerHour()
     {
-        pruneOldEvents(System.currentTimeMillis());
-        return MINE_EVENTS.size();
+        return getEstimatedBlocksPerHour();
     }
 
     public static int getEstimatedBlocksPerHour()
     {
-        long now = System.currentTimeMillis();
-        pruneOldEvents(now);
-        return (int) Math.round(getPredictionSnapshot(now).blocksPerHour());
+        return SessionData.clampBlocksPerHour(Math.round(rollingBlocksPerHour));
+    }
+
+    public static double getEstimatedBlocksPerSecond()
+    {
+        return Math.max(0D, Math.min(20D, rollingBlocksPerSecond));
+    }
+
+    public static int getDisplayedBlocksPerHour()
+    {
+        return SessionData.clampBlocksPerHour(Math.round(displayedBlocksPerHour));
+    }
+
+    public static double getDisplayedBlocksPerSecond()
+    {
+        return Math.max(0D, Math.min(20D, displayedBlocksPerSecond));
     }
 
     public static boolean hasActualBlocksPerHour()
@@ -451,7 +506,7 @@ public final class MiningStats
             if (sessionPaused == false && sessionDelta > 0L)
             {
                 currentSession.recordMinedAmount(getActiveElapsedMs(now), sessionDelta);
-                currentSession.peakBlocksPerHour = Math.max(currentSession.peakBlocksPerHour, getEstimatedBlocksPerHourAt(now));
+                updateCurrentSessionPeakFromRollingBph();
                 recordFastest100kIfReached(now);
             }
         }
@@ -790,6 +845,14 @@ public final class MiningStats
                 snapshot.rate5m());
     }
 
+    public static void onBpsSmoothingChanged()
+    {
+        lastBpsSmoothing = Configs.getBpsSmoothingMode();
+        trimMetricWindow();
+        rollingBlocksPerSecond = calculateRollingBps(lastBpsSmoothing);
+        lastMetricUpdateTick = metricTickIndex;
+    }
+
     public static Map<String, Long> getSortedBreakdown(SessionData session)
     {
         return session.blockBreakdown.entrySet().stream()
@@ -940,6 +1003,150 @@ public final class MiningStats
         }
     }
 
+    private static void recordSuccessfulHarvestForRollingMetrics()
+    {
+        currentTickValidBlocks++;
+    }
+
+    private static void updateRollingMetrics(boolean hasMiningContext)
+    {
+        if (hasMiningContext == false)
+        {
+            resetRollingMetrics();
+            return;
+        }
+
+        Configs.BpsSmoothing mode = Configs.getBpsSmoothingMode();
+        if (lastBpsSmoothing != mode)
+        {
+            lastBpsSmoothing = mode;
+            trimMetricWindow();
+            rollingBlocksPerSecond = calculateRollingBps(mode);
+            lastMetricUpdateTick = metricTickIndex;
+        }
+
+        metricTickIndex++;
+        METRIC_TICK_COUNTS.addLast(new TickBlockCount(metricTickIndex, currentTickValidBlocks));
+        currentTickValidBlocks = 0;
+        trimMetricWindow();
+
+        if (metricTickIndex - lastMetricUpdateTick >= METRIC_UPDATE_INTERVAL_TICKS)
+        {
+            rollingBlocksPerSecond = calculateRollingBps(mode);
+            rollingBlocksPerHour = calculateRollingBph();
+            updateCurrentSessionPeakFromRollingBph();
+            lastMetricUpdateTick = metricTickIndex;
+        }
+        updateDisplayedRollingMetrics();
+    }
+
+    public static void resetRollingMetrics()
+    {
+        METRIC_TICK_COUNTS.clear();
+        metricTickIndex = 0L;
+        lastMetricUpdateTick = 0L;
+        currentTickValidBlocks = 0;
+        rollingBlocksPerSecond = 0D;
+        rollingBlocksPerHour = 0D;
+        displayedBlocksPerSecond = 0D;
+        displayedBlocksPerHour = 0D;
+        lastBpsSmoothing = Configs.getBpsSmoothingMode();
+    }
+
+    private static void updateDisplayedRollingMetrics()
+    {
+        displayedBlocksPerSecond = smoothMetric(
+                displayedBlocksPerSecond,
+                Math.max(0D, Math.min(20D, rollingBlocksPerSecond)),
+                BPS_ANIMATION_RISE_ALPHA,
+                BPS_ANIMATION_FALL_ALPHA,
+                BPS_ANIMATION_SNAP_THRESHOLD);
+        displayedBlocksPerHour = smoothMetric(
+                displayedBlocksPerHour,
+                Math.max(0D, Math.min(SessionData.MAX_BLOCKS_PER_HOUR, rollingBlocksPerHour)),
+                BPH_ANIMATION_RISE_ALPHA,
+                BPH_ANIMATION_FALL_ALPHA,
+                BPH_ANIMATION_SNAP_THRESHOLD);
+    }
+
+    private static double smoothMetric(double current, double target, double riseAlpha, double fallAlpha, double snapThreshold)
+    {
+        double delta = target - current;
+        if (Math.abs(delta) <= snapThreshold)
+        {
+            return target;
+        }
+
+        double alpha = delta > 0D ? riseAlpha : fallAlpha;
+        return current + delta * alpha;
+    }
+
+    private static void trimMetricWindow()
+    {
+        while (METRIC_TICK_COUNTS.size() > BPH_WINDOW_TICKS)
+        {
+            METRIC_TICK_COUNTS.pollFirst();
+        }
+    }
+
+    private static double calculateRollingBps(Configs.BpsSmoothing mode)
+    {
+        int maxTicks = Math.max(1, mode.getWindowTicks());
+        int preferredTicks = Math.max(1, Math.min(maxTicks, mode.getPreferredMinimumTicks()));
+        int availableTicks = METRIC_TICK_COUNTS.size();
+        int targetTicks = availableTicks < preferredTicks ? availableTicks : Math.min(maxTicks, availableTicks);
+        int ticksUsed = 0;
+        int validBlocks = 0;
+        Iterator<TickBlockCount> iterator = METRIC_TICK_COUNTS.descendingIterator();
+        while (iterator.hasNext() && ticksUsed < targetTicks)
+        {
+            TickBlockCount tick = iterator.next();
+            validBlocks += Math.max(0, tick.blocks());
+            ticksUsed++;
+        }
+
+        if (ticksUsed <= 0 || validBlocks <= 0)
+        {
+            return 0D;
+        }
+
+        double seconds = ticksUsed / (double) TICKS_PER_SECOND;
+        if (seconds <= 0D)
+        {
+            return 0D;
+        }
+
+        return Math.max(0D, Math.min(20D, validBlocks / seconds));
+    }
+
+    private static double calculateRollingBph()
+    {
+        int ticksUsed = 0;
+        int validBlocks = 0;
+        Iterator<TickBlockCount> iterator = METRIC_TICK_COUNTS.descendingIterator();
+        while (iterator.hasNext() && ticksUsed < BPH_WINDOW_TICKS)
+        {
+            TickBlockCount tick = iterator.next();
+            validBlocks += Math.max(0, tick.blocks());
+            ticksUsed++;
+        }
+
+        if (ticksUsed <= 0 || validBlocks <= 0)
+        {
+            return 0D;
+        }
+
+        return Math.min(SessionData.MAX_BLOCKS_PER_HOUR, Math.max(0D, validBlocks * (double) BPH_WINDOW_TICKS / ticksUsed));
+    }
+
+    private static void updateCurrentSessionPeakFromRollingBph()
+    {
+        if (sessionActive && sessionPaused == false)
+        {
+            currentSession.updatePeakBlocksPerHour(Math.round(rollingBlocksPerHour));
+        }
+    }
+
     private static String dateKey(long now, ZoneId zoneId)
     {
         return Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate().toString();
@@ -982,8 +1189,8 @@ public final class MiningStats
             return;
         }
 
-        String key = Registries.BLOCK.getId(block).toString();
-        if (key == null || key.isBlank() || "minecraft:air".equals(key))
+        String key = BlockBreakdownCatalog.blockId(block);
+        if (BlockBreakdownCatalog.isValid(key) == false)
         {
             return;
         }
@@ -998,6 +1205,72 @@ public final class MiningStats
             worldStats.blockBreakdownSource = Configs.BLOCK_BREAKDOWN_SOURCE_LOCAL_OBSERVED;
         }
         worldStats.blockBreakdownUpdatedAtMs = now;
+    }
+
+    private static void handleAutoSessionOnValidMine(long now)
+    {
+        if (lastValidBlockMineMs == 0L || now - lastValidBlockMineMs > AUTO_MINING_GAP_MS)
+        {
+            autoMiningStreakStartMs = now;
+        }
+        lastValidBlockMineMs = now;
+
+        if (autoMiningStreakStartMs <= 0L || now - autoMiningStreakStartMs < AUTO_MINING_REQUIRED_MS)
+        {
+            return;
+        }
+
+        if (sessionActive == false)
+        {
+            startNewSession();
+            lastValidBlockMineMs = now;
+            autoMiningStreakStartMs = 0L;
+            return;
+        }
+
+        if (sessionPaused && sessionAutoPaused)
+        {
+            resumeAutoPausedSession(now);
+            lastValidBlockMineMs = now;
+            autoMiningStreakStartMs = 0L;
+        }
+    }
+
+    private static void maybeAutoPauseSession(long now)
+    {
+        if (sessionActive == false || sessionPaused || lastValidBlockMineMs <= 0L)
+        {
+            return;
+        }
+
+        if (now - lastValidBlockMineMs < AUTO_PAUSE_IDLE_MS)
+        {
+            return;
+        }
+
+        pausedAtMs = now;
+        sessionPaused = true;
+        sessionAutoPaused = true;
+        autoMiningStreakStartMs = 0L;
+        CloudSyncManager.syncHeartbeat();
+        MmmDebugLogger.info(
+                "miningstats-auto-pause",
+                30_000L,
+                "[MMM_DEBUG] session-auto-paused idleMs={}",
+                now - lastValidBlockMineMs);
+    }
+
+    private static void resumeAutoPausedSession(long now)
+    {
+        pausedAccumulatedMs += Math.max(0L, now - pausedAtMs);
+        pausedAtMs = 0L;
+        sessionPaused = false;
+        sessionAutoPaused = false;
+        CloudSyncManager.syncHeartbeat();
+        MmmDebugLogger.info(
+                "miningstats-auto-resume",
+                30_000L,
+                "[MMM_DEBUG] session-auto-resumed");
     }
 
     private static Configs.WorldStatsEntry getCurrentWorldStats()
@@ -1070,6 +1343,8 @@ public final class MiningStats
     }
 
     public record ProjectProgress(String name, long blocksMined) {}
+
+    private record TickBlockCount(long tickIndex, int blocks) {}
 
     public record PredictionSnapshot(double blocksPerHour, double confidence, MiningPaceEstimator.PaceState paceState, double sessionRate, double recentRate, double longRate)
     {

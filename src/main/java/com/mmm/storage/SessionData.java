@@ -6,8 +6,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 
+import com.mmm.util.BlockBreakdownCatalog;
+
 public class SessionData
 {
+    public static final int MAX_BLOCKS_PER_HOUR = 72_000;
     private static final long RATE_BUCKET_DURATION_MS = 60_000L;
 
     public final long startTimeMs;
@@ -44,7 +47,22 @@ public class SessionData
     {
         double hours = this.getDurationMs() / 3_600_000.0;
         if (hours < 0.001D) return 0;
-        return (int) (this.totalBlocks / hours);
+        return clampBlocksPerHour(Math.round(this.totalBlocks / hours));
+    }
+
+    public int getPeakBlocksPerHour()
+    {
+        return clampBlocksPerHour(this.peakBlocksPerHour);
+    }
+
+    public void updatePeakBlocksPerHour(long value)
+    {
+        this.peakBlocksPerHour = Math.max(this.getPeakBlocksPerHour(), clampBlocksPerHour(value));
+    }
+
+    public static int clampBlocksPerHour(long value)
+    {
+        return (int) Math.max(0L, Math.min(MAX_BLOCKS_PER_HOUR, value));
     }
 
     public void recordMineEvent(long activeElapsedMs)
@@ -67,7 +85,7 @@ public class SessionData
 
     public String serialise()
     {
-        return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.peakBlocksPerHour + "," + this.serialiseBreakdown() + "," + this.serialiseRateBuckets();
+        return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.getPeakBlocksPerHour() + "," + this.serialiseBreakdown() + "," + this.serialiseRateBuckets();
     }
 
     public static SessionData deserialise(String line)
@@ -79,7 +97,7 @@ public class SessionData
             session.endTimeMs = Long.parseLong(parts[1]);
             session.totalBlocks = Long.parseLong(parts[2]);
             session.bestStreakSeconds = Long.parseLong(parts[3]);
-            session.peakBlocksPerHour = Integer.parseInt(parts[4]);
+            session.peakBlocksPerHour = clampBlocksPerHour(Long.parseLong(parts[4]));
             if (parts.length >= 6)
             {
                 session.blockBreakdown = deserialiseBreakdown(parts[5]);
@@ -133,7 +151,7 @@ public class SessionData
                 }
             }
         }
-        return breakdown;
+        return BlockBreakdownCatalog.sanitize(breakdown);
     }
 
     private String serialiseRateBuckets()

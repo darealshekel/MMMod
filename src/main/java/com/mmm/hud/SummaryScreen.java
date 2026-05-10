@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import com.mmm.config.Configs;
 import com.mmm.storage.SessionData;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
@@ -205,8 +206,7 @@ public class SummaryScreen extends Screen
         return false;
     }
 
-    @Override
-    public void renderBackground(DrawContext context)
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
     {
     }
 
@@ -234,7 +234,7 @@ public class SummaryScreen extends Screen
         drawStatCard(context, layout.contentX, cardY, cardWidth, 54, "Total Mined", UiFormat.formatCompact(this.session.totalBlocks), "blocks");
         drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP), cardY, cardWidth, 54, "Active Time", formatClock(this.session.getDurationMs()), "pauses excluded");
         drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 2, cardY, cardWidth, 54, "Avg Rate", UiFormat.formatCompact(this.session.getAverageBlocksPerHour()), "blocks/hr");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 3, cardY, cardWidth, 54, "Peak Rate", UiFormat.formatCompact(this.session.peakBlocksPerHour), "blocks/hr");
+        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 3, cardY, cardWidth, 54, "Peak Rate", UiFormat.formatCompact(this.session.getPeakBlocksPerHour()), "blocks/hr");
     }
 
     private void drawGraphCard(DrawContext context, Layout layout, int mouseX, int mouseY, float animation)
@@ -330,7 +330,7 @@ public class SummaryScreen extends Screen
         String blockName = truncateToWidth(this.textRenderer, entry.name(), nameWidth);
 
         context.drawText(this.textRenderer, Text.literal(blockName), x + 22, y + 6, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal(countText), countX, y + 6, COLOR_ACCENT, false);
+        context.drawText(this.textRenderer, Text.literal(countText), countX, y + 6, Configs.getHudNumberColor(), false);
     }
 
     private void drawMiningRateGraph(DrawContext context, int x, int y, int width, int height, float animation)
@@ -428,7 +428,8 @@ public class SummaryScreen extends Screen
         fillRoundedCard(context, x, y, width, height, COLOR_CARD_SOFT, COLOR_BORDER_SOFT);
         int textWidth = width - CARD_PADDING * 2;
         MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y + 9, textWidth, COLOR_LABEL, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, value, x + CARD_PADDING, y + 24, textWidth, inactiveValueColor(value), false);
+        int valueColor = inactiveValueColor(value) == COLOR_INACTIVE ? COLOR_INACTIVE : Configs.getHudNumberColor();
+        MmmUi.drawTextWithin(context, this.textRenderer, value, x + CARD_PADDING, y + 24, textWidth, valueColor, false);
         if (suffix.isBlank() == false)
         {
             MmmUi.drawTextWithin(context, this.textRenderer, suffix, x + CARD_PADDING, y + 38, textWidth, COLOR_MUTED, false);
@@ -713,7 +714,7 @@ public class SummaryScreen extends Screen
         builder.append("Total Mined: ").append(UiFormat.formatBlocks(this.session.totalBlocks)).append('\n');
         builder.append("Session Time: ").append(formatClock(this.session.getDurationMs())).append('\n');
         builder.append("Average Rate: ").append(UiFormat.formatBlocksPerHour(this.session.getAverageBlocksPerHour())).append('\n');
-        builder.append("Peak Rate: ").append(UiFormat.formatBlocksPerHour(this.session.peakBlocksPerHour)).append('\n');
+        builder.append("Peak Rate: ").append(UiFormat.formatBlocksPerHour(this.session.getPeakBlocksPerHour())).append('\n');
         builder.append("Best Streak: ").append(this.session.bestStreakSeconds).append("s\n");
 
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
