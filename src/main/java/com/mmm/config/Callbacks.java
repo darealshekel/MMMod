@@ -73,6 +73,21 @@ public final class Callbacks
         Configs.Generic.BLOCK_ESP_RENDER_MODE.setValueChangeCallback(config -> Configs.saveToFile());
         Configs.Generic.BLOCK_ESP_OPACITY.setValueChangeCallback(config -> Configs.saveToFile());
         Configs.Generic.BLOCK_ESP_RAINBOW_SPEED.setValueChangeCallback(config -> Configs.saveToFile());
+        Configs.Generic.GRAPH_LINE_HEX_COLOR.setValueChangeCallback(config -> {
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#E00000"));
+            Configs.saveToFile();
+        });
+        Configs.Generic.GRAPH_FILL_HEX_COLOR.setValueChangeCallback(config -> {
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#E00000"));
+            Configs.saveToFile();
+        });
+        Configs.Generic.GRAPH_GRID_HEX_COLOR.setValueChangeCallback(config -> {
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), "#E00000"));
+            Configs.saveToFile();
+        });
+        Configs.Generic.GRAPH_FILL_OPACITY.setValueChangeCallback(config -> Configs.saveToFile());
+        Configs.Generic.GRAPH_GRID_OPACITY.setValueChangeCallback(config -> Configs.saveToFile());
+        Configs.Generic.GRAPH_SCALE_STEP.setValueChangeCallback(config -> Configs.saveToFile());
         BlockEspRenderer.refreshConfig();
     }
 
