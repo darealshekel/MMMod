@@ -255,6 +255,11 @@ public final class SyncQueueManager
             }
 
             String detail = extractError(body, "HTTP " + statusCode);
+            if (isPermanentSyncFailure(statusCode, detail))
+            {
+                return SyncSendResult.drop(statusCode, detail, body);
+            }
+
             return SyncSendResult.retry(statusCode, detail, body);
         }
         catch (Exception exception)
@@ -313,6 +318,23 @@ public final class SyncQueueManager
         String error = extractError(body, "");
         String normalized = error.toLowerCase(Locale.ROOT);
         return normalized.contains("invalid") || normalized.contains("expired") || normalized.contains("already");
+    }
+
+    private static boolean isPermanentSyncFailure(int statusCode, String detail)
+    {
+        if (statusCode != 400)
+        {
+            return false;
+        }
+
+        String normalized = detail == null ? "" : detail.toLowerCase(Locale.ROOT);
+        return normalized.contains("invalid client")
+                || normalized.contains("invalid username")
+                || normalized.contains("invalid session")
+                || normalized.contains("too many projects")
+                || normalized.contains("too many block breakdown")
+                || normalized.contains("too many accepted leaderboard")
+                || normalized.contains("too many source scan");
     }
 
     private static String extractError(String body, String fallback)

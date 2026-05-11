@@ -119,7 +119,8 @@ public final class DigsSyncManager
         status = SyncStatus.SYNCED;
         touchHealthy();
         CloudSyncManager.applySuccessfulSyncResponse(responseBody);
-        lastSuccessfulFingerprint = fingerprint(payload);
+        SyncDeltaStore.markPayloadSynced(payload);
+        lastSuccessfulFingerprint = latestModel == null ? fingerprint(payload) : fingerprint(latestModel);
         lastQueuedFingerprint = lastSuccessfulFingerprint;
     }
 
@@ -285,7 +286,11 @@ public final class DigsSyncManager
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
         if (currentWorldBlockBreakdown != null)
         {
-            payload.add("current_world_block_breakdown", currentWorldBlockBreakdown);
+            JsonObject syncBreakdown = SyncDeltaStore.currentWorldBlockBreakdownForSync(currentWorldBlockBreakdown);
+            if (syncBreakdown != null)
+            {
+                payload.add("current_world_block_breakdown", syncBreakdown);
+            }
         }
 
         JsonObject digs = new JsonObject();

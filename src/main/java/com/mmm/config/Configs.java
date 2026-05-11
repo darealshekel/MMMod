@@ -35,6 +35,7 @@ public class Configs implements IConfigHandler
     private static final String LEGACY_CONFIG_FILE_NAME = Reference.LEGACY_STORAGE_ID + ".json";
     private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://sync.mmmaniacs.com/v1/sync";
     private static final String LEGACY_ENDPOINT_BRAND = "aet" + "weaks";
+    private static final String LEGACY_SUPABASE_PROJECT_REF = "jmspoiryzfilppiovhmf";
     public static final int MIN_DAILY_GOAL = 10_000;
 
     public static class Generic
@@ -277,6 +278,8 @@ public class Configs implements IConfigHandler
         return normalized.contains(LEGACY_ENDPOINT_BRAND)
                 || normalized.contains("aewt-sync-pro")
                 || normalized.contains("xshbqnihopsznsnjqjji")
+                || normalized.contains(LEGACY_SUPABASE_PROJECT_REF)
+                || (normalized.contains("supabase.co") && normalized.contains("mmm-sync"))
                 || normalized.endsWith("/" + LEGACY_ENDPOINT_BRAND + "-sync");
     }
 

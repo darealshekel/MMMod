@@ -231,6 +231,7 @@ public final class CloudSyncManager
         syncStatus = SyncStatus.SYNCED;
         syncStatusDetail = type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
         touchHealthy();
+        SyncDeltaStore.markPayloadSynced(payload);
         applySuccessfulSyncResponse(responseBody);
 
         if (type == SyncItemType.CLOUD_LIVE_STATE)
@@ -662,23 +663,27 @@ public final class CloudSyncManager
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
         if (currentWorldBlockBreakdown != null)
         {
-            payload.add("current_world_block_breakdown", currentWorldBlockBreakdown);
+            JsonObject syncBreakdown = SyncDeltaStore.currentWorldBlockBreakdownForSync(currentWorldBlockBreakdown);
+            if (syncBreakdown != null)
+            {
+                payload.add("current_world_block_breakdown", syncBreakdown);
+            }
         }
 
         JsonObject serverPlayerBlockBreakdowns = ServerPlayerBlockBreakdownScanner.scan(client, worldInfo);
-        if (serverPlayerBlockBreakdowns != null)
+        if (serverPlayerBlockBreakdowns != null && SyncDeltaStore.shouldSendServerPlayerBlockBreakdowns(serverPlayerBlockBreakdowns))
         {
             payload.add("server_player_block_breakdowns", serverPlayerBlockBreakdowns);
         }
 
         JsonObject sourceScan = buildSourceScan(client, worldInfo);
-        if (sourceScan != null)
+        if (sourceScan != null && SyncDeltaStore.shouldSendSourceScan(sourceScan))
         {
             payload.add("source_scan", sourceScan);
         }
 
         JsonObject aeternumLeaderboard = buildAeternumLeaderboard();
-        if (aeternumLeaderboard != null)
+        if (aeternumLeaderboard != null && SyncDeltaStore.shouldSendAeternumLeaderboard(aeternumLeaderboard))
         {
             payload.add("aeternum_leaderboard", aeternumLeaderboard);
         }
@@ -1100,12 +1105,12 @@ public final class CloudSyncManager
 
         if (payload.has("current_world_totals"))
         {
-            minimal.add("current_world_totals", payload.get("current_world_totals"));
+            minimal.add("current_world_totals", stableCurrentWorldTotals(payload.getAsJsonObject("current_world_totals")));
         }
 
         if (payload.has("mining_records"))
         {
-            minimal.add("mining_records", payload.get("mining_records"));
+            minimal.add("mining_records", stableMiningRecords(payload.getAsJsonObject("mining_records")));
         }
 
         if (payload.has("current_world_block_breakdown"))
@@ -1134,6 +1139,37 @@ public final class CloudSyncManager
         }
 
         return GSON.toJson(minimal);
+    }
+
+    private static JsonObject stableCurrentWorldTotals(JsonObject totals)
+    {
+        JsonObject stable = new JsonObject();
+        copyIfPresent(totals, stable, "world_key");
+        copyIfPresent(totals, stable, "display_name");
+        copyIfPresent(totals, stable, "kind");
+        copyIfPresent(totals, stable, "total_blocks");
+        return stable;
+    }
+
+    private static JsonObject stableMiningRecords(JsonObject records)
+    {
+        JsonObject stable = new JsonObject();
+        copyIfPresent(records, stable, "daily_blocks_date");
+        copyIfPresent(records, stable, "weekly_blocks_week");
+        copyIfPresent(records, stable, "daily_blocks_mined");
+        copyIfPresent(records, stable, "weekly_blocks_mined");
+        copyIfPresent(records, stable, "personal_record_daily_blocks");
+        copyIfPresent(records, stable, "personal_record_weekly_blocks");
+        copyIfPresent(records, stable, "fastest_100k_seconds");
+        return stable;
+    }
+
+    private static void copyIfPresent(JsonObject from, JsonObject to, String key)
+    {
+        if (from != null && from.has(key))
+        {
+            to.add(key, from.get(key).deepCopy());
+        }
     }
 
     private static String leaderboardFingerprint(AeternumLeaderboardSnapshot snapshot)
