@@ -68,6 +68,12 @@ public class Configs implements IConfigHandler
         public static final ConfigOptionList BLOCK_ESP_RENDER_MODE = new ConfigOptionList("blockEspRenderMode", BlockEspRenderMode.FULL_BLOCK, "Block ESP render mode.");
         public static final ConfigInteger BLOCK_ESP_OPACITY = new ConfigInteger("blockEspOpacity", 35, 0, 100, "Block ESP opacity percentage.");
         public static final ConfigDouble BLOCK_ESP_RAINBOW_SPEED = new ConfigDouble("blockEspRainbowSpeed", 1.0D, 0.1D, 10.0D, "Block ESP rainbow animation speed multiplier.");
+        public static final ConfigColor GRAPH_LINE_HEX_COLOR = new ConfigColor("graphLineHexColor", "#E00000", "Speed graph line color.");
+        public static final ConfigColor GRAPH_FILL_HEX_COLOR = new ConfigColor("graphFillHexColor", "#E00000", "Speed graph fill color.");
+        public static final ConfigInteger GRAPH_FILL_OPACITY = new ConfigInteger("graphFillOpacity", 75, 0, 100, "Speed graph fill opacity percentage.");
+        public static final ConfigColor GRAPH_GRID_HEX_COLOR = new ConfigColor("graphGridHexColor", "#E00000", "Speed graph grid line color.");
+        public static final ConfigInteger GRAPH_GRID_OPACITY = new ConfigInteger("graphGridOpacity", 16, 0, 100, "Speed graph grid line opacity percentage.");
+        public static final ConfigInteger GRAPH_SCALE_STEP = new ConfigInteger("graphScaleStep", 300, 50, 1000, "Speed graph Y-axis grid interval (blocks/hr).");
         public static final ConfigStringList PERIMETER_OUTLINE_BLOCKS_LIST = new ConfigStringList("perimeterOutlineBlocksList", ImmutableList.of(), "The block types checked by the Perimeter Wall Dig Helper tweak.");
 
         public static final ImmutableList<IConfigBase> OPTIONS = ImmutableList.of(
@@ -92,7 +98,13 @@ public class Configs implements IConfigHandler
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
                 BLOCK_ESP_OPACITY,
-                BLOCK_ESP_RAINBOW_SPEED
+                BLOCK_ESP_RAINBOW_SPEED,
+                GRAPH_LINE_HEX_COLOR,
+                GRAPH_FILL_HEX_COLOR,
+                GRAPH_FILL_OPACITY,
+                GRAPH_GRID_HEX_COLOR,
+                GRAPH_GRID_OPACITY,
+                GRAPH_SCALE_STEP
         );
 
         public static final ImmutableList<IConfigBase> PERSISTED_OPTIONS = ImmutableList.of(
@@ -124,6 +136,12 @@ public class Configs implements IConfigHandler
                 BLOCK_ESP_RENDER_MODE,
                 BLOCK_ESP_OPACITY,
                 BLOCK_ESP_RAINBOW_SPEED,
+                GRAPH_LINE_HEX_COLOR,
+                GRAPH_FILL_HEX_COLOR,
+                GRAPH_FILL_OPACITY,
+                GRAPH_GRID_HEX_COLOR,
+                GRAPH_GRID_OPACITY,
+                GRAPH_SCALE_STEP,
                 PERIMETER_OUTLINE_BLOCKS_LIST
         );
     }
@@ -260,6 +278,11 @@ public class Configs implements IConfigHandler
         Generic.HUD_NUMBER_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_NUMBER_HEX_COLOR.getStringValue(), "#FFFFFF"));
         Generic.HUD_INACTIVE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), "#949494"));
         Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
+        Generic.GRAPH_LINE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), "#E00000"));
+        Generic.GRAPH_FILL_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_FILL_HEX_COLOR.getStringValue(), "#E00000"));
+        Generic.GRAPH_GRID_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_GRID_HEX_COLOR.getStringValue(), "#E00000"));
+        Generic.GRAPH_FILL_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_FILL_OPACITY.getIntegerValue())));
+        Generic.GRAPH_GRID_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_GRID_OPACITY.getIntegerValue())));
 
         if (syncIdentityGenerated || migratedLegacySyncEndpoint || dailyGoalMigrated)
         {
@@ -449,6 +472,13 @@ public class Configs implements IConfigHandler
     {
         return parseOpaqueHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), "#949494");
     }
+
+    public static int getGraphLineColor()  { return parseOpaqueHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), "#E00000"); }
+    public static int getGraphFillColor()  { return parseOpaqueHexColor(Generic.GRAPH_FILL_HEX_COLOR.getStringValue(), "#E00000"); }
+    public static int getGraphGridColor()  { return parseOpaqueHexColor(Generic.GRAPH_GRID_HEX_COLOR.getStringValue(), "#E00000"); }
+    public static float getGraphFillOpacity() { return Generic.GRAPH_FILL_OPACITY.getIntegerValue() / 100.0F; }
+    public static float getGraphGridOpacity() { return Generic.GRAPH_GRID_OPACITY.getIntegerValue() / 100.0F; }
+    public static float getGraphScaleStep() { return (float) Generic.GRAPH_SCALE_STEP.getIntegerValue(); }
 
     private static int parseOpaqueHexColor(String value, String fallback)
     {
