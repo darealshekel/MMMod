@@ -868,7 +868,7 @@ public final class CloudSyncManager
     private static JsonObject buildDailyGoal(MiningStats.GoalProgress dailyGoal)
     {
         JsonObject goal = new JsonObject();
-        goal.addProperty("goal_date", LocalDate.now(ZoneId.systemDefault()).toString());
+        goal.addProperty("goal_date", LocalDate.now(ZoneId.of("UTC")).toString());
         goal.addProperty("target", dailyGoal.target());
         goal.addProperty("progress", dailyGoal.current());
         goal.addProperty("completed", dailyGoal.target() > 0L && dailyGoal.current() >= dailyGoal.target());

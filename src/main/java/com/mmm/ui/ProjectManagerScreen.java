@@ -48,7 +48,6 @@ public class ProjectManagerScreen extends Screen
     private long openedAtMs;
 
     private TextFieldWidget nameField;
-    private TextFieldWidget progressField;
     private ButtonWidget applyButton;
     private ButtonWidget deleteButton;
     private ButtonWidget setActiveButton;
@@ -69,14 +68,13 @@ public class ProjectManagerScreen extends Screen
 
         Layout layout = computeLayout();
         this.nameField = createField(getDetailFieldX(layout), layout.detailY + 50, getDetailFieldWidth(layout), 64);
-        this.progressField = createField(getDetailFieldX(layout), layout.detailY + 92, getDetailFieldWidth(layout), 16);
 
         this.applyButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Apply Changes"), button ->
         {
             applyCurrentEdits();
             Configs.saveToFile();
             MinecraftClient.getInstance().setScreen(new ProjectManagerScreen(this.parent));
-        }).dimensions(layout.detailX + CARD_PADDING, layout.detailY + 126, layout.detailWidth - CARD_PADDING * 2, BUTTON_HEIGHT).build());
+        }).dimensions(layout.detailX + CARD_PADDING, layout.detailY + 92, layout.detailWidth - CARD_PADDING * 2, BUTTON_HEIGHT).build());
 
         this.setActiveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Set Active"), button ->
         {
@@ -88,7 +86,7 @@ public class ProjectManagerScreen extends Screen
                 Configs.saveToFile();
                 MinecraftClient.getInstance().setScreen(new ProjectManagerScreen(this.parent));
             }
-        }).dimensions(layout.detailX + CARD_PADDING, layout.detailY + 150, layout.detailWidth - CARD_PADDING * 2, BUTTON_HEIGHT).build());
+        }).dimensions(layout.detailX + CARD_PADDING, layout.detailY + 116, layout.detailWidth - CARD_PADDING * 2, BUTTON_HEIGHT).build());
 
         this.addDrawableChild(ButtonWidget.builder(Text.literal("New Project"), button ->
         {
@@ -124,7 +122,6 @@ public class ProjectManagerScreen extends Screen
         drawProjectList(context, animatedLayout, mouseX, mouseY);
         drawDetailCard(context, animatedLayout);
         drawFieldShell(context, this.nameField);
-        drawFieldShell(context, this.progressField);
 
         super.render(context, mouseX, mouseY, delta);
     }
@@ -289,7 +286,7 @@ public class ProjectManagerScreen extends Screen
     {
         fillCard(context, layout.detailX, layout.detailY, layout.detailWidth, layout.detailHeight, COLOR_CARD, COLOR_BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, "Project Detail", layout.detailX + CARD_PADDING, layout.detailY + 10, layout.detailWidth - CARD_PADDING * 2, COLOR_VALUE, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Edit the saved project name and total without leaving the panel.", layout.detailX + CARD_PADDING, layout.detailY + 24, layout.detailWidth - CARD_PADDING * 2, COLOR_MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Edit the saved project name. Progress updates from mined blocks.", layout.detailX + CARD_PADDING, layout.detailY + 24, layout.detailWidth - CARD_PADDING * 2, COLOR_MUTED, false);
 
         ProjectEntry selected = getSelectedProject();
         if (selected == null)
@@ -301,11 +298,10 @@ public class ProjectManagerScreen extends Screen
         int detailX = layout.detailX + CARD_PADDING;
         int detailWidth = layout.detailWidth - CARD_PADDING * 2;
         context.drawText(this.textRenderer, Text.literal("Project Name"), detailX, layout.detailY + 34, COLOR_LABEL, false);
-        context.drawText(this.textRenderer, Text.literal("Blocks Mined"), detailX, layout.detailY + 76, COLOR_LABEL, false);
 
-        drawStatusChip(context, detailX, layout.detailY + 184, selected.id.equals(Configs.activeProjectId) ? "Active Project" : "Stored Project", selected.id.equals(Configs.activeProjectId) ? COLOR_SUCCESS : COLOR_MUTED);
+        drawStatusChip(context, detailX, layout.detailY + 150, selected.id.equals(Configs.activeProjectId) ? "Active Project" : "Stored Project", selected.id.equals(Configs.activeProjectId) ? COLOR_SUCCESS : COLOR_MUTED);
 
-        int statsY = layout.detailY + 212;
+        int statsY = layout.detailY + 178;
         int statWidth = (detailWidth - CARD_GAP) / 2;
         drawStatCard(context, detailX, statsY, statWidth, 46, "Project Total", UiFormat.formatCompact(selected.progress), "blocks");
         drawStatCard(context, detailX + statWidth + CARD_GAP, statsY, statWidth, 46, "Current Session", UiFormat.formatCompact(MiningStats.getSessionBlocksMined()), "blocks");
@@ -319,22 +315,16 @@ public class ProjectManagerScreen extends Screen
             this.nameField.setY(layout.detailY + 50);
             this.nameField.setWidth(getDetailFieldWidth(layout));
         }
-        if (this.progressField != null)
-        {
-            this.progressField.setX(getDetailFieldX(layout));
-            this.progressField.setY(layout.detailY + 92);
-            this.progressField.setWidth(getDetailFieldWidth(layout));
-        }
         if (this.applyButton != null)
         {
             this.applyButton.setX(layout.detailX + CARD_PADDING);
-            this.applyButton.setY(layout.detailY + 126);
+            this.applyButton.setY(layout.detailY + 92);
             this.applyButton.setWidth(layout.detailWidth - CARD_PADDING * 2);
         }
         if (this.setActiveButton != null)
         {
             this.setActiveButton.setX(layout.detailX + CARD_PADDING);
-            this.setActiveButton.setY(layout.detailY + 150);
+            this.setActiveButton.setY(layout.detailY + 116);
             this.setActiveButton.setWidth(layout.detailWidth - CARD_PADDING * 2);
         }
         if (this.deleteButton != null)
@@ -397,7 +387,6 @@ public class ProjectManagerScreen extends Screen
             return;
         }
         this.nameField.setText(selected.name);
-        this.progressField.setText(String.valueOf(selected.progress));
     }
 
     private void applyCurrentEdits()
@@ -414,27 +403,17 @@ public class ProjectManagerScreen extends Screen
             selected.name = name;
         }
 
-        if (isNonNegative(this.progressField.getText()))
-        {
-            long progress = Long.parseLong(this.progressField.getText());
-            selected.progress = progress;
-            if (selected.id.equals(Configs.activeProjectId))
-            {
-                MiningStats.setActiveProjectProgress(progress);
-            }
-        }
     }
 
     private void refreshButtons()
     {
         ProjectEntry selected = getSelectedProject();
         boolean hasSelected = selected != null;
-        boolean validProgress = isNonNegative(this.progressField == null ? "" : this.progressField.getText());
         boolean validName = this.nameField == null || !this.nameField.getText().trim().isEmpty();
 
         if (this.applyButton != null)
         {
-            this.applyButton.active = hasSelected && validProgress && validName;
+            this.applyButton.active = hasSelected && validName;
         }
         if (this.deleteButton != null)
         {
@@ -482,18 +461,6 @@ public class ProjectManagerScreen extends Screen
         this.deleteConfirm = false;
         Configs.saveToFile();
         MinecraftClient.getInstance().setScreen(new ProjectManagerScreen(this.parent));
-    }
-
-    private boolean isNonNegative(String value)
-    {
-        try
-        {
-            return Long.parseLong(value) >= 0L;
-        }
-        catch (NumberFormatException ignored)
-        {
-            return false;
-        }
     }
 
     private void drawStatusChip(DrawContext context, int x, int y, String label, int accentColor)
