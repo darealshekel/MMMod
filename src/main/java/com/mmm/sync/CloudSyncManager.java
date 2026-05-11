@@ -683,9 +683,13 @@ public final class CloudSyncManager
         }
 
         JsonObject aeternumLeaderboard = buildAeternumLeaderboard();
-        if (aeternumLeaderboard != null && SyncDeltaStore.shouldSendAeternumLeaderboard(aeternumLeaderboard))
+        if (aeternumLeaderboard != null)
         {
-            payload.add("aeternum_leaderboard", aeternumLeaderboard);
+            JsonObject syncLeaderboard = SyncDeltaStore.aeternumLeaderboardForSync(aeternumLeaderboard);
+            if (syncLeaderboard != null)
+            {
+                payload.add("aeternum_leaderboard", syncLeaderboard);
+            }
         }
 
         payload.add("projects", buildProjects());

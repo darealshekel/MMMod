@@ -22,6 +22,7 @@ final class SyncDeltaStore
     private static final String STATE_FILE_NAME = Reference.STORAGE_ID + "-sync-state.json";
     private static final Map<String, String> SECTION_FINGERPRINTS = new LinkedHashMap<>();
     private static final Map<String, Map<String, Long>> CURRENT_WORLD_BREAKDOWNS = new LinkedHashMap<>();
+    private static final Map<String, JsonObject> AETERNUM_LEADERBOARDS = new LinkedHashMap<>();
     private static boolean loaded;
 
     private SyncDeltaStore()
@@ -99,9 +100,57 @@ final class SyncDeltaStore
         return shouldSendSection("source-scan:" + fingerprintSourceKey(payload), fingerprint);
     }
 
-    static synchronized boolean shouldSendAeternumLeaderboard(JsonObject payload)
+    static synchronized JsonObject aeternumLeaderboardForSync(JsonObject fullPayload)
     {
-        return shouldSendSection("aeternum-leaderboard:" + stringValue(payload, "server_name"), GSON.toJson(payload));
+        loadIfNeeded();
+        if (fullPayload == null || fullPayload.has("entries") == false || fullPayload.get("entries").isJsonArray() == false)
+        {
+            return null;
+        }
+
+        String key = aeternumLeaderboardKey(fullPayload);
+        String fingerprint = GSON.toJson(fullPayload);
+        if (fingerprint.equals(SECTION_FINGERPRINTS.get(key)))
+        {
+            return null;
+        }
+
+        JsonObject previous = AETERNUM_LEADERBOARDS.get(key);
+        if (previous == null || previous.has("entries") == false || previous.get("entries").isJsonArray() == false)
+        {
+            JsonObject full = fullPayload.deepCopy();
+            full.addProperty("mode", "full");
+            return full;
+        }
+
+        JsonObject delta = copyLeaderboardEnvelope(fullPayload);
+        delta.addProperty("mode", "delta");
+
+        Map<String, JsonObject> previousRows = leaderboardRowsByUsername(previous);
+        JsonArray changedRows = new JsonArray();
+        for (JsonElement element : fullPayload.getAsJsonArray("entries"))
+        {
+            if (element == null || element.isJsonObject() == false)
+            {
+                continue;
+            }
+
+            JsonObject row = element.getAsJsonObject();
+            String usernameKey = stringValue(row, "username").toLowerCase(java.util.Locale.ROOT);
+            if (usernameKey.isBlank())
+            {
+                continue;
+            }
+
+            JsonObject previousRow = previousRows.get(usernameKey);
+            if (previousRow == null || GSON.toJson(previousRow).equals(GSON.toJson(row)) == false)
+            {
+                changedRows.add(row.deepCopy());
+            }
+        }
+
+        delta.add("entries", changedRows);
+        return delta;
     }
 
     static synchronized void markPayloadSynced(JsonObject payload)
@@ -135,7 +184,7 @@ final class SyncDeltaStore
         if (payload.has("aeternum_leaderboard") && payload.get("aeternum_leaderboard").isJsonObject())
         {
             JsonObject section = payload.getAsJsonObject("aeternum_leaderboard");
-            markSectionSynced("aeternum-leaderboard:" + stringValue(section, "server_name"), GSON.toJson(section));
+            markAeternumLeaderboardSynced(section);
         }
         save();
     }
@@ -181,6 +230,105 @@ final class SyncDeltaStore
         }
 
         CURRENT_WORLD_BREAKDOWNS.put(key, current);
+    }
+
+    private static void markAeternumLeaderboardSynced(JsonObject payload)
+    {
+        String key = aeternumLeaderboardKey(payload);
+        String mode = stringValue(payload, "mode");
+        JsonObject next = "delta".equals(mode)
+                ? mergeAeternumLeaderboardSnapshot(AETERNUM_LEADERBOARDS.get(key), payload)
+                : payload.deepCopy();
+        next.remove("mode");
+        AETERNUM_LEADERBOARDS.put(key, next);
+        markSectionSynced(key, GSON.toJson(next));
+    }
+
+    private static JsonObject mergeAeternumLeaderboardSnapshot(JsonObject previous, JsonObject delta)
+    {
+        JsonObject next = previous == null ? copyLeaderboardEnvelope(delta) : previous.deepCopy();
+        copyIfPresent(delta, next, "server_name");
+        copyIfPresent(delta, next, "objective_title");
+        copyIfPresent(delta, next, "captured_at");
+        copyIfPresent(delta, next, "source_type");
+        copyIfPresent(delta, next, "total_digs");
+        copyIfPresent(delta, next, "filtered_fake_usernames");
+
+        Map<String, JsonObject> rows = leaderboardRowsByUsername(next);
+        if (delta.has("entries") && delta.get("entries").isJsonArray())
+        {
+            for (JsonElement element : delta.getAsJsonArray("entries"))
+            {
+                if (element == null || element.isJsonObject() == false)
+                {
+                    continue;
+                }
+
+                JsonObject row = element.getAsJsonObject();
+                String usernameKey = stringValue(row, "username").toLowerCase(java.util.Locale.ROOT);
+                if (usernameKey.isBlank() == false)
+                {
+                    rows.put(usernameKey, row.deepCopy());
+                }
+            }
+        }
+
+        JsonArray entries = new JsonArray();
+        rows.values().stream()
+                .sorted((left, right) -> {
+                    int leftRank = intValue(left, "rank", Integer.MAX_VALUE);
+                    int rightRank = intValue(right, "rank", Integer.MAX_VALUE);
+                    if (leftRank != rightRank)
+                    {
+                        return Integer.compare(leftRank, rightRank);
+                    }
+                    return stringValue(left, "username").compareToIgnoreCase(stringValue(right, "username"));
+                })
+                .forEach(entries::add);
+        next.add("entries", entries);
+        return next;
+    }
+
+    private static JsonObject copyLeaderboardEnvelope(JsonObject source)
+    {
+        JsonObject target = new JsonObject();
+        copyIfPresent(source, target, "server_name");
+        copyIfPresent(source, target, "objective_title");
+        copyIfPresent(source, target, "captured_at");
+        copyIfPresent(source, target, "source_type");
+        copyIfPresent(source, target, "total_digs");
+        copyIfPresent(source, target, "filtered_fake_usernames");
+        return target;
+    }
+
+    private static Map<String, JsonObject> leaderboardRowsByUsername(JsonObject payload)
+    {
+        Map<String, JsonObject> rows = new LinkedHashMap<>();
+        if (payload == null || payload.has("entries") == false || payload.get("entries").isJsonArray() == false)
+        {
+            return rows;
+        }
+
+        for (JsonElement element : payload.getAsJsonArray("entries"))
+        {
+            if (element == null || element.isJsonObject() == false)
+            {
+                continue;
+            }
+
+            JsonObject row = element.getAsJsonObject();
+            String usernameKey = stringValue(row, "username").toLowerCase(java.util.Locale.ROOT);
+            if (usernameKey.isBlank() == false)
+            {
+                rows.put(usernameKey, row.deepCopy());
+            }
+        }
+        return rows;
+    }
+
+    private static String aeternumLeaderboardKey(JsonObject payload)
+    {
+        return "aeternum-leaderboard:" + stringValue(payload, "server_name").toLowerCase(java.util.Locale.ROOT);
     }
 
     private static JsonObject withMode(JsonObject fullBreakdown, String mode)
@@ -302,6 +450,21 @@ final class SyncDeltaStore
         return "";
     }
 
+    private static int intValue(JsonObject object, String key, int fallback)
+    {
+        if (object != null && object.has(key) && object.get(key).isJsonPrimitive())
+        {
+            try
+            {
+                return object.get(key).getAsInt();
+            }
+            catch (Exception ignored)
+            {
+            }
+        }
+        return fallback;
+    }
+
     private static void copyIfPresent(JsonObject from, JsonObject to, String key)
     {
         if (from.has(key))
@@ -342,6 +505,16 @@ final class SyncDeltaStore
                     if (entry.getValue().isJsonObject())
                     {
                         CURRENT_WORLD_BREAKDOWNS.put(entry.getKey(), readCountsObject(entry.getValue().getAsJsonObject()));
+                    }
+                }
+            }
+            if (root.has("aeternumLeaderboards") && root.get("aeternumLeaderboards").isJsonObject())
+            {
+                for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("aeternumLeaderboards").entrySet())
+                {
+                    if (entry.getValue().isJsonObject())
+                    {
+                        AETERNUM_LEADERBOARDS.put(entry.getKey(), entry.getValue().getAsJsonObject().deepCopy());
                     }
                 }
             }
@@ -401,6 +574,13 @@ final class SyncDeltaStore
                 breakdowns.add(entry.getKey(), counts);
             }
             root.add("currentWorldBreakdowns", breakdowns);
+
+            JsonObject leaderboards = new JsonObject();
+            for (Map.Entry<String, JsonObject> entry : AETERNUM_LEADERBOARDS.entrySet())
+            {
+                leaderboards.add(entry.getKey(), entry.getValue().deepCopy());
+            }
+            root.add("aeternumLeaderboards", leaderboards);
 
             try (FileWriter writer = new FileWriter(file))
             {
