@@ -52,12 +52,10 @@ public final class MiningStats
     private static final double BPS_ANIMATION_FALL_ALPHA = 0.22D;
     private static final double BPH_ANIMATION_SNAP_THRESHOLD = 12D;
     private static final double BPS_ANIMATION_SNAP_THRESHOLD = 0.02D;
-    private static final boolean SMART_ETA_ENABLED = true;
 
     private static final Deque<Long> MINE_EVENTS = new ArrayDeque<>();
     private static final Deque<Long> FASTEST_100K_EVENT_TIMES = new ArrayDeque<>();
     private static final Deque<TickBlockCount> METRIC_TICK_COUNTS = new ArrayDeque<>();
-    private static final MiningPaceEstimator PACE_ESTIMATOR = new MiningPaceEstimator();
     private static SessionData currentSession = new SessionData(System.currentTimeMillis());
     private static String currentWorldId = "default";
     private static boolean sessionActive = true;
@@ -187,7 +185,6 @@ public final class MiningStats
         if (sessionPaused == false)
         {
             MINE_EVENTS.addLast(now);
-            PACE_ESTIMATOR.recordBlock(now);
             pruneOldEvents(now);
         }
 
@@ -251,7 +248,6 @@ public final class MiningStats
         MINE_EVENTS.clear();
         currentSession = new SessionData(System.currentTimeMillis());
         MiningValidationTracker.resetSession(currentSession.startTimeMs);
-        PACE_ESTIMATOR.reset(currentSession.startTimeMs);
         streakStartMs = 0L;
         lastMineMs = 0L;
         pausedAtMs = 0L;
@@ -392,37 +388,6 @@ public final class MiningStats
     public static int getActualBlocksPerHour()
     {
         return currentSession.getAverageBlocksPerHour();
-    }
-
-    private static int getEstimatedBlocksPerHourAt(long now)
-    {
-        if (SMART_ETA_ENABLED)
-        {
-            return (int) Math.round(getPredictionSnapshot(now).blocksPerHour());
-        }
-
-        if (MINE_EVENTS.isEmpty())
-        {
-            return 0;
-        }
-        long windowStart = Math.max(currentSession.startTimeMs, now - ONE_MINUTE_MS);
-        int recentCount = 0;
-
-        for (Long timestamp : MINE_EVENTS)
-        {
-            if (timestamp >= windowStart)
-            {
-                recentCount++;
-            }
-        }
-
-        if (recentCount <= 0)
-        {
-            return 0;
-        }
-
-        long elapsedMs = Math.max(1_000L, now - windowStart);
-        return (int) Math.round((recentCount * (double) ONE_HOUR_MS) / elapsedMs);
     }
 
     public static long getTotalMined()
@@ -687,11 +652,10 @@ public final class MiningStats
             return "Complete";
         }
 
-        PredictionSnapshot prediction = getPredictionSnapshot(System.currentTimeMillis());
-        int blocksPerHour = (int) Math.round(prediction.blocksPerHour());
+        int blocksPerHour = (int) Math.round(rollingBlocksPerHour);
         if (blocksPerHour <= 0)
         {
-            return prediction.paceState() == MiningPaceEstimator.PaceState.PAUSED ? "Paused" : "Calculating...";
+            return isSessionPaused() ? "Paused" : "Calculating...";
         }
 
         long remainingBlocks = progress.target() - progress.current();
@@ -801,54 +765,6 @@ public final class MiningStats
     public static String getCurrentWorldId()
     {
         return currentWorldId != null ? currentWorldId : WorldSessionContext.getCurrentWorldId();
-    }
-
-    public static PredictionSnapshot getPredictionSnapshot()
-    {
-        return getPredictionSnapshot(System.currentTimeMillis());
-    }
-
-    public static PredictionSnapshot getPredictionSnapshot(long now)
-    {
-        if (sessionActive == false)
-        {
-            pruneOldEvents(now);
-            MiningRateSnapshot snapshot = PACE_ESTIMATOR.update(now, Math.max(0L, MINE_EVENTS.size()), currentSession.startTimeMs, false);
-            return new PredictionSnapshot(
-                    snapshot.predictedBlocksPerHour(),
-                    snapshot.confidence(),
-                    snapshot.paceState(),
-                    0D,
-                    snapshot.rate60s(),
-                    snapshot.rate5m());
-        }
-
-        if (sessionPaused)
-        {
-            MiningRateSnapshot snapshot = PACE_ESTIMATOR.getSnapshot();
-            return new PredictionSnapshot(
-                    snapshot.predictedBlocksPerHour(),
-                    snapshot.confidence(),
-                    MiningPaceEstimator.PaceState.PAUSED,
-                    snapshot.sessionRate(),
-                    snapshot.rate60s(),
-                    snapshot.rate5m());
-        }
-
-        if (SMART_ETA_ENABLED == false)
-        {
-            double naiveRate = getEstimatedBlocksPerHourAt(now);
-            return new PredictionSnapshot(naiveRate, naiveRate > 0D ? 0.60D : 0D, naiveRate > 0D ? MiningPaceEstimator.PaceState.STABLE : MiningPaceEstimator.PaceState.CALCULATING, currentSession.getAverageBlocksPerHour(), naiveRate, naiveRate);
-        }
-
-        MiningRateSnapshot snapshot = PACE_ESTIMATOR.update(now, currentSession.totalBlocks, currentSession.startTimeMs, false);
-        return new PredictionSnapshot(
-                snapshot.predictedBlocksPerHour(),
-                snapshot.confidence(),
-                snapshot.paceState(),
-                snapshot.sessionRate(),
-                snapshot.rate60s(),
-                snapshot.rate5m());
     }
 
     public static void onBpsSmoothingChanged()
@@ -1416,9 +1332,5 @@ public final class MiningStats
     public record ProjectProgress(String name, long blocksMined) {}
 
     private record TickBlockCount(long tickIndex, int bpsBlocks, int bphBlocks) {}
-
-    public record PredictionSnapshot(double blocksPerHour, double confidence, MiningPaceEstimator.PaceState paceState, double sessionRate, double recentRate, double longRate)
-    {
-    }
 }
 
