@@ -52,6 +52,7 @@ public class NotificationSettingsScreen extends Screen
         Layout layout = layout();
         updateBounds(layout);
         MmmUi.backdrop(context, this.width, this.height);
+        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
         MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, MmmUi.TEXT, true);
         MmmUi.pill(context, this.textRenderer, layout.contentX, layout.headerY + 18, 136, 16, "Goal Alerts");
@@ -71,6 +72,18 @@ public class NotificationSettingsScreen extends Screen
             MmmUi.card(context, layout.contentX, layout.errorY, layout.contentWidth, 24, MmmUi.INSET, MmmUi.ERROR);
             MmmUi.drawTextWithin(context, this.textRenderer, "Use percentages from 1 to 100, separated with commas.", layout.contentX + 10, layout.errorY + 8, layout.contentWidth - 20, MmmUi.ERROR, false);
         }
+        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button)
+    {
+        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
+        {
+            return true;
+        }
+
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
@@ -212,9 +225,9 @@ public class NotificationSettingsScreen extends Screen
 
     private Layout layout()
     {
-        int panelWidth = Math.min(430, Math.max(340, this.width - 40));
+        int panelWidth = Math.min(430, Math.max(340, MmmUi.contentWidth(this.width) - 20));
         int panelHeight = 278;
-        int panelX = (this.width - panelWidth) / 2;
+        int panelX = MmmUi.centerContentX(this.width, panelWidth);
         int panelY = (this.height - panelHeight) / 2;
         int contentX = panelX + PANEL_PADDING;
         int contentWidth = panelWidth - PANEL_PADDING * 2;

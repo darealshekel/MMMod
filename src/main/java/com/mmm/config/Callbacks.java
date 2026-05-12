@@ -3,12 +3,12 @@ package com.mmm.config;
 import java.io.IOException;
 import java.nio.file.Path;
 
-import com.mmm.gui.GuiConfigs;
 import com.mmm.hud.SessionHistoryScreen;
 import com.mmm.hud.SummaryScreen;
 import com.mmm.tracker.MiningStats;
 import com.mmm.tweak.BlockEspRenderer;
 import com.mmm.tweak.PerimeterWallDigHelper;
+import com.mmm.ui.MmmSettingsScreen;
 
 import fi.dy.masa.malilib.config.IConfigBoolean;
 import fi.dy.masa.malilib.gui.GuiBase;
@@ -104,9 +104,7 @@ public final class Callbacks
 
             if (key == Hotkeys.OPEN_CONFIG_GUI.getKeybind())
             {
-                GuiConfigs gui = new GuiConfigs();
-                gui.setParent(client.currentScreen);
-                GuiBase.openGui(gui);
+                client.setScreen(new MmmSettingsScreen(client.currentScreen));
                 return true;
             }
             if (key == Hotkeys.OPEN_SUMMARY.getKeybind())

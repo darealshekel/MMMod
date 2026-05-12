@@ -116,6 +116,7 @@ public class ProjectManagerScreen extends Screen
         updateFieldPositions(animatedLayout);
 
         MmmUi.backdrop(context, this.width, this.height);
+        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "PROJECTS");
         fillCard(context, animatedLayout.panelX, animatedLayout.panelY, animatedLayout.panelWidth, animatedLayout.panelHeight, COLOR_PANEL, COLOR_BORDER);
 
         drawHeader(context, animatedLayout);
@@ -124,6 +125,7 @@ public class ProjectManagerScreen extends Screen
         drawFieldShell(context, this.nameField);
 
         super.render(context, mouseX, mouseY, delta);
+        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
     }
 
     @Override
@@ -140,6 +142,11 @@ public class ProjectManagerScreen extends Screen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
+        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "PROJECTS"))
+        {
+            return true;
+        }
+
         if (button == 0 && isOverScrollbar(mouseX, mouseY))
         {
             this.draggingScrollbar = true;
@@ -600,10 +607,14 @@ public class ProjectManagerScreen extends Screen
 
     private Layout computeLayout()
     {
-        int panelWidth = Math.min(760, Math.max(600, this.width - PANEL_MARGIN * 2));
-        int panelHeight = Math.min(520, Math.max(424, this.height - 28));
-        int panelX = (this.width - panelWidth) / 2;
-        int panelY = (this.height - panelHeight) / 2;
+        int availableWidth = Math.max(320, MmmUi.contentWidth(this.width) - PANEL_MARGIN);
+        int panelWidth = Math.min(760, Math.max(520, availableWidth));
+        int topY = MmmUi.TOP_BAR_HEIGHT + 10;
+        int availableHeight = Math.max(260, this.height - topY - 12);
+        int panelHeight = Math.min(520, Math.max(360, availableHeight));
+        panelHeight = Math.min(panelHeight, availableHeight);
+        int panelX = MmmUi.centerContentX(this.width, panelWidth);
+        int panelY = topY + Math.max(0, (availableHeight - panelHeight) / 2);
         int contentX = panelX + PANEL_PADDING;
         int contentWidth = panelWidth - PANEL_PADDING * 2;
         int headerY = panelY + PANEL_PADDING;

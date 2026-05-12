@@ -102,6 +102,7 @@ public class SessionHistoryScreen extends Screen
         int panelY = l.panelY + Math.round((1.0F - anim) * 14.0F);
         l = l.move(panelY - l.panelY);
         MmmUi.backdrop(context, this.width, this.height);
+        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "HISTORY");
         card(context, l.panelX, l.panelY, l.panelWidth, l.panelHeight, PANEL, BORDER);
         context.drawText(this.textRenderer, Text.literal("Session History"), l.contentX, l.headerY, TEXT, true);
         pill(context, l.contentX, l.headerY + 18, Math.min(220, l.contentWidth / 2), 16, this.worldName);
@@ -109,6 +110,7 @@ public class SessionHistoryScreen extends Screen
         drawList(context, l, mouseX, mouseY);
         drawDetail(context, l, mouseX, mouseY);
         super.render(context, mouseX, mouseY, delta);
+        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
     }
 
     @Override
@@ -135,6 +137,11 @@ public class SessionHistoryScreen extends Screen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
+        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "HISTORY"))
+        {
+            return true;
+        }
+
         if (button == 0 && isOverBreakdownBar(mouseX, mouseY))
         {
             this.draggingBreakdown = true;
@@ -417,7 +424,7 @@ public class SessionHistoryScreen extends Screen
     private String getTopBlock(SessionData session){ String id=null; long count=0L; for(Map.Entry<String,Long> e:session.blockBreakdown.entrySet()) if(e.getValue()>count){ id=e.getKey(); count=e.getValue(); } return id==null?"No breakdown":resolveName(id)+" ("+UiFormat.formatCompact(count)+")"; }
     private String resolveName(String id){ try{ Identifier i=Identifier.tryParse(id); if(i!=null){ var b=net.minecraft.registry.Registries.BLOCK.get(i); if(b!=null) return b.getName().getString(); } }catch(Exception ignored){} return id; }
     private String truncate(String value,int maxWidth){ return MmmUi.truncate(this.textRenderer, value, maxWidth); }
-    private Layout layout(){ int panelWidth=Math.min(760,Math.max(580,this.width-M*2)), panelHeight=Math.min(520,Math.max(420,this.height-28)), panelX=(this.width-panelWidth)/2, panelY=(this.height-panelHeight)/2, contentX=panelX+P, contentWidth=panelWidth-P*2, headerY=panelY+P, contentY=headerY+58, overviewY=headerY+58, leftWidth=Math.max(300,(int)(contentWidth*0.50F))-G/2, detailX=contentX+leftWidth+G, detailWidth=contentWidth-leftWidth-G, contentHeight=panelY+panelHeight-P-contentY; return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight); }
+    private Layout layout(){ int availableWidth=Math.max(340,MmmUi.contentWidth(this.width)-M), topY=MmmUi.TOP_BAR_HEIGHT+10, availableHeight=Math.max(260,this.height-topY-12); int panelWidth=Math.min(760,Math.max(540,availableWidth)), panelHeight=Math.min(Math.min(520,Math.max(360,availableHeight)),availableHeight), panelX=MmmUi.centerContentX(this.width,panelWidth), panelY=topY+Math.max(0,(availableHeight-panelHeight)/2), contentX=panelX+P, contentWidth=panelWidth-P*2, headerY=panelY+P, contentY=headerY+58, overviewY=headerY+58, leftWidth=Math.max(260,(int)(contentWidth*0.50F))-G/2, detailX=contentX+leftWidth+G, detailWidth=contentWidth-leftWidth-G, contentHeight=panelY+panelHeight-P-contentY; return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight); }
     private record Layout(int panelX,int panelY,int panelWidth,int panelHeight,int panelRight,int contentX,int contentWidth,int headerY,int overviewY,int contentY,int leftWidth,int detailX,int detailWidth,int contentHeight){ private Layout move(int delta){ return new Layout(panelX,panelY+delta,panelWidth,panelHeight,panelRight,contentX,contentWidth,headerY+delta,overviewY+delta,contentY+delta,leftWidth,detailX,detailWidth,contentHeight); } }
     private record BreakdownMetrics(int listX,int listY,int listHeight,int viewportWidth,int scrollbarX){}
 }

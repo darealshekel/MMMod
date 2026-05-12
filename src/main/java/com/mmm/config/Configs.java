@@ -36,7 +36,7 @@ public class Configs implements IConfigHandler
     private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://sync.mmmaniacs.com/v1/sync";
     private static final String LEGACY_ENDPOINT_BRAND = "aet" + "weaks";
     private static final String LEGACY_SUPABASE_PROJECT_REF = "jmspoiryzfilppiovhmf";
-    public static final int MIN_DAILY_GOAL = 10_000;
+    public static final int MIN_DAILY_GOAL = 35_000;
 
     public static class Generic
     {

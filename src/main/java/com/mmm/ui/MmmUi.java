@@ -2,24 +2,31 @@ package com.mmm.ui;
 
 import java.util.List;
 
+import com.mmm.Reference;
+import com.mmm.gui.GuiConfigs;
+import com.mmm.hud.SessionHistoryScreen;
+import com.mmm.hud.SummaryScreen;
+import com.mmm.tracker.MiningStats;
+
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 
 public final class MmmUi
 {
-    public static final int BLACK = 0xFF1F1F1F;
+    public static final int BLACK = 0xFF050505;
     public static final int RED = 0xFFE00000;
-    public static final int OVERLAY = 0xCC050505;
-    public static final int PANEL = BLACK;
-    public static final int CARD = 0xE6090909;
+    public static final int OVERLAY = 0xFF050505;
+    public static final int PANEL = 0xFF050505;
+    public static final int CARD = 0xF20D0D0D;
     public static final int CARD_SOFT = CARD;
-    public static final int INSET = 0xB8050505;
-    public static final int BORDER = RED;
-    public static final int BORDER_SOFT = 0x99E00000;
+    public static final int INSET = 0xFF121212;
+    public static final int BORDER = 0xFF1F1F1F;
+    public static final int BORDER_SOFT = 0xFF272727;
     public static final int ACCENT = RED;
     public static final int ACCENT_BRIGHT = RED;
     public static final int ACCENT_SOFT = 0x33E00000;
@@ -38,9 +45,15 @@ public final class MmmUi
     public static final int GRAPH_FILL = 0xBFE00000;
     public static final int GRAPH_GRID = 0x28E00000;
     public static final int SCROLLBAR_TRACK = 0x44090909;
-    public static final int SCROLLBAR_THUMB = RED;
+    public static final int SCROLLBAR_THUMB = 0xFFC20000;
     public static final int SCROLLBAR_THUMB_HOVER = RED;
     public static final int SCROLLBAR_THUMB_ACTIVE = RED;
+    public static final int TOP_BAR_HEIGHT = 42;
+    public static final int SIDEBAR_WIDTH = 150;
+    public static final int PAGE_PAD = 14;
+
+    private static final int SIDEBAR_ROW_HEIGHT = 24;
+    private static final int SIDEBAR_ROW_GAP = 7;
 
     private MmmUi()
     {
@@ -58,6 +71,92 @@ public final class MmmUi
     public static void backdrop(DrawContext context, int width, int height)
     {
         context.fill(0, 0, width, height, OVERLAY);
+    }
+
+    public static int contentLeft()
+    {
+        return SIDEBAR_WIDTH + PAGE_PAD;
+    }
+
+    public static int contentWidth(int screenWidth)
+    {
+        return Math.max(1, screenWidth - contentLeft() - PAGE_PAD);
+    }
+
+    public static int centerContentX(int screenWidth, int contentWidth)
+    {
+        return contentLeft() + Math.max(0, (contentWidth(screenWidth) - contentWidth) / 2);
+    }
+
+    public static void drawMmmScreensSidebar(DrawContext context, TextRenderer renderer, int width, int height, int mouseX, int mouseY, String activeId)
+    {
+        drawMmmTopBar(context, renderer, width);
+        context.fill(0, TOP_BAR_HEIGHT, SIDEBAR_WIDTH, height, 0xE9080808);
+        context.drawBorder(0, TOP_BAR_HEIGHT, SIDEBAR_WIDTH, height - TOP_BAR_HEIGHT, BORDER);
+
+        int titleY = TOP_BAR_HEIGHT + 16;
+        drawSectionHeading(context, renderer, "MMM SCREENS", 12, titleY, SIDEBAR_WIDTH - 24);
+
+        int y = titleY + 28;
+        for (SidebarRoute route : SidebarRoute.values())
+        {
+            boolean active = route.id.equals(activeId);
+            boolean hovered = mouseX >= 12 && mouseX < SIDEBAR_WIDTH - 12 && mouseY >= y && mouseY < y + SIDEBAR_ROW_HEIGHT;
+            int fill = active ? 0x33E00000 : hovered ? 0x22E00000 : INSET;
+            int border = active || hovered ? ACCENT : BORDER_SOFT;
+            context.fill(12, y, SIDEBAR_WIDTH - 12, y + SIDEBAR_ROW_HEIGHT, fill);
+            context.drawBorder(12, y, SIDEBAR_WIDTH - 24, SIDEBAR_ROW_HEIGHT, border);
+            drawTextWithin(context, renderer, route.label, 20, y + 8, SIDEBAR_WIDTH - 40, active ? TEXT : MUTED, false);
+            y += SIDEBAR_ROW_HEIGHT + SIDEBAR_ROW_GAP;
+        }
+
+        int bottomY = height - 42;
+        context.drawBorder(12, bottomY, SIDEBAR_WIDTH - 24, 28, BORDER_SOFT);
+        drawTextWithin(context, renderer, "MMM MOD", 20, bottomY + 7, SIDEBAR_WIDTH - 40, TEXT, false);
+        drawTextWithin(context, renderer, Reference.MOD_VERSION, 20, bottomY + 18, SIDEBAR_WIDTH - 40, MUTED, false);
+    }
+
+    public static void drawMmmTopBar(DrawContext context, TextRenderer renderer, int width)
+    {
+        context.fill(0, 0, width, TOP_BAR_HEIGHT, 0xF0060606);
+        context.drawBorder(0, 0, width, TOP_BAR_HEIGHT, BORDER);
+        context.fill(14, 12, 18, 30, ACCENT);
+        drawTextWithin(context, renderer, "MMM", 26, 10, 40, ACCENT_BRIGHT, false);
+        drawTextWithin(context, renderer, "Manual Mining Maniacs", 68, 10, Math.max(0, width / 2 - 80), TEXT, false);
+        int versionWidth = renderer.getWidth(Reference.MOD_VERSION);
+        drawTextRightWithin(context, renderer, Reference.MOD_VERSION, width - 16, 10, versionWidth, MUTED, false);
+    }
+
+    public static boolean handleMmmScreensSidebarClick(Screen current, Screen parent, double mouseX, double mouseY, String activeId)
+    {
+        if (mouseX < 12 || mouseX >= SIDEBAR_WIDTH - 12)
+        {
+            return false;
+        }
+
+        int y = TOP_BAR_HEIGHT + 44;
+        for (SidebarRoute route : SidebarRoute.values())
+        {
+            if (mouseY >= y && mouseY < y + SIDEBAR_ROW_HEIGHT)
+            {
+                if (route.id.equals(activeId))
+                {
+                    return true;
+                }
+                openSidebarRoute(current, parent, route);
+                return true;
+            }
+            y += SIDEBAR_ROW_HEIGHT + SIDEBAR_ROW_GAP;
+        }
+
+        return false;
+    }
+
+    public static void drawSectionHeading(DrawContext context, TextRenderer renderer, String title, int x, int y, int maxWidth)
+    {
+        int textHeight = renderer.fontHeight;
+        context.fill(x, y, x + 4, y + textHeight, ACCENT);
+        drawTextWithin(context, renderer, title, x + 12, y, maxWidth - 12, TEXT, false);
     }
 
     public static void card(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
@@ -149,5 +248,48 @@ public final class MmmUi
             return ellipsis;
         }
         return trimmed + ellipsis;
+    }
+
+    private static void openSidebarRoute(Screen current, Screen parent, SidebarRoute route)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null)
+        {
+            return;
+        }
+
+        Screen routeParent = parent != null ? parent : current;
+        switch (route)
+        {
+            case SETTINGS -> client.setScreen(new MmmSettingsScreen(routeParent));
+            case TOGGLES -> client.setScreen(GuiConfigs.createForTab("TWEAKS", routeParent));
+            case HOTKEYS -> client.setScreen(GuiConfigs.createForTab("HOTKEYS", routeParent));
+            case PROJECTS -> client.setScreen(new ProjectManagerScreen(routeParent));
+            case PROFILE -> client.setScreen(new PlayerProfileScreen(routeParent));
+            case WEBSITE_LINK -> client.setScreen(new WebsiteLinkScreen(routeParent));
+            case HISTORY -> client.setScreen(new SessionHistoryScreen(routeParent));
+            case SUMMARY -> client.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), routeParent));
+        }
+    }
+
+    private enum SidebarRoute
+    {
+        SETTINGS("SETTINGS", "Settings"),
+        TOGGLES("TOGGLES", "Feature Toggles"),
+        HOTKEYS("HOTKEYS", "Hotkeys"),
+        PROJECTS("PROJECTS", "Projects"),
+        PROFILE("PROFILE", "Profile"),
+        WEBSITE_LINK("WEBSITE_LINK", "Website Link"),
+        HISTORY("HISTORY", "History"),
+        SUMMARY("SUMMARY", "Summary");
+
+        private final String id;
+        private final String label;
+
+        SidebarRoute(String id, String label)
+        {
+            this.id = id;
+            this.label = label;
+        }
     }
 }

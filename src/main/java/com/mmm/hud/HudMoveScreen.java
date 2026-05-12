@@ -34,26 +34,25 @@ public class HudMoveScreen extends Screen
     protected void init()
     {
         ensureCursorVisible();
-        int centerX = this.width / 2;
+        ControlLayout layout = this.controlLayout();
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("-"), button -> adjustScale(-0.05D)).dimensions(centerX - 54, 44, 20, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("+"), button -> adjustScale(0.05D)).dimensions(centerX + 34, 44, 20, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(centerX - 40, this.height - 30, 80, 20).build());
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("-"), button -> adjustScale(-0.05D)).dimensions(layout.x() + 16, layout.y() + 46, 22, 20).build());
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("+"), button -> adjustScale(0.05D)).dimensions(layout.x() + 42, layout.y() + 46, 22, 20).build());
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(layout.x() + layout.width() - 84, layout.y() + 46, 68, 20).build());
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
         ensureCursorVisible();
-        int centerX = this.width / 2;
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.card(context, centerX - 142, 12, 284, 78, MmmUi.PANEL, MmmUi.BORDER);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, centerX, 20, MmmUi.TEXT);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Drag the HUD to move it."), centerX, 34, MmmUi.LABEL);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Size: " + (int) Math.round(Configs.Generic.HUD_SCALE.getDoubleValue() * 100.0D) + "%"), centerX, 50, MmmUi.ACCENT_BRIGHT);
-        context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Use +/- or mouse wheel to change size."), centerX, 70, MmmUi.MUTED);
+        ControlLayout layout = this.controlLayout();
+        context.fill(0, 0, this.width, this.height, 0x33050505);
+        MmmUi.card(context, layout.x(), layout.y(), layout.width(), layout.height(), MmmUi.PANEL, MmmUi.BORDER);
+        MmmUi.drawSectionHeading(context, this.textRenderer, "MOVE HUD", layout.x() + 12, layout.y() + 12, layout.width() - 24);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Drag the HUD preview. Scroll or use +/- for size.", layout.x() + 12, layout.y() + 28, layout.width() - 24, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Size: " + (int) Math.round(Configs.Generic.HUD_SCALE.getDoubleValue() * 100.0D) + "%", layout.x() + 74, layout.y() + 52, 76, MmmUi.ACCENT_BRIGHT, false);
 
-        drawPreview(context, Configs.Generic.HUD_X.getIntegerValue(), Configs.Generic.HUD_Y.getIntegerValue(), Configs.Generic.HUD_SCALE.getDoubleValue());
+        drawHudBounds(context);
         super.render(context, mouseX, mouseY, delta);
     }
 
@@ -158,6 +157,12 @@ public class HudMoveScreen extends Screen
         Configs.Generic.HUD_SCALE.setDoubleValue(Math.max(0.75D, Math.min(1.75D, Configs.Generic.HUD_SCALE.getDoubleValue() + delta)));
     }
 
+    private void drawHudBounds(DrawContext context)
+    {
+        int[] bounds = MiningHudRenderer.getBounds(MinecraftClient.getInstance());
+        context.drawBorder(bounds[0] - 2, bounds[1] - 2, bounds[2] - bounds[0] + 4, bounds[3] - bounds[1] + 4, MmmUi.ACCENT);
+    }
+
     private void drawPreview(DrawContext context, int x, int y, double scale)
     {
         List<PreviewLine> lines = new ArrayList<>();
@@ -204,7 +209,8 @@ public class HudMoveScreen extends Screen
         String percentText = dailyGoal.getPercent() + "%";
         int fillColor = UiFormat.getGoalColor(dailyGoal);
         context.drawText(this.textRenderer, Text.literal("Daily Goal"), 0, drawY + 2, Configs.getHudTitleColor(), false);
-        context.drawText(this.textRenderer, Text.literal(progressText), 72, drawY + 2, Configs.getHudTextColor(), false);
+        int progressX = Math.max(0, (width - this.textRenderer.getWidth(progressText)) / 2);
+        context.drawText(this.textRenderer, Text.literal(progressText), progressX, drawY + 2, Configs.getHudTextColor(), false);
         context.drawText(this.textRenderer, Text.literal(percentText), width - this.textRenderer.getWidth(percentText), drawY + 2, fillColor, false);
         int barY = drawY + 13;
         int fillWidth = dailyGoal.target() <= 0 ? 0 : (int) Math.min(width, (width * (double) dailyGoal.current()) / dailyGoal.target());
@@ -268,6 +274,19 @@ public class HudMoveScreen extends Screen
                 drawX += renderer.getWidth(segment.text());
             }
         }
+    }
+
+    private ControlLayout controlLayout()
+    {
+        int panelW = 270;
+        int panelH = 78;
+        int panelX = Math.max(12, this.width - panelW - 12);
+        int panelY = 12;
+        return new ControlLayout(panelX, panelY, panelW, panelH);
+    }
+
+    private record ControlLayout(int x, int y, int width, int height)
+    {
     }
 
     private static int inactiveTextColor(String value, boolean sessionPaused)

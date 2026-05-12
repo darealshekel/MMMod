@@ -13,6 +13,7 @@ import com.mmm.hud.SessionHistoryScreen;
 import com.mmm.hud.SummaryScreen;
 import com.mmm.tracker.MiningStats;
 import com.mmm.ui.MmmUi;
+import com.mmm.ui.MmmSettingsScreen;
 import com.mmm.ui.PlayerProfileScreen;
 import com.mmm.ui.ProjectManagerScreen;
 import com.mmm.ui.WebsiteLinkScreen;
@@ -34,19 +35,39 @@ import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
 public class GuiConfigs extends GuiConfigsBase
 {
     public static ImmutableList<FeatureToggle> TWEAK_LIST = FeatureToggle.VALUES;
-    private static final int TAB_Y = 28;
-    private static final int TAB_HEIGHT = 18;
-    private static final int LIST_Y = TAB_Y + TAB_HEIGHT + 8;
+    private static final int LIST_Y = MmmUi.TOP_BAR_HEIGHT + 12;
+    private static final int SIDEBAR_FIRST_ROW_Y = MmmUi.TOP_BAR_HEIGHT + 44;
+    private static final int SIDEBAR_ROW_STEP = 31;
     private static ConfigGuiTab tab = ConfigGuiTab.TWEAKS;
 
     public GuiConfigs()
     {
-        super(10, LIST_Y, Reference.MOD_ID, null, Reference.MOD_NAME + " %s", String.format("%s", Reference.MOD_VERSION));
+        super(MmmUi.contentLeft(), LIST_Y, Reference.MOD_ID, null, Reference.MOD_NAME + " %s", String.format("%s", Reference.MOD_VERSION));
+    }
+
+    public static GuiConfigs createForTab(String tabName, Screen parent)
+    {
+        if (tabName != null)
+        {
+            for (ConfigGuiTab configTab : ConfigGuiTab.values())
+            {
+                if (configTab.name().equalsIgnoreCase(tabName))
+                {
+                    tab = configTab;
+                    break;
+                }
+            }
+        }
+
+        GuiConfigs gui = new GuiConfigs();
+        gui.setParent(parent);
+        return gui;
     }
 
     @Override
@@ -55,19 +76,22 @@ public class GuiConfigs extends GuiConfigsBase
         super.initGui();
         this.clearOptions();
 
-        ConfigGuiTab[] tabs = ConfigGuiTab.values();
-        int gap = 4;
-        int availableWidth = Math.max(1, this.width - 20 - gap * (tabs.length - 1));
-        int tabWidth = Math.max(34, Math.min(82, availableWidth / tabs.length));
-        int rowWidth = tabs.length * tabWidth + gap * (tabs.length - 1);
-        int x = Math.max(10, (this.width - rowWidth) / 2);
-        int y = TAB_Y;
-        for (ConfigGuiTab configTab : tabs)
-        {
-            this.createTabButton(x, y, tabWidth, configTab);
-            x += tabWidth + gap;
-        }
-
+        int y = SIDEBAR_FIRST_ROW_Y;
+        this.createSettingsButton(y);
+        y += SIDEBAR_ROW_STEP;
+        this.createSidebarButton(y, ConfigGuiTab.TWEAKS);
+        y += SIDEBAR_ROW_STEP;
+        this.createSidebarButton(y, ConfigGuiTab.HOTKEYS);
+        y += SIDEBAR_ROW_STEP;
+        this.createSidebarButton(y, ConfigGuiTab.PROJECTS);
+        y += SIDEBAR_ROW_STEP;
+        this.createSidebarButton(y, ConfigGuiTab.PROFILE);
+        y += SIDEBAR_ROW_STEP;
+        this.createSidebarButton(y, ConfigGuiTab.WEBSITE_LINK);
+        y += SIDEBAR_ROW_STEP;
+        this.createSidebarButton(y, ConfigGuiTab.HISTORY);
+        y += SIDEBAR_ROW_STEP;
+        this.createSidebarButton(y, ConfigGuiTab.SUMMARY);
     }
 
     @Override
@@ -80,15 +104,19 @@ public class GuiConfigs extends GuiConfigsBase
     protected void drawScreenBackground(DrawContext context, int mouseX, int mouseY)
     {
         MmmUi.backdrop(context, this.width, this.height);
+        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        context.fill(0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height, 0xE9080808);
+        context.drawBorder(0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height - MmmUi.TOP_BAR_HEIGHT, MmmUi.BORDER);
+        MmmUi.drawSectionHeading(context, this.textRenderer, "MMM SCREENS", 12, MmmUi.TOP_BAR_HEIGHT + 16, MmmUi.SIDEBAR_WIDTH - 24);
+        int bottomY = this.height - 42;
+        context.drawBorder(12, bottomY, MmmUi.SIDEBAR_WIDTH - 24, 28, MmmUi.BORDER_SOFT);
+        MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD", 20, bottomY + 7, MmmUi.SIDEBAR_WIDTH - 40, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, Reference.MOD_VERSION, 20, bottomY + 18, MmmUi.SIDEBAR_WIDTH - 40, MmmUi.MUTED, false);
     }
 
     @Override
     protected void drawTitle(DrawContext context, int mouseX, int mouseY, float partialTicks)
     {
-        MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 16, 12, 30, MmmUi.ACCENT_BRIGHT, false);
-        int versionWidth = this.textRenderer.getWidth(Reference.MOD_VERSION);
-        MmmUi.drawTextWithin(context, this.textRenderer, tab.getDisplayName(), 52, 12, Math.max(0, this.width - 76 - versionWidth), MmmUi.LABEL, false);
-        MmmUi.drawTextRightWithin(context, this.textRenderer, Reference.MOD_VERSION, this.width - 16, 12, versionWidth, MmmUi.MUTED, false);
     }
 
     @Override
@@ -148,10 +176,16 @@ public class GuiConfigs extends GuiConfigsBase
         return new BooleanHotkeyGuiWrapper(config.getName(), config, config.getKeybind());
     }
 
-    private void createTabButton(int x, int y, int width, ConfigGuiTab configTab)
+    private void createSettingsButton(int y)
     {
-        ButtonGeneric button = new MmmTabButton(x, y, width, TAB_HEIGHT, configTab.getDisplayName(), tab == configTab);
-        button.setEnabled(tab != configTab);
+        ButtonGeneric button = new MmmSidebarButton(12, y, MmmUi.SIDEBAR_WIDTH - 24, 24, "Settings", false);
+        this.addButton(button, new SettingsButtonListener(this));
+    }
+
+    private void createSidebarButton(int y, ConfigGuiTab configTab)
+    {
+        ButtonGeneric button = new MmmSidebarButton(12, y, MmmUi.SIDEBAR_WIDTH - 24, 24, configTab.getDisplayName(), tab == configTab);
+        button.setEnabled(tab != configTab || configTab != ConfigGuiTab.TWEAKS && configTab != ConfigGuiTab.HOTKEYS);
         this.addButton(button, new TabButtonListener(configTab, this));
     }
 
@@ -289,16 +323,16 @@ public class GuiConfigs extends GuiConfigsBase
         }
     }
 
-    private static class MmmTabButton extends ButtonGeneric
+    private static class MmmSidebarButton extends ButtonGeneric
     {
         private final boolean selected;
 
-        private MmmTabButton(int x, int y, int width, int height, String label, boolean selected)
+        private MmmSidebarButton(int x, int y, int width, int height, String label, boolean selected)
         {
             super(x, y, width, height, label);
             this.selected = selected;
             this.setRenderDefaultBackground(false);
-            this.setTextCentered(true);
+            this.setTextCentered(false);
         }
 
         @Override
@@ -310,17 +344,26 @@ public class GuiConfigs extends GuiConfigsBase
             }
 
             boolean hovered = this.enabled && this.isMouseOver(mouseX, mouseY);
-            int textColor = this.selected ? MmmUi.ACCENT : hovered ? MmmUi.TEXT : MmmUi.LABEL;
-            String label = MmmUi.truncate(this.textRenderer, this.displayString, this.width - 8);
-            int textX = this.x + Math.max(4, (this.width - this.textRenderer.getWidth(label)) / 2);
-            int textY = this.y + (this.height - this.fontHeight) / 2 + 1;
+            int fill = this.selected ? 0x33E00000 : hovered ? 0x22E00000 : MmmUi.INSET;
+            int border = this.selected || hovered ? MmmUi.ACCENT : MmmUi.BORDER_SOFT;
+            MmmUi.card(context, this.x, this.y, this.width, this.height, fill, border);
+            MmmUi.drawTextWithin(context, this.textRenderer, this.displayString, this.x + 8, this.y + 8, this.width - 16, this.selected ? MmmUi.TEXT : MmmUi.MUTED, false);
+        }
+    }
 
-            context.drawText(this.textRenderer, Text.literal(label), textX, textY, textColor, false);
-            if (this.selected || hovered)
-            {
-                int underlineColor = this.selected ? MmmUi.ACCENT : MmmUi.ACCENT_SOFT;
-                context.fill(this.x + 5, this.y + this.height - 2, this.x + this.width - 5, this.y + this.height - 1, underlineColor);
-            }
+    private static class SettingsButtonListener implements IButtonActionListener
+    {
+        private final GuiConfigs parent;
+
+        private SettingsButtonListener(GuiConfigs parent)
+        {
+            this.parent = parent;
+        }
+
+        @Override
+        public void actionPerformedWithButton(ButtonBase button, int mouseButton)
+        {
+            MinecraftClient.getInstance().setScreen(new MmmSettingsScreen(this.parent));
         }
     }
 
@@ -378,11 +421,11 @@ public class GuiConfigs extends GuiConfigsBase
     private enum ConfigGuiTab
     {
         GENERIC("Generic"),
-        TWEAKS("Toggles"),
+        TWEAKS("Feature Toggles"),
         HOTKEYS("Hotkeys"),
         PROJECTS("Projects"),
         PROFILE("Profile"),
-        WEBSITE_LINK("Website"),
+        WEBSITE_LINK("Website Link"),
         SUMMARY("Summary"),
         HISTORY("History");
 

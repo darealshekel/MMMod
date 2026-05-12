@@ -106,6 +106,7 @@ public class WebsiteLinkScreen extends Screen
         updateWidgetBounds(layout);
 
         MmmUi.backdrop(context, this.width, this.height);
+        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "WEBSITE_LINK");
         fillCard(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, COLOR_PANEL, COLOR_BORDER);
 
         drawHeader(context, layout);
@@ -122,6 +123,18 @@ public class WebsiteLinkScreen extends Screen
             int placeholderX = this.codeField.getX() + 5;
             context.drawText(this.textRenderer, Text.literal(placeholder), placeholderX, this.codeField.getY() + 8, COLOR_MUTED, false);
         }
+        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button)
+    {
+        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "WEBSITE_LINK"))
+        {
+            return true;
+        }
+
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
@@ -376,9 +389,10 @@ public class WebsiteLinkScreen extends Screen
 
     private Layout computeLayout()
     {
-        int panelWidth = Math.min(796, Math.max(664, this.width - PANEL_MARGIN * 2));
+        int availableWidth = Math.max(360, MmmUi.contentWidth(this.width) - PANEL_MARGIN);
+        int panelWidth = Math.min(796, Math.max(560, availableWidth));
         int panelHeight = Math.min(408, Math.max(356, this.height - 28));
-        int panelX = (this.width - panelWidth) / 2;
+        int panelX = MmmUi.centerContentX(this.width, panelWidth);
         int panelY = (this.height - panelHeight) / 2;
         int contentX = panelX + PANEL_PADDING;
         int contentWidth = panelWidth - PANEL_PADDING * 2;

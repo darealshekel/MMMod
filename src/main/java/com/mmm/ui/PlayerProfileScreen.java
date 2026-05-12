@@ -54,6 +54,7 @@ public class PlayerProfileScreen extends Screen
         MmmUi.ensureCursorVisible();
         Layout layout = computeLayout();
         MmmUi.backdrop(context, this.width, this.height);
+        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "PROFILE");
         MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
 
         MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, Math.max(0, layout.contentWidth - 196), MmmUi.TEXT, true);
@@ -66,6 +67,18 @@ public class PlayerProfileScreen extends Screen
         drawBreakdownCard(context, layout.rightX, layout.cardsY + 112, layout.cardWidth, layout.lowerHeight);
 
         super.render(context, mouseX, mouseY, delta);
+        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button)
+    {
+        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "PROFILE"))
+        {
+            return true;
+        }
+
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
@@ -286,9 +299,10 @@ public class PlayerProfileScreen extends Screen
 
     private Layout computeLayout()
     {
-        int panelWidth = Math.min(this.width - 24, 620);
+        int panelWidth = Math.min(MmmUi.contentWidth(this.width) - 12, 620);
+        panelWidth = Math.max(420, panelWidth);
         int panelHeight = Math.min(this.height - 24, 336);
-        int panelX = (this.width - panelWidth) / 2;
+        int panelX = MmmUi.centerContentX(this.width, panelWidth);
         int panelY = (this.height - panelHeight) / 2;
         int contentX = panelX + PANEL_PADDING;
         int contentWidth = panelWidth - PANEL_PADDING * 2;

@@ -118,12 +118,14 @@ public final class MiningHudRenderer
         boolean syncHealthy = CloudSyncManager.isHudHealthy(now) && DigsSyncManager.isHudHealthy(now);
         String title = lines.getFirst().text();
         int titleTextWidth = client.textRenderer.getWidth(title);
+        int syncIndicatorSize = client.textRenderer.fontHeight;
+        int titleX = syncIndicatorSize + 4;
         if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
         {
-            drawLineBox(context, 0, drawY, titleTextWidth + 12);
+            drawLineBox(context, 0, drawY, titleX + titleTextWidth);
         }
-        drawSyncIndicator(context, 3, drawY + 5, syncHealthy ? SYNC_OK_COLOR : SYNC_FAIL_COLOR);
-        context.drawText(client.textRenderer, Text.literal(title), 10, drawY, hudTitleColor(), true);
+        drawSyncIndicator(context, 0, drawY, syncIndicatorSize, syncHealthy ? SYNC_OK_COLOR : SYNC_FAIL_COLOR);
+        context.drawText(client.textRenderer, Text.literal(title), titleX, drawY, hudTitleColor(), true);
         drawY += lineHeight;
         for (int i = 1; i < lines.size(); i++)
         {
@@ -283,10 +285,10 @@ public final class MiningHudRenderer
         context.drawBorder(x - 4, y - 2, textWidth + 9, 13, HUD_NEUTRAL_BORDER_COLOR);
     }
 
-    private static void drawSyncIndicator(DrawContext context, int centerX, int centerY, int color)
+    private static void drawSyncIndicator(DrawContext context, int x, int y, int size, int color)
     {
-        context.fill(centerX - 2, centerY - 2, centerX + 3, centerY + 3, color);
-        context.fill(centerX - 1, centerY - 1, centerX + 2, centerY + 2, color);
+        context.fill(x, y, x + size, y + size, color);
+        context.drawBorder(x, y, size, size, 0xAA000000);
     }
 
     private static void drawGoalProgress(DrawContext context, MinecraftClient client, int x, int y, int width, MiningStats.GoalProgress progress)
@@ -294,8 +296,10 @@ public final class MiningHudRenderer
         int fillColor = UiFormat.getGoalColor(progress);
         int fillWidth = progress.target() <= 0 ? 0 : (int) Math.min(width, (width * (double) progress.current()) / progress.target());
         String percentText = progress.getPercent() + "%";
+        String progressText = UiFormat.formatProgress(progress.current(), progress.target());
         context.drawText(client.textRenderer, Text.literal("Daily Goal"), x, y, hudTitleColor(), false);
-        context.drawText(client.textRenderer, Text.literal(UiFormat.formatProgress(progress.current(), progress.target())), x + 72, y, hudTextColor(), false);
+        int progressX = x + Math.max(0, (width - client.textRenderer.getWidth(progressText)) / 2);
+        context.drawText(client.textRenderer, Text.literal(progressText), progressX, y, hudTextColor(), false);
         context.drawText(client.textRenderer, Text.literal(percentText), x + width - client.textRenderer.getWidth(Text.literal(percentText)), y, fillColor, false);
 
         int barY = y + 11;
