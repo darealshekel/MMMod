@@ -45,6 +45,7 @@ public final class MiningStats
     private static final int BPH_WINDOW_TICKS = 72_000;
     private static final int BPS_UPDATE_INTERVAL_TICKS = 10;
     private static final int BPS_WINDOW_TICKS = 100;
+    private static final int IDLE_METRIC_RESET_TICKS = 1200;
     private static final ZoneId DAILY_RESET_ZONE = ZoneId.of("UTC");
 
     private static final Deque<Long> MINE_EVENTS = new ArrayDeque<>();
@@ -69,6 +70,7 @@ public final class MiningStats
     private static long sessionActiveTicks;
     private static int currentTickBpsBlocks;
     private static int currentTickBphBlocks;
+    private static int idleMetricTicks;
     private static double rollingBlocksPerSecond;
     private static double rollingBlocksPerHour;
     private static double displayedBlocksPerSecond;
@@ -924,12 +926,11 @@ public final class MiningStats
 
     private static void recordSuccessfulHarvestForRollingMetrics()
     {
-        boolean sessionOnly = FeatureToggle.TWEAK_SESSION_ONLY_SPEED.getBooleanValue();
-        boolean canTrack = sessionOnly ? (sessionActive && !sessionPaused) : !isSessionPaused();
-        if (canTrack)
+        if (!sessionPaused)
         {
             currentTickBpsBlocks++;
             currentTickBphBlocks++;
+            idleMetricTicks = 0;
         }
     }
 
@@ -941,18 +942,19 @@ public final class MiningStats
             return;
         }
 
-        boolean sessionOnly = FeatureToggle.TWEAK_SESSION_ONLY_SPEED.getBooleanValue();
-
         if (sessionPaused)
         {
             return;
         }
 
-        if (sessionOnly && !sessionActive)
+        if (!sessionActive)
         {
-            displayedBlocksPerSecond = 0D;
-            displayedBlocksPerHour = 0D;
-            return;
+            idleMetricTicks++;
+            if (idleMetricTicks >= IDLE_METRIC_RESET_TICKS)
+            {
+                resetRollingMetrics();
+                return;
+            }
         }
 
         Configs.BpsSmoothing mode = Configs.getBpsSmoothingMode();
@@ -1013,6 +1015,7 @@ public final class MiningStats
         sessionActiveTicks = 0L;
         currentTickBpsBlocks = 0;
         currentTickBphBlocks = 0;
+        idleMetricTicks = 0;
         rollingBlocksPerSecond = 0D;
         rollingBlocksPerHour = 0D;
         displayedBlocksPerSecond = 0D;
@@ -1097,16 +1100,6 @@ public final class MiningStats
 
     private static double calculateSessionBph()
     {
-        if (sessionActiveTicks <= 0L)
-        {
-            return 0D;
-        }
-        if (sessionActiveTicks < BPH_WINDOW_TICKS)
-        {
-            // Under 1 hour: project current session pace to a full hour (per D-01)
-            return currentSession.totalBlocks * (double) BPH_WINDOW_TICKS / sessionActiveTicks;
-        }
-        // Over 1 hour: actual rolling 60-minute count from deque (per D-04)
         return calculateRollingBph();
     }
 
