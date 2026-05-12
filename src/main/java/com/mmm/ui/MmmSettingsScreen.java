@@ -57,12 +57,10 @@ public class MmmSettingsScreen extends Screen
     private final List<SettingsSection> sections = new ArrayList<>();
     private final List<ClickTarget> clickTargets = new ArrayList<>();
     private final List<ScrollTarget> scrollTargets = new ArrayList<>();
-    private final List<ScrollTarget> scrollButtonTargets = new ArrayList<>();
     private final Map<IConfigBase, TextFieldWidget> textFields = new IdentityHashMap<>();
     private final Map<SettingsSection, Integer> sectionY = new HashMap<>();
     private double scrollY = 0.0D;
     private int contentHeight = 0;
-    private IConfigBase activeScrollNumber;
 
     public MmmSettingsScreen(Screen parent)
     {
@@ -105,7 +103,6 @@ public class MmmSettingsScreen extends Screen
         MmmUi.ensureCursorVisible();
         this.clickTargets.clear();
         this.scrollTargets.clear();
-        this.scrollButtonTargets.clear();
         this.sectionY.clear();
         this.updateLayout();
 
@@ -134,11 +131,6 @@ public class MmmSettingsScreen extends Screen
             return true;
         }
 
-        if (button == 0 && this.isOverScrollNumberButton(mouseX, mouseY) == false)
-        {
-            this.activeScrollNumber = null;
-        }
-
         for (ClickTarget target : List.copyOf(this.clickTargets))
         {
             if (target.contains(mouseX, mouseY))
@@ -158,16 +150,9 @@ public class MmmSettingsScreen extends Screen
         {
             if (target.contains(mouseX, mouseY))
             {
-                this.activeScrollNumber = target.config();
                 this.adjustNumberByScroll(target.config(), verticalAmount);
                 return true;
             }
-        }
-
-        if (this.activeScrollNumber != null)
-        {
-            this.adjustNumberByScroll(this.activeScrollNumber, verticalAmount);
-            return true;
         }
 
         int viewportH = this.height - TOP_HEIGHT - PAGE_PAD;
@@ -246,12 +231,12 @@ public class MmmSettingsScreen extends Screen
             int rowHeight = Math.max(leftHeight, rightHeight);
 
             this.sectionY.put(left, rowY);
-            this.drawSection(context, left, x, rowY, columnW, leftHeight, mouseX, mouseY);
+            this.drawSection(context, left, x, rowY, columnW, rowHeight, mouseX, mouseY);
 
             if (right != null)
             {
                 this.sectionY.put(right, rowY);
-                this.drawSection(context, right, x + columnW + GAP, rowY, columnW, rightHeight, mouseX, mouseY);
+                this.drawSection(context, right, x + columnW + GAP, rowY, columnW, rowHeight, mouseX, mouseY);
             }
 
             rowY += rowHeight + GAP;
@@ -373,34 +358,15 @@ public class MmmSettingsScreen extends Screen
         }
         else if (row.kind() == ControlKind.NUMBER)
         {
-            int scrollButtonX = x + width - FIELD_HEIGHT;
-            fieldW = Math.max(24, width - FIELD_HEIGHT - 4);
-            this.drawScrollNumberButton(context, row.config(), scrollButtonX, y, mouseX, mouseY);
             this.scrollTargets.add(new ScrollTarget(fieldX, y, width, FIELD_HEIGHT, row.config()));
         }
 
         field.setX(fieldX + 5);
-        field.setY(y + 4);
+        field.setY(y + 5);
         field.setWidth(Math.max(24, fieldW - 10));
         field.setEditableColor(TEXT);
         field.setUneditableColor(MUTED);
         MmmUi.fieldShell(context, fieldX, y, fieldW, FIELD_HEIGHT, field.isFocused());
-    }
-
-    private void drawScrollNumberButton(DrawContext context, IConfigBase config, int x, int y, int mouseX, int mouseY)
-    {
-        boolean active = config == this.activeScrollNumber;
-        boolean hovered = this.contains(mouseX, mouseY, x, y, FIELD_HEIGHT, FIELD_HEIGHT);
-        int fill = active ? 0x33E00000 : INSET;
-        int border = active || hovered ? RED : BORDER_SOFT;
-        context.fill(x, y, x + FIELD_HEIGHT, y + FIELD_HEIGHT, fill);
-        context.drawBorder(x, y, FIELD_HEIGHT, FIELD_HEIGHT, border);
-        context.drawBorder(x + 5, y + 5, FIELD_HEIGHT - 10, FIELD_HEIGHT - 10, active ? TEXT : MUTED);
-        context.fill(x + 8, y + 8, x + FIELD_HEIGHT - 8, y + FIELD_HEIGHT - 8, active ? RED : MUTED);
-        this.clickTargets.add(new ClickTarget(x, y, FIELD_HEIGHT, FIELD_HEIGHT, () -> {
-            this.activeScrollNumber = active ? null : config;
-        }));
-        this.scrollButtonTargets.add(new ScrollTarget(x, y, FIELD_HEIGHT, FIELD_HEIGHT, config));
     }
 
     private void openColorEditor(IConfigBase config)
@@ -522,10 +488,9 @@ public class MmmSettingsScreen extends Screen
 
     private void updateLayout()
     {
-        int viewportW = this.width - SIDEBAR_WIDTH - PAGE_PAD * 2;
-        int columnW = Math.max(210, (viewportW - GAP) / 2);
         int rowY = 44;
         int index = 0;
+
         while (index < this.sections.size())
         {
             SettingsSection left = this.sections.get(index++);
@@ -546,12 +511,6 @@ public class MmmSettingsScreen extends Screen
 
         int maxScroll = Math.max(0, this.contentHeight - (this.height - TOP_HEIGHT - PAGE_PAD));
         this.scrollY = Math.max(0.0D, Math.min(maxScroll, this.scrollY));
-
-        // Keep Java from warning about the calculated column width being intentionally shared with render math.
-        if (columnW < 0)
-        {
-            this.scrollY = 0.0D;
-        }
     }
 
     private int sectionHeight(SettingsSection section)
@@ -619,7 +578,8 @@ public class MmmSettingsScreen extends Screen
         if (config instanceof IConfigDouble doubleConfig)
         {
             double step = this.doubleScrollStep(doubleConfig);
-            double next = Math.max(doubleConfig.getMinDoubleValue(), Math.min(doubleConfig.getMaxDoubleValue(), doubleConfig.getDoubleValue() + direction * step));
+            double raw = doubleConfig.getDoubleValue() + direction * step;
+            double next = Math.max(doubleConfig.getMinDoubleValue(), Math.min(doubleConfig.getMaxDoubleValue(), Math.round(raw * 1000.0D) / 1000.0D));
             doubleConfig.setDoubleValue(next);
             this.syncField(config);
             Configs.saveToFile();
@@ -721,18 +681,6 @@ public class MmmSettingsScreen extends Screen
         return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
     }
 
-    private boolean isOverScrollNumberButton(double mouseX, double mouseY)
-    {
-        for (ScrollTarget target : this.scrollButtonTargets)
-        {
-            if (target.contains(mouseX, mouseY))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private void createSections()
     {
         this.sections.clear();
@@ -761,8 +709,12 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("HUD Numbers", "Number color used by HUD values.", Configs.Generic.HUD_NUMBER_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("Inactive Text", "Paused and inactive HUD text color.", Configs.Generic.HUD_INACTIVE_HEX_COLOR, ControlKind.COLOR)
         ));
-        this.sections.add(SettingsSection.performance(
-                new SettingRow("BPS Smoothing", "Rolling window used for BPS display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION)
+        this.sections.add(SettingsSection.blockEsp(
+                new SettingRow("Color Mode", "Block ESP color mode.", Configs.Generic.BLOCK_ESP_COLOR_MODE, ControlKind.OPTION),
+                new SettingRow("Custom Color", "Used when color mode is Single Color.", Configs.Generic.BLOCK_ESP_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Render Mode", "Block ESP shape rendering.", Configs.Generic.BLOCK_ESP_RENDER_MODE, ControlKind.OPTION),
+                new SettingRow("Opacity", "Block ESP opacity percentage.", Configs.Generic.BLOCK_ESP_OPACITY, ControlKind.NUMBER),
+                new SettingRow("Rainbow Speed", "Rainbow animation speed multiplier.", Configs.Generic.BLOCK_ESP_RAINBOW_SPEED, ControlKind.NUMBER)
         ));
         this.sections.add(SettingsSection.speedGraph(
                 new SettingRow("Background Opacity", "Graph background transparency.", Configs.Generic.GRAPH_BG_OPACITY, ControlKind.NUMBER),
@@ -773,12 +725,8 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Grid Opacity", "Speed graph grid line opacity percentage.", Configs.Generic.GRAPH_GRID_OPACITY, ControlKind.NUMBER),
                 new SettingRow("Scale Step", "Y-axis grid interval in blocks/hr.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
         ));
-        this.sections.add(SettingsSection.blockEsp(
-                new SettingRow("Color Mode", "Block ESP color mode.", Configs.Generic.BLOCK_ESP_COLOR_MODE, ControlKind.OPTION),
-                new SettingRow("Custom Color", "Used when color mode is Single Color.", Configs.Generic.BLOCK_ESP_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("Render Mode", "Block ESP shape rendering.", Configs.Generic.BLOCK_ESP_RENDER_MODE, ControlKind.OPTION),
-                new SettingRow("Opacity", "Block ESP opacity percentage.", Configs.Generic.BLOCK_ESP_OPACITY, ControlKind.NUMBER),
-                new SettingRow("Rainbow Speed", "Rainbow animation speed multiplier.", Configs.Generic.BLOCK_ESP_RAINBOW_SPEED, ControlKind.NUMBER)
+        this.sections.add(SettingsSection.performance(
+                new SettingRow("BPS Smoothing", "Rolling window used for BPS display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION)
         ));
     }
 
