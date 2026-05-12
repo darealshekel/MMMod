@@ -46,12 +46,6 @@ public final class MiningStats
     private static final int BPS_UPDATE_INTERVAL_TICKS = 10;
     private static final int BPS_WINDOW_TICKS = 100;
     private static final ZoneId DAILY_RESET_ZONE = ZoneId.of("UTC");
-    private static final double BPH_ANIMATION_RISE_ALPHA = 0.28D;
-    private static final double BPH_ANIMATION_FALL_ALPHA = 0.16D;
-    private static final double BPS_ANIMATION_RISE_ALPHA = 0.38D;
-    private static final double BPS_ANIMATION_FALL_ALPHA = 0.22D;
-    private static final double BPH_ANIMATION_SNAP_THRESHOLD = 12D;
-    private static final double BPS_ANIMATION_SNAP_THRESHOLD = 0.02D;
 
     private static final Deque<Long> MINE_EVENTS = new ArrayDeque<>();
     private static final Deque<Long> FASTEST_100K_EVENT_TIMES = new ArrayDeque<>();
@@ -959,28 +953,34 @@ public final class MiningStats
 
         if (metricTickIndex - lastBpsUpdateTick >= BPS_UPDATE_INTERVAL_TICKS)
         {
-            rollingBlocksPerSecond = calculateRollingBps(mode);
+            if (!sessionPaused)
+            {
+                rollingBlocksPerSecond = calculateRollingBps(mode);
+            }
             lastBpsUpdateTick = metricTickIndex;
         }
 
         if (metricTickIndex - lastBphUpdateTick >= BPS_UPDATE_INTERVAL_TICKS)
         {
-            rollingBlocksPerHour = sessionPaused ? 0D : calculateSessionBph();
-            updateCurrentSessionPeakFromRollingBph();
-            lastBphUpdateTick = metricTickIndex;
-
-            if (MmmDebugLogger.isEnabled())
+            if (!sessionPaused)
             {
-                int dbgTicks = METRIC_TICK_COUNTS.size();
-                int dbgBlocks = 0;
-                for (TickBlockCount t : METRIC_TICK_COUNTS)
+                rollingBlocksPerHour = calculateSessionBph();
+                updateCurrentSessionPeakFromRollingBph();
+
+                if (MmmDebugLogger.isEnabled())
                 {
-                    dbgBlocks += Math.max(0, t.bphBlocks());
+                    int dbgTicks = METRIC_TICK_COUNTS.size();
+                    int dbgBlocks = 0;
+                    for (TickBlockCount t : METRIC_TICK_COUNTS)
+                    {
+                        dbgBlocks += Math.max(0, t.bphBlocks());
+                    }
+                    MMM.LOGGER.info(
+                            "[MMM_DEBUG] rolling-bph ticksInQueue={} blocksInQueue={} rollingBph={} displayedBph={} sessionActive={} sessionActiveTicks={}",
+                            dbgTicks, dbgBlocks, Math.round(rollingBlocksPerHour), Math.round(displayedBlocksPerHour), sessionActive, sessionActiveTicks);
                 }
-                MMM.LOGGER.info(
-                        "[MMM_DEBUG] rolling-bph ticksInQueue={} blocksInQueue={} rollingBph={} displayedBph={} sessionActive={} sessionActiveTicks={}",
-                        dbgTicks, dbgBlocks, Math.round(rollingBlocksPerHour), Math.round(displayedBlocksPerHour), sessionActive, sessionActiveTicks);
             }
+            lastBphUpdateTick = metricTickIndex;
         }
 
         if (sessionActive && !sessionPaused)
@@ -1009,31 +1009,10 @@ public final class MiningStats
 
     private static void updateDisplayedRollingMetrics()
     {
-        displayedBlocksPerSecond = smoothMetric(
-                displayedBlocksPerSecond,
-                Math.max(0D, Math.min(20D, rollingBlocksPerSecond)),
-                BPS_ANIMATION_RISE_ALPHA,
-                BPS_ANIMATION_FALL_ALPHA,
-                BPS_ANIMATION_SNAP_THRESHOLD);
-        displayedBlocksPerHour = smoothMetric(
-                displayedBlocksPerHour,
-                Math.max(0D, Math.min(SessionData.MAX_BLOCKS_PER_HOUR, rollingBlocksPerHour)),
-                BPH_ANIMATION_RISE_ALPHA,
-                BPH_ANIMATION_FALL_ALPHA,
-                BPH_ANIMATION_SNAP_THRESHOLD);
+        displayedBlocksPerSecond = Math.max(0D, Math.min(20D, rollingBlocksPerSecond));
+        displayedBlocksPerHour = Math.max(0D, Math.min(SessionData.MAX_BLOCKS_PER_HOUR, rollingBlocksPerHour));
     }
 
-    private static double smoothMetric(double current, double target, double riseAlpha, double fallAlpha, double snapThreshold)
-    {
-        double delta = target - current;
-        if (Math.abs(delta) <= snapThreshold)
-        {
-            return target;
-        }
-
-        double alpha = delta > 0D ? riseAlpha : fallAlpha;
-        return current + delta * alpha;
-    }
 
     private static void trimMetricWindow()
     {
