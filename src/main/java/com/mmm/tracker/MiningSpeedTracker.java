@@ -8,18 +8,14 @@ import net.minecraft.util.math.BlockPos;
 public final class MiningSpeedTracker
 {
     private static final int GRAPH_BUFFER_SIZE = 200;
-    private static final float EMA_ALPHA = 0.3f;
     private static final int SESSION_TIMEOUT_TICKS = 180 * 20;
 
-    private static boolean wasMining = false;
     private static BlockPos lastBlockPos = null;
-    private static float lastProgress = 0f;
 
     private static final float[] speedHistory = new float[GRAPH_BUFFER_SIZE];
     private static int historyIndex = 0;
     private static int historyCount = 0;
 
-    private static float emaSpeed = 0f;
     private static boolean hasSessionData = false;
     private static int idleTicks = 0;
 
@@ -39,7 +35,6 @@ public final class MiningSpeedTracker
         ClientPlayerInteractionManagerAccessor accessor = (ClientPlayerInteractionManagerAccessor) client.interactionManager;
         boolean mining = accessor.mmm$isBreakingBlock();
         BlockPos blockPos = accessor.mmm$getCurrentBreakingPos();
-        float progress = accessor.mmm$getCurrentBreakingProgress();
 
         if (!mining || blockPos == null)
         {
@@ -53,28 +48,17 @@ public final class MiningSpeedTracker
 
         if (!blockPos.equals(lastBlockPos))
         {
-            lastProgress = 0f;
             lastBlockPos = blockPos.toImmutable();
         }
 
-        float delta = progress - lastProgress;
-        if (delta > 0)
-        {
-            float rawSpeed = delta * 20f;
-            emaSpeed = EMA_ALPHA * rawSpeed + (1f - EMA_ALPHA) * emaSpeed;
-        }
-        lastProgress = progress;
-
-        pushHistory(emaSpeed * 3600f);
-        wasMining = true;
+        pushHistory(MiningStats.getDisplayedBlocksPerHour());
     }
 
     private static void tickIdle()
     {
         if (!hasSessionData) return;
 
-        emaSpeed = (1f - EMA_ALPHA) * emaSpeed;
-        pushHistory(emaSpeed * 3600f);
+        pushHistory(MiningStats.getDisplayedBlocksPerHour());
 
         idleTicks++;
         if (idleTicks >= SESSION_TIMEOUT_TICKS)
@@ -95,15 +79,12 @@ public final class MiningSpeedTracker
 
     private static void resetBlock()
     {
-        wasMining = false;
         lastBlockPos = null;
-        lastProgress = 0f;
     }
 
     private static void resetSession()
     {
         resetBlock();
-        emaSpeed = 0f;
         hasSessionData = false;
         idleTicks = 0;
         historyIndex = 0;
@@ -128,5 +109,15 @@ public final class MiningSpeedTracker
     public static int getHistoryCount()
     {
         return historyCount;
+    }
+
+    public static int getIdleTicks()
+    {
+        return idleTicks;
+    }
+
+    public static boolean isActivelyMining()
+    {
+        return hasSessionData && idleTicks == 0;
     }
 }
