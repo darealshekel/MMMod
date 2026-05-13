@@ -21,10 +21,10 @@
     "mmm.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.14",
-    "fabric-api": ">=0.128.2",
+    "fabricloader": ">=0.19.2",
+    "fabric-api": ">=0.141.4",
     "minecraft": "${minecraft_dependency}",
-    "malilib": ">=0.25.7",
-    "tweakeroo": ">=0.25.6"
+    "malilib": ">=0.27.9",
+    "tweakeroo": ">=0.27.7"
   }
 }

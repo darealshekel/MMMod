@@ -11,7 +11,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
-public class GoalConfigScreen extends Screen
+public class GoalConfigScreen extends CompatScreen
 {
     private static final int PANEL_PADDING = 18;
     private static final int CARD_PADDING = 12;

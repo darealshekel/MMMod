@@ -42,6 +42,7 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     private final String comment;
     private final boolean defaultValue;
     private boolean value;
+    private boolean dirty;
     private final IKeybind keybind;
     private IValueChangeCallback<IConfigBoolean> callback;
 
@@ -164,6 +165,7 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
         this.value = value;
         if (old != value)
         {
+            this.markDirty();
             this.onValueChanged();
         }
     }
@@ -184,6 +186,34 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     public void resetToDefault()
     {
         this.value = this.defaultValue;
+        this.markDirty();
+    }
+
+    @Override
+    public boolean isDirty()
+    {
+        return this.dirty;
+    }
+
+    @Override
+    public void markDirty()
+    {
+        this.dirty = true;
+    }
+
+    @Override
+    public void markClean()
+    {
+        this.dirty = false;
+    }
+
+    @Override
+    public void checkIfClean()
+    {
+        if (this.isModified() == false)
+        {
+            this.markClean();
+        }
     }
 
     @Override
@@ -198,6 +228,7 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
         if (element != null && element.isJsonPrimitive())
         {
             this.value = element.getAsBoolean();
+            this.markClean();
         }
     }
 }

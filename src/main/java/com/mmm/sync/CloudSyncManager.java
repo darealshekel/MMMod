@@ -1098,7 +1098,7 @@ public final class CloudSyncManager
             return;
         }
 
-        String username = client.player.getGameProfile().getName();
+        String username = client.player.getGameProfile().name();
         long localPlayerDigs = latestLeaderboardSnapshot.entries().stream()
                 .filter(entry -> entry.username().equalsIgnoreCase(username))
                 .mapToLong(AeternumLeaderboardEntry::digs)

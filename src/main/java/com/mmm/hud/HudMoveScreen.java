@@ -1,5 +1,7 @@
 package com.mmm.hud;
 
+
+import com.mmm.ui.CompatScreen;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,7 +19,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
-public class HudMoveScreen extends Screen
+public class HudMoveScreen extends CompatScreen
 {
     private final Screen parent;
     private boolean dragging;
@@ -165,7 +167,7 @@ public class HudMoveScreen extends Screen
     private void drawHudBounds(DrawContext context)
     {
         int[] bounds = MiningHudRenderer.getBounds(MinecraftClient.getInstance());
-        context.drawBorder(bounds[0] - 2, bounds[1] - 2, bounds[2] - bounds[0] + 4, bounds[3] - bounds[1] + 4, MmmUi.ACCENT);
+        MmmUi.drawBorder(context, bounds[0] - 2, bounds[1] - 2, bounds[2] - bounds[0] + 4, bounds[3] - bounds[1] + 4, MmmUi.ACCENT);
     }
 
     private void drawPreview(DrawContext context, int x, int y, double scale)
@@ -221,7 +223,7 @@ public class HudMoveScreen extends Screen
         int fillWidth = dailyGoal.target() <= 0 ? 0 : (int) Math.min(width, (width * (double) dailyGoal.current()) / dailyGoal.target());
         context.fill(0, barY, width, barY + 6, MmmUi.INSET);
         context.fill(0, barY, fillWidth, barY + 6, fillColor);
-        context.drawBorder(0, barY, width, 6, MmmUi.BORDER_SOFT);
+        MmmUi.drawBorder(context, 0, barY, width, 6, MmmUi.BORDER_SOFT);
         context.getMatrices().popMatrix();
     }
 

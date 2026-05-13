@@ -32,7 +32,7 @@ public final class SourceScanManager
         }
 
         Scoreboard scoreboard = client.world.getScoreboard();
-        String username = client.player.getGameProfile().getName();
+        String username = client.player.getGameProfile().name();
         String sourceDisplayName = ScoreboardSourceResolver.displayName(
                 world != null ? world.displayName() : "",
                 world

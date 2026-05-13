@@ -92,7 +92,7 @@ public final class MmmUi
     {
         drawMmmTopBar(context, renderer, width);
         context.fill(0, TOP_BAR_HEIGHT, SIDEBAR_WIDTH, height, 0xE9080808);
-        context.drawBorder(0, TOP_BAR_HEIGHT, SIDEBAR_WIDTH, height - TOP_BAR_HEIGHT, BORDER);
+        MmmUi.drawBorder(context, 0, TOP_BAR_HEIGHT, SIDEBAR_WIDTH, height - TOP_BAR_HEIGHT, BORDER);
 
         int titleY = TOP_BAR_HEIGHT + 16;
         drawSectionHeading(context, renderer, "MMM SCREENS", 12, titleY, SIDEBAR_WIDTH - 24);
@@ -105,13 +105,13 @@ public final class MmmUi
             int fill = active ? 0x33E00000 : hovered ? 0x22E00000 : INSET;
             int border = active || hovered ? ACCENT : BORDER_SOFT;
             context.fill(12, y, SIDEBAR_WIDTH - 12, y + SIDEBAR_ROW_HEIGHT, fill);
-            context.drawBorder(12, y, SIDEBAR_WIDTH - 24, SIDEBAR_ROW_HEIGHT, border);
+            MmmUi.drawBorder(context, 12, y, SIDEBAR_WIDTH - 24, SIDEBAR_ROW_HEIGHT, border);
             drawTextWithin(context, renderer, route.label, 20, y + 8, SIDEBAR_WIDTH - 40, active ? TEXT : MUTED, false);
             y += SIDEBAR_ROW_HEIGHT + SIDEBAR_ROW_GAP;
         }
 
         int bottomY = height - 42;
-        context.drawBorder(12, bottomY, SIDEBAR_WIDTH - 24, 28, BORDER_SOFT);
+        MmmUi.drawBorder(context, 12, bottomY, SIDEBAR_WIDTH - 24, 28, BORDER_SOFT);
         drawTextWithin(context, renderer, "MMM MOD", 20, bottomY + 7, SIDEBAR_WIDTH - 40, TEXT, false);
         drawTextWithin(context, renderer, Reference.MOD_VERSION, 20, bottomY + 18, SIDEBAR_WIDTH - 40, MUTED, false);
     }
@@ -119,7 +119,7 @@ public final class MmmUi
     public static void drawMmmTopBar(DrawContext context, TextRenderer renderer, int width)
     {
         context.fill(0, 0, width, TOP_BAR_HEIGHT, 0xF0060606);
-        context.drawBorder(0, 0, width, TOP_BAR_HEIGHT, BORDER);
+        MmmUi.drawBorder(context, 0, 0, width, TOP_BAR_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, ACCENT);
         drawTextWithin(context, renderer, "MMM", 26, 10, 40, ACCENT_BRIGHT, false);
         drawTextWithin(context, renderer, "Manual Mining Maniacs", 68, 10, Math.max(0, width / 2 - 80), TEXT, false);
@@ -162,7 +162,12 @@ public final class MmmUi
     public static void card(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
         context.fill(x, y, x + width, y + height, fillColor);
-        context.drawBorder(x, y, width, height, borderColor);
+        drawBorder(context, x, y, width, height, borderColor);
+    }
+
+    public static void drawBorder(DrawContext context, int x, int y, int width, int height, int color)
+    {
+        context.drawStrokedRectangle(x, y, width, height, color);
     }
 
     public static void fieldShell(DrawContext context, int x, int y, int width, int height, boolean focused)

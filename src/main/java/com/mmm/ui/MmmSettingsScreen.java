@@ -25,12 +25,13 @@ import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.GuiColorEditorHSV;
 import fi.dy.masa.malilib.util.InfoUtils;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
-public class MmmSettingsScreen extends Screen
+public class MmmSettingsScreen extends CompatScreen
 {
     private static final int BG = 0xFF050505;
     private static final int TOP_BAR = 0xF0060606;
@@ -196,7 +197,7 @@ public class MmmSettingsScreen extends Screen
     private void drawTopBar(DrawContext context, int mouseX, int mouseY)
     {
         context.fill(0, 0, this.width, TOP_HEIGHT, TOP_BAR);
-        context.drawBorder(0, 0, this.width, TOP_HEIGHT, BORDER);
+        MmmUi.drawBorder(context, 0, 0, this.width, TOP_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, RED);
         MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 26, 10, 40, RED, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Manual Mining Maniacs", 68, 10, Math.max(0, this.width / 2 - 80), TEXT, false);
@@ -249,7 +250,7 @@ public class MmmSettingsScreen extends Screen
     private void drawSection(DrawContext context, SettingsSection section, int x, int y, int width, int height, int mouseX, int mouseY)
     {
         context.fill(x, y, x + width, y + height, CARD);
-        context.drawBorder(x, y, width, height, BORDER);
+        MmmUi.drawBorder(context, x, y, width, height, BORDER);
         MmmUi.drawSectionHeading(context, this.textRenderer, section.title(), x + CARD_PAD, y + 12, width - CARD_PAD * 2);
         MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, MUTED, false);
 
@@ -309,7 +310,7 @@ public class MmmSettingsScreen extends Screen
         int fill = enabled ? RED : INSET;
         int border = hovered ? RED : BORDER_SOFT;
         context.fill(x, y, x + width, y + FIELD_HEIGHT, fill);
-        context.drawBorder(x, y, width, FIELD_HEIGHT, border);
+        MmmUi.drawBorder(context, x, y, width, FIELD_HEIGHT, border);
         String label = enabled ? "ON" : "OFF";
         int labelW = this.textRenderer.getWidth(label);
         context.drawText(this.textRenderer, Text.literal(label), x + (width - labelW) / 2, y + 6, enabled ? TEXT : MUTED, false);
@@ -360,7 +361,7 @@ public class MmmSettingsScreen extends Screen
             fieldW = width - FIELD_HEIGHT - 4;
             int preview = parseHexColor(this.getConfigString(row.config()), RED);
             context.fill(x, y, x + FIELD_HEIGHT, y + FIELD_HEIGHT, preview);
-            context.drawBorder(x, y, FIELD_HEIGHT, FIELD_HEIGHT, BORDER_SOFT);
+            MmmUi.drawBorder(context, x, y, FIELD_HEIGHT, FIELD_HEIGHT, BORDER_SOFT);
             this.clickTargets.add(new ClickTarget(x, y, FIELD_HEIGHT, FIELD_HEIGHT, () -> {
                 this.openColorEditor(row.config());
             }));
@@ -388,9 +389,12 @@ public class MmmSettingsScreen extends Screen
         GuiColorEditorHSV editor = new GuiColorEditorHSV(colorConfig, null, this)
         {
             @Override
-            public boolean mouseClicked(double mouseX, double mouseY, int button)
+            public boolean mouseClicked(Click click, boolean doubleClick)
             {
-                if (button == 0
+                double mouseX = click.x();
+                double mouseY = click.y();
+
+                if (click.button() == 0
                         && (mouseX < this.dialogLeft
                         || mouseX >= this.dialogLeft + this.dialogWidth
                         || mouseY < this.dialogTop
@@ -399,7 +403,7 @@ public class MmmSettingsScreen extends Screen
                     MinecraftClient.getInstance().setScreen(MmmSettingsScreen.this);
                     return true;
                 }
-                return super.mouseClicked(mouseX, mouseY, button);
+                return super.mouseClicked(click, doubleClick);
             }
 
             @Override
@@ -430,7 +434,7 @@ public class MmmSettingsScreen extends Screen
         int fill = subtle ? INSET : hovered ? 0x22E00000 : INSET;
         int border = hovered ? RED : BORDER_SOFT;
         context.fill(x, y, x + width, y + height, fill);
-        context.drawBorder(x, y, width, height, border);
+        MmmUi.drawBorder(context, x, y, width, height, border);
         String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
         int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
         context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 6, hovered ? TEXT : MUTED, false);

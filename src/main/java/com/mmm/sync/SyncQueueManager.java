@@ -37,7 +37,7 @@ public final class SyncQueueManager
             return;
         }
 
-        Path queuePath = FileUtils.getConfigDirectory().toPath().resolve(Reference.STORAGE_ID + "-sync-queue.json");
+        Path queuePath = FileUtils.getConfigDirectoryAsPath().resolve(Reference.STORAGE_ID + "-sync-queue.json");
         queue = new PendingSyncQueue(
                 queuePath,
                 SyncQueueManager::send,

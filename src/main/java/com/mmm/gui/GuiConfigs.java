@@ -31,6 +31,7 @@ import fi.dy.masa.malilib.gui.widgets.WidgetConfigOption;
 import fi.dy.masa.malilib.gui.widgets.WidgetListConfigOptions;
 import fi.dy.masa.malilib.gui.widgets.WidgetListConfigOptionsBase;
 import fi.dy.masa.malilib.gui.GuiTextFieldGeneric;
+import fi.dy.masa.malilib.render.GuiContext;
 import fi.dy.masa.malilib.hotkeys.IKeybind;
 import fi.dy.masa.malilib.util.StringUtils;
 import net.minecraft.client.MinecraftClient;
@@ -101,26 +102,26 @@ public class GuiConfigs extends GuiConfigsBase
     }
 
     @Override
-    protected void drawScreenBackground(DrawContext context, int mouseX, int mouseY)
+    protected void drawScreenBackground(GuiContext context, int mouseX, int mouseY)
     {
         MmmUi.backdrop(context, this.width, this.height);
         MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
         context.fill(0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height, 0xE9080808);
-        context.drawBorder(0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height - MmmUi.TOP_BAR_HEIGHT, MmmUi.BORDER);
+        MmmUi.drawBorder(context, 0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height - MmmUi.TOP_BAR_HEIGHT, MmmUi.BORDER);
         MmmUi.drawSectionHeading(context, this.textRenderer, "MMM SCREENS", 12, MmmUi.TOP_BAR_HEIGHT + 16, MmmUi.SIDEBAR_WIDTH - 24);
         int bottomY = this.height - 42;
-        context.drawBorder(12, bottomY, MmmUi.SIDEBAR_WIDTH - 24, 28, MmmUi.BORDER_SOFT);
+        MmmUi.drawBorder(context, 12, bottomY, MmmUi.SIDEBAR_WIDTH - 24, 28, MmmUi.BORDER_SOFT);
         MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD", 20, bottomY + 7, MmmUi.SIDEBAR_WIDTH - 40, MmmUi.TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, Reference.MOD_VERSION, 20, bottomY + 18, MmmUi.SIDEBAR_WIDTH - 40, MmmUi.MUTED, false);
     }
 
     @Override
-    protected void drawTitle(DrawContext context, int mouseX, int mouseY, float partialTicks)
+    protected void drawTitle(GuiContext context, int mouseX, int mouseY, float partialTicks)
     {
     }
 
     @Override
-    public void drawContents(DrawContext context, int mouseX, int mouseY, float partialTicks)
+    public void drawContents(GuiContext context, int mouseX, int mouseY, float partialTicks)
     {
         super.drawContents(context, mouseX, mouseY, partialTicks);
     }
@@ -197,7 +198,7 @@ public class GuiConfigs extends GuiConfigsBase
         }
 
         @Override
-        public void drawContents(DrawContext context, int mouseX, int mouseY, float partialTicks)
+        public void drawContents(GuiContext context, int mouseX, int mouseY, float partialTicks)
         {
             if (this.widgetSearchBar != null)
             {
@@ -237,7 +238,7 @@ public class GuiConfigs extends GuiConfigsBase
         }
 
         @Override
-        public void render(DrawContext context, int mouseX, int mouseY, boolean selected)
+        public void render(GuiContext context, int mouseX, int mouseY, boolean selected)
         {
             RowBounds bounds = this.getContentBounds();
             MmmUi.card(context, bounds.x(), this.y + 1, bounds.width(), Math.max(1, this.height - 3), MmmUi.CARD, MmmUi.BORDER_SOFT);
@@ -285,9 +286,9 @@ public class GuiConfigs extends GuiConfigsBase
                 }
             }
 
-            if (this.textField != null && this.textField.getTextField() != null)
+            if (this.textField != null && this.textField.textField() != null)
             {
-                GuiTextFieldGeneric field = this.textField.getTextField();
+                GuiTextFieldGeneric field = this.textField.textField();
                 int x = field.getX();
                 int y = field.getY();
                 int width = field.getWidth();
@@ -306,9 +307,9 @@ public class GuiConfigs extends GuiConfigsBase
                 maxX = Math.max(maxX, widget.getX() + widget.getWidth());
             }
 
-            if (this.textField != null && this.textField.getTextField() != null)
+            if (this.textField != null && this.textField.textField() != null)
             {
-                GuiTextFieldGeneric field = this.textField.getTextField();
+                GuiTextFieldGeneric field = this.textField.textField();
                 minX = Math.min(minX, field.getX());
                 maxX = Math.max(maxX, field.getX() + field.getWidth());
             }
@@ -336,7 +337,7 @@ public class GuiConfigs extends GuiConfigsBase
         }
 
         @Override
-        public void render(DrawContext context, int mouseX, int mouseY, boolean selected)
+        public void render(GuiContext context, int mouseX, int mouseY, boolean selected)
         {
             if (!this.visible)
             {

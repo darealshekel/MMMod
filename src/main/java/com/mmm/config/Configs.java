@@ -194,6 +194,7 @@ public class Configs implements IConfigHandler
     {
         boolean syncIdentityGenerated = false;
         boolean dailyGoalMigrated = false;
+        boolean syncEndpointMigrated = false;
 
         if (PROJECTS.isEmpty())
         {
@@ -230,9 +231,11 @@ public class Configs implements IConfigHandler
         fastest100kStartedAtMs = Math.max(0L, fastest100kStartedAtMs);
         fastest100kFinishedAtMs = Math.max(0L, fastest100kFinishedAtMs);
         totalBlocksMined = Math.max(0L, totalBlocksMined);
-        if (cloudSyncEndpoint == null || cloudSyncEndpoint.isBlank())
+        String normalizedSyncEndpoint = normalizeCloudSyncEndpoint(cloudSyncEndpoint);
+        if (normalizedSyncEndpoint.equals(cloudSyncEndpoint == null ? "" : cloudSyncEndpoint.trim()) == false)
         {
-            cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
+            cloudSyncEndpoint = normalizedSyncEndpoint;
+            syncEndpointMigrated = true;
         }
 
         for (WorldStatsEntry entry : WORLD_STATS)
@@ -294,7 +297,7 @@ public class Configs implements IConfigHandler
         Generic.GRAPH_BG_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_BG_OPACITY.getIntegerValue())));
         Generic.GRAPH_GRID_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_GRID_OPACITY.getIntegerValue())));
 
-        if (syncIdentityGenerated || dailyGoalMigrated)
+        if (syncIdentityGenerated || dailyGoalMigrated || syncEndpointMigrated)
         {
             saveToFile();
         }
@@ -332,7 +335,7 @@ public class Configs implements IConfigHandler
 
     public static void saveToFile()
     {
-        File dir = FileUtils.getConfigDirectory();
+        File dir = FileUtils.getConfigDirectoryAsPath().toFile();
         if ((dir.exists() && dir.isDirectory()) || dir.mkdirs())
         {
             JsonObject root = new JsonObject();
@@ -811,9 +814,29 @@ public class Configs implements IConfigHandler
         return Math.max(MIN_WEBSITE_SYNC_INTERVAL_MS, Math.min(MAX_WEBSITE_SYNC_INTERVAL_MS, intervalMs));
     }
 
+    public static String normalizeCloudSyncEndpoint(String endpoint)
+    {
+        String normalized = endpoint == null ? "" : endpoint.trim();
+        if (normalized.isBlank())
+        {
+            return DEFAULT_CLOUD_SYNC_ENDPOINT;
+        }
+
+        String lower = normalized.toLowerCase();
+        if (lower.contains(".supabase.co")
+                || lower.contains("/functions/v1/mmm-sync")
+                || lower.equals("https://www.mmmaniacs.com/api/mmm-sync")
+                || lower.equals("http://www.mmmaniacs.com/api/mmm-sync"))
+        {
+            return DEFAULT_CLOUD_SYNC_ENDPOINT;
+        }
+
+        return normalized;
+    }
+
     private static File getPrimaryConfigFile()
     {
-        return new File(FileUtils.getConfigDirectory(), CONFIG_FILE_NAME);
+        return new File(FileUtils.getConfigDirectoryAsPath().toFile(), CONFIG_FILE_NAME);
     }
 
     public static class ProjectEntry

@@ -19,7 +19,7 @@ public final class FlatDigger
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null)
+        if (client.player == null || client.player.isSneaking())
         {
             return false;
         }

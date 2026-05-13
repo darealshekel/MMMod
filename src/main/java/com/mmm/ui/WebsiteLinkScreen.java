@@ -15,7 +15,7 @@ import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Util;
 
-public class WebsiteLinkScreen extends Screen
+public class WebsiteLinkScreen extends CompatScreen
 {
     private static final String WEBSITE_LOGIN_URL = "https://www.mmmaniacs.com/login";
     private static final int PANEL_MARGIN = 20;

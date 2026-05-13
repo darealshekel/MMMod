@@ -27,7 +27,7 @@ public final class AeternumLeaderboardReader
         }
 
         Scoreboard scoreboard = client.world.getScoreboard();
-        String username = client.player.getGameProfile().getName();
+        String username = client.player.getGameProfile().name();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         String detectedServerName = ScoreboardSourceResolver.displayName(
                 worldInfo != null ? worldInfo.displayName() : "",

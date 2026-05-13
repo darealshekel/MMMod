@@ -621,6 +621,6 @@ final class SyncDeltaStore
 
     private static File stateFile()
     {
-        return new File(FileUtils.getConfigDirectory(), STATE_FILE_NAME);
+        return new File(FileUtils.getConfigDirectoryAsPath().toFile(), STATE_FILE_NAME);
     }
 }

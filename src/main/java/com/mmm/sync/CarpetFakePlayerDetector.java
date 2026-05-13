@@ -89,7 +89,7 @@ final class CarpetFakePlayerDetector
      */
     private static boolean isFakePlayer(PlayerListEntry entry)
     {
-        if (entry.getProfile() == null || entry.getProfile().getId() == null)
+        if (entry.getProfile() == null || entry.getProfile().id() == null)
         {
             return true;
         }
@@ -97,13 +97,13 @@ final class CarpetFakePlayerDetector
         // Use the name exactly as the server stored it in the profile — this is
         // the same string Carpet passes to UUID.nameUUIDFromBytes when creating
         // the fake player, so the comparison is byte-for-byte identical.
-        String profileName = entry.getProfile().getName();
+        String profileName = entry.getProfile().name();
         if (profileName == null || profileName.isBlank())
         {
             return true;
         }
 
-        UUID profileId = entry.getProfile().getId();
+        UUID profileId = entry.getProfile().id();
         UUID expectedOfflineId = UUID.nameUUIDFromBytes(
             ("OfflinePlayer:" + profileName).getBytes(StandardCharsets.UTF_8)
         );
@@ -116,8 +116,8 @@ final class CarpetFakePlayerDetector
         {
             if (entry != null
                     && entry.getProfile() != null
-                    && entry.getProfile().getName() != null
-                    && entry.getProfile().getName().equalsIgnoreCase(username))
+                    && entry.getProfile().name() != null
+                    && entry.getProfile().name().equalsIgnoreCase(username))
             {
                 return entry;
             }

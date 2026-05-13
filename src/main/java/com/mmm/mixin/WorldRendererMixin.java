@@ -1,16 +1,14 @@
 package com.mmm.mixin;
 
 import com.mmm.tweak.BlockEspRenderer;
-import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.WorldRenderer;
+import net.minecraft.client.render.state.OutlineRenderState;
+import net.minecraft.client.render.state.WorldRenderState;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.Entity;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
@@ -29,16 +27,16 @@ public abstract class WorldRendererMixin
     @Shadow @Final private MinecraftClient client;
 
     @Shadow
-    protected abstract void drawBlockOutline(MatrixStack matrices, VertexConsumer vertexConsumer, Entity entity,
+    protected abstract void drawBlockOutline(MatrixStack matrices, VertexConsumer vertexConsumer,
                                              double cameraX, double cameraY, double cameraZ,
-                                             BlockPos pos, BlockState state, int color);
+                                             OutlineRenderState outlineRenderState, int color, float tickProgress);
 
     @Inject(method = "renderTargetBlockOutline", at = @At("HEAD"), cancellable = true)
-    private void mmm$renderCustomBlockEspOutline(Camera camera,
-                                                      VertexConsumerProvider.Immediate vertexConsumers,
-                                                      MatrixStack matrices,
-                                                      boolean translucent,
-                                                      CallbackInfo ci)
+    private void mmm$renderCustomBlockEspOutline(VertexConsumerProvider.Immediate vertexConsumers,
+                                                 MatrixStack matrices,
+                                                 boolean translucent,
+                                                 WorldRenderState worldRenderState,
+                                                 CallbackInfo ci)
     {
         if (!BlockEspRenderer.shouldReplaceVanillaOutline(this.client))
         {
@@ -52,13 +50,6 @@ public abstract class WorldRendererMixin
         }
 
         BlockPos pos = blockHitResult.getBlockPos();
-        BlockState state = this.client.world.getBlockState(pos);
-        if (state.isAir())
-        {
-            ci.cancel();
-            return;
-        }
-
         WorldBorder border = this.client.world.getWorldBorder();
         if (!border.contains(pos))
         {
@@ -66,24 +57,32 @@ public abstract class WorldRendererMixin
             return;
         }
 
-        if (RenderLayers.getBlockLayer(state).isTranslucent() != translucent)
+        OutlineRenderState outlineRenderState = worldRenderState == null ? null : worldRenderState.outlineRenderState;
+        if (outlineRenderState == null)
         {
             ci.cancel();
             return;
         }
 
-        Vec3d cameraPos = camera.getPos();
-        VertexConsumer vertexConsumer = vertexConsumers.getBuffer(RenderLayer.getLines());
+        if (outlineRenderState.isTranslucent() != translucent)
+        {
+            ci.cancel();
+            return;
+        }
+
+        Vec3d cameraPos = worldRenderState.cameraRenderState != null && worldRenderState.cameraRenderState.pos != null
+                ? worldRenderState.cameraRenderState.pos
+                : new Vec3d(0.0D, 0.0D, 0.0D);
+        VertexConsumer vertexConsumer = vertexConsumers.getBuffer(RenderLayers.lines());
         this.drawBlockOutline(
                 matrices,
                 vertexConsumer,
-                camera.getFocusedEntity(),
                 cameraPos.x,
                 cameraPos.y,
                 cameraPos.z,
-                pos,
-                state,
-                BlockEspRenderer.getCurrentOutlineColor(this.client)
+                outlineRenderState,
+                BlockEspRenderer.getCurrentOutlineColor(this.client),
+                0.0F
         );
         ci.cancel();
     }

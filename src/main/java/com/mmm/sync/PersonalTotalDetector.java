@@ -36,7 +36,7 @@ final class PersonalTotalDetector
             return Detection.empty("client-or-player-missing");
         }
 
-        String username = client.player.getGameProfile().getName();
+        String username = client.player.getGameProfile().name();
         String usernameLower = username == null ? "" : username.toLowerCase(Locale.ROOT);
         SidebarResult sidebar = detectFromSidebar(client, username, usernameLower);
         TabResult tab = detectFromTabList(client, username, usernameLower);
@@ -119,12 +119,12 @@ final class PersonalTotalDetector
         long parsedRendered = 0L;
         for (PlayerListEntry entry : playerList)
         {
-            if (entry == null || entry.getProfile() == null || entry.getProfile().getName() == null)
+            if (entry == null || entry.getProfile() == null || entry.getProfile().name() == null)
             {
                 continue;
             }
 
-            String profileName = entry.getProfile().getName();
+            String profileName = entry.getProfile().name();
             String display = entry.getDisplayName() != null ? entry.getDisplayName().getString() : profileName;
             if (display == null)
             {

@@ -15,7 +15,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Util;
 
-public class PlayerProfileScreen extends Screen
+public class PlayerProfileScreen extends CompatScreen
 {
     private static final String WEBSITE_BASE_URL = "https://www.mmmaniacs.com/player/";
     private static final int PANEL_PADDING = 18;

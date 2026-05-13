@@ -361,7 +361,7 @@ public final class DigsSyncManager
     {
         if (client != null && client.player != null)
         {
-            return client.player.getGameProfile().getName();
+            return client.player.getGameProfile().name();
         }
         if (parsed != null && parsed.username() != null && parsed.username().isBlank() == false)
         {

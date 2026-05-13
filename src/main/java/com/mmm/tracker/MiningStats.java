@@ -100,12 +100,6 @@ public final class MiningStats
 
         resetDailyProgressIfNeeded();
         resetPeriodStatsIfNeeded(System.currentTimeMillis());
-        if (FeatureToggle.TWEAK_CARRY_GOAL_PROGRESS.getBooleanValue() == false)
-        {
-            Configs.dailyProgress = 0L;
-            Configs.dailyGoalLastResetMs = System.currentTimeMillis();
-            Configs.saveToFile();
-        }
 
         GoalNotificationManager.clear();
         CloudSyncManager.syncNow("world join");

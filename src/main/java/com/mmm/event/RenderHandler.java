@@ -7,15 +7,15 @@ import com.mmm.tracker.MiningSpeedTracker;
 import com.mmm.tweak.BlockEspRenderer;
 
 import fi.dy.masa.malilib.interfaces.IRenderer;
+import fi.dy.masa.malilib.render.GuiContext;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.item.ItemStack;
 import org.joml.Matrix4f;
 
 public class RenderHandler implements IRenderer
 {
     @Override
-    public void onRenderGameOverlayPost(DrawContext drawContext)
+    public void onRenderGameOverlayPost(GuiContext drawContext)
     {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue())
@@ -29,7 +29,7 @@ public class RenderHandler implements IRenderer
     }
 
     @Override
-    public void onRenderTooltipLast(DrawContext drawContext, ItemStack stack, int x, int y)
+    public void onRenderTooltipLast(GuiContext drawContext, ItemStack stack, int x, int y)
     {
     }
 
