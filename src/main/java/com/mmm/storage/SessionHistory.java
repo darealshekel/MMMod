@@ -9,10 +9,12 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 
 import com.mmm.MMM;
+import com.mmm.config.Configs;
 import fi.dy.masa.malilib.util.FileUtils;
 
 public final class SessionHistory
@@ -30,37 +32,14 @@ public final class SessionHistory
 
     public static void loadForWorld(String worldId)
     {
-        currentWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
+        currentWorldId = normalizeWorldId(worldId);
         HISTORY.clear();
         best = null;
 
-        Path saveFile = getSaveFile();
-        if (Files.exists(saveFile) == false)
+        for (SessionData session : loadSessions(getSaveFile()))
         {
-            return;
-        }
-
-        try (BufferedReader reader = Files.newBufferedReader(saveFile))
-        {
-            String line;
-            while ((line = reader.readLine()) != null)
-            {
-                line = line.trim();
-                if (line.isEmpty() || line.startsWith("#"))
-                {
-                    continue;
-                }
-                SessionData session = SessionData.deserialise(line);
-                if (session != null)
-                {
-                    HISTORY.add(session);
-                    updateBest(session);
-                }
-            }
-        }
-        catch (IOException e)
-        {
-            MMM.LOGGER.warn("[MMM] Failed to load session history from {}: {}", saveFile, e.getMessage());
+            HISTORY.add(session);
+            updateBest(session);
         }
     }
 
@@ -127,9 +106,58 @@ public final class SessionHistory
         return HISTORY;
     }
 
+    public static List<WorldHistory> getWorldHistories()
+    {
+        List<String> worldIds = new ArrayList<>();
+        if (Files.isDirectory(ROOT_DIR))
+        {
+            try (var paths = Files.list(ROOT_DIR))
+            {
+                paths.filter(Files::isDirectory)
+                        .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                        .forEach(path ->
+                        {
+                            String worldId = path.getFileName() == null ? "" : path.getFileName().toString();
+                            if (!worldId.isBlank() && Files.exists(path.resolve("sessions.csv")))
+                            {
+                                worldIds.add(worldId);
+                            }
+                        });
+            }
+            catch (IOException e)
+            {
+                MMM.LOGGER.warn("[MMM] Failed to list session worlds in {}: {}", ROOT_DIR, e.getMessage());
+            }
+        }
+
+        if (!worldIds.contains(currentWorldId))
+        {
+            worldIds.add(0, currentWorldId);
+        }
+
+        List<WorldHistory> histories = new ArrayList<>();
+        for (String worldId : worldIds)
+        {
+            List<SessionData> sessions = loadSessions(getSaveFile(worldId));
+            if (sessions.isEmpty() && !worldId.equals(currentWorldId))
+            {
+                continue;
+            }
+
+            histories.add(new WorldHistory(worldId, resolveDisplayName(worldId), List.copyOf(sessions), findBest(sessions)));
+        }
+
+        return histories;
+    }
+
     public static SessionData getBestSession()
     {
         return best;
+    }
+
+    public static String getCurrentWorldId()
+    {
+        return currentWorldId;
     }
 
     private static void updateBest(SessionData session)
@@ -140,13 +168,97 @@ public final class SessionHistory
         }
     }
 
+    private static SessionData findBest(List<SessionData> sessions)
+    {
+        SessionData bestSession = null;
+        for (SessionData session : sessions)
+        {
+            if (bestSession == null || session.getAverageBlocksPerHour() > bestSession.getAverageBlocksPerHour())
+            {
+                bestSession = session;
+            }
+        }
+        return bestSession;
+    }
+
+    private static List<SessionData> loadSessions(Path saveFile)
+    {
+        List<SessionData> sessions = new ArrayList<>();
+        if (Files.exists(saveFile) == false)
+        {
+            return sessions;
+        }
+
+        try (BufferedReader reader = Files.newBufferedReader(saveFile))
+        {
+            String line;
+            while ((line = reader.readLine()) != null)
+            {
+                line = line.trim();
+                if (line.isEmpty() || line.startsWith("#"))
+                {
+                    continue;
+                }
+                SessionData session = SessionData.deserialise(line);
+                if (session != null)
+                {
+                    sessions.add(session);
+                }
+            }
+        }
+        catch (IOException e)
+        {
+            MMM.LOGGER.warn("[MMM] Failed to load session history from {}: {}", saveFile, e.getMessage());
+        }
+        return sessions;
+    }
+
+    private static String resolveDisplayName(String worldId)
+    {
+        for (Configs.WorldStatsEntry entry : Configs.WORLD_STATS)
+        {
+            if (worldId.equals(entry.worldId) && entry.displayName != null && !entry.displayName.isBlank())
+            {
+                return entry.displayName;
+            }
+        }
+
+        if (worldId.equals(currentWorldId))
+        {
+            String currentName = WorldSessionContext.getCurrentWorldName();
+            if (currentName != null && !currentName.isBlank() && !"Unknown".equalsIgnoreCase(currentName))
+            {
+                return currentName;
+            }
+        }
+
+        return worldId;
+    }
+
+    private static String normalizeWorldId(String worldId)
+    {
+        return worldId == null || worldId.isBlank() ? "default" : worldId;
+    }
+
     private static Path getSaveFile()
     {
-        return getWorldDir().resolve("sessions.csv");
+        return getSaveFile(currentWorldId);
+    }
+
+    private static Path getSaveFile(String worldId)
+    {
+        return getWorldDir(worldId).resolve("sessions.csv");
     }
 
     private static Path getWorldDir()
     {
-        return ROOT_DIR.resolve(currentWorldId);
+        return getWorldDir(currentWorldId);
     }
+
+    private static Path getWorldDir(String worldId)
+    {
+        return ROOT_DIR.resolve(normalizeWorldId(worldId));
+    }
+
+    public record WorldHistory(String worldId, String displayName, List<SessionData> sessions, SessionData bestSession) {}
 }

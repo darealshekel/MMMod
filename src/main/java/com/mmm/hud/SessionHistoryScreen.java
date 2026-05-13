@@ -31,6 +31,7 @@ public class SessionHistoryScreen extends Screen
     private static final int G = 10;
     private static final int BH = 20;
     private static final int RH = 34;
+    private static final int TH = 22;
     private static final int SBW = 8;
     private static final int SBM = 18;
     private static final int PACE_CARD_HEIGHT = 132;
@@ -60,8 +61,10 @@ public class SessionHistoryScreen extends Screen
     private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("yyyy-MM-dd  HH:mm");
 
     private final Screen parent;
-    private final List<SessionData> sessions;
-    private final String worldName;
+    private final List<SessionHistory.WorldHistory> worlds;
+    private List<SessionData> sessions = List.of();
+    private String worldName = "";
+    private int selectedWorldIndex;
     private int selectedIndex = -1;
     private int listScroll;
     private int detailScroll;
@@ -81,13 +84,8 @@ public class SessionHistoryScreen extends Screen
     {
         super(Text.literal("Session History"));
         this.parent = parent;
-        this.sessions = SessionHistory.getHistory();
-        this.worldName = WorldSessionContext.getCurrentWorldName();
-        if (!this.sessions.isEmpty())
-        {
-            this.selectedIndex = this.sessions.size() - 1;
-            this.listScroll = Math.max(0, this.sessions.size() - 1);
-        }
+        this.worlds = SessionHistory.getWorldHistories();
+        applyWorldSelection(resolveInitialWorldIndex(), false);
     }
 
     @Override
@@ -114,6 +112,7 @@ public class SessionHistoryScreen extends Screen
         context.drawText(this.textRenderer, Text.literal("Session History"), l.contentX, l.headerY, TEXT, true);
         pill(context, l.contentX, l.headerY + 18, Math.min(220, l.contentWidth / 2), 16, this.worldName);
         context.drawText(this.textRenderer, Text.literal("Review previous runs with the same MMM website visual system."), l.contentX + 2, l.headerY + 40, LABEL, false);
+        drawWorldTabs(context, l, mouseX, mouseY);
         drawList(context, l, mouseX, mouseY);
         drawDetail(context, l, mouseX, mouseY);
         super.render(context, mouseX, mouseY, delta);
@@ -146,6 +145,13 @@ public class SessionHistoryScreen extends Screen
     {
         if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "HISTORY"))
         {
+            return true;
+        }
+
+        int worldTab = getHoveredWorldTab(mouseX, mouseY);
+        if (button == 0 && worldTab >= 0)
+        {
+            applyWorldSelection(worldTab, true);
             return true;
         }
 
@@ -195,6 +201,120 @@ public class SessionHistoryScreen extends Screen
     @Override public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta){}
 
     private void ensureCursorVisible(){ MinecraftClient client=MinecraftClient.getInstance(); if(client!=null&&client.mouse!=null) client.mouse.unlockCursor(); }
+
+    private void drawWorldTabs(DrawContext context, Layout l, int mouseX, int mouseY)
+    {
+        if (this.worlds.isEmpty())
+        {
+            return;
+        }
+
+        int count = this.worlds.size();
+        int gap = 4;
+        int tabWidth = getWorldTabWidth(l, count, gap);
+        int totalWidth = count * tabWidth + Math.max(0, count - 1) * gap;
+        int x = l.contentX + Math.max(0, (l.contentWidth - totalWidth) / 2);
+        int y = getWorldTabsY(l);
+
+        for (int i = 0; i < count; i++)
+        {
+            SessionHistory.WorldHistory world = this.worlds.get(i);
+            int tabX = x + i * (tabWidth + gap);
+            boolean selected = i == this.selectedWorldIndex;
+            boolean hovered = mouseX >= tabX && mouseX <= tabX + tabWidth && mouseY >= y && mouseY <= y + TH;
+            int fill = selected ? MmmUi.ROW_SELECTED : hovered ? MmmUi.ROW_HOVER : MmmUi.INSET;
+            int border = selected ? ACCENT : BORDER_SOFT;
+            context.fill(tabX, y, tabX + tabWidth, y + TH, fill);
+            context.drawBorder(tabX, y, tabWidth, TH, border);
+
+            String label = truncate(world.displayName(), tabWidth - 14);
+            int color = selected ? TEXT : LABEL;
+            context.drawText(this.textRenderer, Text.literal(label), tabX + Math.max(5, (tabWidth - this.textRenderer.getWidth(label)) / 2), y + 7, color, false);
+        }
+    }
+
+    private int getHoveredWorldTab(double mouseX, double mouseY)
+    {
+        if (this.worlds.isEmpty())
+        {
+            return -1;
+        }
+
+        Layout l = layout();
+        int count = this.worlds.size();
+        int gap = 4;
+        int tabWidth = getWorldTabWidth(l, count, gap);
+        int totalWidth = count * tabWidth + Math.max(0, count - 1) * gap;
+        int x = l.contentX + Math.max(0, (l.contentWidth - totalWidth) / 2);
+        int y = getWorldTabsY(l);
+        if (mouseY < y || mouseY > y + TH)
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            int tabX = x + i * (tabWidth + gap);
+            if (mouseX >= tabX && mouseX <= tabX + tabWidth)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int getWorldTabWidth(Layout l, int count, int gap)
+    {
+        return Math.max(48, Math.min(150, (l.contentWidth - Math.max(0, count - 1) * gap) / Math.max(1, count)));
+    }
+
+    private int getWorldTabsY(Layout l)
+    {
+        return l.headerY + 60;
+    }
+
+    private int resolveInitialWorldIndex()
+    {
+        String currentWorldId = SessionHistory.getCurrentWorldId();
+        if (currentWorldId == null || currentWorldId.isBlank())
+        {
+            currentWorldId = WorldSessionContext.getCurrentWorldId();
+        }
+
+        for (int i = 0; i < this.worlds.size(); i++)
+        {
+            if (currentWorldId.equals(this.worlds.get(i).worldId()))
+            {
+                return i;
+            }
+        }
+        return 0;
+    }
+
+    private void applyWorldSelection(int index, boolean playSound)
+    {
+        if (this.worlds.isEmpty())
+        {
+            this.sessions = SessionHistory.getHistory();
+            this.worldName = WorldSessionContext.getCurrentWorldName();
+        }
+        else
+        {
+            this.selectedWorldIndex = Math.max(0, Math.min(this.worlds.size() - 1, index));
+            SessionHistory.WorldHistory world = this.worlds.get(this.selectedWorldIndex);
+            this.sessions = world.sessions();
+            this.worldName = world.displayName();
+        }
+
+        this.selectedIndex = this.sessions.isEmpty() ? -1 : this.sessions.size() - 1;
+        this.listScroll = Math.max(0, this.selectedIndex);
+        this.detailScroll = 0;
+        this.breakdownScroll = 0;
+        if (playSound)
+        {
+            playClick();
+        }
+    }
 
     private void drawList(DrawContext context, Layout l, int mouseX, int mouseY)
     {
@@ -520,7 +640,7 @@ public class SessionHistoryScreen extends Screen
     private String getTopBlock(SessionData session){ String id=null; long count=0L; for(Map.Entry<String,Long> e:session.blockBreakdown.entrySet()) if(e.getValue()>count){ id=e.getKey(); count=e.getValue(); } return id==null?"No breakdown":resolveName(id)+" ("+UiFormat.formatCompact(count)+")"; }
     private String resolveName(String id){ try{ Identifier i=Identifier.tryParse(id); if(i!=null){ var b=net.minecraft.registry.Registries.BLOCK.get(i); if(b!=null) return b.getName().getString(); } }catch(Exception ignored){} return id; }
     private String truncate(String value,int maxWidth){ return MmmUi.truncate(this.textRenderer, value, maxWidth); }
-    private Layout layout(){ int availableWidth=Math.max(340,MmmUi.contentWidth(this.width)-M), topY=MmmUi.TOP_BAR_HEIGHT+10, availableHeight=Math.max(260,this.height-topY-12); int panelWidth=Math.min(840,Math.max(540,availableWidth)), panelHeight=Math.min(Math.min(560,Math.max(380,availableHeight)),availableHeight), panelX=MmmUi.centerContentX(this.width,panelWidth), panelY=topY+Math.max(0,(availableHeight-panelHeight)/2), contentX=panelX+P, contentWidth=panelWidth-P*2, headerY=panelY+P, contentY=headerY+58, overviewY=headerY+58, leftWidth=Math.min(Math.max(280,(int)(contentWidth*0.54F))-G/2,Math.max(260,contentWidth-G-300)), detailX=contentX+leftWidth+G, detailWidth=contentWidth-leftWidth-G, contentHeight=panelY+panelHeight-P-contentY; return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight); }
+    private Layout layout(){ int availableWidth=Math.max(340,MmmUi.contentWidth(this.width)-M), topY=MmmUi.TOP_BAR_HEIGHT+10, availableHeight=Math.max(260,this.height-topY-12); int panelWidth=Math.min(840,Math.max(540,availableWidth)), panelHeight=Math.min(Math.min(560,Math.max(380,availableHeight)),availableHeight), panelX=MmmUi.centerContentX(this.width,panelWidth), panelY=topY+Math.max(0,(availableHeight-panelHeight)/2), contentX=panelX+P, contentWidth=panelWidth-P*2, headerY=panelY+P, contentY=headerY+88, overviewY=headerY+58, leftWidth=Math.min(Math.max(280,(int)(contentWidth*0.54F))-G/2,Math.max(260,contentWidth-G-300)), detailX=contentX+leftWidth+G, detailWidth=contentWidth-leftWidth-G, contentHeight=panelY+panelHeight-P-contentY; return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight); }
     private record Layout(int panelX,int panelY,int panelWidth,int panelHeight,int panelRight,int contentX,int contentWidth,int headerY,int overviewY,int contentY,int leftWidth,int detailX,int detailWidth,int contentHeight){ private Layout move(int delta){ return new Layout(panelX,panelY+delta,panelWidth,panelHeight,panelRight,contentX,contentWidth,headerY+delta,overviewY+delta,contentY+delta,leftWidth,detailX,detailWidth,contentHeight); } }
     private record BreakdownMetrics(int listX,int listY,int listHeight,int viewportWidth,int scrollbarX){}
 }
