@@ -51,7 +51,6 @@ public final class MiningStats
     private static final int BPH_WINDOW_TICKS = 72_000;
     private static final int BPS_UPDATE_INTERVAL_TICKS = 10;
     private static final int BPS_WINDOW_TICKS = 100;
-    private static final int IDLE_METRIC_RESET_TICKS = 1200;
     private static final ZoneId DAILY_RESET_ZONE = ZoneId.of("UTC");
 
     private static final Deque<Long> MINE_EVENTS = new ArrayDeque<>();
@@ -76,7 +75,6 @@ public final class MiningStats
     private static long sessionActiveTicks;
     private static int currentTickBpsBlocks;
     private static int currentTickBphBlocks;
-    private static int idleMetricTicks;
     private static double rollingBlocksPerSecond;
     private static double rollingBlocksPerHour;
     private static double displayedBlocksPerSecond;
@@ -97,6 +95,7 @@ public final class MiningStats
         sessionActive = false;
         resetSession();
         resetRollingMetrics();
+        MiningSpeedTracker.resetSession();
         touchCurrentWorldStats(System.currentTimeMillis());
 
         resetDailyProgressIfNeeded();
@@ -137,6 +136,8 @@ public final class MiningStats
         }
         sessionActive = false;
         resetSession();
+        resetRollingMetrics();
+        MiningSpeedTracker.resetSession();
         Configs.saveToFile();
         GoalNotificationManager.clear();
         return finished;
@@ -197,7 +198,6 @@ public final class MiningStats
             currentSession.totalBlocks++;
             currentSession.endTimeMs = now;
             currentSession.recordMineEvent(getActiveElapsedMs(now));
-            updateCurrentSessionPeakFromRollingBph();
             recordFastest100kIfReached(now);
 
             if (lastMineMs == 0L || now - lastMineMs > STREAK_GAP_MS)
@@ -267,6 +267,8 @@ public final class MiningStats
     public static void startNewSession()
     {
         resetSession();
+        resetRollingMetrics();
+        MiningSpeedTracker.resetSession();
         sessionActive = true;
         sessionStartTotalMined = getCurrentSourceTotalMined();
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
@@ -367,21 +369,41 @@ public final class MiningStats
 
     public static int getEstimatedBlocksPerHour()
     {
+        if (sessionActive == false)
+        {
+            return 0;
+        }
+
         return SessionData.clampBlocksPerHour(Math.round(rollingBlocksPerHour));
     }
 
     public static double getEstimatedBlocksPerSecond()
     {
+        if (sessionActive == false)
+        {
+            return 0D;
+        }
+
         return Math.max(0D, Math.min(20D, rollingBlocksPerSecond));
     }
 
     public static int getDisplayedBlocksPerHour()
     {
+        if (sessionActive == false)
+        {
+            return 0;
+        }
+
         return SessionData.clampBlocksPerHour(Math.round(displayedBlocksPerHour));
     }
 
     public static double getDisplayedBlocksPerSecond()
     {
+        if (sessionActive == false)
+        {
+            return 0D;
+        }
+
         return Math.max(0D, Math.min(20D, displayedBlocksPerSecond));
     }
 
@@ -483,7 +505,6 @@ public final class MiningStats
             if (sessionPaused == false && sessionDelta > 0L)
             {
                 currentSession.recordMinedAmount(getActiveElapsedMs(now), sessionDelta);
-                updateCurrentSessionPeakFromRollingBph();
                 recordFastest100kIfReached(now);
             }
         }
@@ -749,6 +770,73 @@ public final class MiningStats
         return currentSession;
     }
 
+    public static SessionData simulateDevFinishedSession()
+    {
+        long now = System.currentTimeMillis();
+        int durationMinutes = 195;
+        long startTimeMs = now - durationMinutes * ONE_MINUTE_MS - 30_000L;
+        SessionData session = new SessionData(startTimeMs);
+
+        long totalBlocks = 0L;
+        for (int minute = 0; minute < durationMinutes; minute++)
+        {
+            int warmup = Math.min(90, minute * 7);
+            int cooldown = Math.max(0, minute - 168) * 9;
+            int wave = (int) Math.round(Math.sin(minute / 8.0D) * 95.0D + Math.sin(minute / 21.0D) * 70.0D);
+            int bucketBlocks = Math.max(120, 650 + warmup - cooldown + wave + (minute % 11) * 11);
+            session.recordMinedAmount(minute * ONE_MINUTE_MS, bucketBlocks);
+            totalBlocks += bucketBlocks;
+        }
+
+        session.totalBlocks = totalBlocks;
+        session.endTimeMs = startTimeMs + durationMinutes * ONE_MINUTE_MS;
+        session.bestStreakSeconds = 27L * 60L;
+        session.blockBreakdown = buildDevSessionBreakdown(totalBlocks);
+
+        resetDailyProgressIfNeeded();
+        resetPeriodStatsIfNeeded(now);
+
+        Configs.totalBlocksMined = Math.max(0L, Configs.totalBlocksMined) + totalBlocks;
+        Configs.dailyProgress = Math.max(0L, Configs.dailyProgress) + totalBlocks;
+        recordPeriodBlocksMined(totalBlocks, now);
+
+        ProjectEntry activeProject = Configs.getActiveProject();
+        if (activeProject != null)
+        {
+            activeProject.progress = Math.max(0L, activeProject.progress) + totalBlocks;
+        }
+
+        Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
+        worldStats.totalBlocks = Math.max(0L, worldStats.totalBlocks) + totalBlocks;
+        worldStats.lastSeenAt = now;
+        if (worldStats.blockBreakdown == null)
+        {
+            worldStats.blockBreakdown = new LinkedHashMap<>();
+        }
+        for (Map.Entry<String, Long> entry : session.blockBreakdown.entrySet())
+        {
+            worldStats.blockBreakdown.merge(entry.getKey(), entry.getValue(), Long::sum);
+        }
+        worldStats.blockBreakdown = Configs.sanitizeBlockBreakdown(worldStats.blockBreakdown);
+        worldStats.blockBreakdownSource = Configs.BLOCK_BREAKDOWN_SOURCE_LOCAL_OBSERVED;
+        worldStats.blockBreakdownUpdatedAtMs = now;
+
+        if (session.totalBlocks >= FASTEST_100K_TARGET)
+        {
+            long fastestDurationMs = Math.max(1L, (FASTEST_100K_TARGET * session.getDurationMs()) / session.totalBlocks);
+            if (Configs.fastest100kMs <= 0L || fastestDurationMs < Configs.fastest100kMs)
+            {
+                Configs.fastest100kMs = fastestDurationMs;
+                Configs.fastest100kStartedAtMs = session.startTimeMs;
+                Configs.fastest100kFinishedAtMs = session.startTimeMs + fastestDurationMs;
+            }
+        }
+
+        SessionHistory.save(session);
+        Configs.saveToFile();
+        return session;
+    }
+
     public static void setDailyProgress(long value)
     {
         Configs.dailyProgress = Math.max(0L, value);
@@ -785,6 +873,33 @@ public final class MiningStats
         return session.blockBreakdown.entrySet().stream()
                 .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (left, right) -> left, java.util.LinkedHashMap::new));
+    }
+
+    private static Map<String, Long> buildDevSessionBreakdown(long totalBlocks)
+    {
+        String[] ids = {
+                "minecraft:deepslate",
+                "minecraft:tuff",
+                "minecraft:stone",
+                "minecraft:gravel",
+                "minecraft:diorite",
+                "minecraft:andesite",
+                "minecraft:deepslate_redstone_ore",
+                "minecraft:deepslate_diamond_ore"
+        };
+        int[] weights = { 355, 210, 170, 95, 70, 62, 28, 10 };
+        Map<String, Long> breakdown = new LinkedHashMap<>();
+        long assigned = 0L;
+        for (int i = 0; i < ids.length; i++)
+        {
+            long amount = i == ids.length - 1 ? totalBlocks - assigned : (totalBlocks * weights[i]) / 1000L;
+            assigned += amount;
+            if (amount > 0L)
+            {
+                breakdown.put(ids[i], amount);
+            }
+        }
+        return breakdown;
     }
 
     private static void resetDailyProgressIfNeeded()
@@ -932,11 +1047,10 @@ public final class MiningStats
 
     private static void recordSuccessfulHarvestForRollingMetrics()
     {
-        if (!sessionPaused)
+        if (sessionActive && !sessionPaused)
         {
             currentTickBpsBlocks++;
             currentTickBphBlocks++;
-            idleMetricTicks = 0;
         }
     }
 
@@ -948,19 +1062,15 @@ public final class MiningStats
             return;
         }
 
-        if (sessionPaused)
+        if (sessionActive == false)
         {
+            resetRollingMetrics();
             return;
         }
 
-        if (!sessionActive)
+        if (sessionPaused)
         {
-            idleMetricTicks++;
-            if (idleMetricTicks >= IDLE_METRIC_RESET_TICKS)
-            {
-                resetRollingMetrics();
-                return;
-            }
+            return;
         }
 
         Configs.BpsSmoothing mode = Configs.getBpsSmoothingMode();
@@ -987,14 +1097,10 @@ public final class MiningStats
         if (metricTickIndex - lastBphUpdateTick >= BPS_UPDATE_INTERVAL_TICKS)
         {
             rollingBlocksPerHour = calculateSessionBph();
-            updateCurrentSessionPeakFromRollingBph();
             lastBphUpdateTick = metricTickIndex;
         }
 
-        if (sessionActive)
-        {
-            sessionActiveTicks++;
-        }
+        sessionActiveTicks++;
 
         updateDisplayedRollingMetrics();
     }
@@ -1008,7 +1114,6 @@ public final class MiningStats
         sessionActiveTicks = 0L;
         currentTickBpsBlocks = 0;
         currentTickBphBlocks = 0;
-        idleMetricTicks = 0;
         rollingBlocksPerSecond = 0D;
         rollingBlocksPerHour = 0D;
         displayedBlocksPerSecond = 0D;
@@ -1094,14 +1199,6 @@ public final class MiningStats
     private static double calculateSessionBph()
     {
         return calculateRollingBph();
-    }
-
-    private static void updateCurrentSessionPeakFromRollingBph()
-    {
-        if (sessionActive && sessionPaused == false)
-        {
-            currentSession.updatePeakBlocksPerHour(Math.round(rollingBlocksPerHour));
-        }
     }
 
     private static String dateKey(long now, ZoneId zoneId)

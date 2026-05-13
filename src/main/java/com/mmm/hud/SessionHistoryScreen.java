@@ -33,6 +33,13 @@ public class SessionHistoryScreen extends Screen
     private static final int RH = 34;
     private static final int SBW = 8;
     private static final int SBM = 18;
+    private static final int PACE_CARD_HEIGHT = 132;
+    private static final int PACE_CHART_HEIGHT = 88;
+    private static final int PACE_AXIS_LEFT_MIN = 30;
+    private static final int PACE_AXIS_LEFT_MAX = 42;
+    private static final int PACE_AXIS_TOP = 4;
+    private static final int PACE_AXIS_RIGHT = 4;
+    private static final int PACE_AXIS_BOTTOM = 13;
     private static final int BREAKDOWN_HEIGHT = 108;
     private static final int PANEL = MmmUi.PANEL;
     private static final int CARD = MmmUi.CARD;
@@ -240,11 +247,15 @@ public class SessionHistoryScreen extends Screen
         stat(context, vx, statY + 56, cardWidth, 50, "Avg Rate", UiFormat.formatCompact(session.getAverageBlocksPerHour()), "blocks/hr");
         stat(context, vx + cardWidth + G, statY + 56, cardWidth, 50, "Peak Rate", UiFormat.formatCompact(session.getPeakBlocksPerHour()), "blocks/hr");
         int graphY = statY + 118;
-        card(context, vx, graphY, vw, 92, SOFT, BORDER_SOFT);
+        card(context, vx, graphY, vw, PACE_CARD_HEIGHT, SOFT, BORDER_SOFT);
         MmmUi.drawTextWithin(context, this.textRenderer, "Session Pace", vx + 10, graphY + 8, vw - 20, TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Blocks per hour across the session", vx + 10, graphY + 20, vw - 20, MUTED, false);
-        drawGraph(context, vx + 10, graphY + 34, vw - 20, 50, session, mouseX, mouseY);
-        int infoY = graphY + 102;
+        String rateLabel = drawGraph(context, vx + 10, graphY + 34, vw - 20, PACE_CHART_HEIGHT, session, mouseX, mouseY);
+        if (rateLabel != null)
+        {
+            MmmUi.drawTextRightWithin(context, this.textRenderer, rateLabel, vx + vw - 10, graphY + 8, Math.max(72, vw / 2), Configs.getHudNumberColor(), false);
+        }
+        int infoY = graphY + PACE_CARD_HEIGHT + 10;
         row(context, vx, vx + vw, infoY, "Best Streak", session.bestStreakSeconds + "s");
         row(context, vx, vx + vw, infoY + 16, "Top Block", getTopBlock(session));
         drawBreakdown(context, vx, infoY + 38, vw, session, mouseX, mouseY);
@@ -290,24 +301,26 @@ public class SessionHistoryScreen extends Screen
         }
     }
 
-    private void drawGraph(DrawContext c, int x, int y, int w, int h, SessionData s, int mouseX, int mouseY)
+    private String drawGraph(DrawContext c, int x, int y, int w, int h, SessionData s, int mouseX, int mouseY)
     {
         c.fill(x, y, x + w, y + h, INSET);
-        for (int i = 0; i < 4; i++)
-        {
-            int ly = y + (h * i) / 4;
-            c.fill(x, ly, x + w, ly + 1, GRAPH_GRID);
-        }
+        double axisMax = roundPaceCeiling(Math.max(60d, s.getPeakBlocksPerHour()));
+        int axisLeft = getPaceAxisLeft(axisMax);
+        int plotX = x + axisLeft;
+        int plotY = y + PACE_AXIS_TOP;
+        int plotW = Math.max(24, w - axisLeft - PACE_AXIS_RIGHT);
+        int plotH = Math.max(18, h - PACE_AXIS_TOP - PACE_AXIS_BOTTOM);
 
         if (s.miningRateBuckets.isEmpty())
         {
-            c.drawCenteredTextWithShadow(this.textRenderer, Text.literal("No graph data saved for this run"), x + w / 2, y + h / 2 - 4, MUTED);
-            return;
+            c.drawCenteredTextWithShadow(this.textRenderer, Text.literal("No graph data saved for this run"), plotX + plotW / 2, plotY + plotH / 2 - 4, MUTED);
+            drawGraphAxes(c, plotX, plotY, plotW, plotH, axisLeft, axisMax, s);
+            return null;
         }
 
-        int cols = Math.max(1, Math.min(w / 4, s.miningRateBuckets.size()));
+        int cols = Math.max(1, Math.min(plotW / 4, s.miningRateBuckets.size()));
         double[] rates = new double[cols];
-        double max = 60d;
+        double maxRate = Math.max(60d, s.getPeakBlocksPerHour());
         for (int col = 0; col < cols; col++)
         {
             int start = (int) Math.floor((col * s.miningRateBuckets.size()) / (double) cols);
@@ -321,23 +334,30 @@ public class SessionHistoryScreen extends Screen
             int count = 0;
             for (int i = start; i < end; i++)
             {
-                total += s.miningRateBuckets.get(i) * 60d;
+                total += s.getBucketBlocksPerHour(s.miningRateBuckets.get(i));
                 count++;
             }
 
             rates[col] = count <= 0 ? 0d : total / count;
-            max = Math.max(max, rates[col]);
+            maxRate = Math.max(maxRate, rates[col]);
+        }
+        axisMax = roundPaceCeiling(maxRate);
+
+        for (int i = 0; i <= 4; i++)
+        {
+            int ly = plotY + (plotH * i) / 4;
+            c.fill(plotX, ly, plotX + plotW, ly + 1, GRAPH_GRID);
         }
 
-        int bottom = y + h - 8;
-        int usable = Math.max(12, h - 14);
+        int bottom = plotY + plotH - 1;
+        int usable = Math.max(12, plotH - 1);
         float[] py = new float[cols];
         int[] px = new int[cols];
         for (int col = 0; col < cols; col++)
         {
-            float n = (float) (rates[col] / max);
+            float n = (float) (rates[col] / axisMax);
             py[col] = bottom - n * usable;
-            px[col] = x + Math.round((col / (float) Math.max(1, cols - 1)) * (w - 1));
+            px[col] = plotX + Math.round((col / (float) Math.max(1, cols - 1)) * (plotW - 1));
         }
 
         for (int col = 0; col < cols - 1; col++)
@@ -348,7 +368,7 @@ public class SessionHistoryScreen extends Screen
         }
 
         int hoveredColumn = -1;
-        if (mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h)
+        if (mouseX >= plotX && mouseX <= plotX + plotW && mouseY >= plotY && mouseY <= plotY + plotH)
         {
             int bestDistance = Integer.MAX_VALUE;
             for (int col = 0; col < cols; col++)
@@ -366,25 +386,100 @@ public class SessionHistoryScreen extends Screen
         {
             int markerX = px[hoveredColumn];
             int markerY = Math.round(py[hoveredColumn]);
+            c.fill(markerX, plotY, markerX + 1, plotY + plotH, GRAPH_GRID);
             c.fill(markerX - 3, markerY - 3, markerX + 4, markerY + 4, TEXT);
             c.fill(markerX - 2, markerY - 2, markerX + 3, markerY + 3, ACCENT);
-
-            String hoverText = UiFormat.formatCompact(Math.round(rates[hoveredColumn])) + " blocks/hr";
-            int tooltipWidth = this.textRenderer.getWidth(hoverText) + 10;
-            int tooltipX = Math.max(x + 4, Math.min(markerX - tooltipWidth / 2, x + w - tooltipWidth - 4));
-            int tooltipY = Math.max(y + 4, markerY - 16);
-            card(c, tooltipX, tooltipY, tooltipWidth, 14, CARD, BORDER_SOFT);
-            c.drawText(this.textRenderer, Text.literal(hoverText), tooltipX + 5, tooltipY + 3, TEXT, false);
         }
 
-        c.drawText(this.textRenderer, Text.literal(UiFormat.formatCompact(Math.round(max)) + "/hr"), x + 4, y + 4, LABEL, false);
-        c.drawText(this.textRenderer, Text.literal("0"), x + 4, bottom - 8, MUTED, false);
+        drawGraphAxes(c, plotX, plotY, plotW, plotH, axisLeft, axisMax, s);
+        return (hoveredColumn >= 0
+                ? UiFormat.formatCompact(Math.round(rates[hoveredColumn])) + "/hr @ " + formatGraphTimeLabel(timeForColumn(hoveredColumn, cols, s.getDurationMs()))
+                : "Peak " + UiFormat.formatCompact(Math.round(maxRate)) + "/hr");
+    }
+    private void drawGraphAxes(DrawContext c, int plotX, int plotY, int plotW, int plotH, int axisLeft, double axisMax, SessionData s)
+    {
+        drawRateTick(c, plotX, plotY, plotH, axisLeft, 0, axisMax, LABEL);
+        drawRateTick(c, plotX, plotY, plotH, axisLeft, 2, axisMax / 2.0D, MUTED);
+        drawRateTick(c, plotX, plotY, plotH, axisLeft, 4, 0D, MUTED);
 
+        int labelY = plotY + plotH + 3;
         String startLabel = "0m";
-        String endLabel = formatClock(Math.max(1, s.getDurationMs()));
+        String middleLabel = formatGraphTimeLabel(s.getDurationMs() / 2L);
+        String endLabel = formatGraphTimeLabel(Math.max(1L, s.getDurationMs()));
+        int startWidth = this.textRenderer.getWidth(startLabel);
+        int middleWidth = this.textRenderer.getWidth(middleLabel);
         int endWidth = this.textRenderer.getWidth(endLabel);
-        c.drawText(this.textRenderer, Text.literal(startLabel), x, y + h - 10, MUTED, false);
-        c.drawText(this.textRenderer, Text.literal(endLabel), x + w - endWidth, y + h - 10, MUTED, false);
+        c.drawText(this.textRenderer, Text.literal(startLabel), plotX, labelY, MUTED, false);
+        c.drawText(this.textRenderer, Text.literal(endLabel), plotX + plotW - endWidth, labelY, MUTED, false);
+
+        int middleX = plotX + (plotW - middleWidth) / 2;
+        int startRight = plotX + startWidth + 6;
+        int endLeft = plotX + plotW - endWidth - 6;
+        if (middleX >= startRight && middleX + middleWidth <= endLeft)
+        {
+            c.drawText(this.textRenderer, Text.literal(middleLabel), middleX, labelY, MUTED, false);
+        }
+    }
+    private void drawRateTick(DrawContext c, int plotX, int plotY, int plotH, int axisLeft, int step, double value, int color)
+    {
+        String label = formatPaceTick(value);
+        int labelY = Math.max(plotY, Math.min(plotY + plotH - 8, plotY + (plotH * step) / 4 - 4));
+        MmmUi.drawTextRightWithin(c, this.textRenderer, label, plotX - 4, labelY, axisLeft - 7, color, false);
+    }
+    private int getPaceAxisLeft(double axisMax)
+    {
+        int labelWidth = Math.max(this.textRenderer.getWidth(formatPaceTick(axisMax)), this.textRenderer.getWidth("0"));
+        return Math.max(PACE_AXIS_LEFT_MIN, Math.min(PACE_AXIS_LEFT_MAX, labelWidth + 8));
+    }
+    private String formatPaceTick(double value)
+    {
+        long rounded = Math.max(0L, Math.round(value));
+        if (rounded >= 10_000L)
+        {
+            return Math.round(rounded / 1_000.0D) + "k";
+        }
+        if (rounded >= 1_000L)
+        {
+            long tenths = Math.round(rounded / 100.0D);
+            long whole = tenths / 10L;
+            long fraction = tenths % 10L;
+            return fraction == 0L ? whole + "k" : whole + "." + fraction + "k";
+        }
+        return Long.toString(rounded);
+    }
+    private double roundPaceCeiling(double value)
+    {
+        double target = Math.max(1D, value / 4.0D);
+        double magnitude = Math.pow(10D, Math.floor(Math.log10(target)));
+        double normalized = target / magnitude;
+        double step;
+        if (normalized <= 1D)
+        {
+            step = 1D;
+        }
+        else if (normalized <= 2D)
+        {
+            step = 2D;
+        }
+        else if (normalized <= 5D)
+        {
+            step = 5D;
+        }
+        else
+        {
+            step = 10D;
+        }
+
+        return step * magnitude * 4.0D;
+    }
+    private long timeForColumn(int column, int columns, long durationMs)
+    {
+        if (columns <= 1)
+        {
+            return 0L;
+        }
+
+        return Math.round((column / (double) (columns - 1)) * Math.max(0L, durationMs));
     }
     private void row(DrawContext c,int lx,int rx,int y,String label,String value){ int width=rx-lx; int valueWidth=Math.min(this.textRenderer.getWidth(value), Math.max(32, width/2)); MmmUi.drawTextWithin(c,this.textRenderer,label,lx,y,Math.max(0,width-valueWidth-8),LABEL,false); MmmUi.drawTextRightWithin(c,this.textRenderer,value,rx,y,valueWidth,TEXT,false); }
     private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ int tw=w-C*2; card(c,x,y,w,h,SOFT,BORDER_SOFT); MmmUi.drawTextWithin(c,this.textRenderer,l,x+C,y+9,tw,LABEL,false); int valueColor=inactiveValueColor(v)==INACTIVE?INACTIVE:Configs.getHudNumberColor(); MmmUi.drawTextWithin(c,this.textRenderer,v,x+C,y+24,tw,valueColor,false); MmmUi.drawTextWithin(c,this.textRenderer,s,x+C,y+38,tw,MUTED,false); }
@@ -406,7 +501,7 @@ public class SessionHistoryScreen extends Screen
     private void dragBreakdown(double mouseY){ BreakdownMetrics m=metrics(); int count=this.breakdownEntryCount, max=getBreakdownMax(count,m.listHeight); if(max<=0){this.breakdownScroll=0; return;} int th=getBreakdownThumb(m.listHeight,count), travel=Math.max(1,m.listHeight-th); double n=Math.max(0.0D, Math.min(1.0D, ((mouseY-th/2.0D)-m.listY)/travel)); setBreakdownScroll((int)Math.round(n*max)); }
     private int getListThumb(int h,int vis){ if(this.sessions.isEmpty()) return h; int th=(int)Math.round((vis/(double)this.sessions.size())*h); return Math.max(SBM, Math.min(h, th)); }
     private int getListOffset(int h,int th,int max){ return max<=0?0:(int)Math.round((this.listScroll/(double)max)*(h-th)); }
-    private int getDetailContentHeight(){ return 538; }
+    private int getDetailContentHeight(){ return 578; }
     private int getBreakdownMax(int count,int h){ return Math.max(0, count*14-h); }
     private int getBreakdownThumb(int h,int count){ int ch=Math.max(1, count*14); return Math.max(SBM, Math.min(h, (int)Math.round((h/(double)ch)*h))); }
     private int getBreakdownOffset(int h,int count){ int max=getBreakdownMax(count,h), th=getBreakdownThumb(h,count); return max<=0?0:(int)Math.round((this.breakdownScroll/(double)max)*(h-th)); }
@@ -418,13 +513,14 @@ public class SessionHistoryScreen extends Screen
     private void select(int index){ if(index<0||index>=this.sessions.size()) return; if(this.selectedIndex!=index){ this.selectedIndex=index; this.detailScroll=0; this.breakdownScroll=0; playClick(); } }
     private void playClick(){ MinecraftClient client=MinecraftClient.getInstance(); if(client!=null&&client.getSoundManager()!=null) client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK,1.0F)); }
     private void curve(DrawContext c,float sx,float sy,float ex,float ey,float py,float ny){ int steps=Math.max(6,Math.round(Math.abs(ex-sx)*1.5F)); for(int s=0;s<=steps;s++){ float t=s/(float)steps, px=MathHelper.lerp(t,sx,ex), ts=(ey-py)*0.5F, te=(ny-sy)*0.5F, t2=t*t, t3=t2*t; float yy=(2.0F*t3-3.0F*t2+1.0F)*sy+(t3-2.0F*t2+t)*ts+(-2.0F*t3+3.0F*t2)*ey+(t3-t2)*te; int ix=Math.round(px), iy=Math.round(yy); c.fill(ix,iy,ix+2,iy+2,ACCENT); c.fill(ix,iy+2,ix+2,iy+3,GRAPH_FILL);} }
+    private String formatGraphTimeLabel(long durationMs){ long totalSeconds=Math.max(0L,durationMs/1000L), minutes=totalSeconds/60L; if(totalSeconds<60L) return totalSeconds+"s"; if(minutes<60L) return minutes+"m"; long hours=minutes/60L, remainingMinutes=minutes%60L; return remainingMinutes==0L?hours+"h":hours+"h "+remainingMinutes+"m"; }
     private String formatClock(long ms){ long s=Math.max(0L,ms/1000L), h=s/3600L, m=(s%3600L)/60L, sec=s%60L; return String.format("%02d:%02d:%02d",h,m,sec); }
     private static int inactiveValueColor(String value){ String text=value==null?"":value.trim(); return "--".equals(text)||"Paused".equals(text)||"00:00:00".equals(text)?INACTIVE:TEXT; }
     private SessionData getSelected(){ return this.selectedIndex>=0&&this.selectedIndex<this.sessions.size()?this.sessions.get(this.selectedIndex):null; }
     private String getTopBlock(SessionData session){ String id=null; long count=0L; for(Map.Entry<String,Long> e:session.blockBreakdown.entrySet()) if(e.getValue()>count){ id=e.getKey(); count=e.getValue(); } return id==null?"No breakdown":resolveName(id)+" ("+UiFormat.formatCompact(count)+")"; }
     private String resolveName(String id){ try{ Identifier i=Identifier.tryParse(id); if(i!=null){ var b=net.minecraft.registry.Registries.BLOCK.get(i); if(b!=null) return b.getName().getString(); } }catch(Exception ignored){} return id; }
     private String truncate(String value,int maxWidth){ return MmmUi.truncate(this.textRenderer, value, maxWidth); }
-    private Layout layout(){ int availableWidth=Math.max(340,MmmUi.contentWidth(this.width)-M), topY=MmmUi.TOP_BAR_HEIGHT+10, availableHeight=Math.max(260,this.height-topY-12); int panelWidth=Math.min(760,Math.max(540,availableWidth)), panelHeight=Math.min(Math.min(520,Math.max(360,availableHeight)),availableHeight), panelX=MmmUi.centerContentX(this.width,panelWidth), panelY=topY+Math.max(0,(availableHeight-panelHeight)/2), contentX=panelX+P, contentWidth=panelWidth-P*2, headerY=panelY+P, contentY=headerY+58, overviewY=headerY+58, leftWidth=Math.max(260,(int)(contentWidth*0.50F))-G/2, detailX=contentX+leftWidth+G, detailWidth=contentWidth-leftWidth-G, contentHeight=panelY+panelHeight-P-contentY; return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight); }
+    private Layout layout(){ int availableWidth=Math.max(340,MmmUi.contentWidth(this.width)-M), topY=MmmUi.TOP_BAR_HEIGHT+10, availableHeight=Math.max(260,this.height-topY-12); int panelWidth=Math.min(840,Math.max(540,availableWidth)), panelHeight=Math.min(Math.min(560,Math.max(380,availableHeight)),availableHeight), panelX=MmmUi.centerContentX(this.width,panelWidth), panelY=topY+Math.max(0,(availableHeight-panelHeight)/2), contentX=panelX+P, contentWidth=panelWidth-P*2, headerY=panelY+P, contentY=headerY+58, overviewY=headerY+58, leftWidth=Math.min(Math.max(280,(int)(contentWidth*0.54F))-G/2,Math.max(260,contentWidth-G-300)), detailX=contentX+leftWidth+G, detailWidth=contentWidth-leftWidth-G, contentHeight=panelY+panelHeight-P-contentY; return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight); }
     private record Layout(int panelX,int panelY,int panelWidth,int panelHeight,int panelRight,int contentX,int contentWidth,int headerY,int overviewY,int contentY,int leftWidth,int detailX,int detailWidth,int contentHeight){ private Layout move(int delta){ return new Layout(panelX,panelY+delta,panelWidth,panelHeight,panelRight,contentX,contentWidth,headerY+delta,overviewY+delta,contentY+delta,leftWidth,detailX,detailWidth,contentHeight); } }
     private record BreakdownMetrics(int listX,int listY,int listHeight,int viewportWidth,int scrollbarX){}
 }

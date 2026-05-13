@@ -360,7 +360,7 @@ public class SummaryScreen extends Screen
         }
 
         int columns = Math.max(1, Math.min(width / 4, rates.size()));
-        double maxRate = 0.0D;
+        double maxRate = Math.max(60.0D, this.session.getPeakBlocksPerHour());
         double[] columnRates = new double[columns];
         for (int column = 0; column < columns; column++)
         {
@@ -384,7 +384,6 @@ public class SummaryScreen extends Screen
             maxRate = Math.max(maxRate, rate);
         }
 
-        maxRate = Math.max(60.0D, maxRate);
         int chartBottom = y + height - 14;
         int usableHeight = Math.max(16, height - 22);
         int revealColumns = Math.max(1, (int) Math.ceil(columns * animation));
@@ -551,36 +550,9 @@ public class SummaryScreen extends Screen
         List<Double> rates = new ArrayList<>();
         for (int bucket : this.session.miningRateBuckets)
         {
-            rates.add(bucket * 60.0D);
+            rates.add((double) this.session.getBucketBlocksPerHour(bucket));
         }
-
-        if (isViewingLiveSession() == false)
-        {
-            return rates;
-        }
-
-        long activeMs = Math.max(0L, this.session.getDurationMs());
-        long partialMs = activeMs % 60_000L;
-        if (partialMs <= 0L)
-        {
-            return rates;
-        }
-
-        int currentBucketIndex = (int) (activeMs / 60_000L);
-        while (rates.size() <= currentBucketIndex)
-        {
-            rates.add(0.0D);
-        }
-
-        int bucketBlocks = currentBucketIndex < this.session.miningRateBuckets.size() ? this.session.miningRateBuckets.get(currentBucketIndex) : 0;
-        double partialRate = bucketBlocks * (3_600_000.0D / Math.max(1L, partialMs));
-        rates.set(currentBucketIndex, Math.min(72_000.0D, partialRate));
         return rates;
-    }
-
-    private boolean isViewingLiveSession()
-    {
-        return this.session == MiningStats.getCurrentSession() && MiningStats.isSessionActive();
     }
 
     private float getOpenAnimationProgress()

@@ -981,7 +981,7 @@ public final class CloudSyncManager
         sessionObject.addProperty("top_block", getTopBlock(sanitizedBreakdown));
         sessionObject.addProperty("status", status);
         sessionObject.add("block_breakdown", buildBreakdown(sanitizedBreakdown));
-        sessionObject.add("rate_points", buildRatePoints(session.miningRateBuckets));
+        sessionObject.add("rate_points", buildRatePoints(session));
         return sessionObject;
     }
 
@@ -999,16 +999,16 @@ public final class CloudSyncManager
         return array;
     }
 
-    private static JsonArray buildRatePoints(List<Integer> rateBuckets)
+    private static JsonArray buildRatePoints(SessionData session)
     {
         JsonArray array = new JsonArray();
-        List<Integer> buckets = rateBuckets == null ? List.of() : new ArrayList<>(rateBuckets);
+        List<Integer> buckets = session == null || session.miningRateBuckets == null ? List.of() : new ArrayList<>(session.miningRateBuckets);
 
         for (int index = 0; index < buckets.size(); index++)
         {
             JsonObject point = new JsonObject();
             point.addProperty("point_index", index);
-            point.addProperty("blocks_per_hour", Math.max(0, buckets.get(index)) * 60);
+            point.addProperty("blocks_per_hour", session.getBucketBlocksPerHour(buckets.get(index)));
             point.addProperty("elapsed_seconds", (index + 1) * 60);
             array.add(point);
         }
