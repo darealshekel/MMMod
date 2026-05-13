@@ -35,7 +35,7 @@ public class Configs implements IConfigHandler
     private static final String LEGACY_CONFIG_FILE_NAME = Reference.LEGACY_STORAGE_ID + ".json";
     private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://sync.mmmaniacs.com/v1/sync";
     private static final String LEGACY_ENDPOINT_BRAND = "aet" + "weaks";
-    public static final int MIN_DAILY_GOAL = 10_000;
+    public static final int MIN_DAILY_GOAL = 35_000;
 
     public static class Generic
     {
@@ -127,11 +127,12 @@ public class Configs implements IConfigHandler
         );
     }
 
-    public static final long DEFAULT_WEBSITE_SYNC_INTERVAL_MS = 300_000L;
-    public static final long SUPPORTER_WEBSITE_SYNC_INTERVAL_MS = 150_000L;
+    public static final long DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS = 24L * 60L * 60L * 1000L;
+    public static final long DEFAULT_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
+    public static final long SUPPORTER_WEBSITE_SYNC_INTERVAL_MS = 30L * 60L * 1000L;
     public static final long SUPPORTER_PLUS_WEBSITE_SYNC_INTERVAL_MS = 60_000L;
     public static final long MIN_WEBSITE_SYNC_INTERVAL_MS = 60_000L;
-    public static final long MAX_WEBSITE_SYNC_INTERVAL_MS = 300_000L;
+    public static final long MAX_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
     public static long dailyProgress = 0L;
     public static long dailyGoalLastResetMs = System.currentTimeMillis();
     public static long dailyBlocksMined = 0L;
