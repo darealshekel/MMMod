@@ -12,6 +12,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.mmm.MMM;
 import com.mmm.Reference;
 import com.mmm.util.BlockBreakdownCatalog;
 
@@ -32,10 +33,7 @@ import fi.dy.masa.malilib.util.JsonUtils;
 public class Configs implements IConfigHandler
 {
     private static final String CONFIG_FILE_NAME = Reference.STORAGE_ID + ".json";
-    private static final String LEGACY_CONFIG_FILE_NAME = Reference.LEGACY_STORAGE_ID + ".json";
     private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://sync.mmmaniacs.com/v1/sync";
-    private static final String LEGACY_ENDPOINT_BRAND = "aet" + "weaks";
-    private static final String LEGACY_SUPABASE_PROJECT_REF = "jmspoiryzfilppiovhmf";
     public static final int MIN_DAILY_GOAL = 35_000;
 
     public static class Generic
@@ -223,8 +221,7 @@ public class Configs implements IConfigHandler
         fastest100kStartedAtMs = Math.max(0L, fastest100kStartedAtMs);
         fastest100kFinishedAtMs = Math.max(0L, fastest100kFinishedAtMs);
         totalBlocksMined = Math.max(0L, totalBlocksMined);
-        boolean migratedLegacySyncEndpoint = isLegacySyncEndpoint(cloudSyncEndpoint);
-        if (cloudSyncEndpoint == null || cloudSyncEndpoint.isBlank() || migratedLegacySyncEndpoint)
+        if (cloudSyncEndpoint == null || cloudSyncEndpoint.isBlank())
         {
             cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
         }
@@ -288,43 +285,36 @@ public class Configs implements IConfigHandler
         Generic.GRAPH_BG_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_BG_OPACITY.getIntegerValue())));
         Generic.GRAPH_GRID_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_GRID_OPACITY.getIntegerValue())));
 
-        if (syncIdentityGenerated || migratedLegacySyncEndpoint || dailyGoalMigrated)
+        if (syncIdentityGenerated || dailyGoalMigrated)
         {
             saveToFile();
         }
     }
 
-    private static boolean isLegacySyncEndpoint(String endpoint)
-    {
-        if (endpoint == null)
-        {
-            return false;
-        }
-
-        String normalized = endpoint.trim().toLowerCase();
-        return normalized.contains(LEGACY_ENDPOINT_BRAND)
-                || normalized.contains("aewt-sync-pro")
-                || normalized.contains("xshbqnihopsznsnjqjji")
-                || normalized.contains(LEGACY_SUPABASE_PROJECT_REF)
-                || (normalized.contains("supabase.co") && normalized.contains("mmm-sync"))
-                || normalized.endsWith("/" + LEGACY_ENDPOINT_BRAND + "-sync");
-    }
-
     public static void loadFromFile()
     {
-        migrateLegacyConfigIfNeeded();
-
         File configFile = getPrimaryConfigFile();
         if (configFile.exists() && configFile.isFile() && configFile.canRead())
         {
-            JsonElement element = JsonUtils.parseJsonFile(configFile);
-            if (element != null && element.isJsonObject())
+            try
             {
-                JsonObject root = element.getAsJsonObject();
-                ConfigUtils.readConfigBase(root, "Generic", Generic.PERSISTED_OPTIONS);
-                ConfigUtils.readHotkeys(root, "GenericHotkeys", Hotkeys.HOTKEY_LIST);
-                ConfigUtils.readHotkeyToggleOptions(root, "TweakHotkeys", "TweakToggles", FeatureToggle.VALUES);
-                readCustomState(root);
+                JsonElement element = JsonUtils.parseJsonFile(configFile);
+                if (element != null && element.isJsonObject())
+                {
+                    JsonObject root = element.getAsJsonObject();
+                    ConfigUtils.readConfigBase(root, "Generic", Generic.PERSISTED_OPTIONS);
+                    ConfigUtils.readHotkeys(root, "GenericHotkeys", Hotkeys.HOTKEY_LIST);
+                    ConfigUtils.readHotkeyToggleOptions(root, "TweakHotkeys", "TweakToggles", FeatureToggle.VALUES);
+                    readCustomState(root);
+                }
+                else
+                {
+                    MMM.LOGGER.warn("[MMM] Failed to parse config file {}: root JSON is missing or not an object", configFile);
+                }
+            }
+            catch (Exception e)
+            {
+                MMM.LOGGER.warn("[MMM] Failed to load config file {}: {}", configFile, e.getMessage());
             }
         }
 
@@ -333,8 +323,6 @@ public class Configs implements IConfigHandler
 
     public static void saveToFile()
     {
-        migrateLegacyConfigIfNeeded();
-
         File dir = FileUtils.getConfigDirectory();
         if ((dir.exists() && dir.isDirectory()) || dir.mkdirs())
         {
@@ -366,8 +354,9 @@ public class Configs implements IConfigHandler
             {
                 values.add(Integer.parseInt(trimmed));
             }
-            catch (NumberFormatException ignored)
+            catch (NumberFormatException e)
             {
+                MMM.LOGGER.warn("[MMM] Failed to parse notificationThresholds entry '{}' in {}: {}", trimmed, getPrimaryConfigFile(), e.getMessage());
             }
         }
         return values;
@@ -514,68 +503,74 @@ public class Configs implements IConfigHandler
         if (root.has("State") && root.get("State").isJsonObject())
         {
             JsonObject state = root.getAsJsonObject("State");
-            if (state.has("dailyProgress")) dailyProgress = state.get("dailyProgress").getAsLong();
-            if (state.has("dailyGoalLastResetMs")) dailyGoalLastResetMs = state.get("dailyGoalLastResetMs").getAsLong();
-            if (state.has("dailyBlocksMined")) dailyBlocksMined = state.get("dailyBlocksMined").getAsLong();
-            if (state.has("dailyBlocksDate")) dailyBlocksDate = state.get("dailyBlocksDate").getAsString();
-            if (state.has("weeklyBlocksMined")) weeklyBlocksMined = state.get("weeklyBlocksMined").getAsLong();
-            if (state.has("weeklyBlocksWeek")) weeklyBlocksWeek = state.get("weeklyBlocksWeek").getAsString();
-            if (state.has("personalRecordDailyBlocks")) personalRecordDailyBlocks = state.get("personalRecordDailyBlocks").getAsLong();
-            if (state.has("personalRecordWeeklyBlocks")) personalRecordWeeklyBlocks = state.get("personalRecordWeeklyBlocks").getAsLong();
-            if (state.has("fastest100kMs")) fastest100kMs = state.get("fastest100kMs").getAsLong();
-            if (state.has("fastest100kStartedAtMs")) fastest100kStartedAtMs = state.get("fastest100kStartedAtMs").getAsLong();
-            if (state.has("fastest100kFinishedAtMs")) fastest100kFinishedAtMs = state.get("fastest100kFinishedAtMs").getAsLong();
-            if (state.has("activeProjectId")) activeProjectId = state.get("activeProjectId").getAsString();
-            if (state.has("cloudSyncEnabled")) Generic.WEBSITE_SYNC_ENABLED.setBooleanValue(state.get("cloudSyncEnabled").getAsBoolean());
-            if (state.has("totalDigsSyncEnabled")) Generic.TOTAL_DIGS_SYNC_ENABLED.setBooleanValue(state.get("totalDigsSyncEnabled").getAsBoolean());
-            if (state.has("cloudSyncEndpoint")) cloudSyncEndpoint = state.get("cloudSyncEndpoint").getAsString();
-            if (state.has("cloudSyncSecret")) cloudSyncSecret = state.get("cloudSyncSecret").getAsString();
-            if (state.has("cloudClientId")) cloudClientId = state.get("cloudClientId").getAsString();
-            if (state.has("websiteLinkedMinecraftUuid")) websiteLinkedMinecraftUuid = state.get("websiteLinkedMinecraftUuid").getAsString();
-            if (state.has("websiteLinkedMinecraftUsername")) websiteLinkedMinecraftUsername = state.get("websiteLinkedMinecraftUsername").getAsString();
-            if (state.has("websiteLinkedAtMs")) websiteLinkedAtMs = state.get("websiteLinkedAtMs").getAsLong();
-            if (state.has("websiteSyncTier")) websiteSyncTier = state.get("websiteSyncTier").getAsString();
-            if (state.has("websiteSyncIntervalMs")) websiteSyncIntervalMs = state.get("websiteSyncIntervalMs").getAsLong();
-            if (state.has("websiteGlobalTotalBlocks")) websiteGlobalTotalBlocks = state.get("websiteGlobalTotalBlocks").getAsLong();
-            if (state.has("websiteGlobalTotalUpdatedAtMs")) websiteGlobalTotalUpdatedAtMs = state.get("websiteGlobalTotalUpdatedAtMs").getAsLong();
-            if (state.has("websiteLastSuccessfulSyncMs")) websiteLastSuccessfulSyncMs = state.get("websiteLastSuccessfulSyncMs").getAsLong();
-            if (state.has("totalBlocksMined")) totalBlocksMined = state.get("totalBlocksMined").getAsLong();
+            dailyProgress = readLong(state, "dailyProgress", dailyProgress, "config State");
+            dailyGoalLastResetMs = readLong(state, "dailyGoalLastResetMs", dailyGoalLastResetMs, "config State");
+            dailyBlocksMined = readLong(state, "dailyBlocksMined", dailyBlocksMined, "config State");
+            dailyBlocksDate = readString(state, "dailyBlocksDate", dailyBlocksDate, "config State");
+            weeklyBlocksMined = readLong(state, "weeklyBlocksMined", weeklyBlocksMined, "config State");
+            weeklyBlocksWeek = readString(state, "weeklyBlocksWeek", weeklyBlocksWeek, "config State");
+            personalRecordDailyBlocks = readLong(state, "personalRecordDailyBlocks", personalRecordDailyBlocks, "config State");
+            personalRecordWeeklyBlocks = readLong(state, "personalRecordWeeklyBlocks", personalRecordWeeklyBlocks, "config State");
+            fastest100kMs = readLong(state, "fastest100kMs", fastest100kMs, "config State");
+            fastest100kStartedAtMs = readLong(state, "fastest100kStartedAtMs", fastest100kStartedAtMs, "config State");
+            fastest100kFinishedAtMs = readLong(state, "fastest100kFinishedAtMs", fastest100kFinishedAtMs, "config State");
+            activeProjectId = readString(state, "activeProjectId", activeProjectId, "config State");
+            Generic.WEBSITE_SYNC_ENABLED.setBooleanValue(readBoolean(state, "cloudSyncEnabled", Generic.WEBSITE_SYNC_ENABLED.getBooleanValue(), "config State"));
+            Generic.TOTAL_DIGS_SYNC_ENABLED.setBooleanValue(readBoolean(state, "totalDigsSyncEnabled", Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue(), "config State"));
+            cloudSyncEndpoint = readString(state, "cloudSyncEndpoint", cloudSyncEndpoint, "config State");
+            cloudSyncSecret = readString(state, "cloudSyncSecret", cloudSyncSecret, "config State");
+            cloudClientId = readString(state, "cloudClientId", cloudClientId, "config State");
+            websiteLinkedMinecraftUuid = readString(state, "websiteLinkedMinecraftUuid", websiteLinkedMinecraftUuid, "config State");
+            websiteLinkedMinecraftUsername = readString(state, "websiteLinkedMinecraftUsername", websiteLinkedMinecraftUsername, "config State");
+            websiteLinkedAtMs = readLong(state, "websiteLinkedAtMs", websiteLinkedAtMs, "config State");
+            websiteSyncTier = readString(state, "websiteSyncTier", websiteSyncTier, "config State");
+            websiteSyncIntervalMs = readLong(state, "websiteSyncIntervalMs", websiteSyncIntervalMs, "config State");
+            websiteGlobalTotalBlocks = readLong(state, "websiteGlobalTotalBlocks", websiteGlobalTotalBlocks, "config State");
+            websiteGlobalTotalUpdatedAtMs = readLong(state, "websiteGlobalTotalUpdatedAtMs", websiteGlobalTotalUpdatedAtMs, "config State");
+            websiteLastSuccessfulSyncMs = readLong(state, "websiteLastSuccessfulSyncMs", websiteLastSuccessfulSyncMs, "config State");
+            totalBlocksMined = readLong(state, "totalBlocksMined", totalBlocksMined, "config State");
             PROJECTS.clear();
             WORLD_STATS.clear();
             if (state.has("projects") && state.get("projects").isJsonArray())
             {
+                int index = 0;
                 for (JsonElement element : state.getAsJsonArray("projects"))
                 {
                     if (element.isJsonObject())
                     {
                         JsonObject object = element.getAsJsonObject();
                         ProjectEntry project = new ProjectEntry();
-                        project.id = object.has("id") ? object.get("id").getAsString() : UUID.randomUUID().toString();
-                        project.name = object.has("name") ? object.get("name").getAsString() : "Project";
-                        project.progress = object.has("progress") ? object.get("progress").getAsLong() : 0L;
+                        String context = "config State projects[" + index + "]";
+                        project.id = readString(object, "id", UUID.randomUUID().toString(), context);
+                        project.name = readString(object, "name", "Project", context);
+                        project.progress = readLong(object, "progress", 0L, context);
                         PROJECTS.add(project);
                     }
+                    index++;
                 }
             }
             if (state.has("worldStats") && state.get("worldStats").isJsonArray())
             {
+                int index = 0;
                 for (JsonElement element : state.getAsJsonArray("worldStats"))
                 {
                     if (element.isJsonObject())
                     {
                         JsonObject object = element.getAsJsonObject();
+                        String context = "config State worldStats[" + index + "]";
                         WorldStatsEntry entry = new WorldStatsEntry();
-                        entry.worldId = object.has("worldId") ? object.get("worldId").getAsString() : "default";
-                        entry.displayName = object.has("displayName") ? object.get("displayName").getAsString() : entry.worldId;
-                        entry.kind = object.has("kind") ? object.get("kind").getAsString() : "unknown";
-                        entry.host = object.has("host") ? object.get("host").getAsString() : "";
-                        entry.totalBlocks = object.has("totalBlocks") ? object.get("totalBlocks").getAsLong() : 0L;
-                        entry.lastSeenAt = object.has("lastSeenAt") ? object.get("lastSeenAt").getAsLong() : 0L;
+                        entry.worldId = readString(object, "worldId", "default", context);
+                        entry.displayName = readString(object, "displayName", entry.worldId, context);
+                        entry.kind = readString(object, "kind", "unknown", context);
+                        entry.host = readString(object, "host", "", context);
+                        entry.totalBlocks = readLong(object, "totalBlocks", 0L, context);
+                        entry.lastSeenAt = readLong(object, "lastSeenAt", 0L, context);
                         entry.blockBreakdown = readBlockBreakdown(object);
-                        entry.blockBreakdownSource = object.has("blockBreakdownSource") ? object.get("blockBreakdownSource").getAsString() : "";
-                        entry.blockBreakdownUpdatedAtMs = object.has("blockBreakdownUpdatedAtMs") ? object.get("blockBreakdownUpdatedAtMs").getAsLong() : 0L;
+                        entry.blockBreakdownSource = readString(object, "blockBreakdownSource", "", context);
+                        entry.blockBreakdownUpdatedAtMs = readLong(object, "blockBreakdownUpdatedAtMs", 0L, context);
                         WORLD_STATS.add(entry);
                     }
+                    index++;
                 }
             }
         }
@@ -693,11 +688,66 @@ public class Configs implements IConfigHandler
                     breakdown.put(entry.getKey(), count);
                 }
             }
-            catch (Exception ignored)
+            catch (Exception e)
             {
+                MMM.LOGGER.warn("[MMM] Failed to parse config State blockBreakdown field '{}' in {}: {}", entry.getKey(), getPrimaryConfigFile(), e.getMessage());
             }
         }
         return breakdown;
+    }
+
+    private static long readLong(JsonObject object, String field, long fallback, String context)
+    {
+        if (object == null || object.has(field) == false)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return object.get(field).getAsLong();
+        }
+        catch (Exception e)
+        {
+            MMM.LOGGER.warn("[MMM] Failed to parse {} field '{}' in {}: {}", context, field, getPrimaryConfigFile(), e.getMessage());
+            return fallback;
+        }
+    }
+
+    private static String readString(JsonObject object, String field, String fallback, String context)
+    {
+        if (object == null || object.has(field) == false)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return object.get(field).getAsString();
+        }
+        catch (Exception e)
+        {
+            MMM.LOGGER.warn("[MMM] Failed to parse {} field '{}' in {}: {}", context, field, getPrimaryConfigFile(), e.getMessage());
+            return fallback;
+        }
+    }
+
+    private static boolean readBoolean(JsonObject object, String field, boolean fallback, String context)
+    {
+        if (object == null || object.has(field) == false)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            return object.get(field).getAsBoolean();
+        }
+        catch (Exception e)
+        {
+            MMM.LOGGER.warn("[MMM] Failed to parse {} field '{}' in {}: {}", context, field, getPrimaryConfigFile(), e.getMessage());
+            return fallback;
+        }
     }
 
     private static JsonObject writeBlockBreakdown(Map<String, Long> breakdown)
@@ -755,29 +805,6 @@ public class Configs implements IConfigHandler
     private static File getPrimaryConfigFile()
     {
         return new File(FileUtils.getConfigDirectory(), CONFIG_FILE_NAME);
-    }
-
-    private static File getLegacyConfigFile()
-    {
-        return new File(FileUtils.getConfigDirectory(), LEGACY_CONFIG_FILE_NAME);
-    }
-
-    private static void migrateLegacyConfigIfNeeded()
-    {
-        File primary = getPrimaryConfigFile();
-        File legacy = getLegacyConfigFile();
-        if (primary.exists() || !legacy.exists() || !legacy.isFile())
-        {
-            return;
-        }
-
-        try
-        {
-            java.nio.file.Files.copy(legacy.toPath(), primary.toPath());
-        }
-        catch (Exception ignored)
-        {
-        }
     }
 
     public static class ProjectEntry
