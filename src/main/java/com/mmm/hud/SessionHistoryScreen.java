@@ -307,7 +307,7 @@ public class SessionHistoryScreen extends Screen
 
         int cols = Math.max(1, Math.min(w / 4, s.miningRateBuckets.size()));
         double[] rates = new double[cols];
-        double max = 60d;
+        double max = Math.max(60d, s.getPeakBlocksPerHour());
         for (int col = 0; col < cols; col++)
         {
             int start = (int) Math.floor((col * s.miningRateBuckets.size()) / (double) cols);
@@ -321,7 +321,7 @@ public class SessionHistoryScreen extends Screen
             int count = 0;
             for (int i = start; i < end; i++)
             {
-                total += s.miningRateBuckets.get(i) * 60d;
+                total += s.getBucketBlocksPerHour(s.miningRateBuckets.get(i));
                 count++;
             }
 

@@ -53,7 +53,10 @@ public class SessionData
 
     public int getPeakBlocksPerHour()
     {
-        return clampBlocksPerHour(this.peakBlocksPerHour);
+        int bucketPeak = this.getPeakBucketBlocksPerHour();
+        return bucketPeak > 0 || this.miningRateBuckets.isEmpty() == false
+                ? bucketPeak
+                : clampBlocksPerHour(this.peakBlocksPerHour);
     }
 
     public void updatePeakBlocksPerHour(long value)
@@ -64,6 +67,11 @@ public class SessionData
     public static int clampBlocksPerHour(long value)
     {
         return (int) Math.max(0L, Math.min(MAX_BLOCKS_PER_HOUR, value));
+    }
+
+    public int getBucketBlocksPerHour(int bucketBlocks)
+    {
+        return clampBlocksPerHour(Math.max(0L, (long) bucketBlocks) * 60L);
     }
 
     public void recordMineEvent(long activeElapsedMs)
@@ -81,7 +89,9 @@ public class SessionData
         int bucketIndex = (int) Math.max(0L, activeElapsedMs / RATE_BUCKET_DURATION_MS);
         ensureBucketCapacity(bucketIndex);
         long nextValue = (long) this.miningRateBuckets.get(bucketIndex) + amount;
-        this.miningRateBuckets.set(bucketIndex, (int) Math.min(Integer.MAX_VALUE, nextValue));
+        int bucketBlocks = (int) Math.min(Integer.MAX_VALUE, nextValue);
+        this.miningRateBuckets.set(bucketIndex, bucketBlocks);
+        updatePeakBlocksPerHour(this.getBucketBlocksPerHour(bucketBlocks));
     }
 
     public String serialise()
@@ -202,5 +212,15 @@ public class SessionData
         {
             this.miningRateBuckets.add(0);
         }
+    }
+
+    private int getPeakBucketBlocksPerHour()
+    {
+        int peak = 0;
+        for (int bucketBlocks : this.miningRateBuckets)
+        {
+            peak = Math.max(peak, this.getBucketBlocksPerHour(bucketBlocks));
+        }
+        return peak;
     }
 }

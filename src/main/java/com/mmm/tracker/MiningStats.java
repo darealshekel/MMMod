@@ -197,7 +197,6 @@ public final class MiningStats
             currentSession.totalBlocks++;
             currentSession.endTimeMs = now;
             currentSession.recordMineEvent(getActiveElapsedMs(now));
-            updateCurrentSessionPeakFromRollingBph();
             recordFastest100kIfReached(now);
 
             if (lastMineMs == 0L || now - lastMineMs > STREAK_GAP_MS)
@@ -483,7 +482,6 @@ public final class MiningStats
             if (sessionPaused == false && sessionDelta > 0L)
             {
                 currentSession.recordMinedAmount(getActiveElapsedMs(now), sessionDelta);
-                updateCurrentSessionPeakFromRollingBph();
                 recordFastest100kIfReached(now);
             }
         }
@@ -987,7 +985,6 @@ public final class MiningStats
         if (metricTickIndex - lastBphUpdateTick >= BPS_UPDATE_INTERVAL_TICKS)
         {
             rollingBlocksPerHour = calculateSessionBph();
-            updateCurrentSessionPeakFromRollingBph();
             lastBphUpdateTick = metricTickIndex;
         }
 
@@ -1094,14 +1091,6 @@ public final class MiningStats
     private static double calculateSessionBph()
     {
         return calculateRollingBph();
-    }
-
-    private static void updateCurrentSessionPeakFromRollingBph()
-    {
-        if (sessionActive && sessionPaused == false)
-        {
-            currentSession.updatePeakBlocksPerHour(Math.round(rollingBlocksPerHour));
-        }
     }
 
     private static String dateKey(long now, ZoneId zoneId)
