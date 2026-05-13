@@ -12,7 +12,6 @@ import com.mmm.hud.HudMoveScreen;
 import com.mmm.hud.SessionHistoryScreen;
 import com.mmm.tracker.MiningStats;
 
-import fi.dy.masa.malilib.config.IConfigColor;
 import fi.dy.masa.malilib.config.IConfigDouble;
 import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.config.IConfigInteger;
@@ -87,7 +86,6 @@ public class MmmSettingsScreen extends Screen
                 {
                     TextFieldWidget field = new TextFieldWidget(this.textRenderer, 0, 0, CONTROL_WIDTH, FIELD_HEIGHT, Text.empty());
                     field.setDrawsBackground(false);
-                    field.setCentered(false);
                     field.setEditableColor(TEXT);
                     field.setUneditableColor(MUTED);
                     field.setMaxLength(row.kind() == ControlKind.COLOR ? 9 : 64);
@@ -380,7 +378,7 @@ public class MmmSettingsScreen extends Screen
 
     private void openColorEditor(IConfigBase config)
     {
-        if (!(config instanceof IConfigColor colorConfig))
+        if (!(config instanceof IConfigInteger colorConfig))
         {
             return;
         }

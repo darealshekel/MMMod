@@ -4,7 +4,7 @@ import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 
 import fi.dy.masa.malilib.render.RenderUtils;
-import fi.dy.masa.malilib.util.data.Color4f;
+import fi.dy.masa.malilib.util.Color4f;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.hit.BlockHitResult;
@@ -44,8 +44,8 @@ public final class BlockEspRenderer
         Color4f baseColor = getCurrentColor(client);
         Color4f fillColor = Color4f.fromColor(baseColor, Configs.getBlockEspOpacity());
         Color4f outlineColor = Color4f.fromColor(baseColor, Math.min(1.0F, Configs.getBlockEspOpacity() + 0.25F));
-        RenderUtils.renderAreaSides(targetPos, targetPos, fillColor, positionMatrix);
-        RenderUtils.renderBlockOutlineOverlapping(targetPos, BOX_EXPAND, OUTLINE_WIDTH, fillColor, outlineColor, outlineColor, positionMatrix);
+        RenderUtils.renderAreaSides(targetPos, targetPos, fillColor, positionMatrix, client);
+        RenderUtils.renderBlockOutlineOverlapping(targetPos, BOX_EXPAND, OUTLINE_WIDTH, fillColor, outlineColor, outlineColor, positionMatrix, client);
     }
 
     private static Color4f getCurrentColor(MinecraftClient client)

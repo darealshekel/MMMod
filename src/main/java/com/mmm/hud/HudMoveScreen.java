@@ -194,9 +194,9 @@ public class HudMoveScreen extends Screen
         int padding = 4;
         int totalHeight = lines.size() * lineHeight + 24 + padding * 2;
 
-        context.getMatrices().pushMatrix();
-        context.getMatrices().translate(x, y);
-        context.getMatrices().scale((float) scale, (float) scale);
+        context.getMatrices().push();
+        context.getMatrices().translate(x, y, 0.0D);
+        context.getMatrices().scale((float) scale, (float) scale, 1.0F);
         MmmUi.card(context, -padding, -padding, width + padding * 2, totalHeight, MmmUi.PANEL, MmmUi.BORDER);
 
         int drawY = 0;
@@ -222,7 +222,7 @@ public class HudMoveScreen extends Screen
         context.fill(0, barY, width, barY + 6, MmmUi.INSET);
         context.fill(0, barY, fillWidth, barY + 6, fillColor);
         context.drawBorder(0, barY, width, 6, MmmUi.BORDER_SOFT);
-        context.getMatrices().popMatrix();
+        context.getMatrices().pop();
     }
 
     private record PreviewSegment(String text, int color)

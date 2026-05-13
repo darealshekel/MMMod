@@ -125,7 +125,7 @@ public final class ServerPlayerBlockBreakdownScanner
 
         String statBlockName = normalized.substring(MINED_CRITERION_PREFIX.length());
         Identifier identifier = resolveStatIdentifier(statBlockName);
-        if (identifier == null || Registries.BLOCK.getOptionalValue(identifier).isEmpty())
+        if (identifier == null || Registries.BLOCK.getOrEmpty(identifier).isEmpty())
         {
             return null;
         }
@@ -135,7 +135,7 @@ public final class ServerPlayerBlockBreakdownScanner
     private static Identifier resolveStatIdentifier(String statBlockName)
     {
         Identifier direct = Identifier.tryParse(statBlockName);
-        if (direct != null && Registries.BLOCK.getOptionalValue(direct).isPresent())
+        if (direct != null && Registries.BLOCK.getOrEmpty(direct).isPresent())
         {
             return direct;
         }

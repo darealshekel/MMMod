@@ -363,7 +363,6 @@ public class ProjectManagerScreen extends Screen
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x + FIELD_PAD_X, y + FIELD_PAD_Y, width - FIELD_PAD_X * 2, 20, Text.empty());
         field.setMaxLength(maxLength);
         field.setDrawsBackground(false);
-        field.setCentered(false);
         field.setEditableColor(COLOR_VALUE);
         field.setUneditableColor(COLOR_MUTED);
         field.setChangedListener(value -> refreshButtons());

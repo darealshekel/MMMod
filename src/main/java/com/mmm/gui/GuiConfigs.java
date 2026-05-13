@@ -237,19 +237,18 @@ public class GuiConfigs extends GuiConfigsBase
         }
 
         @Override
-        public void render(DrawContext context, int mouseX, int mouseY, boolean selected)
+        public void render(int mouseX, int mouseY, boolean selected, DrawContext context)
         {
             RowBounds bounds = this.getContentBounds();
             MmmUi.card(context, bounds.x(), this.y + 1, bounds.width(), Math.max(1, this.height - 3), MmmUi.CARD, MmmUi.BORDER_SOFT);
             this.drawStyledButtonShells(context, mouseX, mouseY);
-            super.render(context, mouseX, mouseY, selected);
+            super.render(mouseX, mouseY, selected, context);
         }
 
         @Override
         protected GuiTextFieldGeneric createTextField(int x, int y, int width, int height)
         {
             GuiTextFieldGeneric field = super.createTextField(x + 5, y + 1, Math.max(32, width - 10), Math.max(12, height - 2));
-            field.setCentered(false);
             field.setDrawsBackground(false);
             return field;
         }
@@ -336,7 +335,7 @@ public class GuiConfigs extends GuiConfigsBase
         }
 
         @Override
-        public void render(DrawContext context, int mouseX, int mouseY, boolean selected)
+        public void render(int mouseX, int mouseY, boolean selected, DrawContext context)
         {
             if (!this.visible)
             {

@@ -123,7 +123,6 @@ public class GoalConfigScreen extends Screen
         TextFieldWidget field = new TextFieldWidget(this.textRenderer, x, y, width, 20, Text.empty());
         field.setMaxLength(12);
         field.setDrawsBackground(false);
-        field.setCentered(false);
         field.setEditableColor(MmmUi.TEXT);
         field.setUneditableColor(MmmUi.MUTED);
         field.setText(value);

@@ -68,7 +68,6 @@ public class WebsiteLinkScreen extends Screen
         this.codeField = new TextFieldWidget(this.textRenderer, getCodeFieldX(layout) + FIELD_PAD_X, layout.linkY + 78 + FIELD_PAD_Y, getCodeFieldWidth(layout) - FIELD_PAD_X * 2, INPUT_HEIGHT, Text.empty());
         this.codeField.setMaxLength(12);
         this.codeField.setDrawsBackground(false);
-        this.codeField.setCentered(false);
         this.codeField.setEditableColor(COLOR_VALUE);
         this.codeField.setUneditableColor(COLOR_MUTED);
         this.codeField.setChangedListener(text -> {

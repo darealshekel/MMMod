@@ -99,7 +99,6 @@ public class SummaryScreen extends Screen
         this.searchField = new TextFieldWidget(this.textRenderer, layout.breakdownX + CARD_PADDING, layout.breakdownY + 28, layout.breakdownWidth - CARD_PADDING * 2, SEARCH_HEIGHT, Text.empty());
         this.searchField.setMaxLength(64);
         this.searchField.setDrawsBackground(false);
-        this.searchField.setCentered(false);
         this.searchField.setEditableColor(COLOR_VALUE);
         this.searchField.setUneditableColor(COLOR_MUTED);
         this.searchField.setChangedListener(value -> refreshFilteredEntries());
