@@ -13,6 +13,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mmm.Reference;
+import com.mmm.storage.SharedStoragePaths;
+import com.mmm.tweak.PerimeterWallDigHelper;
 import com.mmm.util.BlockBreakdownCatalog;
 
 import fi.dy.masa.malilib.config.ConfigUtils;
@@ -245,6 +247,7 @@ public class Configs implements IConfigHandler
             Generic.DAILY_GOAL.setIntegerValue(MIN_DAILY_GOAL);
             dailyGoalMigrated = true;
         }
+        PerimeterWallDigHelper.refreshFromConfig();
 
         List<Integer> thresholds = getNotificationThresholds();
         thresholds.removeIf(value -> value <= 0 || value > 100);
@@ -299,7 +302,12 @@ public class Configs implements IConfigHandler
             }
         }
 
+        boolean sharedStateLoaded = readCrossVersionState();
         onConfigLoaded();
+        if (sharedStateLoaded == false)
+        {
+            writeCrossVersionState();
+        }
     }
 
     public static void saveToFile()
@@ -316,6 +324,8 @@ public class Configs implements IConfigHandler
             writeCustomState(root);
             JsonUtils.writeJsonToFile(root, getPrimaryConfigFile());
         }
+
+        writeCrossVersionState();
     }
 
     public static List<BooleanHotkeyGuiWrapper> getWrappedToggles()
@@ -542,6 +552,66 @@ public class Configs implements IConfigHandler
                 }
             }
         }
+    }
+
+    private static boolean readCrossVersionState()
+    {
+        File stateFile = SharedStoragePaths.crossVersionStateFile().toFile();
+        if (stateFile.exists() == false || stateFile.isFile() == false || stateFile.canRead() == false)
+        {
+            return false;
+        }
+
+        try
+        {
+            JsonElement element = JsonUtils.parseJsonFile(stateFile);
+            if (element == null || element.isJsonObject() == false)
+            {
+                return false;
+            }
+
+            JsonObject root = element.getAsJsonObject();
+            JsonObject state = root.has("State") && root.get("State").isJsonObject() ? root.getAsJsonObject("State") : root;
+            if (state.has("dailyGoal")) Generic.DAILY_GOAL.setIntegerValue((int) Math.max(MIN_DAILY_GOAL, Math.min(1_000_000L, state.get("dailyGoal").getAsLong())));
+            if (state.has("dailyProgress")) dailyProgress = state.get("dailyProgress").getAsLong();
+            if (state.has("dailyGoalLastResetMs")) dailyGoalLastResetMs = state.get("dailyGoalLastResetMs").getAsLong();
+            if (state.has("dailyBlocksMined")) dailyBlocksMined = state.get("dailyBlocksMined").getAsLong();
+            if (state.has("dailyBlocksDate")) dailyBlocksDate = state.get("dailyBlocksDate").getAsString();
+            if (state.has("weeklyBlocksMined")) weeklyBlocksMined = state.get("weeklyBlocksMined").getAsLong();
+            if (state.has("weeklyBlocksWeek")) weeklyBlocksWeek = state.get("weeklyBlocksWeek").getAsString();
+            if (state.has("personalRecordDailyBlocks")) personalRecordDailyBlocks = state.get("personalRecordDailyBlocks").getAsLong();
+            if (state.has("personalRecordWeeklyBlocks")) personalRecordWeeklyBlocks = state.get("personalRecordWeeklyBlocks").getAsLong();
+            return true;
+        }
+        catch (Exception ignored)
+        {
+            return false;
+        }
+    }
+
+    private static void writeCrossVersionState()
+    {
+        File stateFile = SharedStoragePaths.crossVersionStateFile().toFile();
+        File dir = stateFile.getParentFile();
+        if (dir == null || (dir.exists() == false && dir.mkdirs() == false))
+        {
+            return;
+        }
+
+        JsonObject state = new JsonObject();
+        state.addProperty("dailyGoal", Generic.DAILY_GOAL.getIntegerValue());
+        state.addProperty("dailyProgress", dailyProgress);
+        state.addProperty("dailyGoalLastResetMs", dailyGoalLastResetMs);
+        state.addProperty("dailyBlocksMined", dailyBlocksMined);
+        state.addProperty("dailyBlocksDate", dailyBlocksDate == null ? "" : dailyBlocksDate);
+        state.addProperty("weeklyBlocksMined", weeklyBlocksMined);
+        state.addProperty("weeklyBlocksWeek", weeklyBlocksWeek == null ? "" : weeklyBlocksWeek);
+        state.addProperty("personalRecordDailyBlocks", personalRecordDailyBlocks);
+        state.addProperty("personalRecordWeeklyBlocks", personalRecordWeeklyBlocks);
+
+        JsonObject root = new JsonObject();
+        root.add("State", state);
+        JsonUtils.writeJsonToFile(root, stateFile);
     }
 
     private static void writeCustomState(JsonObject root)

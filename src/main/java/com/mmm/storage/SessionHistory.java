@@ -10,7 +10,9 @@ import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import fi.dy.masa.malilib.util.FileUtils;
 
@@ -18,11 +20,13 @@ public final class SessionHistory
 {
     private static final long MIN_SESSION_DURATION_MS = 10L * 60L * 1000L;
     private static final long MIN_SESSION_BLOCKS = 1_000L;
-    private static final Path ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.mmm.Reference.STORAGE_ID).resolve("sessions");
+    private static final Path ROOT_DIR = SharedStoragePaths.sessionsDir();
+    private static final Path INSTANCE_ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.mmm.Reference.STORAGE_ID).resolve("sessions");
     private static final Path LEGACY_ROOT_DIR = Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(com.mmm.Reference.LEGACY_STORAGE_ID).resolve("sessions");
     private static final List<SessionData> HISTORY = new ArrayList<>();
     private static SessionData best = null;
     private static String currentWorldId = "default";
+    private static boolean legacyMigrationAttempted = false;
 
     private SessionHistory()
     {
@@ -152,15 +156,66 @@ public final class SessionHistory
 
     private static void migrateLegacySessionsIfNeeded()
     {
+        if (legacyMigrationAttempted)
+        {
+            return;
+        }
+        legacyMigrationAttempted = true;
+
+        mergeLegacyRoot(INSTANCE_ROOT_DIR);
+        mergeLegacyRoot(LEGACY_ROOT_DIR);
+    }
+
+    private static void mergeLegacyRoot(Path legacyRoot)
+    {
+        if (legacyRoot.equals(ROOT_DIR) || Files.isDirectory(legacyRoot) == false)
+        {
+            return;
+        }
+
+        try (var paths = Files.list(legacyRoot))
+        {
+            paths.filter(Files::isDirectory).forEach(SessionHistory::mergeLegacyWorldSessions);
+        }
+        catch (IOException ignored)
+        {
+        }
+    }
+
+    private static void mergeLegacyWorldSessions(Path legacyWorldDir)
+    {
+        Path legacyFile = legacyWorldDir.resolve("sessions.csv");
+        if (Files.exists(legacyFile) == false)
+        {
+            return;
+        }
+
+        String worldId = legacyWorldDir.getFileName() == null ? "default" : legacyWorldDir.getFileName().toString();
+        Path sharedFile = ROOT_DIR.resolve(worldId).resolve("sessions.csv");
+
         try
         {
-            if (Files.exists(ROOT_DIR) || !Files.exists(LEGACY_ROOT_DIR))
+            Files.createDirectories(sharedFile.getParent());
+            Set<String> existing = new HashSet<>();
+            if (Files.exists(sharedFile))
             {
-                return;
+                existing.addAll(Files.readAllLines(sharedFile));
             }
 
-            Files.createDirectories(ROOT_DIR.getParent());
-            Files.move(LEGACY_ROOT_DIR, ROOT_DIR);
+            try (BufferedWriter writer = Files.newBufferedWriter(sharedFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND))
+            {
+                for (String line : Files.readAllLines(legacyFile))
+                {
+                    String trimmed = line == null ? "" : line.trim();
+                    if (trimmed.isEmpty() || existing.contains(trimmed))
+                    {
+                        continue;
+                    }
+                    writer.write(trimmed);
+                    writer.newLine();
+                    existing.add(trimmed);
+                }
+            }
         }
         catch (IOException ignored)
         {
