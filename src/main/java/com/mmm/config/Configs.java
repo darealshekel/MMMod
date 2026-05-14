@@ -56,6 +56,7 @@ public class Configs implements IConfigHandler
         public static final ConfigInteger VALIDATION_CONTINUOUS_MINING_TICKS = new ConfigInteger("validationContinuousMiningTicks", 2400, 20, 72_000, "Maximum continuous held-mining ticks before a session is flagged for no action pauses.");
         public static final ConfigInteger VALIDATION_CLUSTER_BUFFER_SIZE = new ConfigInteger("validationClusterBufferSize", 50, 20, 200, "Recent broken-block buffer size used for repeated cluster farm detection.");
         public static final ConfigInteger VALIDATION_PLACE_BREAK_WINDOW_SECONDS = new ConfigInteger("validationPlaceBreakWindowSeconds", 30, 1, 600, "Seconds after placement during which breaking the same block counts toward place-and-break telemetry.");
+        public static final ConfigBoolean REQUIRE_VALID_MINING_TOOL = new ConfigBoolean("requireValidMiningTool", true, "Only count mined blocks when the held item is effective for the broken block.");
         public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", true, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
         public static final fi.dy.masa.malilib.config.options.ConfigString NOTIFICATION_THRESHOLDS = new fi.dy.masa.malilib.config.options.ConfigString("notificationThresholds", "25,50,75,100", "Popup threshold percentages, comma separated.");
@@ -88,6 +89,7 @@ public class Configs implements IConfigHandler
                 WEBSITE_SYNC_ENABLED,
                 TOTAL_DIGS_SYNC_ENABLED,
                 WEBSITE_SYNC_DEBUG,
+                REQUIRE_VALID_MINING_TOOL,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
                 NOTIFICATION_THRESHOLDS,
@@ -126,6 +128,7 @@ public class Configs implements IConfigHandler
                 VALIDATION_CONTINUOUS_MINING_TICKS,
                 VALIDATION_CLUSTER_BUFFER_SIZE,
                 VALIDATION_PLACE_BREAK_WINDOW_SECONDS,
+                REQUIRE_VALID_MINING_TOOL,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
                 NOTIFICATION_THRESHOLDS,
