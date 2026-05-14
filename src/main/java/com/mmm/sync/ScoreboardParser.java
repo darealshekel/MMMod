@@ -32,6 +32,31 @@ final class ScoreboardParser
             "mined blocks",
             "network"
     );
+    private static final List<String> TOTAL_OBJECTIVE_MARKERS = List.of(
+            "sum",
+            "total",
+            "combinedblocks",
+            "combined blocks",
+            "combined_blocks",
+            "combined-blocks",
+            "blocks mined",
+            "mined blocks"
+    );
+    private static final List<String> DIG_OBJECTIVE_MARKERS = List.of(
+            "dig",
+            "dug",
+            "dugga"
+    );
+    private static final List<String> PARTIAL_OBJECTIVE_MARKERS = List.of(
+            "pickuses",
+            "pick uses",
+            "pick_uses",
+            "pick-uses",
+            "shoveluses",
+            "shovel uses",
+            "shovel_uses",
+            "shovel-uses"
+    );
 
     private ScoreboardParser()
     {
@@ -44,7 +69,16 @@ final class ScoreboardParser
             return null;
         }
 
-        String objectiveTitle = clean(objective.getDisplayName().getString());
+        String objectiveName = clean(objective.getName());
+        String displayTitle = clean(objective.getDisplayName().getString());
+        String objectiveContext = objectiveContext(objectiveName, displayTitle);
+        int objectivePriority = objectivePriority(objectiveContext);
+        if (objectivePriority <= 0)
+        {
+            return null;
+        }
+
+        String objectiveTitle = preferredObjectiveTitle(objectiveName, displayTitle);
         List<ScoreboardLine> rawLines = entries.stream()
                 .map(ScoreboardParser::toLine)
                 .filter(line -> line != null)
@@ -61,8 +95,8 @@ final class ScoreboardParser
             return null;
         }
 
-        long totalDigs = parseTotalDigs(objectiveTitle, rawLines, leaderboardEntries);
-        int confidence = computeConfidence(currentUsername, objectiveTitle, leaderboardEntries, totalDigs, rawLines);
+        long totalDigs = parseTotalDigs(objectiveContext, rawLines, leaderboardEntries);
+        int confidence = computeConfidence(currentUsername, objectiveContext, leaderboardEntries, totalDigs, rawLines);
         if (confidence <= 0)
         {
             return null;
@@ -71,6 +105,7 @@ final class ScoreboardParser
         return new Candidate(
                 new AeternumLeaderboardSnapshot(serverName, objectiveTitle, System.currentTimeMillis(), totalDigs, leaderboardEntries),
                 confidence,
+                objectivePriority,
                 rawLines
         );
     }
@@ -205,11 +240,9 @@ final class ScoreboardParser
 
     private static boolean looksLikeServerTotalLine(String objectiveTitle, ScoreboardLine line)
     {
-        String objectiveLower = objectiveTitle == null ? "" : objectiveTitle.toLowerCase(Locale.ROOT);
+        String objectiveLower = normalizedObjectiveText(objectiveTitle);
         String lower = line.lower();
-        boolean objectiveIsDigsBoard = objectiveLower.contains("dig")
-                || objectiveLower.contains("dug")
-                || objectiveLower.contains("dugga");
+        boolean objectiveIsDigsBoard = objectivePriority(objectiveLower) >= 70;
 
         boolean lineLooksLikeTotal = SERVER_TOTAL_MARKERS.stream().anyMatch(lower::contains)
                 && ((lower.contains("total") && (lower.contains("dig") || lower.contains("dug")))
@@ -230,12 +263,20 @@ final class ScoreboardParser
                                          List<ScoreboardLine> lines)
     {
         int confidence = 0;
-        String titleLower = objectiveTitle == null ? "" : objectiveTitle.toLowerCase(Locale.ROOT);
+        String titleLower = normalizedObjectiveText(objectiveTitle);
         String usernameLower = currentUsername == null ? "" : currentUsername.toLowerCase(Locale.ROOT);
 
-        if (titleLower.contains("dig") || titleLower.contains("dug"))
+        if (containsTotalObjectiveMarker(titleLower))
+        {
+            confidence += 70;
+        }
+        else if (containsAnyObjectiveMarker(titleLower, DIG_OBJECTIVE_MARKERS))
         {
             confidence += 50;
+        }
+        else if (containsAnyObjectiveMarker(titleLower, PARTIAL_OBJECTIVE_MARKERS))
+        {
+            confidence += 35;
         }
 
         if (titleLower.contains("leader") || titleLower.contains("rank"))
@@ -270,6 +311,92 @@ final class ScoreboardParser
         }
 
         return confidence;
+    }
+
+    static int objectivePriority(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        if (containsTotalObjectiveMarker(lower))
+        {
+            return 90;
+        }
+        if (containsAnyObjectiveMarker(lower, DIG_OBJECTIVE_MARKERS))
+        {
+            return 70;
+        }
+        if (containsAnyObjectiveMarker(lower, PARTIAL_OBJECTIVE_MARKERS))
+        {
+            return 50;
+        }
+        return 0;
+    }
+
+    static boolean isPickUsesObjective(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        return compact(lower).contains("pickuses");
+    }
+
+    static boolean isShovelUsesObjective(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        return compact(lower).contains("shoveluses");
+    }
+
+    private static String preferredObjectiveTitle(String objectiveName, String displayTitle)
+    {
+        if (objectivePriority(displayTitle) > 0)
+        {
+            return displayTitle;
+        }
+        if (objectivePriority(objectiveName) > 0)
+        {
+            return objectiveName;
+        }
+        return displayTitle.isBlank() ? objectiveName : displayTitle;
+    }
+
+    private static String objectiveContext(String objectiveName, String displayTitle)
+    {
+        return normalizedObjectiveText(objectiveName + " " + displayTitle);
+    }
+
+    private static boolean containsAnyObjectiveMarker(String lower, List<String> markers)
+    {
+        String compactLower = compact(lower);
+        return markers.stream().anyMatch(marker -> {
+            String normalized = normalizedObjectiveText(marker);
+            return lower.contains(normalized) || compactLower.contains(compact(normalized));
+        });
+    }
+
+    private static boolean containsTotalObjectiveMarker(String lower)
+    {
+        String normalized = normalizedObjectiveText(lower);
+        String compactLower = compact(normalized);
+        if (compactLower.equals("sum") || compactLower.equals("total"))
+        {
+            return true;
+        }
+        if (containsAnyObjectiveMarker(normalized, List.of("combinedblocks", "combined blocks", "blocks mined", "mined blocks")))
+        {
+            return true;
+        }
+        return (compactLower.contains("sum") || compactLower.contains("total"))
+                && (compactLower.contains("block") || compactLower.contains("mine") || compactLower.contains("dig") || compactLower.contains("dug"));
+    }
+
+    private static String normalizedObjectiveText(String value)
+    {
+        return clean(value)
+                .toLowerCase(Locale.ROOT)
+                .replace('_', ' ')
+                .replace('-', ' ');
+    }
+
+    private static String compact(String value)
+    {
+        return value == null ? "" : value.replaceAll("[^a-z0-9]", "");
     }
 
     private static long extractValueNear(List<ScoreboardLine> lines, int index)
@@ -447,7 +574,7 @@ final class ScoreboardParser
         return best;
     }
 
-    record Candidate(AeternumLeaderboardSnapshot snapshot, int confidence, List<ScoreboardLine> lines)
+    record Candidate(AeternumLeaderboardSnapshot snapshot, int confidence, int objectivePriority, List<ScoreboardLine> lines)
     {
         String describeLines()
         {

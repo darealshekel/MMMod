@@ -51,6 +51,7 @@ public final class CloudSyncManager
     private static volatile long lastHealthySignalMs;
     private static volatile long lastFailureSignalMs;
     private static AeternumLeaderboardSnapshot latestLeaderboardSnapshot;
+    private static List<AeternumLeaderboardSnapshot> latestLeaderboardSnapshots = List.of();
     private static String lastQueuedLiveFingerprint;
     private static String lastSuccessfulLiveFingerprint;
     private static String lastSuccessfulLeaderboardFingerprint;
@@ -79,7 +80,8 @@ public final class CloudSyncManager
         if (now - lastAeternumScoreboardSyncMs >= AETERNUM_SCOREBOARD_SCAN_INTERVAL_MS)
         {
             lastAeternumScoreboardSyncMs = now;
-            latestLeaderboardSnapshot = AeternumLeaderboardReader.read(client);
+            latestLeaderboardSnapshots = AeternumLeaderboardReader.readAll(client);
+            latestLeaderboardSnapshot = latestLeaderboardSnapshots.isEmpty() ? null : latestLeaderboardSnapshots.get(0);
             maybeBootstrapFromLeaderboardSnapshot(client, now);
         }
 
@@ -90,7 +92,7 @@ public final class CloudSyncManager
             touchHealthy();
         }
 
-        String currentLeaderboardFingerprint = leaderboardFingerprint(latestLeaderboardSnapshot);
+        String currentLeaderboardFingerprint = leaderboardsFingerprint(latestLeaderboardSnapshots);
         if (latestLeaderboardSnapshot != null
                 && currentLeaderboardFingerprint.equals(lastSuccessfulLeaderboardFingerprint) == false)
         {
@@ -246,7 +248,7 @@ public final class CloudSyncManager
 
         if (latestLeaderboardSnapshot != null)
         {
-            lastSuccessfulLeaderboardFingerprint = leaderboardFingerprint(latestLeaderboardSnapshot);
+            lastSuccessfulLeaderboardFingerprint = leaderboardsFingerprint(latestLeaderboardSnapshots);
         }
     }
 
@@ -369,6 +371,7 @@ public final class CloudSyncManager
     public static void resetForDisconnect()
     {
         latestLeaderboardSnapshot = null;
+        latestLeaderboardSnapshots = List.of();
         syncStatus = SyncStatus.CONNECTED;
         syncStatusDetail = "";
         lastHeartbeatMs = 0L;
@@ -695,13 +698,14 @@ public final class CloudSyncManager
             payload.add("source_scan", sourceScan);
         }
 
-        JsonObject aeternumLeaderboard = buildAeternumLeaderboard();
-        if (aeternumLeaderboard != null)
+        JsonArray aeternumLeaderboards = buildAeternumLeaderboards();
+        if (aeternumLeaderboards != null && aeternumLeaderboards.isEmpty() == false)
         {
-            JsonObject syncLeaderboard = SyncDeltaStore.aeternumLeaderboardForSync(aeternumLeaderboard);
-            if (syncLeaderboard != null)
+            payload.add("aeternum_leaderboards", aeternumLeaderboards);
+            JsonElement firstLeaderboard = aeternumLeaderboards.get(0);
+            if (firstLeaderboard != null && firstLeaderboard.isJsonObject())
             {
-                payload.add("aeternum_leaderboard", syncLeaderboard);
+                payload.add("aeternum_leaderboard", firstLeaderboard.deepCopy());
             }
         }
 
@@ -788,15 +792,47 @@ public final class CloudSyncManager
 
     private static JsonObject buildAeternumLeaderboard()
     {
-        if (latestLeaderboardSnapshot == null || latestLeaderboardSnapshot.isValid() == false)
+        return buildAeternumLeaderboard(latestLeaderboardSnapshot);
+    }
+
+    private static JsonArray buildAeternumLeaderboards()
+    {
+        List<AeternumLeaderboardSnapshot> snapshots = latestLeaderboardSnapshots == null ? List.of() : latestLeaderboardSnapshots;
+        if (snapshots.isEmpty() && latestLeaderboardSnapshot != null)
+        {
+            snapshots = List.of(latestLeaderboardSnapshot);
+        }
+
+        JsonArray array = new JsonArray();
+        for (AeternumLeaderboardSnapshot snapshot : snapshots)
+        {
+            JsonObject leaderboard = buildAeternumLeaderboard(snapshot);
+            if (leaderboard == null)
+            {
+                continue;
+            }
+
+            JsonObject syncLeaderboard = SyncDeltaStore.aeternumLeaderboardForSync(leaderboard);
+            if (syncLeaderboard != null)
+            {
+                array.add(syncLeaderboard);
+            }
+        }
+
+        return array;
+    }
+
+    private static JsonObject buildAeternumLeaderboard(AeternumLeaderboardSnapshot snapshot)
+    {
+        if (snapshot == null || snapshot.isValid() == false)
         {
             return null;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, latestLeaderboardSnapshot.entries());
+        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, snapshot.entries());
 
-        List<AeternumLeaderboardEntry> realEntries = latestLeaderboardSnapshot.entries().stream()
+        List<AeternumLeaderboardEntry> realEntries = snapshot.entries().stream()
                 .filter(entry -> entry.isValid())
                 .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
                 .sorted(Comparator.comparingInt(AeternumLeaderboardEntry::rank))
@@ -808,12 +844,12 @@ public final class CloudSyncManager
         }
 
         JsonObject leaderboard = new JsonObject();
-        leaderboard.addProperty("server_name", latestLeaderboardSnapshot.serverName());
-        leaderboard.addProperty("objective_title", latestLeaderboardSnapshot.objectiveTitle());
-        leaderboard.addProperty("captured_at", toIso(latestLeaderboardSnapshot.capturedAtMs()));
+        leaderboard.addProperty("server_name", snapshot.serverName());
+        leaderboard.addProperty("objective_title", snapshot.objectiveTitle());
+        leaderboard.addProperty("captured_at", toIso(snapshot.capturedAtMs()));
         leaderboard.addProperty("source_type", "scoreboard");
 
-        long snapshotTotalDigs = Math.max(0L, latestLeaderboardSnapshot.totalDigs());
+        long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
         long filteredTotalDigs = realEntries.stream().mapToLong(AeternumLeaderboardEntry::digs).sum();
         long payloadTotalDigs = snapshotTotalDigs > 0L ? snapshotTotalDigs : filteredTotalDigs;
         if (payloadTotalDigs > 0L)
@@ -828,7 +864,7 @@ public final class CloudSyncManager
             row.addProperty("username", entry.username());
             row.addProperty("digs", entry.digs());
             row.addProperty("rank", entry.rank());
-            row.addProperty("source_server", latestLeaderboardSnapshot.serverName());
+            row.addProperty("source_server", snapshot.serverName());
             entries.add(row);
         }
 
@@ -1161,6 +1197,10 @@ public final class CloudSyncManager
         {
             minimal.add("aeternum_leaderboard", payload.get("aeternum_leaderboard"));
         }
+        if (payload.has("aeternum_leaderboards"))
+        {
+            minimal.add("aeternum_leaderboards", payload.get("aeternum_leaderboards"));
+        }
 
         if (payload.has("session"))
         {
@@ -1226,6 +1266,23 @@ public final class CloudSyncManager
 
         object.add("entries", entries);
         return GSON.toJson(object);
+    }
+
+    private static String leaderboardsFingerprint(List<AeternumLeaderboardSnapshot> snapshots)
+    {
+        if (snapshots == null || snapshots.isEmpty())
+        {
+            return "";
+        }
+
+        JsonArray array = new JsonArray();
+        snapshots.stream()
+                .filter(snapshot -> snapshot != null && snapshot.isValid())
+                .sorted(Comparator
+                        .comparing(AeternumLeaderboardSnapshot::serverName, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(AeternumLeaderboardSnapshot::objectiveTitle, String.CASE_INSENSITIVE_ORDER))
+                .forEach(snapshot -> array.add(JsonParser.parseString(leaderboardFingerprint(snapshot))));
+        return GSON.toJson(array);
     }
 
     private static void debugPayloadSource(WorldSessionContext.WorldInfo worldInfo, JsonObject payload)
