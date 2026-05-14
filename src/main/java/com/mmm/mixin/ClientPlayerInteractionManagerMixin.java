@@ -1,6 +1,5 @@
 package com.mmm.mixin;
 
-import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.tweak.FlatDigger;
 import com.mmm.tweak.PerimeterWallDigHelper;
@@ -58,12 +57,13 @@ public class ClientPlayerInteractionManagerMixin
             return;
         }
 
-        if (mmm$isSurvivalMiningMode(client) == false || client.player.canHarvest(state) == false)
+        if (mmm$isSurvivalMiningMode(client) == false)
         {
             return;
         }
 
-        if (Configs.Generic.REQUIRE_VALID_MINING_TOOL.getBooleanValue() && mmm$isHoldingEffectiveMiningTool(client.player, state) == false)
+        if (FeatureToggle.TWEAK_REQUIRE_VALID_MINING_TOOL.getBooleanValue()
+                && (client.player.canHarvest(state) == false || mmm$isHoldingEffectiveMiningTool(client.player, state) == false))
         {
             return;
         }

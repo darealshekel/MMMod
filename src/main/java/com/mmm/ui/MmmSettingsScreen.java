@@ -740,7 +740,6 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Scale Step", "Y-axis grid interval in blocks/hr.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
         ));
         this.sections.add(SettingsSection.performance(
-                new SettingRow("Valid Tools Only", "Only count blocks mined with an effective tool.", Configs.Generic.REQUIRE_VALID_MINING_TOOL, ControlKind.BOOLEAN),
                 new SettingRow("BPS Smoothing", "Rolling window used for BPS display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION)
         ));
         this.sections.add(SettingsSection.developer(
