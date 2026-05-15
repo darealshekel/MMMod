@@ -14,22 +14,22 @@ import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardDisplaySlot;
 import net.minecraft.scoreboard.ScoreboardObjective;
 
-public final class AeternumLeaderboardReader
+public final class SourceLeaderboardReader
 {
     private static final long DEBUG_LOG_INTERVAL_MS = 10_000L;
     private static long lastDebugLogMs;
 
-    private AeternumLeaderboardReader()
+    private SourceLeaderboardReader()
     {
     }
 
-    public static AeternumLeaderboardSnapshot read(MinecraftClient client)
+    public static SourceLeaderboardSnapshot read(MinecraftClient client)
     {
-        List<AeternumLeaderboardSnapshot> snapshots = readAll(client);
+        List<SourceLeaderboardSnapshot> snapshots = readAll(client);
         return snapshots.isEmpty() ? null : snapshots.get(0);
     }
 
-    public static List<AeternumLeaderboardSnapshot> readAll(MinecraftClient client)
+    public static List<SourceLeaderboardSnapshot> readAll(MinecraftClient client)
     {
         if (client == null || client.world == null || client.player == null)
         {
@@ -80,11 +80,11 @@ public final class AeternumLeaderboardReader
                 worldInfo != null ? worldInfo.displayName() : detectedServerName,
                 worldInfo
         );
-        Map<String, AeternumLeaderboardSnapshot> byObjective = new LinkedHashMap<>();
+        Map<String, SourceLeaderboardSnapshot> byObjective = new LinkedHashMap<>();
         for (ScoreboardParser.Candidate candidate : candidates)
         {
-            AeternumLeaderboardSnapshot snapshot = candidate.snapshot();
-            AeternumLeaderboardSnapshot normalized = new AeternumLeaderboardSnapshot(
+            SourceLeaderboardSnapshot snapshot = candidate.snapshot();
+            SourceLeaderboardSnapshot normalized = new SourceLeaderboardSnapshot(
                     sourceName,
                     snapshot.objectiveTitle(),
                     snapshot.capturedAtMs(),
@@ -94,8 +94,8 @@ public final class AeternumLeaderboardReader
             byObjective.putIfAbsent(normalizeObjectiveKey(normalized.objectiveTitle()), normalized);
         }
 
-        List<AeternumLeaderboardSnapshot> snapshots = new ArrayList<>(byObjective.values());
-        AeternumLeaderboardSnapshot combinedToolsSnapshot = combineToolUseSnapshots(sourceName, snapshots);
+        List<SourceLeaderboardSnapshot> snapshots = new ArrayList<>(byObjective.values());
+        SourceLeaderboardSnapshot combinedToolsSnapshot = combineToolUseSnapshots(sourceName, snapshots);
         if (combinedToolsSnapshot != null && byObjective.containsKey(normalizeObjectiveKey(combinedToolsSnapshot.objectiveTitle())) == false)
         {
             boolean hasAuthoritativeTotal = snapshots.stream()
@@ -110,7 +110,7 @@ public final class AeternumLeaderboardReader
             }
         }
 
-        AeternumLeaderboardSnapshot chosen = snapshots.isEmpty() ? null : snapshots.get(0);
+        SourceLeaderboardSnapshot chosen = snapshots.isEmpty() ? null : snapshots.get(0);
         if (chosen != null)
         {
             debug(
@@ -133,18 +133,34 @@ public final class AeternumLeaderboardReader
         }
     }
 
-    private static AeternumLeaderboardSnapshot combineToolUseSnapshots(String sourceName, List<AeternumLeaderboardSnapshot> snapshots)
+    private static SourceLeaderboardSnapshot combineToolUseSnapshots(String sourceName, List<SourceLeaderboardSnapshot> snapshots)
     {
-        AeternumLeaderboardSnapshot pickUses = bestPartialSnapshot(snapshots, true);
-        AeternumLeaderboardSnapshot shovelUses = bestPartialSnapshot(snapshots, false);
-        if (pickUses == null || shovelUses == null)
+        List<SourceLeaderboardSnapshot> partials = new ArrayList<>();
+        SourceLeaderboardSnapshot pickUses = bestPartialSnapshot(snapshots, ToolUseKind.PICKAXE);
+        SourceLeaderboardSnapshot axeUses = bestPartialSnapshot(snapshots, ToolUseKind.AXE);
+        SourceLeaderboardSnapshot shovelUses = bestPartialSnapshot(snapshots, ToolUseKind.SHOVEL);
+        if (pickUses != null)
+        {
+            partials.add(pickUses);
+        }
+        if (axeUses != null)
+        {
+            partials.add(axeUses);
+        }
+        if (shovelUses != null)
+        {
+            partials.add(shovelUses);
+        }
+        if (partials.size() < 2)
         {
             return null;
         }
 
         Map<String, CombinedEntry> combined = new LinkedHashMap<>();
-        addPartialEntries(combined, pickUses);
-        addPartialEntries(combined, shovelUses);
+        for (SourceLeaderboardSnapshot partial : partials)
+        {
+            addPartialEntries(combined, partial);
+        }
         if (combined.size() < 3)
         {
             return null;
@@ -153,45 +169,73 @@ public final class AeternumLeaderboardReader
         List<CombinedEntry> sorted = combined.values().stream()
                 .sorted(Comparator.comparingLong(CombinedEntry::digs).reversed().thenComparing(CombinedEntry::username, String.CASE_INSENSITIVE_ORDER))
                 .toList();
-        List<AeternumLeaderboardEntry> entries = new ArrayList<>();
+        List<SourceLeaderboardEntry> entries = new ArrayList<>();
         for (int index = 0; index < sorted.size(); index++)
         {
             CombinedEntry entry = sorted.get(index);
-            entries.add(new AeternumLeaderboardEntry(entry.username(), entry.digs(), index + 1));
+            entries.add(new SourceLeaderboardEntry(entry.username(), entry.digs(), index + 1));
         }
 
-        long total = partialSnapshotTotal(pickUses) + partialSnapshotTotal(shovelUses);
-        return new AeternumLeaderboardSnapshot(
+        long total = partials.stream().mapToLong(SourceLeaderboardReader::partialSnapshotTotal).sum();
+        return new SourceLeaderboardSnapshot(
                 sourceName,
-                "PickUses + ShovelUses",
-                Math.max(pickUses.capturedAtMs(), shovelUses.capturedAtMs()),
+                combinedToolUseTitle(pickUses, axeUses, shovelUses),
+                partials.stream().mapToLong(SourceLeaderboardSnapshot::capturedAtMs).max().orElse(System.currentTimeMillis()),
                 total,
                 entries
         );
     }
 
-    private static AeternumLeaderboardSnapshot bestPartialSnapshot(List<AeternumLeaderboardSnapshot> snapshots, boolean pick)
+    private static SourceLeaderboardSnapshot bestPartialSnapshot(List<SourceLeaderboardSnapshot> snapshots, ToolUseKind kind)
     {
         return snapshots.stream()
-                .filter(snapshot -> pick
-                        ? ScoreboardParser.isPickUsesObjective(snapshot.objectiveTitle())
-                        : ScoreboardParser.isShovelUsesObjective(snapshot.objectiveTitle()))
+                .filter(snapshot -> matchesToolUseKind(snapshot.objectiveTitle(), kind))
                 .max(Comparator
-                        .comparingLong(AeternumLeaderboardReader::partialSnapshotTotal)
+                        .comparingLong(SourceLeaderboardReader::partialSnapshotTotal)
                         .thenComparingInt(snapshot -> snapshot.entries().size()))
                 .orElse(null);
     }
 
-    private static long partialSnapshotTotal(AeternumLeaderboardSnapshot snapshot)
+    private static boolean matchesToolUseKind(String objectiveTitle, ToolUseKind kind)
+    {
+        return switch (kind)
+        {
+            case PICKAXE -> ScoreboardParser.isPickUsesObjective(objectiveTitle);
+            case AXE -> ScoreboardParser.isAxeUsesObjective(objectiveTitle);
+            case SHOVEL -> ScoreboardParser.isShovelUsesObjective(objectiveTitle);
+        };
+    }
+
+    private static String combinedToolUseTitle(SourceLeaderboardSnapshot pickUses,
+                                               SourceLeaderboardSnapshot axeUses,
+                                               SourceLeaderboardSnapshot shovelUses)
+    {
+        List<String> labels = new ArrayList<>();
+        if (pickUses != null)
+        {
+            labels.add("Pickaxe Uses");
+        }
+        if (axeUses != null)
+        {
+            labels.add("Axe Uses");
+        }
+        if (shovelUses != null)
+        {
+            labels.add("Shovel Uses");
+        }
+        return String.join(" + ", labels);
+    }
+
+    private static long partialSnapshotTotal(SourceLeaderboardSnapshot snapshot)
     {
         return snapshot.totalDigs() > 0L
                 ? snapshot.totalDigs()
-                : snapshot.entries().stream().mapToLong(AeternumLeaderboardEntry::digs).sum();
+                : snapshot.entries().stream().mapToLong(SourceLeaderboardEntry::digs).sum();
     }
 
-    private static void addPartialEntries(Map<String, CombinedEntry> combined, AeternumLeaderboardSnapshot snapshot)
+    private static void addPartialEntries(Map<String, CombinedEntry> combined, SourceLeaderboardSnapshot snapshot)
     {
-        for (AeternumLeaderboardEntry entry : snapshot.entries())
+        for (SourceLeaderboardEntry entry : snapshot.entries())
         {
             String key = entry.username().toLowerCase(Locale.ROOT);
             CombinedEntry previous = combined.get(key);
@@ -226,5 +270,12 @@ public final class AeternumLeaderboardReader
 
     private record CombinedEntry(String username, long digs)
     {
+    }
+
+    private enum ToolUseKind
+    {
+        PICKAXE,
+        AXE,
+        SHOVEL
     }
 }
