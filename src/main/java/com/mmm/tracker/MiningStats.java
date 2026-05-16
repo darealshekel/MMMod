@@ -697,8 +697,10 @@ public final class MiningStats
 
     public static GoalProgress getDailyGoalProgress()
     {
+        long now = System.currentTimeMillis();
         resetDailyProgressIfNeeded();
-        return new GoalProgress("Daily Goal", FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue(), Configs.dailyProgress, Configs.Generic.DAILY_GOAL.getIntegerValue());
+        resetPeriodStatsIfNeeded(now);
+        return new GoalProgress("Daily Goal", FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue(), Math.max(0L, Configs.dailyBlocksMined), Configs.Generic.DAILY_GOAL.getIntegerValue());
     }
 
     public static long getDailyBlocksMined()
@@ -778,7 +780,13 @@ public final class MiningStats
 
     public static void setDailyProgress(long value)
     {
-        Configs.dailyProgress = Math.max(0L, value);
+        long now = System.currentTimeMillis();
+        long progress = Math.max(0L, value);
+        Configs.dailyBlocksDate = PeriodKeys.currentDailyKey(now);
+        Configs.dailyGoalLastResetMs = now;
+        Configs.dailyProgress = progress;
+        Configs.dailyBlocksMined = progress;
+        Configs.personalRecordDailyBlocks = Math.max(Configs.personalRecordDailyBlocks, Configs.dailyBlocksMined);
         GoalNotificationManager.clear();
         Configs.saveToFile();
     }
@@ -872,6 +880,28 @@ public final class MiningStats
         long now = System.currentTimeMillis();
         ZoneId zoneId = DAILY_RESET_ZONE;
         LocalDate today = LocalDate.now(zoneId);
+        String todayKey = PeriodKeys.currentDailyKey(now);
+        boolean dailyPeriodIsStale = Configs.dailyBlocksDate != null
+                && Configs.dailyBlocksDate.isBlank() == false
+                && PeriodKeys.isCurrentDailyKey(Configs.dailyBlocksDate, now) == false;
+
+        if (dailyPeriodIsStale)
+        {
+            Configs.personalRecordDailyBlocks = Math.max(Configs.personalRecordDailyBlocks, Configs.dailyBlocksMined);
+            Configs.dailyProgress = 0L;
+            Configs.dailyBlocksMined = 0L;
+            Configs.dailyBlocksDate = todayKey;
+            Configs.dailyGoalLastResetMs = now;
+            GoalNotificationManager.clear();
+            Configs.saveToFile();
+            return;
+        }
+
+        if (Configs.dailyBlocksDate == null || Configs.dailyBlocksDate.isBlank())
+        {
+            Configs.dailyBlocksDate = todayKey;
+            Configs.saveToFile();
+        }
 
         if (Configs.dailyGoalLastResetMs <= 0L)
         {
@@ -892,6 +922,8 @@ public final class MiningStats
         if (lastResetDate.isBefore(today))
         {
             Configs.dailyProgress = 0L;
+            Configs.dailyBlocksMined = 0L;
+            Configs.dailyBlocksDate = todayKey;
             Configs.dailyGoalLastResetMs = now;
             GoalNotificationManager.clear();
             Configs.saveToFile();
@@ -915,7 +947,9 @@ public final class MiningStats
         {
             Configs.personalRecordDailyBlocks = Math.max(Configs.personalRecordDailyBlocks, Configs.dailyBlocksMined);
             Configs.dailyBlocksMined = 0L;
+            Configs.dailyProgress = 0L;
             Configs.dailyBlocksDate = todayKey;
+            Configs.dailyGoalLastResetMs = now;
             changed = true;
             resetPeriod = true;
         }
@@ -964,6 +998,7 @@ public final class MiningStats
 
         resetPeriodStatsIfNeeded(now);
         Configs.dailyBlocksMined = Math.max(0L, Configs.dailyBlocksMined) + amount;
+        Configs.dailyProgress = Configs.dailyBlocksMined;
         Configs.weeklyBlocksMined = Math.max(0L, Configs.weeklyBlocksMined) + amount;
         Configs.personalRecordDailyBlocks = Math.max(Configs.personalRecordDailyBlocks, Configs.dailyBlocksMined);
         Configs.personalRecordWeeklyBlocks = Math.max(Configs.personalRecordWeeklyBlocks, Configs.weeklyBlocksMined);
