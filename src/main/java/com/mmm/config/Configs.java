@@ -20,6 +20,7 @@ import com.mmm.Reference;
 import com.mmm.storage.SharedStoragePaths;
 import com.mmm.tweak.PerimeterWallDigHelper;
 import com.mmm.util.BlockBreakdownCatalog;
+import com.mmm.util.PeriodKeys;
 
 import fi.dy.masa.malilib.config.ConfigUtils;
 import fi.dy.masa.malilib.config.IConfigBase;
@@ -695,58 +696,47 @@ public class Configs implements IConfigHandler
 
     private static void mergeDailyState(String incomingDate, long incomingBlocks, long incomingResetMs)
     {
-        dailyBlocksDate = normalizeStateKey(dailyBlocksDate);
-        long currentBlocks = Math.max(dailyBlocksMined, dailyProgress);
-        if (incomingDate.isBlank())
+        long now = System.currentTimeMillis();
+        String currentKey = PeriodKeys.currentDailyKey(now);
+        if (PeriodKeys.isCurrentDailyKey(dailyBlocksDate, now) == false)
         {
-            if (dailyBlocksDate.isBlank())
-            {
-                long mergedBlocks = Math.max(currentBlocks, incomingBlocks);
-                dailyBlocksMined = mergedBlocks;
-                dailyProgress = mergedBlocks;
-                dailyGoalLastResetMs = Math.max(dailyGoalLastResetMs, incomingResetMs);
-            }
-            return;
+            personalRecordDailyBlocks = Math.max(personalRecordDailyBlocks, dailyBlocksMined);
+            dailyBlocksDate = currentKey;
+            dailyBlocksMined = 0L;
+            dailyProgress = 0L;
+        }
+        else
+        {
+            dailyBlocksDate = PeriodKeys.normalizeDailyKey(dailyBlocksDate, now);
         }
 
-        int comparison = dailyBlocksDate.isBlank() ? 1 : incomingDate.compareTo(dailyBlocksDate);
-        if (comparison > 0)
+        if (PeriodKeys.isCurrentDailyKey(incomingDate, now))
         {
-            dailyBlocksDate = incomingDate;
-            dailyBlocksMined = Math.max(0L, incomingBlocks);
-            dailyProgress = dailyBlocksMined;
-            dailyGoalLastResetMs = Math.max(0L, incomingResetMs);
-        }
-        else if (comparison == 0)
-        {
-            long mergedBlocks = Math.max(currentBlocks, incomingBlocks);
+            long mergedBlocks = Math.max(Math.max(dailyBlocksMined, dailyProgress), Math.max(0L, incomingBlocks));
             dailyBlocksMined = mergedBlocks;
             dailyProgress = mergedBlocks;
-            dailyGoalLastResetMs = Math.max(dailyGoalLastResetMs, incomingResetMs);
         }
+        dailyGoalLastResetMs = Math.max(dailyGoalLastResetMs, incomingResetMs);
     }
 
     private static void mergeWeeklyState(String incomingWeek, long incomingBlocks)
     {
-        weeklyBlocksWeek = normalizeStateKey(weeklyBlocksWeek);
-        if (incomingWeek.isBlank())
+        long now = System.currentTimeMillis();
+        String currentKey = PeriodKeys.currentWeeklyKey(now);
+        if (PeriodKeys.isCurrentWeeklyKey(weeklyBlocksWeek, now) == false)
         {
-            if (weeklyBlocksWeek.isBlank())
-            {
-                weeklyBlocksMined = Math.max(weeklyBlocksMined, incomingBlocks);
-            }
-            return;
+            personalRecordWeeklyBlocks = Math.max(personalRecordWeeklyBlocks, weeklyBlocksMined);
+            weeklyBlocksWeek = currentKey;
+            weeklyBlocksMined = 0L;
+        }
+        else
+        {
+            weeklyBlocksWeek = PeriodKeys.normalizeWeeklyKey(weeklyBlocksWeek, now);
         }
 
-        int comparison = weeklyBlocksWeek.isBlank() ? 1 : incomingWeek.compareTo(weeklyBlocksWeek);
-        if (comparison > 0)
+        if (PeriodKeys.isCurrentWeeklyKey(incomingWeek, now))
         {
-            weeklyBlocksWeek = incomingWeek;
-            weeklyBlocksMined = Math.max(0L, incomingBlocks);
-        }
-        else if (comparison == 0)
-        {
-            weeklyBlocksMined = Math.max(weeklyBlocksMined, incomingBlocks);
+            weeklyBlocksMined = Math.max(weeklyBlocksMined, Math.max(0L, incomingBlocks));
         }
     }
 
