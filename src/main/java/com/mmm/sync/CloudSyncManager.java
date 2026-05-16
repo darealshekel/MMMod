@@ -16,10 +16,9 @@ import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
 import com.mmm.tracker.MiningValidationTracker;
 import com.mmm.util.MmmDebugLogger;
+import com.mmm.util.PeriodKeys;
 import com.mmm.util.UiFormat;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -993,7 +992,7 @@ public final class CloudSyncManager
     private static JsonObject buildDailyGoal(MiningStats.GoalProgress dailyGoal)
     {
         JsonObject goal = new JsonObject();
-        goal.addProperty("goal_date", LocalDate.now(ZoneId.of("UTC")).toString());
+        goal.addProperty("goal_date", PeriodKeys.currentDailyKey(System.currentTimeMillis()));
         goal.addProperty("target", dailyGoal.target());
         goal.addProperty("progress", dailyGoal.current());
         goal.addProperty("completed", dailyGoal.target() > 0L && dailyGoal.current() >= dailyGoal.target());

@@ -9,7 +9,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.WeekFields;
 import java.util.stream.Collectors;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.block.Block;
@@ -28,6 +27,7 @@ import com.mmm.sync.ScoreboardSourceResolver;
 import com.mmm.sync.SyncQueueManager;
 import com.mmm.util.BlockBreakdownCatalog;
 import com.mmm.util.MmmDebugLogger;
+import com.mmm.util.PeriodKeys;
 import com.mmm.util.UiFormat;
 
 public final class MiningStats
@@ -911,7 +911,7 @@ public final class MiningStats
             Configs.dailyBlocksDate = todayKey;
             changed = true;
         }
-        else if (Configs.dailyBlocksDate.equals(todayKey) == false)
+        else if (PeriodKeys.isCurrentDailyKey(Configs.dailyBlocksDate, now) == false)
         {
             Configs.personalRecordDailyBlocks = Math.max(Configs.personalRecordDailyBlocks, Configs.dailyBlocksMined);
             Configs.dailyBlocksMined = 0L;
@@ -919,19 +919,29 @@ public final class MiningStats
             changed = true;
             resetPeriod = true;
         }
+        else if (Configs.dailyBlocksDate.equals(todayKey) == false)
+        {
+            Configs.dailyBlocksDate = PeriodKeys.normalizeDailyKey(Configs.dailyBlocksDate, now);
+            changed = true;
+        }
 
         if (Configs.weeklyBlocksWeek == null || Configs.weeklyBlocksWeek.isBlank())
         {
             Configs.weeklyBlocksWeek = weekKey;
             changed = true;
         }
-        else if (Configs.weeklyBlocksWeek.equals(weekKey) == false)
+        else if (PeriodKeys.isCurrentWeeklyKey(Configs.weeklyBlocksWeek, now) == false)
         {
             Configs.personalRecordWeeklyBlocks = Math.max(Configs.personalRecordWeeklyBlocks, Configs.weeklyBlocksMined);
             Configs.weeklyBlocksMined = 0L;
             Configs.weeklyBlocksWeek = weekKey;
             changed = true;
             resetPeriod = true;
+        }
+        else if (Configs.weeklyBlocksWeek.equals(weekKey) == false)
+        {
+            Configs.weeklyBlocksWeek = PeriodKeys.normalizeWeeklyKey(Configs.weeklyBlocksWeek, now);
+            changed = true;
         }
 
         if (changed)
@@ -1174,16 +1184,12 @@ public final class MiningStats
 
     private static String dateKey(long now, ZoneId zoneId)
     {
-        return Instant.ofEpochMilli(now).atZone(zoneId).toLocalDate().toString();
+        return PeriodKeys.currentDailyKey(now);
     }
 
     private static String weekKey(long now, ZoneId zoneId)
     {
-        WeekFields weekFields = WeekFields.ISO;
-        ZonedDateTime dateTime = Instant.ofEpochMilli(now).atZone(zoneId);
-        int year = dateTime.get(weekFields.weekBasedYear());
-        int week = dateTime.get(weekFields.weekOfWeekBasedYear());
-        return String.format("%04d-W%02d", year, week);
+        return PeriodKeys.currentWeeklyKey(now);
     }
 
     private static void pruneOldEvents(long now)
