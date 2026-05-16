@@ -334,6 +334,7 @@ public final class SyncQueueManager
         return normalized.contains("invalid client")
                 || normalized.contains("invalid username")
                 || normalized.contains("invalid session")
+                || normalized.contains("too many sessions")
                 || normalized.contains("too many projects")
                 || normalized.contains("too many block breakdown")
                 || normalized.contains("too many accepted leaderboard")
