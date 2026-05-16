@@ -1044,12 +1044,31 @@ public final class CloudSyncManager
 
     private static void markSyncedSessions(JsonObject payload, String responseBody)
     {
-        if (payload == null || payload.has("session") == false || payload.get("session").isJsonObject() == false)
+        if (payload == null)
         {
             return;
         }
 
-        JsonObject session = payload.getAsJsonObject("session");
+        if (payload.has("session") && payload.get("session").isJsonObject())
+        {
+            markSyncedSession(payload.getAsJsonObject("session"), responseBody);
+        }
+
+        if (payload.has("sessions") && payload.get("sessions").isJsonArray())
+        {
+            JsonArray sessions = payload.getAsJsonArray("sessions");
+            for (JsonElement element : sessions)
+            {
+                if (element != null && element.isJsonObject())
+                {
+                    markSyncedSession(element.getAsJsonObject(), responseBody);
+                }
+            }
+        }
+    }
+
+    private static void markSyncedSession(JsonObject session, String responseBody)
+    {
         if (session.has("status") == false
                 || session.get("status").isJsonPrimitive() == false
                 || "ended".equals(session.get("status").getAsString()) == false)
@@ -1071,33 +1090,66 @@ public final class CloudSyncManager
     {
         if (responseBody == null || responseBody.isBlank())
         {
-            return true;
+            return false;
         }
 
         try
         {
             JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
-            if (root.has("session") == false || root.get("session").isJsonObject() == false)
+            if (root.has("sessions") && root.get("sessions").isJsonArray())
             {
-                return true;
+                JsonArray sessions = root.getAsJsonArray("sessions");
+                for (JsonElement element : sessions)
+                {
+                    if (element != null && element.isJsonObject()
+                            && sessionAckStored(element.getAsJsonObject(), sessionKey))
+                    {
+                        return true;
+                    }
+                }
             }
 
-            JsonObject syncSession = root.getAsJsonObject("session");
-            if (syncSession.has("session_key")
-                    && syncSession.get("session_key").isJsonPrimitive()
-                    && sessionKey != null
-                    && sessionKey.equals(syncSession.get("session_key").getAsString()) == false)
+            if (root.has("session") && root.get("session").isJsonObject())
+            {
+                return sessionAckStored(root.getAsJsonObject("session"), sessionKey);
+            }
+
+            return false;
+        }
+        catch (Exception e)
+        {
+            return false;
+        }
+    }
+
+    private static boolean sessionAckStored(JsonObject syncSession, String sessionKey)
+    {
+        if (syncSession == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (sessionKey == null
+                    || syncSession.has("session_key") == false
+                    || syncSession.get("session_key").isJsonPrimitive() == false)
             {
                 return false;
             }
 
-            return syncSession.has("stored") == false
-                    || syncSession.get("stored").isJsonPrimitive() == false
-                    || syncSession.get("stored").getAsBoolean();
+            if (sessionKey.equals(syncSession.get("session_key").getAsString()) == false)
+            {
+                return false;
+            }
+
+            return syncSession.has("stored")
+                    && syncSession.get("stored").isJsonPrimitive()
+                    && syncSession.get("stored").getAsBoolean();
         }
         catch (Exception e)
         {
-            return true;
+            return false;
         }
     }
 

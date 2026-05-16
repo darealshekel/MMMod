@@ -15,7 +15,7 @@ final class SessionSyncState
 {
     private static final Path SYNCED_SESSIONS_FILE = SharedStoragePaths.root().resolve("synced-session-keys.txt");
     private static final String VERSION_PREFIX = "#version=";
-    private static final String CURRENT_VERSION = "stored-session-ack-v1";
+    private static final String CURRENT_VERSION = "stored-session-ack-v2";
     private static final Set<String> SYNCED_SESSION_KEYS = new LinkedHashSet<>();
     private static boolean loaded;
 
