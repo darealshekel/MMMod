@@ -6,6 +6,7 @@
     "ClientPlayNetworkHandlerMixin",
     "ClientPlayerInteractionManagerAccessor",
     "ClientPlayerInteractionManagerMixin",
+    "SmallDigItemRendererMixin",
     "WorldRendererMixin"
   ],
   "injectors": {
