@@ -93,11 +93,13 @@ public final class MiningStats
     public static void startWorldSession(String worldId)
     {
         currentWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
+        long now = System.currentTimeMillis();
+        MiningValidationTracker.resetCoordinateGuard(currentWorldId);
         sessionActive = false;
         resetSession();
         resetRollingMetrics();
         MiningSpeedTracker.resetSession();
-        touchCurrentWorldStats(System.currentTimeMillis());
+        touchCurrentWorldStats(now);
 
         resetDailyProgressIfNeeded();
         resetPeriodStatsIfNeeded(System.currentTimeMillis());
@@ -148,6 +150,21 @@ public final class MiningStats
         long now = System.currentTimeMillis();
         if (BlockBreakdownCatalog.isValid(block) == false)
         {
+            return;
+        }
+
+        String dimensionId = getCurrentDimensionId();
+        boolean sessionTrackingActive = sessionActive && sessionPaused == false;
+        if (MiningValidationTracker.shouldCountBlockForStats(pos, WorldSessionContext.getCurrentWorldId(), dimensionId, sessionTrackingActive) == false)
+        {
+            MmmDebugLogger.info(
+                    "miningstats.duplicate-coordinate",
+                    BLOCK_MINED_DEBUG_LOG_INTERVAL_MS,
+                    "[MMM_DEBUG] duplicate-coordinate-block-skipped worldId={} dimension={} pos={} duplicateRejects={}",
+                    WorldSessionContext.getCurrentWorldId(),
+                    dimensionId,
+                    coordinateString(pos),
+                    MiningValidationTracker.getWorldDuplicateCoordinateRejects());
             return;
         }
 
@@ -1429,6 +1446,27 @@ public final class MiningStats
         );
         String scoreboardKey = ScoreboardSourceResolver.sourceKey(scoreboardInfo.displayName(), scoreboardInfo);
         return currentKey.equalsIgnoreCase(scoreboardKey);
+    }
+
+    private static String getCurrentDimensionId()
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.world == null)
+        {
+            return "unknown";
+        }
+
+        return client.world.getRegistryKey().getValue().toString();
+    }
+
+    private static String coordinateString(BlockPos pos)
+    {
+        if (pos == null)
+        {
+            return "unknown";
+        }
+
+        return pos.getX() + "," + pos.getY() + "," + pos.getZ();
     }
 
     private static void debugAttribution(String reason, long beforeSourceTotal, long afterSourceTotal, long delta)

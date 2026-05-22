@@ -21,12 +21,17 @@ import net.minecraft.util.math.BlockPos;
 public final class MiningValidationTracker
 {
     private static final int PLACE_BREAK_COUNT_THRESHOLD = 8;
+    private static final int DUPLICATE_COORDINATE_FLAG_THRESHOLD = 3;
     private static final ArrayDeque<BrokenPosition> RECENT_BROKEN_POSITIONS = new ArrayDeque<>();
     private static final Map<Long, Long> RECENT_PLACED_POSITIONS = new HashMap<>();
     private static final Set<Long> SESSION_BROKEN_POSITIONS = new HashSet<>();
+    private static final Set<BlockCoordinate> COUNTED_BLOCK_COORDINATES = new HashSet<>();
 
     private static long sessionStartMs = System.currentTimeMillis();
+    private static String countedCoordinateWorldId = "";
     private static long physicalBlocksMined;
+    private static long worldDuplicateCoordinateRejects;
+    private static long sessionDuplicateCoordinateRejects;
     private static long cameraSamples;
     private static double yawSum;
     private static double yawSquareSum;
@@ -55,6 +60,7 @@ public final class MiningValidationTracker
     {
         sessionStartMs = now;
         physicalBlocksMined = 0L;
+        sessionDuplicateCoordinateRejects = 0L;
         cameraSamples = 0L;
         yawSum = 0D;
         yawSquareSum = 0D;
@@ -77,6 +83,49 @@ public final class MiningValidationTracker
         RECENT_BROKEN_POSITIONS.clear();
         SESSION_BROKEN_POSITIONS.clear();
         prunePlacedPositions(now);
+    }
+
+    public static void resetCoordinateGuard(String worldId)
+    {
+        countedCoordinateWorldId = cleanScope(worldId);
+        COUNTED_BLOCK_COORDINATES.clear();
+        worldDuplicateCoordinateRejects = 0L;
+        sessionDuplicateCoordinateRejects = 0L;
+    }
+
+    public static boolean shouldCountBlockForStats(BlockPos pos,
+                                                   String worldId,
+                                                   String dimensionId,
+                                                   boolean sessionTrackingActive)
+    {
+        if (pos == null)
+        {
+            return true;
+        }
+
+        String normalizedWorldId = cleanScope(worldId);
+        if (normalizedWorldId.equals(countedCoordinateWorldId) == false)
+        {
+            resetCoordinateGuard(normalizedWorldId);
+        }
+
+        BlockCoordinate coordinate = new BlockCoordinate(cleanScope(dimensionId), pos.asLong());
+        if (COUNTED_BLOCK_COORDINATES.add(coordinate))
+        {
+            return true;
+        }
+
+        worldDuplicateCoordinateRejects++;
+        if (sessionTrackingActive)
+        {
+            sessionDuplicateCoordinateRejects++;
+        }
+        return false;
+    }
+
+    public static long getWorldDuplicateCoordinateRejects()
+    {
+        return worldDuplicateCoordinateRejects;
     }
 
     public static void onClientTick(long now)
@@ -162,6 +211,7 @@ public final class MiningValidationTracker
         boolean noPauses = enoughBlocks
                 && maxContinuousMiningTicks >= Configs.Generic.VALIDATION_CONTINUOUS_MINING_TICKS.getIntegerValue();
         boolean placeBreak = enoughBlocks && placedThenBrokenCount >= PLACE_BREAK_COUNT_THRESHOLD;
+        boolean duplicateCoordinates = sessionDuplicateCoordinateRejects >= DUPLICATE_COORDINATE_FLAG_THRESHOLD;
         boolean repeatedClusterCandidate = enoughBlocks
                 && clusterStats.sampleSize() >= Math.min(getClusterBufferSize(), Math.max(20, minimumBlocks / 5))
                 && (clusterStats.uniquePositions() <= 3 || clusterStats.isTinyCluster());
@@ -209,6 +259,12 @@ public final class MiningValidationTracker
             score += 20;
             details.addProperty("PLACE_AND_BREAK_PATTERN", "Repeated recently placed blocks were broken inside the configured time window.");
         }
+        if (duplicateCoordinates)
+        {
+            flags.add("DUPLICATE_BLOCK_COORDINATES");
+            score += 25;
+            details.addProperty("DUPLICATE_BLOCK_COORDINATES", "Multiple block break events reused coordinates that were already counted and suppressed locally.");
+        }
 
         JsonObject payload = new JsonObject();
         payload.addProperty("uuid", minecraftUuid == null ? "" : minecraftUuid);
@@ -225,6 +281,7 @@ public final class MiningValidationTracker
         payload.addProperty("uniqueBrokenBlockPositions", clusterStats.totalUniquePositions());
         payload.addProperty("recentClusterSize", clusterStats.uniquePositions());
         payload.addProperty("placedThenBrokenCount", placedThenBrokenCount);
+        payload.addProperty("duplicateCoordinateRejects", sessionDuplicateCoordinateRejects);
         payload.addProperty("suspicionScore", Math.min(100, score));
         payload.addProperty("automationDetected", automationDetected);
         payload.addProperty("trustState", automationDetected ? "automation_detected" : "normal");
@@ -258,6 +315,9 @@ public final class MiningValidationTracker
         stats.addProperty("lastActionPauseAt", toIso(lastActionPauseMs));
         stats.addProperty("recentBrokenBufferSize", clusterStats.sampleSize());
         stats.addProperty("recentClusterBounds", clusterStats.boundsDescription());
+        stats.addProperty("duplicateCoordinateRejects", sessionDuplicateCoordinateRejects);
+        stats.addProperty("worldDuplicateCoordinateRejects", worldDuplicateCoordinateRejects);
+        stats.addProperty("countedCoordinateMemorySize", COUNTED_BLOCK_COORDINATES.size());
         stats.addProperty("minimumBlocksBeforeChecks", Configs.Generic.VALIDATION_MIN_BLOCKS.getIntegerValue());
         stats.addProperty("cameraVarianceThreshold", Configs.Generic.VALIDATION_CAMERA_VARIANCE_THRESHOLD.getDoubleValue());
         stats.addProperty("positionVarianceThreshold", Configs.Generic.VALIDATION_POSITION_VARIANCE_THRESHOLD.getDoubleValue());
@@ -400,7 +460,16 @@ public final class MiningValidationTracker
         return Math.round(value * 1000D) / 1000D;
     }
 
+    private static String cleanScope(String value)
+    {
+        return value == null || value.isBlank() ? "unknown" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
     private record BrokenPosition(BlockPos pos, long minedAtMs)
+    {
+    }
+
+    private record BlockCoordinate(String dimensionId, long posKey)
     {
     }
 
