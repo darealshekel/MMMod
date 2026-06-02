@@ -2,6 +2,9 @@ package com.mmm.event;
 
 import com.mmm.hud.SummaryScreen;
 import com.mmm.storage.SessionData;
+import com.mmm.timer.MmmBlockBreakDetector;
+import com.mmm.timer.MmmTimerState;
+import com.mmm.timer.TimerCreditsScreen;
 import com.mmm.tracker.MiningSpeedTracker;
 
 import fi.dy.masa.malilib.interfaces.IClientTickHandler;
@@ -18,7 +21,15 @@ public class ClientTickHandler implements IClientTickHandler
         }
 
         com.mmm.tracker.MiningStats.onClientTick();
+        MmmBlockBreakDetector.onClientTick(mc);
+        MmmTimerState.onClientTick(mc);
         MiningSpeedTracker.tick(mc);
+
+        if (MmmTimerState.consumeCreditsPending() && mc.currentScreen == null)
+        {
+            mc.setScreen(new TimerCreditsScreen(null));
+            return;
+        }
 
         SessionData pending = WorldLoadListener.consumePendingSummary();
         if (pending != null && mc.player == null && mc.world == null)

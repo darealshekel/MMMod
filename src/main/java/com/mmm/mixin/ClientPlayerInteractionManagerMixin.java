@@ -3,8 +3,8 @@ package com.mmm.mixin;
 import com.mmm.config.FeatureToggle;
 import com.mmm.tweak.FlatDigger;
 import com.mmm.tweak.PerimeterWallDigHelper;
+import com.mmm.timer.MmmBlockBreakDetector;
 import com.mmm.tracker.MiningValidationTracker;
-import com.mmm.tracker.MiningStats;
 import com.mmm.util.BlockBreakdownCatalog;
 
 import net.minecraft.block.Block;
@@ -69,10 +69,6 @@ public class ClientPlayerInteractionManagerMixin
     @Inject(method = "breakBlock(Lnet/minecraft/util/math/BlockPos;)Z", at = @At("RETURN"))
     private void mmm$recordBlock(BlockPos pos, CallbackInfoReturnable<Boolean> cir)
     {
-        if (this.mmm$pendingValidMiningBreak && FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue() && Boolean.TRUE.equals(cir.getReturnValue()))
-        {
-            MiningStats.recordBlockMined(this.mmm$pendingBlock, pos, this.mmm$pendingState);
-        }
         this.mmm$clearPendingMiningBreak();
     }
 
@@ -114,7 +110,10 @@ public class ClientPlayerInteractionManagerMixin
         {
             cir.setReturnValue(false);
             cir.cancel();
+            return;
         }
+
+        MmmBlockBreakDetector.trackAttack(pos);
     }
 
     @Inject(method = "updateBlockBreakingProgress(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)

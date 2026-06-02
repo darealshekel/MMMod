@@ -2,6 +2,7 @@ package com.mmm;
 
 import fi.dy.masa.malilib.event.InitializationHandler;
 import com.mmm.sync.SyncQueueManager;
+import com.mmm.timer.MmmTimerState;
 import com.mmm.tracker.MiningStats;
 import net.fabricmc.api.ClientModInitializer;
 import org.apache.logging.log4j.LogManager;
@@ -19,6 +20,7 @@ public class MMM implements ClientModInitializer
             try
             {
                 MiningStats.finaliseSession();
+                MmmTimerState.save();
                 SyncQueueManager.forceFlush("client shutdown");
             }
             catch (Exception e)

@@ -8,6 +8,7 @@ import com.mmm.config.Configs.HudAlignment;
 import com.mmm.config.FeatureToggle;
 import com.mmm.sync.CloudSyncManager;
 import com.mmm.sync.DigsSyncManager;
+import com.mmm.timer.MmmTimerState;
 import com.mmm.tracker.GoalNotificationManager;
 import com.mmm.tracker.MiningStats;
 import com.mmm.ui.MmmUi;
@@ -73,7 +74,12 @@ public final class MiningHudRenderer
         }
         if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue())
         {
-            lines.add(HudLine.bphBps(MiningStats.getDisplayedBlocksPerHour(), MiningStats.getDisplayedBlocksPerSecond(), false));
+            lines.add(HudLine.speedStats(MiningStats.getDisplayedBlocksPerHour(), MiningStats.getDisplayedBlocksPerSecond(), MmmTimerState.getBlocksPerMinute(), false));
+        }
+        if (Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue())
+        {
+            lines.add(HudLine.dualBlocksMined("Hour / Best Hour: ", MmmTimerState.getCurrentHourBlocks(), MmmTimerState.getBestHourBlocks()));
+            lines.add(HudLine.timerStats(MmmTimerState.getRemainingMs(), MmmTimerState.isRunning()));
         }
         String sessionClock = MiningStats.getSessionDurationClock();
         lines.add(HudLine.text("Session Time: " + sessionClock, inactiveTextColor(sessionClock, sessionPaused)));
@@ -88,10 +94,11 @@ public final class MiningHudRenderer
         }
 
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
+        boolean showDailyGoalInMainHud = FeatureToggle.TWEAK_HUD_GOAL_PROGRESS.getBooleanValue() && dailyGoal.enabled() && MmmTimerState.isTimerDisplayActive();
         int lineHeight = client.textRenderer.fontHeight + 2;
         int padding = 4;
         int width = Math.max(getTextWidth(client, lines), 190);
-        int extraHeight = FeatureToggle.TWEAK_HUD_GOAL_PROGRESS.getBooleanValue() && dailyGoal.enabled() ? 24 : 0;
+        int extraHeight = showDailyGoalInMainHud ? 24 : 0;
         int totalHeight = lines.size() * lineHeight + extraHeight + padding * 2;
 
         float scale = (float) Configs.Generic.HUD_SCALE.getDoubleValue();
@@ -138,7 +145,7 @@ public final class MiningHudRenderer
             drawY += lineHeight;
         }
 
-        if (FeatureToggle.TWEAK_HUD_GOAL_PROGRESS.getBooleanValue() && dailyGoal.enabled())
+        if (showDailyGoalInMainHud)
         {
             drawGoalProgress(context, client, 0, drawY + 2, width, dailyGoal);
         }
@@ -158,7 +165,12 @@ public final class MiningHudRenderer
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Today / Week: 12.3k / 84.2k Blocks Mined");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("PR Day / Week: 21.5k / 120k Blocks Mined");
         if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue()) lines.add("Fastest 100k: 8h 20m");
-        if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue()) lines.add("BPH: 12.3k / BPS: 3.4");
+        if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue())
+        {
+            lines.add(Configs.Generic.BLOCKS_PER_MINUTE_VISIBLE.getBooleanValue() ? "Blocks/hr: 12.3k / Blocks/sec: 3.4 / Blocks/min: 123.4" : "Blocks/hr: 12.3k / Blocks/sec: 3.4");
+        }
+        if (Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue()) lines.add("Hour / Best Hour: 12.3k / 84.2k Blocks Mined");
+        if (Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue()) lines.add("Timer: 23:59:59");
         lines.add("Session Time: 01:23:45");
         if (FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()) lines.add("Daily Reset In: 23:59:59");
         if (FeatureToggle.TWEAK_HUD_ETA.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()) lines.add("ETA To Goal: 1h 12m");
@@ -166,7 +178,7 @@ public final class MiningHudRenderer
         int width = Math.max(getTextWidth(client, lines), 190);
         int lineHeight = client.textRenderer.fontHeight + 2;
         int padding = 4;
-        int extraHeight = FeatureToggle.TWEAK_HUD_GOAL_PROGRESS.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue() ? 24 : 0;
+        int extraHeight = FeatureToggle.TWEAK_HUD_GOAL_PROGRESS.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue() && MmmTimerState.isTimerDisplayActive() ? 24 : 0;
         int totalHeight = lines.size() * lineHeight + extraHeight + padding * 2;
         double scale = Configs.Generic.HUD_SCALE.getDoubleValue();
         int scaledWidth = (int) ((width + padding * 2) * scale);
@@ -210,15 +222,30 @@ public final class MiningHudRenderer
                     new HudSegment(" Blocks Mined", hudTextColor())));
         }
 
-        static HudLine bphBps(long blocksPerHour, double blocksPerSecond, boolean inactive)
+        static HudLine speedStats(long blocksPerHour, double blocksPerSecond, double blocksPerMinute, boolean inactive)
         {
             int numberColor = inactive ? hudInactiveColor() : Configs.getHudNumberColor();
             int labelColor = inactive ? hudInactiveColor() : hudTextColor();
+            List<HudSegment> segments = new ArrayList<>();
+            segments.add(new HudSegment("Blocks/hr: ", labelColor));
+            segments.add(new HudSegment(UiFormat.formatCompact(Math.max(0L, blocksPerHour)), numberColor));
+            segments.add(new HudSegment(" / Blocks/sec: ", labelColor));
+            segments.add(new HudSegment(UiFormat.formatBlocksPerSecond(blocksPerSecond), numberColor));
+            if (Configs.Generic.BLOCKS_PER_MINUTE_VISIBLE.getBooleanValue())
+            {
+                segments.add(new HudSegment(" / Blocks/min: ", labelColor));
+                segments.add(new HudSegment(String.format(java.util.Locale.ROOT, "%.1f", Math.max(0D, blocksPerMinute)), numberColor));
+            }
+            return new HudLine(segments);
+        }
+
+        static HudLine timerStats(long remainingMs, boolean running)
+        {
+            int labelColor = running ? hudTextColor() : hudInactiveColor();
+            int numberColor = running ? Configs.getHudNumberColor() : hudInactiveColor();
             return new HudLine(List.of(
-                    new HudSegment("BPH: ", labelColor),
-                    new HudSegment(UiFormat.formatCompact(Math.max(0L, blocksPerHour)), numberColor),
-                    new HudSegment(" / BPS: ", labelColor),
-                    new HudSegment(UiFormat.formatBlocksPerSecond(blocksPerSecond), numberColor)));
+                    new HudSegment("Timer: ", labelColor),
+                    new HudSegment(MmmTimerState.formatTime(remainingMs), numberColor)));
         }
 
         String text()

@@ -541,6 +541,12 @@ public class MmmSettingsScreen extends Screen
                 return;
             }
 
+            if (row.kind() == ControlKind.NUMBER)
+            {
+                this.setNumberConfigValue(row.config(), value);
+                return;
+            }
+
             this.setConfigString(row.config(), value);
         }
         catch (RuntimeException ignored)
@@ -574,6 +580,40 @@ public class MmmSettingsScreen extends Screen
             representable.setValueFromString(value);
             Configs.saveToFile();
         }
+    }
+
+    private void setNumberConfigValue(IConfigBase config, String value)
+    {
+        if (config == null || value == null)
+        {
+            return;
+        }
+
+        String normalized = value.trim().replace(",", "").replace("_", "");
+        if (normalized.isEmpty() || "-".equals(normalized) || ".".equals(normalized) || "-.".equals(normalized))
+        {
+            return;
+        }
+
+        if (config instanceof IConfigInteger integerConfig)
+        {
+            long parsed = Long.parseLong(normalized);
+            int next = (int) Math.max(integerConfig.getMinIntegerValue(), Math.min(integerConfig.getMaxIntegerValue(), parsed));
+            integerConfig.setIntegerValue(next);
+            Configs.saveToFile();
+            return;
+        }
+
+        if (config instanceof IConfigDouble doubleConfig)
+        {
+            double parsed = Double.parseDouble(normalized);
+            double next = Math.max(doubleConfig.getMinDoubleValue(), Math.min(doubleConfig.getMaxDoubleValue(), parsed));
+            doubleConfig.setDoubleValue(next);
+            Configs.saveToFile();
+            return;
+        }
+
+        this.setConfigString(config, value);
     }
 
     private void adjustNumberByScroll(IConfigBase config, double verticalAmount)
@@ -717,6 +757,24 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("HUD Scale", "HUD size multiplier.", Configs.Generic.HUD_SCALE, ControlKind.NUMBER),
                 new SettingRow("Text Background", "Draw small backgrounds behind HUD text.", Configs.Generic.HUD_TEXT_BACKGROUND, ControlKind.BOOLEAN)
         ));
+        this.sections.add(SettingsSection.timer(
+                new SettingRow("Timer HUD", "Show the timer module.", Configs.Generic.TIMER_HUD_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Hourly Stats", "Show current hour stats module.", Configs.Generic.HOURLY_STATS_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Blocks/min", "Show Blocks/min in the main HUD speed line.", Configs.Generic.BLOCKS_PER_MINUTE_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Timer X", "Horizontal timer module position.", Configs.Generic.TIMER_HUD_X, ControlKind.NUMBER),
+                new SettingRow("Timer Y", "Vertical timer module position.", Configs.Generic.TIMER_HUD_Y, ControlKind.NUMBER),
+                new SettingRow("Timer Scale", "Timer module size multiplier.", Configs.Generic.TIMER_HUD_SCALE, ControlKind.NUMBER),
+                new SettingRow("Notifications", "Show timer-hour notification cards.", Configs.Generic.TIMER_NOTIFICATIONS, ControlKind.BOOLEAN),
+                new SettingRow("Credits Screen", "Show run-complete credits screen.", Configs.Generic.TIMER_CREDITS, ControlKind.BOOLEAN)
+        ));
+        this.sections.add(SettingsSection.blockStats(
+                new SettingRow("Block Stats", "Show top block stats module.", Configs.Generic.BLOCK_STATS_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Block Stats X", "Horizontal block stats position.", Configs.Generic.BLOCK_STATS_X, ControlKind.NUMBER),
+                new SettingRow("Block Stats Y", "Vertical block stats position.", Configs.Generic.BLOCK_STATS_Y, ControlKind.NUMBER),
+                new SettingRow("Block Stats Scale", "Block stats size multiplier.", Configs.Generic.BLOCK_STATS_SCALE, ControlKind.NUMBER),
+                new SettingRow("Background", "Draw the block stats card background.", Configs.Generic.BLOCK_STATS_BACKGROUND, ControlKind.BOOLEAN),
+                new SettingRow("Block Icons", "Show item icons in block stats.", Configs.Generic.BLOCK_STATS_ICONS, ControlKind.BOOLEAN)
+        ));
         this.sections.add(SettingsSection.colors(
                 new SettingRow("HUD Title", "Title color used by the HUD.", Configs.Generic.HUD_TITLE_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("HUD Text", "Label and text color used by the HUD.", Configs.Generic.HUD_TEXT_HEX_COLOR, ControlKind.COLOR),
@@ -740,7 +798,7 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Scale Step", "Y-axis grid interval in blocks/hr.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
         ));
         this.sections.add(SettingsSection.performance(
-                new SettingRow("BPS Smoothing", "Rolling window used for BPS display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION),
+                new SettingRow("Blocks/sec Smoothing", "Rolling window used for Blocks/sec display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION),
                 new SettingRow("Small Dig Items", "Shrink dropped and held MMM breakdown blocks.", Configs.Generic.SMALL_DIG_ITEMS, ControlKind.BOOLEAN)
         ));
         this.sections.add(SettingsSection.developer(
@@ -847,6 +905,16 @@ public class MmmSettingsScreen extends Screen
         private static SettingsSection hud(SettingRow... rows)
         {
             return new SettingsSection(SidebarItem.HUD, "HUD LAYOUT", "Position, anchor, scale, and text panels.", List.of(rows));
+        }
+
+        private static SettingsSection timer(SettingRow... rows)
+        {
+            return new SettingsSection(SidebarItem.HUD, "BLOCK TIMER", "Timer module, hourly HUD stats, and run-complete screen.", List.of(rows));
+        }
+
+        private static SettingsSection blockStats(SettingRow... rows)
+        {
+            return new SettingsSection(SidebarItem.HUD, "BLOCK STATS", "Side block breakdown module and icon display.", List.of(rows));
         }
 
         private static SettingsSection colors(SettingRow... rows)

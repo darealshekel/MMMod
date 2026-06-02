@@ -617,7 +617,7 @@ public final class CloudSyncManager
             return;
         }
 
-        int queued = 0;
+        List<PendingSavedSession> pendingSessions = new ArrayList<>();
         for (SessionHistory.WorldHistory history : SessionHistory.getWorldHistories())
         {
             for (SessionData session : history.sessions())
@@ -628,16 +628,22 @@ public final class CloudSyncManager
                     continue;
                 }
 
-                SyncQueueManager.enqueueCloudFinishedSession(
-                        sessionKey,
-                        buildSavedSessionPayload(history, session));
-                queued++;
-                if (queued >= MAX_SAVED_SESSIONS_TO_QUEUE)
-                {
-                    break;
-                }
+                pendingSessions.add(new PendingSavedSession(history, session, sessionKey));
             }
+        }
 
+        pendingSessions.sort(Comparator
+                .comparingLong((PendingSavedSession pending) -> pending.session().endTimeMs)
+                .thenComparingLong(pending -> pending.session().startTimeMs)
+                .reversed());
+
+        int queued = 0;
+        for (PendingSavedSession pending : pendingSessions)
+        {
+            SyncQueueManager.enqueueCloudFinishedSession(
+                    pending.sessionKey(),
+                    buildSavedSessionPayload(pending.history(), pending.session()));
+            queued++;
             if (queued >= MAX_SAVED_SESSIONS_TO_QUEUE)
             {
                 break;
@@ -652,6 +658,8 @@ public final class CloudSyncManager
                     reason == null || reason.isBlank() ? "sync" : reason);
         }
     }
+
+    private record PendingSavedSession(SessionHistory.WorldHistory history, SessionData session, String sessionKey) {}
 
     private static JsonObject buildPayload(SessionData session, String sessionStatus)
     {

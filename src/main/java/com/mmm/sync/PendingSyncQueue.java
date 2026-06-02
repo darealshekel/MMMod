@@ -297,10 +297,39 @@ public final class PendingSyncQueue
             return this.items.stream()
                     .filter(item -> item.nextRetryAtMs <= now)
                     .filter(this.dueItemFilter)
-                    .min(Comparator.comparingLong(item -> item.createdAtMs))
+                    .min(Comparator
+                            .comparingInt(PendingSyncQueue::queuePriority)
+                            .thenComparingInt(item -> item.retryCount)
+                            .thenComparingLong(PendingSyncQueue::queueCreatedAtSortValue))
                     .map(QueuedSyncItem::copy)
                     .orElse(null);
         }
+    }
+
+    private static int queuePriority(QueuedSyncItem item)
+    {
+        if (item == null || item.type == null)
+        {
+            return 99;
+        }
+
+        return switch (item.type)
+        {
+            case WEBSITE_LINK_CLAIM -> 0;
+            case CLOUD_FINISHED_SESSION -> 1;
+            case CLOUD_LIVE_STATE -> 2;
+            case PLAYER_TOTAL_DIGS -> 3;
+        };
+    }
+
+    private static long queueCreatedAtSortValue(QueuedSyncItem item)
+    {
+        if (item == null)
+        {
+            return Long.MAX_VALUE;
+        }
+
+        return item.type == SyncItemType.CLOUD_FINISHED_SESSION ? -item.createdAtMs : item.createdAtMs;
     }
 
     private QueuedSyncItem findByTypeAndKey(SyncItemType type, String dedupeKey)

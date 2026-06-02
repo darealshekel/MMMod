@@ -7,6 +7,7 @@ import com.mmm.storage.WorldSessionContext;
 import com.mmm.sync.CloudSyncManager;
 import com.mmm.sync.DigsSyncManager;
 import com.mmm.sync.SyncQueueManager;
+import com.mmm.timer.MmmBlockBreakDetector;
 import com.mmm.tweak.PerimeterWallDigHelper;
 import com.mmm.tracker.BlockBreakdownTracker;
 import com.mmm.tracker.GoalNotificationManager;
@@ -44,6 +45,7 @@ public class WorldLoadListener implements IWorldLoadListener
                 pendingSummaryName = WorldSessionContext.getCurrentWorldName();
             }
             GoalNotificationManager.clear();
+            MmmBlockBreakDetector.clear();
         }
     }
 
@@ -72,6 +74,7 @@ public class WorldLoadListener implements IWorldLoadListener
             CloudSyncManager.resetForDisconnect();
             DigsSyncManager.resetForDisconnect();
             MiningStats.resetRollingMetrics();
+            MmmBlockBreakDetector.clear();
         }
     }
 

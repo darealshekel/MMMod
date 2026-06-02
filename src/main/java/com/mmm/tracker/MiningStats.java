@@ -25,6 +25,7 @@ import com.mmm.sync.CloudSyncManager;
 import com.mmm.sync.DigsSyncManager;
 import com.mmm.sync.ScoreboardSourceResolver;
 import com.mmm.sync.SyncQueueManager;
+import com.mmm.timer.MmmTimerState;
 import com.mmm.util.BlockBreakdownCatalog;
 import com.mmm.util.MmmDebugLogger;
 import com.mmm.util.PeriodKeys;
@@ -183,6 +184,7 @@ public final class MiningStats
         Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
         worldStats.totalBlocks++;
         recordCurrentWorldBlockBreakdown(worldStats, block, now);
+        MmmTimerState.onBlockMined(block);
 
         resetDailyProgressIfNeeded();
         long previousDaily = Configs.dailyProgress;
@@ -283,6 +285,7 @@ public final class MiningStats
         resetRollingMetrics();
         MiningSpeedTracker.resetSession();
         sessionActive = true;
+        MmmTimerState.onSessionStarted();
         sessionStartTotalMined = getCurrentSourceTotalMined();
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
         MmmDebugLogger.info(
@@ -1213,7 +1216,7 @@ public final class MiningStats
     private static void updateDisplayedRollingMetrics()
     {
         displayedBlocksPerSecond = Math.max(0D, Math.min(20D, rollingBlocksPerSecond));
-        displayedBlocksPerHour = Math.max(0D, Math.min(SessionData.MAX_BLOCKS_PER_HOUR, rollingBlocksPerHour));
+        displayedBlocksPerHour = Math.max(0D, Math.min(SessionData.MAX_BLOCKS_PER_HOUR, MmmTimerState.getEstimatedBlocksPerHour()));
     }
 
 
