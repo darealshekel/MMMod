@@ -1,0 +1,51 @@
+plugins {
+    id 'fabric-loom' version '1.14.10'
+}
+
+version = "${rootProject.mod_version}+1.21.4"
+group = rootProject.maven_group
+
+base {
+    archivesName = 'mmm-server-sync-1.21.4'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:1.21.4"
+    mappings "net.fabricmc:yarn:1.21.4+build.8:v2"
+    modImplementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:0.119.4+1.21.4"
+}
+
+sourceSets {
+    main {
+        java.srcDir project(":server-sync").file("src/main/java")
+        resources.srcDir project(":server-sync").file("src/main/resources")
+    }
+}
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "minecraft_dependency", "1.21.4"
+
+    filesMatching("fabric.mod.json") {
+        expand(
+                "version": project.version,
+                "minecraft_dependency": "1.21.4"
+        )
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+    it.options.encoding = "UTF-8"
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
