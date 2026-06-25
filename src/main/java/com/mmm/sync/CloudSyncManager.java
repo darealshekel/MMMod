@@ -14,7 +14,6 @@ import com.mmm.storage.SessionData;
 import com.mmm.storage.SessionHistory;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
-import com.mmm.tracker.MiningValidationTracker;
 import com.mmm.util.MmmDebugLogger;
 import com.mmm.util.PeriodKeys;
 import com.mmm.util.UiFormat;
@@ -123,6 +122,12 @@ public final class CloudSyncManager
         }
 
         long now = System.currentTimeMillis();
+        boolean bypassCadence = shouldBypassCadence(reason);
+        if (bypassCadence == false && isSyncCadenceDue(now) == false)
+        {
+            syncStatusDetail = "Next sync in " + getNextSyncLabel();
+            return;
+        }
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
         queueSavedSessionsForSync(reason == null || reason.isBlank() ? "manual sync" : reason);
@@ -354,7 +359,6 @@ public final class CloudSyncManager
         syncStatus = SyncStatus.CONNECTED;
         syncStatusDetail = "";
         lastHeartbeatMs = 0L;
-        lastLiveBlockSyncMs = 0L;
         lastSourceScoreboardScanMs = 0L;
         lastQueuedLiveFingerprint = null;
         lastSuccessfulLiveFingerprint = null;
@@ -379,6 +383,41 @@ public final class CloudSyncManager
         return Configs.normalizeWebsiteSyncIntervalMs(Configs.websiteSyncIntervalMs);
     }
 
+    public static long getNextSyncRemainingMs()
+    {
+        return getNextSyncRemainingMs(System.currentTimeMillis());
+    }
+
+    public static long getNextSyncRemainingMs(long now)
+    {
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            return -1L;
+        }
+
+        long lastSyncMs = Math.max(lastLiveBlockSyncMs, Configs.websiteLastSuccessfulSyncMs);
+        if (lastSyncMs <= 0L)
+        {
+            return 0L;
+        }
+
+        return Math.max(0L, lastSyncMs + getSyncIntervalMs() - now);
+    }
+
+    public static String getNextSyncLabel()
+    {
+        long remainingMs = getNextSyncRemainingMs();
+        if (remainingMs < 0L)
+        {
+            return "off";
+        }
+        if (remainingMs <= 0L)
+        {
+            return "now";
+        }
+        return UiFormat.formatDuration(Math.max(1L, (remainingMs + 999L) / 1000L));
+    }
+
     public static String getSyncTier()
     {
         return Configs.normalizeWebsiteSyncTier(Configs.websiteSyncTier);
@@ -386,9 +425,12 @@ public final class CloudSyncManager
 
     private static boolean isSyncCadenceDue(long now)
     {
-        long interval = getSyncIntervalMs();
-        long lastSyncMs = Math.max(lastLiveBlockSyncMs, Configs.websiteLastSuccessfulSyncMs);
-        return lastSyncMs <= 0L || now - lastSyncMs >= interval;
+        return getNextSyncRemainingMs(now) == 0L;
+    }
+
+    private static boolean shouldBypassCadence(String reason)
+    {
+        return reason != null && reason.equalsIgnoreCase("mining records period reset");
     }
 
     private static void queueCurrentLivePayloadIfDue(long now)
@@ -674,6 +716,7 @@ public final class CloudSyncManager
         payload.addProperty("username", resolveUsername(client));
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.addProperty("sync_origin", "client_evidence");
         payload.add("world", buildWorld(worldInfo));
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
@@ -707,7 +750,6 @@ public final class CloudSyncManager
         payload.add("daily_goal", buildDailyGoal(dailyGoal));
         payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
         payload.add("session_state", buildSessionState());
-        payload.add("validation", buildValidationTelemetry(client, worldInfo, session));
 
         if (session != null && sessionStatus != null)
         {
@@ -731,6 +773,7 @@ public final class CloudSyncManager
         payload.addProperty("username", resolveUsername(client));
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.addProperty("sync_origin", "client_evidence");
         payload.add("world", buildWorld(history.worldId(), history.displayName()));
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
@@ -738,7 +781,6 @@ public final class CloudSyncManager
         payload.add("daily_goal", buildDailyGoal(dailyGoal));
         payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
         payload.add("session_state", buildSessionState());
-        payload.add("validation", buildValidationTelemetry(client, new WorldSessionContext.WorldInfo(history.worldId(), history.displayName(), "unknown", ""), session));
         payload.add("session", buildSession(session, "ended"));
         return payload;
     }
@@ -751,15 +793,6 @@ public final class CloudSyncManager
         state.addProperty("session_total_blocks", MiningStats.getSessionBlocksMined());
         state.addProperty("session_duration_seconds", Math.max(0L, MiningStats.getSessionDurationMs() / 1000L));
         return state;
-    }
-
-    private static JsonObject buildValidationTelemetry(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo, SessionData session)
-    {
-        long sessionStart = session == null ? 0L : session.startTimeMs;
-        long sessionEnd = session == null ? 0L : session.endTimeMs;
-        long blocksDelta = session == null ? MiningStats.getSessionBlocksMined() : session.totalBlocks;
-        String uuid = client != null && client.player != null ? client.player.getUuidAsString() : "";
-        return MiningValidationTracker.buildPayload(resolveUsername(client), uuid, worldInfo, blocksDelta, sessionStart, sessionEnd);
     }
 
     private static JsonObject buildLifetimeTotals()

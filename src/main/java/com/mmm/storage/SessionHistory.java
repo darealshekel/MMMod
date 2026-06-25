@@ -78,7 +78,7 @@ public final class SessionHistory
     {
         StringBuilder builder = new StringBuilder();
         builder.append("=== MMM Stats Export ===\n");
-        builder.append("World: ").append(currentWorldId).append("\n");
+        builder.append("World: ").append(resolveDisplayName(currentWorldId)).append("\n");
         builder.append("Generated: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date())).append("\n\n");
         builder.append("SESSION HISTORY\n---------------\n");
 
@@ -238,7 +238,19 @@ public final class SessionHistory
             }
         }
 
-        return worldId;
+        return looksSensitiveWorldId(worldId) ? "Multiplayer Server" : worldId;
+    }
+
+    private static boolean looksSensitiveWorldId(String worldId)
+    {
+        if (worldId == null || worldId.isBlank() || worldId.startsWith("server_"))
+        {
+            return false;
+        }
+
+        String value = worldId.trim().toLowerCase();
+        return value.matches("\\d{1,3}(?:[._-]\\d{1,3}){3}(?::\\d+)?")
+                || value.matches("[a-z0-9_-]+(?:[._-][a-z0-9_-]+)+(?::\\d+)?");
     }
 
     private static String normalizeWorldId(String worldId)

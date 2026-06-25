@@ -5,10 +5,8 @@ import com.google.gson.JsonArray;
 import com.mmm.MMM;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
-import com.mmm.storage.SessionData;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
-import com.mmm.tracker.MiningValidationTracker;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -91,7 +89,8 @@ public final class DigsSyncManager
         }
 
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        boolean cadenceDue = lastQueueAttemptMs <= 0L || now - lastQueueAttemptMs >= CloudSyncManager.getSyncIntervalMs();
+        boolean cadenceDue = CloudSyncManager.getNextSyncRemainingMs(now) == 0L
+                && (lastQueueAttemptMs <= 0L || now - lastQueueAttemptMs >= CloudSyncManager.getSyncIntervalMs());
         if (cadenceDue == false)
         {
             return;
@@ -145,6 +144,11 @@ public final class DigsSyncManager
                 || latestModel.isValid() == false
                 || now - latestModel.capturedAtMs() > AUTHORITATIVE_MODEL_STALE_MS
                 || canSync() == false)
+        {
+            return;
+        }
+
+        if (shouldBypassCadence(reason) == false && CloudSyncManager.getNextSyncRemainingMs(now) > 0L)
         {
             return;
         }
@@ -289,6 +293,7 @@ public final class DigsSyncManager
         payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.addProperty("sync_origin", "client_evidence");
 
         JsonObject world = new JsonObject();
         world.addProperty("key", worldInfo.id());
@@ -330,17 +335,6 @@ public final class DigsSyncManager
         digs.addProperty("timestamp", Instant.ofEpochMilli(model.capturedAtMs()).toString());
         digs.addProperty("objective_title", model.objectiveTitle());
         payload.add("player_total_digs", digs);
-
-        SessionData currentSession = MiningStats.getCurrentSession();
-        long sessionStartMs = currentSession == null ? 0L : currentSession.startTimeMs;
-        long sessionEndMs = currentSession == null ? 0L : currentSession.endTimeMs;
-        payload.add("validation", MiningValidationTracker.buildPayload(
-                model.username(),
-                client != null && client.player != null ? client.player.getUuidAsString() : "",
-                worldInfo,
-                MiningStats.getSessionBlocksMined(),
-                sessionStartMs,
-                sessionEndMs));
 
         return payload;
     }
@@ -746,7 +740,6 @@ public final class DigsSyncManager
     public static void resetForDisconnect()
     {
         latestModel = null;
-        lastQueueAttemptMs = 0L;
         status = SyncStatus.CONNECTED;
         lastFailureSignalMs = 0L;
         lastQueuedFingerprint = null;
@@ -757,6 +750,11 @@ public final class DigsSyncManager
     public static void resetForWorldChange(String worldId)
     {
         resetForDisconnect();
+    }
+
+    private static boolean shouldBypassCadence(String reason)
+    {
+        return reason != null && reason.equalsIgnoreCase("mining records period reset");
     }
 
     public static boolean hasAuthoritativeTotalDigs()

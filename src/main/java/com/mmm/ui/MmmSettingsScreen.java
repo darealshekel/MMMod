@@ -10,6 +10,8 @@ import com.mmm.Reference;
 import com.mmm.config.Configs;
 import com.mmm.hud.HudMoveScreen;
 import com.mmm.hud.SessionHistoryScreen;
+import com.mmm.hud.SummaryScreen;
+import com.mmm.sync.CloudSyncManager;
 import com.mmm.tracker.MiningStats;
 
 import fi.dy.masa.malilib.config.IConfigColor;
@@ -47,8 +49,6 @@ public class MmmSettingsScreen extends Screen
     private static final int ERROR = 0xFFFF5965;
 
     private static final int TOP_HEIGHT = 42;
-    private static final int SIDEBAR_WIDTH = 150;
-    private static final int PAGE_PAD = 14;
     private static final int GAP = 12;
     private static final int CARD_PAD = 12;
     private static final int ROW_HEIGHT = 32;
@@ -113,10 +113,11 @@ public class MmmSettingsScreen extends Screen
         this.drawSidebar(context, mouseX, mouseY);
         this.drawTopBar(context, mouseX, mouseY);
 
-        int viewportX = SIDEBAR_WIDTH + PAGE_PAD;
+        int pagePad = MmmUi.pagePad(this.width);
+        int viewportX = MmmUi.contentLeft(this.width);
         int viewportY = TOP_HEIGHT;
-        int viewportW = this.width - viewportX - PAGE_PAD;
-        int viewportH = this.height - TOP_HEIGHT - PAGE_PAD;
+        int viewportW = this.width - viewportX - pagePad;
+        int viewportH = this.height - TOP_HEIGHT - pagePad;
 
         context.enableScissor(viewportX, viewportY, viewportX + viewportW, viewportY + viewportH);
         this.drawMainContent(context, viewportX, viewportY, viewportW, mouseX, mouseY);
@@ -158,7 +159,7 @@ public class MmmSettingsScreen extends Screen
             }
         }
 
-        int viewportH = this.height - TOP_HEIGHT - PAGE_PAD;
+        int viewportH = this.height - TOP_HEIGHT - MmmUi.pagePad(this.width);
         int maxScroll = Math.max(0, this.contentHeight - viewportH);
         this.scrollY = Math.max(0.0D, Math.min(maxScroll, this.scrollY - verticalAmount * 28.0D));
         return true;
@@ -199,12 +200,18 @@ public class MmmSettingsScreen extends Screen
         context.drawBorder(0, 0, this.width, TOP_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, RED);
         MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 26, 10, 40, RED, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Manual Mining Maniacs", 68, 10, Math.max(0, this.width / 2 - 80), TEXT, false);
+        if (this.width >= 360)
+        {
+            MmmUi.drawTextWithin(context, this.textRenderer, "Manual Mining Maniacs", 68, 10, Math.max(0, this.width - 220), TEXT, false);
+        }
 
         String status = this.syncStatusText();
         int statusColor = Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() ? GREEN : MUTED;
         int closeX = this.width - 32;
-        MmmUi.drawTextRightWithin(context, this.textRenderer, status, closeX - 12, 10, Math.max(0, this.width / 2 - 70), statusColor, false);
+        if (this.width >= 460)
+        {
+            MmmUi.drawTextRightWithin(context, this.textRenderer, status, closeX - 12, 10, Math.max(0, this.width / 2 - 70), statusColor, false);
+        }
         this.drawButtonShell(context, closeX, 8, 20, 20, "X", mouseX, mouseY, false);
         this.clickTargets.add(new ClickTarget(closeX, 8, 20, 20, this::close));
     }
@@ -221,14 +228,15 @@ public class MmmSettingsScreen extends Screen
         MmmUi.drawTextWithin(context, this.textRenderer, "Configure how MMM Mod works in Minecraft", x, y + 16, width, MUTED, false);
 
         int gridY = y + 44;
-        int columnW = Math.max(210, (width - GAP) / 2);
+        boolean singleColumn = this.useSingleColumn(width);
+        int columnW = singleColumn ? width : Math.max(210, (width - GAP) / 2);
         int rowY = gridY;
         int sectionIndex = 0;
 
         while (sectionIndex < this.sections.size())
         {
             SettingsSection left = this.sections.get(sectionIndex++);
-            SettingsSection right = sectionIndex < this.sections.size() ? this.sections.get(sectionIndex++) : null;
+            SettingsSection right = !singleColumn && sectionIndex < this.sections.size() ? this.sections.get(sectionIndex++) : null;
             int leftHeight = this.sectionHeight(left);
             int rightHeight = right == null ? 0 : this.sectionHeight(right);
             int rowHeight = Math.max(leftHeight, rightHeight);
@@ -264,29 +272,29 @@ public class MmmSettingsScreen extends Screen
     private void drawSettingRow(DrawContext context, SettingRow row, int x, int y, int width, int mouseX, int mouseY)
     {
         context.fill(x, y, x + width, y + 1, BORDER);
-        int labelW = Math.max(80, width - CONTROL_WIDTH - RESET_WIDTH - 24);
+        int controlWidth = this.controlWidth(width);
+        int labelW = Math.max(56, width - controlWidth - RESET_WIDTH - 24);
         MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x, y + 7, labelW, TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x, y + 18, labelW, MUTED, false);
 
         int resetX = x + width - RESET_WIDTH;
-        int controlX = resetX - CONTROL_WIDTH - 8;
+        int controlX = resetX - controlWidth - 8;
         int controlY = y + 7;
 
         switch (row.kind())
         {
-            case BOOLEAN -> this.drawBooleanControl(context, row.config(), controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
-            case TEXT, NUMBER, COLOR -> this.drawTextControl(context, row, controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
-            case OPTION -> this.drawOptionControl(context, row.config(), controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
-            case ACTION -> this.drawActionButton(context, controlX, controlY, CONTROL_WIDTH, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
+            case BOOLEAN -> this.drawBooleanControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
+            case TEXT, NUMBER, COLOR -> this.drawTextControl(context, row, controlX, controlY, controlWidth, mouseX, mouseY);
+            case OPTION -> this.drawOptionControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
+            case ACTION -> this.drawActionButton(context, controlX, controlY, controlWidth, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
                 if ("Move HUD".equals(row.label()))
                 {
                     MinecraftClient.getInstance().setScreen(new HudMoveScreen(this));
                 }
                 else if ("Generate Dev Run".equals(row.label()))
                 {
-                    MiningStats.simulateDevFinishedSession();
-                    InfoUtils.printActionbarMessage("Generated dev mining run");
-                    MinecraftClient.getInstance().setScreen(new SessionHistoryScreen(this.parent));
+                    InfoUtils.printActionbarMessage("Generated preview mining run");
+                    MinecraftClient.getInstance().setScreen(new SummaryScreen(MiningStats.simulateDevFinishedSession(), this));
                 }
             });
         }
@@ -504,11 +512,13 @@ public class MmmSettingsScreen extends Screen
     {
         int rowY = 44;
         int index = 0;
+        int availableWidth = Math.max(1, this.width - MmmUi.contentLeft(this.width) - MmmUi.pagePad(this.width));
+        boolean singleColumn = this.useSingleColumn(availableWidth);
 
         while (index < this.sections.size())
         {
             SettingsSection left = this.sections.get(index++);
-            SettingsSection right = index < this.sections.size() ? this.sections.get(index++) : null;
+            SettingsSection right = !singleColumn && index < this.sections.size() ? this.sections.get(index++) : null;
             int rowHeight = this.sectionHeight(left);
             if (right != null)
             {
@@ -523,8 +533,18 @@ public class MmmSettingsScreen extends Screen
         }
         this.contentHeight = rowY + 26;
 
-        int maxScroll = Math.max(0, this.contentHeight - (this.height - TOP_HEIGHT - PAGE_PAD));
+        int maxScroll = Math.max(0, this.contentHeight - (this.height - TOP_HEIGHT - MmmUi.pagePad(this.width)));
         this.scrollY = Math.max(0.0D, Math.min(maxScroll, this.scrollY));
+    }
+
+    private boolean useSingleColumn(int contentWidth)
+    {
+        return contentWidth < 460;
+    }
+
+    private int controlWidth(int rowWidth)
+    {
+        return Math.min(CONTROL_WIDTH, Math.max(72, rowWidth / 3));
     }
 
     private int sectionHeight(SettingsSection section)
@@ -694,14 +714,15 @@ public class MmmSettingsScreen extends Screen
         }
         if (Configs.websiteLastSuccessfulSyncMs <= 0L)
         {
-            return "SYNC READY";
+            return "SYNC READY | NEXT NOW";
         }
         long ageSeconds = Math.max(0L, (System.currentTimeMillis() - Configs.websiteLastSuccessfulSyncMs) / 1000L);
+        String nextSync = " | NEXT " + CloudSyncManager.getNextSyncLabel();
         if (ageSeconds < 60L)
         {
-            return "SYNC " + ageSeconds + "S AGO";
+            return "SYNC " + ageSeconds + "S AGO" + nextSync;
         }
-        return "SYNC " + (ageSeconds / 60L) + "M AGO";
+        return "SYNC " + (ageSeconds / 60L) + "M AGO" + nextSync;
     }
 
     private int parseHexColor(String value, int fallback)
@@ -799,11 +820,15 @@ public class MmmSettingsScreen extends Screen
         ));
         this.sections.add(SettingsSection.performance(
                 new SettingRow("Blocks/sec Smoothing", "Rolling window used for Blocks/sec display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION),
-                new SettingRow("Small Dig Items", "Shrink dropped and held MMM breakdown blocks.", Configs.Generic.SMALL_DIG_ITEMS, ControlKind.BOOLEAN)
+                new SettingRow("Small Dig Items", "Shrink dropped and held MMM breakdown blocks.", Configs.Generic.SMALL_DIG_ITEMS, ControlKind.BOOLEAN),
+                new SettingRow("No Swinging Animation", "Hide the local first-person mining swing.", Configs.Generic.NO_SWINGING_ANIMATION, ControlKind.BOOLEAN)
         ));
-        this.sections.add(SettingsSection.developer(
-                new SettingRow("Generate Dev Run", "Create and end a 3h15m test session.", null, ControlKind.ACTION)
-        ));
+        if (Configs.isDevToolsEnabled())
+        {
+            this.sections.add(SettingsSection.developer(
+                    new SettingRow("Generate Dev Run", "Create a random 3-12h preview run without saving it.", null, ControlKind.ACTION)
+            ));
+        }
     }
 
     private enum SidebarItem

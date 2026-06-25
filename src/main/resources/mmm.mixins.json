@@ -6,6 +6,8 @@
     "ClientPlayNetworkHandlerMixin",
     "ClientPlayerInteractionManagerAccessor",
     "ClientPlayerInteractionManagerMixin",
+    "HeldItemRendererMixin",
+    "LivingEntitySwingMixin",
     "SmallDigItemEntityRendererMixin",
     "SmallDigItemRenderStateMixin",
     "SmallDigItemRendererMixin",

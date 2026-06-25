@@ -43,6 +43,11 @@ public class Configs implements IConfigHandler
     private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://sync.mmmaniacs.com/v1/sync";
     public static final int MIN_DAILY_GOAL = 35_000;
 
+    public static boolean isDevToolsEnabled()
+    {
+        return Boolean.getBoolean("mmm.devTools");
+    }
+
     public static class Generic
     {
         public static final String DEFAULT_HUD_TITLE_HEX_COLOR = "#FFE00000";
@@ -57,13 +62,8 @@ public class Configs implements IConfigHandler
         public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", true, "Enable MMM website sync.");
         public static final ConfigBoolean TOTAL_DIGS_SYNC_ENABLED = new ConfigBoolean("totalDigsSyncEnabled", true, "Sync Total Digs to Website.");
         public static final ConfigBoolean WEBSITE_SYNC_DEBUG = new ConfigBoolean("websiteSyncDebug", false, "Enable verbose website sync debug logging.");
-        public static final ConfigInteger VALIDATION_MIN_BLOCKS = new ConfigInteger("validationMinBlocks", 250, 1, 100_000, "Minimum physical blocks in a session before MMM anti-AFK and anti-farm checks apply.");
-        public static final ConfigDouble VALIDATION_CAMERA_VARIANCE_THRESHOLD = new ConfigDouble("validationCameraVarianceThreshold", 1.5D, 0.0D, 45.0D, "Pitch/yaw standard-deviation threshold, in degrees, below which a large mining session is flagged.");
-        public static final ConfigDouble VALIDATION_POSITION_VARIANCE_THRESHOLD = new ConfigDouble("validationPositionVarianceThreshold", 1.25D, 0.0D, 16.0D, "Movement radius threshold, in blocks, below which a large mining session is flagged.");
-        public static final ConfigInteger VALIDATION_CONTINUOUS_MINING_TICKS = new ConfigInteger("validationContinuousMiningTicks", 2400, 20, 72_000, "Maximum continuous held-mining ticks before a session is flagged for no action pauses.");
-        public static final ConfigInteger VALIDATION_CLUSTER_BUFFER_SIZE = new ConfigInteger("validationClusterBufferSize", 50, 20, 200, "Recent broken-block buffer size used for repeated cluster farm detection.");
-        public static final ConfigInteger VALIDATION_PLACE_BREAK_WINDOW_SECONDS = new ConfigInteger("validationPlaceBreakWindowSeconds", 30, 1, 600, "Seconds after placement during which breaking the same block counts toward place-and-break telemetry.");
-        public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", true, "Show shortened large numbers such as 10M instead of 10,000,000.");
+        public static final ConfigInteger MAX_BLOCKS_PER_MINUTE = new ConfigInteger("maxBlocksPerMinute", 1200, 1, 1200, "Maximum accepted local valid block breaks per minute. Excess local counts are logged and ignored.");
+        public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", false, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
         public static final fi.dy.masa.malilib.config.options.ConfigString NOTIFICATION_THRESHOLDS = new fi.dy.masa.malilib.config.options.ConfigString("notificationThresholds", "25,50,75,100", "Popup threshold percentages, comma separated.");
         public static final ConfigInteger SOUND_ALERT_THRESHOLD = new ConfigInteger("soundAlertThreshold", 100, 1, 100, "Sound alert threshold percentage.");
@@ -99,6 +99,7 @@ public class Configs implements IConfigHandler
         public static final ConfigColor HUD_INACTIVE_HEX_COLOR = new ConfigColor("hudInactiveHexColor", DEFAULT_HUD_INACTIVE_HEX_COLOR, "Inactive/paused text color used by the MMM HUD.");
         public static final ConfigOptionList BPS_SMOOTHING = new ConfigOptionList("bpsSmoothing", BpsSmoothing.FAST, "Blocks/sec Smoothing");
         public static final ConfigBoolean SMALL_DIG_ITEMS = new ConfigBoolean("smallDigItems", false, "Render MMM breakdown block items smaller, like the Smoll Dig Items resource pack.");
+        public static final ConfigBoolean NO_SWINGING_ANIMATION = new ConfigBoolean("noSwingingAnimation", false, "Disable the local first-person hand swing animation while mining.");
         public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
         public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", DEFAULT_BLOCK_ESP_HEX_COLOR, "Block ESP custom color. Used when the color mode is Single Color.");
         public static final ConfigOptionList BLOCK_ESP_RENDER_MODE = new ConfigOptionList("blockEspRenderMode", BlockEspRenderMode.FULL_BLOCK, "Block ESP render mode.");
@@ -153,6 +154,7 @@ public class Configs implements IConfigHandler
                 HUD_INACTIVE_HEX_COLOR,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
+                NO_SWINGING_ANIMATION,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -171,12 +173,7 @@ public class Configs implements IConfigHandler
                 WEBSITE_SYNC_ENABLED,
                 TOTAL_DIGS_SYNC_ENABLED,
                 WEBSITE_SYNC_DEBUG,
-                VALIDATION_MIN_BLOCKS,
-                VALIDATION_CAMERA_VARIANCE_THRESHOLD,
-                VALIDATION_POSITION_VARIANCE_THRESHOLD,
-                VALIDATION_CONTINUOUS_MINING_TICKS,
-                VALIDATION_CLUSTER_BUFFER_SIZE,
-                VALIDATION_PLACE_BREAK_WINDOW_SECONDS,
+                MAX_BLOCKS_PER_MINUTE,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
                 NOTIFICATION_THRESHOLDS,
@@ -213,6 +210,7 @@ public class Configs implements IConfigHandler
                 HUD_INACTIVE_HEX_COLOR,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
+                NO_SWINGING_ANIMATION,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -231,9 +229,9 @@ public class Configs implements IConfigHandler
 
     public static final long DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS = 24L * 60L * 60L * 1000L;
     public static final long DEFAULT_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
-    public static final long SUPPORTER_WEBSITE_SYNC_INTERVAL_MS = 30L * 60L * 1000L;
-    public static final long SUPPORTER_PLUS_WEBSITE_SYNC_INTERVAL_MS = 60_000L;
-    public static final long MIN_WEBSITE_SYNC_INTERVAL_MS = 60_000L;
+    public static final long SUPPORTER_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
+    public static final long SUPPORTER_PLUS_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
+    public static final long MIN_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
     public static final long MAX_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
     public static long dailyProgress = 0L;
     public static long dailyGoalLastResetMs = System.currentTimeMillis();

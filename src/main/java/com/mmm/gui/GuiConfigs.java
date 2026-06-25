@@ -104,14 +104,7 @@ public class GuiConfigs extends GuiConfigsBase
     protected void drawScreenBackground(DrawContext context, int mouseX, int mouseY)
     {
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
-        context.fill(0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height, 0xE9080808);
-        context.drawBorder(0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height - MmmUi.TOP_BAR_HEIGHT, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "MMM SCREENS", 12, MmmUi.TOP_BAR_HEIGHT + 16, MmmUi.SIDEBAR_WIDTH - 24);
-        int bottomY = this.height - 42;
-        context.drawBorder(12, bottomY, MmmUi.SIDEBAR_WIDTH - 24, 28, MmmUi.BORDER_SOFT);
-        MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD", 20, bottomY + 7, MmmUi.SIDEBAR_WIDTH - 40, MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, Reference.MOD_VERSION, 20, bottomY + 18, MmmUi.SIDEBAR_WIDTH - 40, MmmUi.MUTED, false);
+        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, tab == ConfigGuiTab.HOTKEYS ? "HOTKEYS" : "TOGGLES");
     }
 
     @Override
@@ -178,13 +171,17 @@ public class GuiConfigs extends GuiConfigsBase
 
     private void createSettingsButton(int y)
     {
-        ButtonGeneric button = new MmmSidebarButton(12, y, MmmUi.SIDEBAR_WIDTH - 24, 24, "Settings", false);
+        int sidebarWidth = MmmUi.sidebarWidth(this.width);
+        int sidebarPad = Math.max(8, Math.min(12, sidebarWidth / 12));
+        ButtonGeneric button = new MmmSidebarButton(sidebarPad, y, Math.max(72, sidebarWidth - sidebarPad * 2), 24, "Settings", false);
         this.addButton(button, new SettingsButtonListener(this));
     }
 
     private void createSidebarButton(int y, ConfigGuiTab configTab)
     {
-        ButtonGeneric button = new MmmSidebarButton(12, y, MmmUi.SIDEBAR_WIDTH - 24, 24, configTab.getDisplayName(), tab == configTab);
+        int sidebarWidth = MmmUi.sidebarWidth(this.width);
+        int sidebarPad = Math.max(8, Math.min(12, sidebarWidth / 12));
+        ButtonGeneric button = new MmmSidebarButton(sidebarPad, y, Math.max(72, sidebarWidth - sidebarPad * 2), 24, configTab.getDisplayName(), tab == configTab);
         button.setEnabled(tab != configTab || configTab != ConfigGuiTab.TWEAKS && configTab != ConfigGuiTab.HOTKEYS);
         this.addButton(button, new TabButtonListener(configTab, this));
     }

@@ -608,7 +608,9 @@ public final class MmmTimerState
 
     private static void readLayout(Properties properties)
     {
-        Configs.Generic.TIMER_HUD_VISIBLE.setBooleanValue(Boolean.parseBoolean(properties.getProperty("timerHudVisible", String.valueOf(Configs.Generic.TIMER_HUD_VISIBLE.getBooleanValue()))));
+        boolean timerVisible = Boolean.parseBoolean(properties.getProperty("timerHudVisible", String.valueOf(Configs.Generic.TIMER_HUD_VISIBLE.getBooleanValue())));
+        boolean timerActive = running || expired || Math.max(0L, remainingPausedMs) < Math.max(1L, durationMs);
+        Configs.Generic.TIMER_HUD_VISIBLE.setBooleanValue(timerVisible && timerActive);
         Configs.Generic.HOURLY_STATS_VISIBLE.setBooleanValue(Boolean.parseBoolean(properties.getProperty("hourlyStatsVisible", String.valueOf(Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue()))));
         Configs.Generic.BLOCK_STATS_VISIBLE.setBooleanValue(Boolean.parseBoolean(properties.getProperty("blockStatsVisible", String.valueOf(Configs.Generic.BLOCK_STATS_VISIBLE.getBooleanValue()))));
         Configs.Generic.BLOCK_STATS_STATIC.setBooleanValue(Boolean.parseBoolean(properties.getProperty("blockStatsStatic", String.valueOf(Configs.Generic.BLOCK_STATS_STATIC.getBooleanValue()))));
