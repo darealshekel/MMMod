@@ -33,6 +33,15 @@ public class HeldItemRendererMixin
         }
     }
 
+    @Inject(method = "applyEquipOffset", at = @At("HEAD"), cancellable = true)
+    private void mmm$disableMiningToolEquipDip(MatrixStack matrices, Arm arm, float equipProgress, CallbackInfo ci)
+    {
+        if (Configs.Generic.NO_SWINGING_ANIMATION.getBooleanValue() && mmm$isMiningToolArm(arm))
+        {
+            ci.cancel();
+        }
+    }
+
     @Unique
     private boolean mmm$isMiningToolArm(Arm arm)
     {

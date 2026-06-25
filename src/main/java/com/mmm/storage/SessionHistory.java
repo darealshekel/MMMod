@@ -7,12 +7,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.mmm.MMM;
@@ -45,6 +50,7 @@ public final class SessionHistory
             HISTORY.add(session);
             updateBest(session);
         }
+        repairPersonalRecordsFromSavedSessions();
     }
 
     public static void save(SessionData session)
@@ -161,6 +167,37 @@ public final class SessionHistory
         return best;
     }
 
+    public static void repairPersonalRecordsFromSavedSessions()
+    {
+        List<SessionData> sessions = loadAllSavedSessions();
+        if (sessions.isEmpty())
+        {
+            return;
+        }
+
+        long bestDaily = bestDailyTotal(sessions);
+        long bestWeekly = bestWeeklyTotal(sessions);
+        long repairedDaily = Math.max(bestDaily, Configs.dailyBlocksMined);
+        long repairedWeekly = Math.max(bestWeekly, Configs.weeklyBlocksMined);
+        boolean changed = false;
+
+        if (repairedDaily > 0L && Configs.personalRecordDailyBlocks > repairedDaily)
+        {
+            Configs.personalRecordDailyBlocks = repairedDaily;
+            changed = true;
+        }
+        if (repairedWeekly > 0L && Configs.personalRecordWeeklyBlocks > repairedWeekly)
+        {
+            Configs.personalRecordWeeklyBlocks = repairedWeekly;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            Configs.saveToFile();
+        }
+    }
+
     public static String getCurrentWorldId()
     {
         return currentWorldId;
@@ -185,6 +222,52 @@ public final class SessionHistory
             }
         }
         return bestSession;
+    }
+
+    private static List<SessionData> loadAllSavedSessions()
+    {
+        migrateLegacySessionsIfNeeded();
+        List<SessionData> sessions = new ArrayList<>();
+        if (Files.isDirectory(ROOT_DIR) == false)
+        {
+            return sessions;
+        }
+
+        try (var paths = Files.list(ROOT_DIR))
+        {
+            paths.filter(Files::isDirectory)
+                    .map(path -> path.resolve("sessions.csv"))
+                    .filter(Files::exists)
+                    .forEach(path -> sessions.addAll(loadSessions(path)));
+        }
+        catch (IOException e)
+        {
+            MMM.LOGGER.warn("[MMM] Failed to scan saved sessions in {}: {}", ROOT_DIR, e.getMessage());
+        }
+        return sessions;
+    }
+
+    private static long bestDailyTotal(List<SessionData> sessions)
+    {
+        Map<LocalDate, Long> totals = new HashMap<>();
+        for (SessionData session : sessions)
+        {
+            LocalDate day = Instant.ofEpochMilli(session.startTimeMs).atZone(ZoneOffset.UTC).toLocalDate();
+            totals.merge(day, Math.max(0L, session.totalBlocks), Long::sum);
+        }
+        return totals.values().stream().mapToLong(Long::longValue).max().orElse(0L);
+    }
+
+    private static long bestWeeklyTotal(List<SessionData> sessions)
+    {
+        Map<LocalDate, Long> totals = new HashMap<>();
+        for (SessionData session : sessions)
+        {
+            LocalDate day = Instant.ofEpochMilli(session.startTimeMs).atZone(ZoneOffset.UTC).toLocalDate();
+            LocalDate week = day.minusDays(Math.floorMod(day.getDayOfWeek().getValue() - 3, 7));
+            totals.merge(week, Math.max(0L, session.totalBlocks), Long::sum);
+        }
+        return totals.values().stream().mapToLong(Long::longValue).max().orElse(0L);
     }
 
     private static List<SessionData> loadSessions(Path saveFile)
