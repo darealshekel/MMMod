@@ -754,12 +754,20 @@ public final class CloudSyncManager
 
     private record PendingSavedSession(SessionHistory.WorldHistory history, SessionData session, String sessionKey) {}
 
+    private record SourceEvidence(
+            SourceScanResult scan,
+            List<SourceLeaderboardSnapshot> leaderboards,
+            long playerTotalDigs
+    ) {}
+
     private static JsonObject buildPayload(SessionData session, String sessionStatus)
     {
         MinecraftClient client = MinecraftClient.getInstance();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
         MiningStats.ProjectProgress projectProgress = MiningStats.getActiveProjectProgress();
+
+        SourceEvidence sourceEvidence = readSourceEvidence(client, worldInfo);
 
         JsonObject payload = new JsonObject();
         payload.addProperty("client_id", Configs.cloudClientId);
@@ -770,7 +778,7 @@ public final class CloudSyncManager
         payload.add("world", buildWorld(worldInfo));
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
-        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo));
+        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo, sourceEvidence.playerTotalDigs()));
 
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
         if (currentWorldBlockBreakdown != null)
@@ -784,16 +792,23 @@ public final class CloudSyncManager
             payload.add("server_player_block_breakdowns", serverPlayerBlockBreakdowns);
         }
 
-        JsonObject sourceScan = buildSourceScan(client, worldInfo);
+        JsonObject sourceScan = buildSourceScan(sourceEvidence.scan(), worldInfo);
         if (sourceScan != null)
         {
             payload.add("source_scan", sourceScan);
         }
 
-        JsonObject sourceLeaderboard = buildSourceLeaderboard();
-        if (sourceLeaderboard != null)
+        JsonArray sourceLeaderboards = buildSourceLeaderboards(sourceEvidence.leaderboards());
+        if (sourceLeaderboards.size() > 0)
         {
-            payload.add("source_leaderboard", sourceLeaderboard);
+            payload.add("source_leaderboards", sourceLeaderboards);
+            payload.add("source_leaderboard", sourceLeaderboards.get(0).deepCopy());
+        }
+
+        JsonObject playerTotalDigs = buildPlayerTotalDigs(client, worldInfo, sourceEvidence);
+        if (playerTotalDigs != null)
+        {
+            payload.add("player_total_digs", playerTotalDigs);
         }
 
         payload.add("projects", buildProjects());
@@ -873,33 +888,106 @@ public final class CloudSyncManager
 
     private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo)
     {
+        return buildCurrentWorldTotals(worldInfo, 0L);
+    }
+
+    private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo, long authoritativePlayerTotal)
+    {
         Configs.WorldStatsEntry worldStats = Configs.getOrCreateWorldStats(
                 worldInfo.id(),
                 worldInfo.displayName(),
                 worldInfo.kind(),
                 worldInfo.host());
+        long totalBlocks = Math.max(0L, authoritativePlayerTotal);
+        if (totalBlocks <= 0L)
+        {
+            totalBlocks = Math.max(0L, worldStats.totalBlocks);
+        }
 
         JsonObject totals = new JsonObject();
         totals.addProperty("world_key", worldStats.worldId);
         totals.addProperty("display_name", worldStats.displayName);
         totals.addProperty("kind", normaliseWorldKind(worldStats.kind));
         totals.addProperty("host", (String) null);
-        totals.addProperty("total_blocks", worldStats.totalBlocks);
+        totals.addProperty("total_blocks", totalBlocks);
         totals.addProperty("last_seen_at", toIso(Math.max(worldStats.lastSeenAt, System.currentTimeMillis())));
         return totals;
     }
 
+    private static SourceEvidence readSourceEvidence(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo)
+    {
+        SourceScanResult scan = SourceScanManager.scan(client);
+        if (scan != null && scan.hasMeaningfulEvidence() == false)
+        {
+            scan = null;
+        }
+
+        List<SourceLeaderboardSnapshot> leaderboards = SourceLeaderboardReader.readAll(client);
+        latestLeaderboardSnapshot = leaderboards.isEmpty() ? null : leaderboards.get(0);
+        long playerTotalDigs = resolvePlayerTotalDigs(client, scan, latestLeaderboardSnapshot);
+
+        return new SourceEvidence(scan, leaderboards, playerTotalDigs);
+    }
+
+    private static long resolvePlayerTotalDigs(MinecraftClient client,
+                                               SourceScanResult scan,
+                                               SourceLeaderboardSnapshot snapshot)
+    {
+        if (scan != null && scan.playerTotalDigs() > 0L)
+        {
+            return scan.playerTotalDigs();
+        }
+
+        if (client == null || client.player == null || snapshot == null || snapshot.isValid() == false)
+        {
+            return 0L;
+        }
+
+        String username = client.player.getGameProfile().getName();
+        return snapshot.entries().stream()
+                .filter(SourceLeaderboardEntry::isValid)
+                .filter(entry -> entry.username().equalsIgnoreCase(username))
+                .mapToLong(SourceLeaderboardEntry::digs)
+                .max()
+                .orElse(0L);
+    }
+
+    private static JsonArray buildSourceLeaderboards(List<SourceLeaderboardSnapshot> snapshots)
+    {
+        JsonArray leaderboards = new JsonArray();
+        if (snapshots == null || snapshots.isEmpty())
+        {
+            return leaderboards;
+        }
+
+        for (SourceLeaderboardSnapshot snapshot : snapshots)
+        {
+            JsonObject leaderboard = buildSourceLeaderboard(snapshot);
+            if (leaderboard != null)
+            {
+                leaderboards.add(leaderboard);
+            }
+        }
+
+        return leaderboards;
+    }
+
     private static JsonObject buildSourceLeaderboard()
     {
-        if (latestLeaderboardSnapshot == null || latestLeaderboardSnapshot.isValid() == false)
+        return buildSourceLeaderboard(latestLeaderboardSnapshot);
+    }
+
+    private static JsonObject buildSourceLeaderboard(SourceLeaderboardSnapshot snapshot)
+    {
+        if (snapshot == null || snapshot.isValid() == false)
         {
             return null;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, latestLeaderboardSnapshot.entries());
+        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, snapshot.entries());
 
-        List<SourceLeaderboardEntry> realEntries = latestLeaderboardSnapshot.entries().stream()
+        List<SourceLeaderboardEntry> realEntries = snapshot.entries().stream()
                 .filter(entry -> entry.isValid())
                 .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
                 .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
@@ -911,12 +999,12 @@ public final class CloudSyncManager
         }
 
         JsonObject leaderboard = new JsonObject();
-        leaderboard.addProperty("server_name", latestLeaderboardSnapshot.serverName());
-        leaderboard.addProperty("objective_title", latestLeaderboardSnapshot.objectiveTitle());
-        leaderboard.addProperty("captured_at", toIso(latestLeaderboardSnapshot.capturedAtMs()));
+        leaderboard.addProperty("server_name", snapshot.serverName());
+        leaderboard.addProperty("objective_title", snapshot.objectiveTitle());
+        leaderboard.addProperty("captured_at", toIso(snapshot.capturedAtMs()));
         leaderboard.addProperty("source_type", "scoreboard");
 
-        long snapshotTotalDigs = Math.max(0L, latestLeaderboardSnapshot.totalDigs());
+        long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
         long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();
         long payloadTotalDigs = snapshotTotalDigs > 0L ? snapshotTotalDigs : filteredTotalDigs;
         if (payloadTotalDigs > 0L)
@@ -931,7 +1019,7 @@ public final class CloudSyncManager
             row.addProperty("username", entry.username());
             row.addProperty("digs", entry.digs());
             row.addProperty("rank", entry.rank());
-            row.addProperty("source_server", latestLeaderboardSnapshot.serverName());
+            row.addProperty("source_server", snapshot.serverName());
             entries.add(row);
         }
 
@@ -949,6 +1037,11 @@ public final class CloudSyncManager
     private static JsonObject buildSourceScan(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo)
     {
         SourceScanResult scan = SourceScanManager.scan(client);
+        return buildSourceScan(scan, worldInfo);
+    }
+
+    private static JsonObject buildSourceScan(SourceScanResult scan, WorldSessionContext.WorldInfo worldInfo)
+    {
         if (scan == null || scan.hasMeaningfulEvidence() == false)
         {
             return null;
@@ -1008,6 +1101,36 @@ public final class CloudSyncManager
         object.add("raw_scan_evidence", evidence);
 
         return object;
+    }
+
+    private static JsonObject buildPlayerTotalDigs(MinecraftClient client,
+                                                   WorldSessionContext.WorldInfo worldInfo,
+                                                   SourceEvidence sourceEvidence)
+    {
+        if (sourceEvidence == null || sourceEvidence.playerTotalDigs() <= 0L)
+        {
+            return null;
+        }
+
+        String serverName = sourceEvidence.scan() != null && sourceEvidence.scan().sourceName() != null && sourceEvidence.scan().sourceName().isBlank() == false
+                ? sourceEvidence.scan().sourceName()
+                : latestLeaderboardSnapshot != null && latestLeaderboardSnapshot.serverName() != null && latestLeaderboardSnapshot.serverName().isBlank() == false
+                ? latestLeaderboardSnapshot.serverName()
+                : ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo);
+
+        String objectiveTitle = sourceEvidence.scan() != null && sourceEvidence.scan().scoreboardTitle() != null && sourceEvidence.scan().scoreboardTitle().isBlank() == false
+                ? sourceEvidence.scan().scoreboardTitle()
+                : latestLeaderboardSnapshot != null && latestLeaderboardSnapshot.objectiveTitle() != null && latestLeaderboardSnapshot.objectiveTitle().isBlank() == false
+                ? latestLeaderboardSnapshot.objectiveTitle()
+                : "Scoreboard";
+
+        JsonObject digs = new JsonObject();
+        digs.addProperty("username", resolveUsername(client));
+        digs.addProperty("total_digs", sourceEvidence.playerTotalDigs());
+        digs.addProperty("server", serverName);
+        digs.addProperty("timestamp", toIso(System.currentTimeMillis()));
+        digs.addProperty("objective_title", objectiveTitle);
+        return digs;
     }
 
     private static JsonObject buildWorld(WorldSessionContext.WorldInfo worldInfo)
@@ -1410,6 +1533,16 @@ public final class CloudSyncManager
         if (payload.has("source_leaderboard"))
         {
             minimal.add("source_leaderboard", payload.get("source_leaderboard"));
+        }
+
+        if (payload.has("source_leaderboards"))
+        {
+            minimal.add("source_leaderboards", payload.get("source_leaderboards"));
+        }
+
+        if (payload.has("player_total_digs"))
+        {
+            minimal.add("player_total_digs", payload.get("player_total_digs"));
         }
 
         if (payload.has("session"))
