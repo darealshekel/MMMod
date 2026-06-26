@@ -66,19 +66,14 @@ public final class CloudSyncManager
             return;
         }
 
+        MinecraftClient client = MinecraftClient.getInstance();
+        refreshLeaderboardSnapshot(client, now, false);
+
         if (isSyncCadenceDue(now))
         {
             syncHeartbeat();
         }
         queueSavedSessionsIfDue(now);
-
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (now - lastSourceScoreboardScanMs >= SOURCE_SCOREBOARD_SCAN_INTERVAL_MS)
-        {
-            lastSourceScoreboardScanMs = now;
-            latestLeaderboardSnapshot = SourceLeaderboardReader.read(client);
-            maybeBootstrapFromLeaderboardSnapshot(client, now);
-        }
 
         if (latestLeaderboardSnapshot != null && syncStatus != SyncStatus.SYNCING && syncStatus != SyncStatus.SYNCED)
         {
@@ -108,6 +103,7 @@ public final class CloudSyncManager
             return;
         }
 
+        refreshLeaderboardSnapshot(MinecraftClient.getInstance(), now, true);
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
         queueSavedSessionsForSync("heartbeat");
@@ -123,6 +119,13 @@ public final class CloudSyncManager
         }
 
         long now = System.currentTimeMillis();
+        boolean bypassCadence = shouldBypassCadence(reason);
+        if (bypassCadence == false && isSyncCadenceDue(now) == false)
+        {
+            syncStatusDetail = "Next sync in " + getNextSyncLabel();
+            return;
+        }
+        refreshLeaderboardSnapshot(MinecraftClient.getInstance(), now, true);
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
         queueSavedSessionsForSync(reason == null || reason.isBlank() ? "manual sync" : reason);
@@ -471,6 +474,22 @@ public final class CloudSyncManager
         return snapshot.flushActive()
                 || snapshot.countFor(SyncItemType.CLOUD_LIVE_STATE) > 0
                 || snapshot.countFor(SyncItemType.CLOUD_FINISHED_SESSION) > 0;
+    }
+
+    private static void refreshLeaderboardSnapshot(MinecraftClient client, long now, boolean force)
+    {
+        if (client == null)
+        {
+            return;
+        }
+        if (force == false && now - lastSourceScoreboardScanMs < SOURCE_SCOREBOARD_SCAN_INTERVAL_MS)
+        {
+            return;
+        }
+
+        lastSourceScoreboardScanMs = now;
+        latestLeaderboardSnapshot = SourceLeaderboardReader.read(client);
+        maybeBootstrapFromLeaderboardSnapshot(client, now);
     }
 
     private static long lastSuccessfulSyncMs()
