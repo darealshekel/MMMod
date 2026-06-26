@@ -231,7 +231,7 @@ public class Configs implements IConfigHandler
     public static final long DEFAULT_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
     public static final long SUPPORTER_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
     public static final long SUPPORTER_PLUS_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
-    public static final long MIN_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
+    public static final long MIN_WEBSITE_SYNC_INTERVAL_MS = 60L * 1000L;
     public static final long MAX_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
     public static long dailyProgress = 0L;
     public static long dailyGoalLastResetMs = System.currentTimeMillis();

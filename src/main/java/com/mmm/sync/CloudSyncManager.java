@@ -36,7 +36,9 @@ public final class CloudSyncManager
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
     private static final long MIN_LIVE_SYNC_ATTEMPT_INTERVAL_MS = 15_000L;
+    private static final long ONE_MINUTE_SYNC_INTERVAL_MS = 60_000L;
     private static final int MAX_SAVED_SESSIONS_TO_QUEUE = 25;
+    private static final Set<String> ONE_MINUTE_SYNC_USERNAMES = Set.of("5hekel");
 
     private static long lastHeartbeatMs;
     private static long lastLiveBlockSyncMs;
@@ -392,6 +394,11 @@ public final class CloudSyncManager
 
     public static long getSyncIntervalMs()
     {
+        String username = currentSyncUsernameKey();
+        if (ONE_MINUTE_SYNC_USERNAMES.contains(username))
+        {
+            return ONE_MINUTE_SYNC_INTERVAL_MS;
+        }
         return Configs.normalizeWebsiteSyncIntervalMs(Configs.websiteSyncIntervalMs);
     }
 
@@ -453,6 +460,28 @@ public final class CloudSyncManager
     public static String getSyncTier()
     {
         return Configs.normalizeWebsiteSyncTier(Configs.websiteSyncTier);
+    }
+
+    private static String currentSyncUsernameKey()
+    {
+        if (Configs.websiteLinkedMinecraftUsername != null && Configs.websiteLinkedMinecraftUsername.isBlank() == false)
+        {
+            return Configs.websiteLinkedMinecraftUsername.trim().toLowerCase(Locale.ROOT);
+        }
+
+        try
+        {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client != null && client.getSession() != null && client.getSession().getUsername() != null)
+            {
+                return client.getSession().getUsername().trim().toLowerCase(Locale.ROOT);
+            }
+        }
+        catch (Exception ignored)
+        {
+        }
+
+        return "";
     }
 
     private static boolean isSyncCadenceDue(long now)
