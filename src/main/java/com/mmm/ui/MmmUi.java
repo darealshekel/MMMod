@@ -3,6 +3,7 @@ package com.mmm.ui;
 import java.util.List;
 
 import com.mmm.Reference;
+import com.mmm.config.Configs;
 import com.mmm.gui.GuiConfigs;
 import com.mmm.hud.SessionHistoryScreen;
 import com.mmm.hud.SummaryScreen;
@@ -68,6 +69,26 @@ public final class MmmUi
         }
     }
 
+    public static int accent()
+    {
+        return Configs.getMenuColor();
+    }
+
+    public static int accentSoft()
+    {
+        return withAlpha(accent(), 0x33);
+    }
+
+    public static int accentHover()
+    {
+        return withAlpha(accent(), 0x22);
+    }
+
+    private static int withAlpha(int color, int alpha)
+    {
+        return (alpha << 24) | (color & 0x00FFFFFF);
+    }
+
     public static void backdrop(DrawContext context, int width, int height)
     {
         context.fill(0, 0, width, height, OVERLAY);
@@ -78,90 +99,58 @@ public final class MmmUi
         return SIDEBAR_WIDTH + PAGE_PAD;
     }
 
-    public static int sidebarWidth(int screenWidth)
-    {
-        if (screenWidth < 420)
-        {
-            return 104;
-        }
-        if (screenWidth < 560)
-        {
-            return 124;
-        }
-        return SIDEBAR_WIDTH;
-    }
-
-    public static int pagePad(int screenWidth)
-    {
-        return screenWidth < 420 ? 8 : PAGE_PAD;
-    }
-
-    public static int contentLeft(int screenWidth)
-    {
-        return sidebarWidth(screenWidth) + pagePad(screenWidth);
-    }
-
     public static int contentWidth(int screenWidth)
     {
-        return Math.max(1, screenWidth - contentLeft(screenWidth) - pagePad(screenWidth));
+        return Math.max(1, screenWidth - contentLeft() - PAGE_PAD);
     }
 
     public static int centerContentX(int screenWidth, int contentWidth)
     {
-        return contentLeft(screenWidth) + Math.max(0, (contentWidth(screenWidth) - contentWidth) / 2);
+        return contentLeft() + Math.max(0, (contentWidth(screenWidth) - contentWidth) / 2);
     }
 
     public static void drawMmmScreensSidebar(DrawContext context, TextRenderer renderer, int width, int height, int mouseX, int mouseY, String activeId)
     {
         drawMmmTopBar(context, renderer, width);
-        int sidebarWidth = sidebarWidth(width);
-        int sidebarPad = Math.max(8, Math.min(12, sidebarWidth / 12));
-        int rowX = sidebarPad;
-        int rowWidth = Math.max(72, sidebarWidth - sidebarPad * 2);
-        context.fill(0, TOP_BAR_HEIGHT, sidebarWidth, height, 0xE9080808);
-        context.drawBorder(0, TOP_BAR_HEIGHT, sidebarWidth, height - TOP_BAR_HEIGHT, BORDER);
+        context.fill(0, TOP_BAR_HEIGHT, SIDEBAR_WIDTH, height, 0xE9080808);
+        context.drawBorder(0, TOP_BAR_HEIGHT, SIDEBAR_WIDTH, height - TOP_BAR_HEIGHT, BORDER);
 
         int titleY = TOP_BAR_HEIGHT + 16;
-        drawSectionHeading(context, renderer, "MMM SCREENS", rowX, titleY, rowWidth);
+        drawSectionHeading(context, renderer, "MMM SCREENS", 12, titleY, SIDEBAR_WIDTH - 24);
 
         int y = titleY + 28;
         for (SidebarRoute route : SidebarRoute.values())
         {
             boolean active = route.id.equals(activeId);
-            boolean hovered = mouseX >= rowX && mouseX < rowX + rowWidth && mouseY >= y && mouseY < y + SIDEBAR_ROW_HEIGHT;
-            int fill = active ? 0x33E00000 : hovered ? 0x22E00000 : INSET;
-            int border = active || hovered ? ACCENT : BORDER_SOFT;
-            context.fill(rowX, y, rowX + rowWidth, y + SIDEBAR_ROW_HEIGHT, fill);
-            context.drawBorder(rowX, y, rowWidth, SIDEBAR_ROW_HEIGHT, border);
-            drawTextWithin(context, renderer, route.label, rowX + 8, y + 8, rowWidth - 16, active ? TEXT : MUTED, false);
+            boolean hovered = mouseX >= 12 && mouseX < SIDEBAR_WIDTH - 12 && mouseY >= y && mouseY < y + SIDEBAR_ROW_HEIGHT;
+            int fill = active ? accentSoft() : hovered ? accentHover() : INSET;
+            int border = active || hovered ? accent() : BORDER_SOFT;
+            context.fill(12, y, SIDEBAR_WIDTH - 12, y + SIDEBAR_ROW_HEIGHT, fill);
+            context.drawBorder(12, y, SIDEBAR_WIDTH - 24, SIDEBAR_ROW_HEIGHT, border);
+            drawTextWithin(context, renderer, route.label, 20, y + 8, SIDEBAR_WIDTH - 40, active ? TEXT : MUTED, false);
             y += SIDEBAR_ROW_HEIGHT + SIDEBAR_ROW_GAP;
         }
 
         int bottomY = height - 42;
-        context.drawBorder(rowX, bottomY, rowWidth, 28, BORDER_SOFT);
-        drawTextWithin(context, renderer, "MMM MOD", rowX + 8, bottomY + 7, rowWidth - 16, TEXT, false);
-        drawTextWithin(context, renderer, Reference.MOD_VERSION, rowX + 8, bottomY + 18, rowWidth - 16, MUTED, false);
+        context.drawBorder(12, bottomY, SIDEBAR_WIDTH - 24, 28, BORDER_SOFT);
+        drawTextWithin(context, renderer, "MMM MOD", 20, bottomY + 7, SIDEBAR_WIDTH - 40, TEXT, false);
+        drawTextWithin(context, renderer, Reference.MOD_VERSION, 20, bottomY + 18, SIDEBAR_WIDTH - 40, MUTED, false);
     }
 
     public static void drawMmmTopBar(DrawContext context, TextRenderer renderer, int width)
     {
         context.fill(0, 0, width, TOP_BAR_HEIGHT, 0xF0060606);
         context.drawBorder(0, 0, width, TOP_BAR_HEIGHT, BORDER);
-        context.fill(14, 12, 18, 30, ACCENT);
-        drawTextWithin(context, renderer, "MMM", 26, 10, 40, ACCENT_BRIGHT, false);
-        if (width >= 360)
-        {
-            drawTextWithin(context, renderer, "Manual Mining Maniacs", 68, 10, Math.max(0, width - 168), TEXT, false);
-        }
+        context.fill(14, 12, 18, 30, accent());
+        drawTextWithin(context, renderer, "MMM", 26, 10, 40, accent(), false);
+        drawTextWithin(context, renderer, "Manual Mining Maniacs", 68, 10, Math.max(0, width / 2 - 80), TEXT, false);
         int versionWidth = renderer.getWidth(Reference.MOD_VERSION);
         drawTextRightWithin(context, renderer, Reference.MOD_VERSION, width - 16, 10, versionWidth, MUTED, false);
     }
 
     public static boolean handleMmmScreensSidebarClick(Screen current, Screen parent, double mouseX, double mouseY, String activeId)
     {
-        int sidebarWidth = sidebarWidth(current.width);
-        int sidebarPad = Math.max(8, Math.min(12, sidebarWidth / 12));
-        if (mouseX < sidebarPad || mouseX >= sidebarWidth - sidebarPad)
+        if (mouseX < 12 || mouseX >= SIDEBAR_WIDTH - 12)
         {
             return false;
         }
@@ -187,7 +176,7 @@ public final class MmmUi
     public static void drawSectionHeading(DrawContext context, TextRenderer renderer, String title, int x, int y, int maxWidth)
     {
         int textHeight = renderer.fontHeight;
-        context.fill(x, y, x + 4, y + textHeight, ACCENT);
+        context.fill(x, y, x + 4, y + textHeight, accent());
         drawTextWithin(context, renderer, title, x + 12, y, maxWidth - 12, TEXT, false);
     }
 
@@ -199,15 +188,15 @@ public final class MmmUi
 
     public static void fieldShell(DrawContext context, int x, int y, int width, int height, boolean focused)
     {
-        card(context, x, y, width, height, INSET, focused ? ACCENT : BORDER_SOFT);
+        card(context, x, y, width, height, INSET, focused ? accent() : BORDER_SOFT);
     }
 
     public static void pill(DrawContext context, TextRenderer renderer, int x, int y, int width, int height, String text)
     {
-        card(context, x, y, width, height, CARD, ACCENT);
+        card(context, x, y, width, height, CARD, accent());
         String clipped = truncate(renderer, text, width - 8);
         int textX = x + Math.max(4, (width - renderer.getWidth(clipped)) / 2);
-        context.drawText(renderer, Text.literal(clipped), textX, y + 4, ACCENT_BRIGHT, false);
+        context.drawText(renderer, Text.literal(clipped), textX, y + 4, accent(), false);
     }
 
     public static void statusChip(DrawContext context, TextRenderer renderer, int x, int y, String text, int borderColor)

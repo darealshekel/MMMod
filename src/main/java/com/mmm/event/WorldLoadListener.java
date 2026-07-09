@@ -84,10 +84,11 @@ public class WorldLoadListener implements IWorldLoadListener
         MmmDebugLogger.info(
                 "world-switch",
                 WORLD_SWITCH_LOG_INTERVAL_MS,
-                "[MMM_DEBUG] world-switch previousWorldId={} nextWorldId={} displayName={} host=redacted",
+                "[MMM_DEBUG] world-switch previousWorldId={} nextWorldId={} displayName={} host={}",
                 previousWorldId,
                 nextWorldId,
-                info.displayName()
+                info.displayName(),
+                info.host()
         );
     }
 

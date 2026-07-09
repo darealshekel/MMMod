@@ -36,9 +36,7 @@ public final class CloudSyncManager
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
     private static final long MIN_LIVE_SYNC_ATTEMPT_INTERVAL_MS = 15_000L;
-    private static final long ONE_MINUTE_SYNC_INTERVAL_MS = 60_000L;
     private static final int MAX_SAVED_SESSIONS_TO_QUEUE = 25;
-    private static final Set<String> ONE_MINUTE_SYNC_USERNAMES = Set.of("5hekel");
 
     private static long lastHeartbeatMs;
     private static long lastLiveBlockSyncMs;
@@ -68,14 +66,19 @@ public final class CloudSyncManager
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        refreshLeaderboardSnapshot(client, now, false);
-
         if (isSyncCadenceDue(now))
         {
             syncHeartbeat();
         }
         queueSavedSessionsIfDue(now);
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (now - lastSourceScoreboardScanMs >= SOURCE_SCOREBOARD_SCAN_INTERVAL_MS)
+        {
+            lastSourceScoreboardScanMs = now;
+            latestLeaderboardSnapshot = SourceLeaderboardReader.read(client);
+            maybeBootstrapFromLeaderboardSnapshot(client, now);
+        }
 
         if (latestLeaderboardSnapshot != null && syncStatus != SyncStatus.SYNCING && syncStatus != SyncStatus.SYNCED)
         {
@@ -105,7 +108,6 @@ public final class CloudSyncManager
             return;
         }
 
-        refreshLeaderboardSnapshot(MinecraftClient.getInstance(), now, true);
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
         queueSavedSessionsForSync("heartbeat");
@@ -121,13 +123,6 @@ public final class CloudSyncManager
         }
 
         long now = System.currentTimeMillis();
-        boolean bypassCadence = shouldBypassCadence(reason);
-        if (bypassCadence == false && isSyncCadenceDue(now) == false)
-        {
-            syncStatusDetail = "Next sync in " + getNextSyncLabel();
-            return;
-        }
-        refreshLeaderboardSnapshot(MinecraftClient.getInstance(), now, true);
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
         queueSavedSessionsForSync(reason == null || reason.isBlank() ? "manual sync" : reason);
@@ -370,6 +365,7 @@ public final class CloudSyncManager
         syncStatus = SyncStatus.CONNECTED;
         syncStatusDetail = "";
         lastHeartbeatMs = 0L;
+        lastLiveBlockSyncMs = 0L;
         lastSourceScoreboardScanMs = 0L;
         lastQueuedLiveFingerprint = null;
         lastSuccessfulLiveFingerprint = null;
@@ -391,11 +387,6 @@ public final class CloudSyncManager
 
     public static long getSyncIntervalMs()
     {
-        String username = currentSyncUsernameKey();
-        if (ONE_MINUTE_SYNC_USERNAMES.contains(username))
-        {
-            return ONE_MINUTE_SYNC_INTERVAL_MS;
-        }
         return Configs.normalizeWebsiteSyncIntervalMs(Configs.websiteSyncIntervalMs);
     }
 
@@ -459,28 +450,6 @@ public final class CloudSyncManager
         return Configs.normalizeWebsiteSyncTier(Configs.websiteSyncTier);
     }
 
-    private static String currentSyncUsernameKey()
-    {
-        if (Configs.websiteLinkedMinecraftUsername != null && Configs.websiteLinkedMinecraftUsername.isBlank() == false)
-        {
-            return Configs.websiteLinkedMinecraftUsername.trim().toLowerCase(Locale.ROOT);
-        }
-
-        try
-        {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client != null && client.getSession() != null && client.getSession().getUsername() != null)
-            {
-                return client.getSession().getUsername().trim().toLowerCase(Locale.ROOT);
-            }
-        }
-        catch (Exception ignored)
-        {
-        }
-
-        return "";
-    }
-
     private static boolean isSyncCadenceDue(long now)
     {
         if (hasPendingLiveSync())
@@ -504,22 +473,6 @@ public final class CloudSyncManager
                 || snapshot.countFor(SyncItemType.CLOUD_FINISHED_SESSION) > 0;
     }
 
-    private static void refreshLeaderboardSnapshot(MinecraftClient client, long now, boolean force)
-    {
-        if (client == null)
-        {
-            return;
-        }
-        if (force == false && now - lastSourceScoreboardScanMs < SOURCE_SCOREBOARD_SCAN_INTERVAL_MS)
-        {
-            return;
-        }
-
-        lastSourceScoreboardScanMs = now;
-        latestLeaderboardSnapshot = SourceLeaderboardReader.read(client);
-        maybeBootstrapFromLeaderboardSnapshot(client, now);
-    }
-
     private static long lastSuccessfulSyncMs()
     {
         PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
@@ -529,11 +482,6 @@ public final class CloudSyncManager
     public static long getLastSuccessfulSyncMs()
     {
         return lastSuccessfulSyncMs();
-    }
-
-    private static boolean shouldBypassCadence(String reason)
-    {
-        return reason != null && reason.equalsIgnoreCase("mining records period reset");
     }
 
     private static void queueCurrentLivePayloadIfDue(long now)
@@ -806,12 +754,6 @@ public final class CloudSyncManager
 
     private record PendingSavedSession(SessionHistory.WorldHistory history, SessionData session, String sessionKey) {}
 
-    private record SourceEvidence(
-            SourceScanResult scan,
-            List<SourceLeaderboardSnapshot> leaderboards,
-            long playerTotalDigs
-    ) {}
-
     private static JsonObject buildPayload(SessionData session, String sessionStatus)
     {
         MinecraftClient client = MinecraftClient.getInstance();
@@ -819,19 +761,16 @@ public final class CloudSyncManager
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
         MiningStats.ProjectProgress projectProgress = MiningStats.getActiveProjectProgress();
 
-        SourceEvidence sourceEvidence = readSourceEvidence(client, worldInfo);
-
         JsonObject payload = new JsonObject();
         payload.addProperty("client_id", Configs.cloudClientId);
         payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
         payload.addProperty("username", resolveUsername(client));
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
-        payload.addProperty("sync_origin", "client_evidence");
         payload.add("world", buildWorld(worldInfo));
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
-        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo, sourceEvidence.playerTotalDigs()));
+        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo));
 
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
         if (currentWorldBlockBreakdown != null)
@@ -845,30 +784,22 @@ public final class CloudSyncManager
             payload.add("server_player_block_breakdowns", serverPlayerBlockBreakdowns);
         }
 
-        JsonObject sourceScan = buildSourceScan(sourceEvidence.scan(), worldInfo);
+        JsonObject sourceScan = buildSourceScan(client, worldInfo);
         if (sourceScan != null)
         {
             payload.add("source_scan", sourceScan);
         }
 
-        JsonArray sourceLeaderboards = buildSourceLeaderboards(sourceEvidence.leaderboards());
-        if (sourceLeaderboards.size() > 0)
+        JsonObject sourceLeaderboard = buildSourceLeaderboard();
+        if (sourceLeaderboard != null)
         {
-            payload.add("source_leaderboards", sourceLeaderboards);
-            payload.add("source_leaderboard", sourceLeaderboards.get(0).deepCopy());
-        }
-
-        JsonObject playerTotalDigs = buildPlayerTotalDigs(client, worldInfo, sourceEvidence);
-        if (playerTotalDigs != null)
-        {
-            payload.add("player_total_digs", playerTotalDigs);
+            payload.add("source_leaderboard", sourceLeaderboard);
         }
 
         payload.add("projects", buildProjects());
         payload.add("daily_goal", buildDailyGoal(dailyGoal));
         payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
         payload.add("session_state", buildSessionState());
-
         if (session != null && sessionStatus != null)
         {
             payload.add("session", buildSession(session, sessionStatus));
@@ -891,7 +822,6 @@ public final class CloudSyncManager
         payload.addProperty("username", resolveUsername(client));
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
-        payload.addProperty("sync_origin", "client_evidence");
         payload.add("world", buildWorld(history.worldId(), history.displayName()));
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
@@ -943,106 +873,33 @@ public final class CloudSyncManager
 
     private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo)
     {
-        return buildCurrentWorldTotals(worldInfo, 0L);
-    }
-
-    private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo, long authoritativePlayerTotal)
-    {
         Configs.WorldStatsEntry worldStats = Configs.getOrCreateWorldStats(
                 worldInfo.id(),
                 worldInfo.displayName(),
                 worldInfo.kind(),
                 worldInfo.host());
-        long totalBlocks = Math.max(0L, authoritativePlayerTotal);
-        if (totalBlocks <= 0L)
-        {
-            totalBlocks = Math.max(0L, worldStats.totalBlocks);
-        }
 
         JsonObject totals = new JsonObject();
         totals.addProperty("world_key", worldStats.worldId);
         totals.addProperty("display_name", worldStats.displayName);
         totals.addProperty("kind", normaliseWorldKind(worldStats.kind));
         totals.addProperty("host", (String) null);
-        totals.addProperty("total_blocks", totalBlocks);
+        totals.addProperty("total_blocks", worldStats.totalBlocks);
         totals.addProperty("last_seen_at", toIso(Math.max(worldStats.lastSeenAt, System.currentTimeMillis())));
         return totals;
     }
 
-    private static SourceEvidence readSourceEvidence(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo)
-    {
-        SourceScanResult scan = SourceScanManager.scan(client);
-        if (scan != null && scan.hasMeaningfulEvidence() == false)
-        {
-            scan = null;
-        }
-
-        List<SourceLeaderboardSnapshot> leaderboards = SourceLeaderboardReader.readAll(client);
-        latestLeaderboardSnapshot = leaderboards.isEmpty() ? null : leaderboards.get(0);
-        long playerTotalDigs = resolvePlayerTotalDigs(client, scan, latestLeaderboardSnapshot);
-
-        return new SourceEvidence(scan, leaderboards, playerTotalDigs);
-    }
-
-    private static long resolvePlayerTotalDigs(MinecraftClient client,
-                                               SourceScanResult scan,
-                                               SourceLeaderboardSnapshot snapshot)
-    {
-        if (scan != null && scan.playerTotalDigs() > 0L)
-        {
-            return scan.playerTotalDigs();
-        }
-
-        if (client == null || client.player == null || snapshot == null || snapshot.isValid() == false)
-        {
-            return 0L;
-        }
-
-        String username = client.player.getGameProfile().getName();
-        return snapshot.entries().stream()
-                .filter(SourceLeaderboardEntry::isValid)
-                .filter(entry -> entry.username().equalsIgnoreCase(username))
-                .mapToLong(SourceLeaderboardEntry::digs)
-                .max()
-                .orElse(0L);
-    }
-
-    private static JsonArray buildSourceLeaderboards(List<SourceLeaderboardSnapshot> snapshots)
-    {
-        JsonArray leaderboards = new JsonArray();
-        if (snapshots == null || snapshots.isEmpty())
-        {
-            return leaderboards;
-        }
-
-        for (SourceLeaderboardSnapshot snapshot : snapshots)
-        {
-            JsonObject leaderboard = buildSourceLeaderboard(snapshot);
-            if (leaderboard != null)
-            {
-                leaderboards.add(leaderboard);
-            }
-        }
-
-        return leaderboards;
-    }
-
     private static JsonObject buildSourceLeaderboard()
     {
-        return buildSourceLeaderboard(latestLeaderboardSnapshot);
-    }
-
-    private static JsonObject buildSourceLeaderboard(SourceLeaderboardSnapshot snapshot)
-    {
-        if (snapshot == null || snapshot.isValid() == false)
+        if (latestLeaderboardSnapshot == null || latestLeaderboardSnapshot.isValid() == false)
         {
             return null;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
-        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, snapshot.entries());
+        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, latestLeaderboardSnapshot.entries());
 
-        List<SourceLeaderboardEntry> realEntries = snapshot.entries().stream()
+        List<SourceLeaderboardEntry> realEntries = latestLeaderboardSnapshot.entries().stream()
                 .filter(entry -> entry.isValid())
                 .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
                 .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
@@ -1054,12 +911,12 @@ public final class CloudSyncManager
         }
 
         JsonObject leaderboard = new JsonObject();
-        leaderboard.addProperty("server_name", snapshot.serverName());
-        leaderboard.addProperty("objective_title", snapshot.objectiveTitle());
-        leaderboard.addProperty("captured_at", toIso(snapshot.capturedAtMs()));
+        leaderboard.addProperty("server_name", latestLeaderboardSnapshot.serverName());
+        leaderboard.addProperty("objective_title", latestLeaderboardSnapshot.objectiveTitle());
+        leaderboard.addProperty("captured_at", toIso(latestLeaderboardSnapshot.capturedAtMs()));
         leaderboard.addProperty("source_type", "scoreboard");
 
-        long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
+        long snapshotTotalDigs = Math.max(0L, latestLeaderboardSnapshot.totalDigs());
         long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();
         long payloadTotalDigs = snapshotTotalDigs > 0L ? snapshotTotalDigs : filteredTotalDigs;
         if (payloadTotalDigs > 0L)
@@ -1074,7 +931,7 @@ public final class CloudSyncManager
             row.addProperty("username", entry.username());
             row.addProperty("digs", entry.digs());
             row.addProperty("rank", entry.rank());
-            row.addProperty("source_server", snapshot.serverName());
+            row.addProperty("source_server", latestLeaderboardSnapshot.serverName());
             entries.add(row);
         }
 
@@ -1092,11 +949,6 @@ public final class CloudSyncManager
     private static JsonObject buildSourceScan(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo)
     {
         SourceScanResult scan = SourceScanManager.scan(client);
-        return buildSourceScan(scan, worldInfo);
-    }
-
-    private static JsonObject buildSourceScan(SourceScanResult scan, WorldSessionContext.WorldInfo worldInfo)
-    {
         if (scan == null || scan.hasMeaningfulEvidence() == false)
         {
             return null;
@@ -1156,36 +1008,6 @@ public final class CloudSyncManager
         object.add("raw_scan_evidence", evidence);
 
         return object;
-    }
-
-    private static JsonObject buildPlayerTotalDigs(MinecraftClient client,
-                                                   WorldSessionContext.WorldInfo worldInfo,
-                                                   SourceEvidence sourceEvidence)
-    {
-        if (sourceEvidence == null || sourceEvidence.playerTotalDigs() <= 0L)
-        {
-            return null;
-        }
-
-        String serverName = sourceEvidence.scan() != null && sourceEvidence.scan().sourceName() != null && sourceEvidence.scan().sourceName().isBlank() == false
-                ? sourceEvidence.scan().sourceName()
-                : latestLeaderboardSnapshot != null && latestLeaderboardSnapshot.serverName() != null && latestLeaderboardSnapshot.serverName().isBlank() == false
-                ? latestLeaderboardSnapshot.serverName()
-                : ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo);
-
-        String objectiveTitle = sourceEvidence.scan() != null && sourceEvidence.scan().scoreboardTitle() != null && sourceEvidence.scan().scoreboardTitle().isBlank() == false
-                ? sourceEvidence.scan().scoreboardTitle()
-                : latestLeaderboardSnapshot != null && latestLeaderboardSnapshot.objectiveTitle() != null && latestLeaderboardSnapshot.objectiveTitle().isBlank() == false
-                ? latestLeaderboardSnapshot.objectiveTitle()
-                : "Scoreboard";
-
-        JsonObject digs = new JsonObject();
-        digs.addProperty("username", resolveUsername(client));
-        digs.addProperty("total_digs", sourceEvidence.playerTotalDigs());
-        digs.addProperty("server", serverName);
-        digs.addProperty("timestamp", toIso(System.currentTimeMillis()));
-        digs.addProperty("objective_title", objectiveTitle);
-        return digs;
     }
 
     private static JsonObject buildWorld(WorldSessionContext.WorldInfo worldInfo)
@@ -1588,16 +1410,6 @@ public final class CloudSyncManager
         if (payload.has("source_leaderboard"))
         {
             minimal.add("source_leaderboard", payload.get("source_leaderboard"));
-        }
-
-        if (payload.has("source_leaderboards"))
-        {
-            minimal.add("source_leaderboards", payload.get("source_leaderboards"));
-        }
-
-        if (payload.has("player_total_digs"))
-        {
-            minimal.add("player_total_digs", payload.get("player_total_digs"));
         }
 
         if (payload.has("session"))

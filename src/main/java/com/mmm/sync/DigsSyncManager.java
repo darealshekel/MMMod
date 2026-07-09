@@ -89,8 +89,7 @@ public final class DigsSyncManager
         }
 
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        boolean cadenceDue = CloudSyncManager.getNextSyncRemainingMs(now) == 0L
-                && (lastQueueAttemptMs <= 0L || now - lastQueueAttemptMs >= CloudSyncManager.getSyncIntervalMs());
+        boolean cadenceDue = lastQueueAttemptMs <= 0L || now - lastQueueAttemptMs >= CloudSyncManager.getSyncIntervalMs();
         if (cadenceDue == false)
         {
             return;
@@ -144,11 +143,6 @@ public final class DigsSyncManager
                 || latestModel.isValid() == false
                 || now - latestModel.capturedAtMs() > AUTHORITATIVE_MODEL_STALE_MS
                 || canSync() == false)
-        {
-            return;
-        }
-
-        if (shouldBypassCadence(reason) == false && CloudSyncManager.getNextSyncRemainingMs(now) > 0L)
         {
             return;
         }
@@ -293,7 +287,6 @@ public final class DigsSyncManager
         payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
-        payload.addProperty("sync_origin", "client_evidence");
 
         JsonObject world = new JsonObject();
         world.addProperty("key", worldInfo.id());
@@ -405,12 +398,18 @@ public final class DigsSyncManager
             return null;
         }
 
-        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, snapshot.entries());
-        List<SourceLeaderboardEntry> realEntries = snapshot.entries().stream()
+        List<SourceLeaderboardEntry> validEntries = snapshot.entries().stream()
+                .filter(SourceLeaderboardEntry::isValid)
+                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
+                .toList();
+        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, validEntries);
+        List<SourceLeaderboardEntry> filteredEntries = validEntries.stream()
                 .filter(SourceLeaderboardEntry::isValid)
                 .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
                 .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
                 .toList();
+        boolean fakeFilterCollapsedScoreboard = validEntries.size() >= 3 && filteredEntries.size() < 3;
+        List<SourceLeaderboardEntry> realEntries = fakeFilterCollapsedScoreboard ? validEntries : filteredEntries;
 
         if (realEntries.isEmpty())
         {
@@ -422,6 +421,7 @@ public final class DigsSyncManager
         leaderboard.addProperty("objective_title", snapshot.objectiveTitle());
         leaderboard.addProperty("captured_at", Instant.ofEpochMilli(snapshot.capturedAtMs()).toString());
         leaderboard.addProperty("source_type", "scoreboard");
+        leaderboard.addProperty("mode", realEntries.size() >= 3 ? "full" : "delta");
 
         long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
         long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();
@@ -442,7 +442,7 @@ public final class DigsSyncManager
             entries.add(row);
         }
 
-        if (fakeUsernames.isEmpty() == false)
+        if (fakeUsernames.isEmpty() == false && fakeFilterCollapsedScoreboard == false)
         {
             JsonArray filtered = new JsonArray();
             fakeUsernames.stream().sorted().forEach(filtered::add);
@@ -740,6 +740,7 @@ public final class DigsSyncManager
     public static void resetForDisconnect()
     {
         latestModel = null;
+        lastQueueAttemptMs = 0L;
         status = SyncStatus.CONNECTED;
         lastFailureSignalMs = 0L;
         lastQueuedFingerprint = null;
@@ -750,11 +751,6 @@ public final class DigsSyncManager
     public static void resetForWorldChange(String worldId)
     {
         resetForDisconnect();
-    }
-
-    private static boolean shouldBypassCadence(String reason)
-    {
-        return reason != null && reason.equalsIgnoreCase("mining records period reset");
     }
 
     public static boolean hasAuthoritativeTotalDigs()

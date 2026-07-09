@@ -1,8 +1,10 @@
 package com.mmm.config;
 
 import java.io.File;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Properties;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -45,7 +47,27 @@ public class Configs implements IConfigHandler
 
     public static boolean isDevToolsEnabled()
     {
-        return Boolean.getBoolean("mmm.devTools");
+        String override = System.getProperty("mmm.devTools");
+        if (override != null)
+        {
+            return Boolean.parseBoolean(override);
+        }
+
+        try (InputStream input = Configs.class.getResourceAsStream("/mmm-build.properties"))
+        {
+            if (input == null)
+            {
+                return false;
+            }
+
+            Properties properties = new Properties();
+            properties.load(input);
+            return Boolean.parseBoolean(properties.getProperty("devTools", "false"));
+        }
+        catch (Exception ignored)
+        {
+            return false;
+        }
     }
 
     public static class Generic
@@ -54,6 +76,7 @@ public class Configs implements IConfigHandler
         public static final String DEFAULT_HUD_TEXT_HEX_COLOR = "#FFF6F3EF";
         public static final String DEFAULT_HUD_NUMBER_HEX_COLOR = "#FFFFFFFF";
         public static final String DEFAULT_HUD_INACTIVE_HEX_COLOR = "#FF949494";
+        public static final String DEFAULT_MENU_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_BLOCK_ESP_HEX_COLOR = "#FF55FF55";
         public static final String DEFAULT_GRAPH_LINE_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_GRAPH_FILL_HEX_COLOR = "#FFE00000";
@@ -97,6 +120,7 @@ public class Configs implements IConfigHandler
         public static final ConfigColor HUD_TEXT_HEX_COLOR = new ConfigColor("hudTextHexColor", DEFAULT_HUD_TEXT_HEX_COLOR, "Label/text color used by the MMM HUD.");
         public static final ConfigColor HUD_NUMBER_HEX_COLOR = new ConfigColor("hudNumberHexColor", DEFAULT_HUD_NUMBER_HEX_COLOR, "Number color used by MMM HUD and UI numeric values.");
         public static final ConfigColor HUD_INACTIVE_HEX_COLOR = new ConfigColor("hudInactiveHexColor", DEFAULT_HUD_INACTIVE_HEX_COLOR, "Inactive/paused text color used by the MMM HUD.");
+        public static final ConfigColor MENU_HEX_COLOR = new ConfigColor("menuHexColor", DEFAULT_MENU_HEX_COLOR, "Accent color used by MMM menu screens.");
         public static final ConfigOptionList BPS_SMOOTHING = new ConfigOptionList("bpsSmoothing", BpsSmoothing.FAST, "Blocks/sec Smoothing");
         public static final ConfigBoolean SMALL_DIG_ITEMS = new ConfigBoolean("smallDigItems", false, "Render MMM breakdown block items smaller, like the Smoll Dig Items resource pack.");
         public static final ConfigBoolean NO_SWINGING_ANIMATION = new ConfigBoolean("noSwingingAnimation", false, "Disable the local first-person hand swing animation while mining.");
@@ -152,6 +176,7 @@ public class Configs implements IConfigHandler
                 HUD_TEXT_HEX_COLOR,
                 HUD_NUMBER_HEX_COLOR,
                 HUD_INACTIVE_HEX_COLOR,
+                MENU_HEX_COLOR,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
                 NO_SWINGING_ANIMATION,
@@ -208,6 +233,7 @@ public class Configs implements IConfigHandler
                 HUD_TEXT_HEX_COLOR,
                 HUD_NUMBER_HEX_COLOR,
                 HUD_INACTIVE_HEX_COLOR,
+                MENU_HEX_COLOR,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
                 NO_SWINGING_ANIMATION,
@@ -229,9 +255,9 @@ public class Configs implements IConfigHandler
 
     public static final long DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS = 24L * 60L * 60L * 1000L;
     public static final long DEFAULT_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
-    public static final long SUPPORTER_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
-    public static final long SUPPORTER_PLUS_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
-    public static final long MIN_WEBSITE_SYNC_INTERVAL_MS = 60L * 1000L;
+    public static final long SUPPORTER_WEBSITE_SYNC_INTERVAL_MS = 30L * 60L * 1000L;
+    public static final long SUPPORTER_PLUS_WEBSITE_SYNC_INTERVAL_MS = 60_000L;
+    public static final long MIN_WEBSITE_SYNC_INTERVAL_MS = 60_000L;
     public static final long MAX_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
     public static long dailyProgress = 0L;
     public static long dailyGoalLastResetMs = System.currentTimeMillis();
@@ -364,6 +390,7 @@ public class Configs implements IConfigHandler
         Generic.HUD_TEXT_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TEXT_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TEXT_HEX_COLOR));
         Generic.HUD_NUMBER_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_NUMBER_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_NUMBER_HEX_COLOR));
         Generic.HUD_INACTIVE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_INACTIVE_HEX_COLOR));
+        Generic.MENU_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.MENU_HEX_COLOR.getStringValue(), Generic.DEFAULT_MENU_HEX_COLOR));
         Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
         Generic.GRAPH_LINE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_LINE_HEX_COLOR));
         Generic.GRAPH_FILL_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_FILL_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_FILL_HEX_COLOR));
@@ -559,6 +586,11 @@ public class Configs implements IConfigHandler
     public static int getHudInactiveColor()
     {
         return parseOpaqueHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_INACTIVE_HEX_COLOR);
+    }
+
+    public static int getMenuColor()
+    {
+        return parseOpaqueHexColor(Generic.MENU_HEX_COLOR.getStringValue(), Generic.DEFAULT_MENU_HEX_COLOR);
     }
 
     public static int getGraphLineColor()  { return parseOpaqueHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_LINE_HEX_COLOR); }

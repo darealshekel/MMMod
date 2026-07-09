@@ -4,24 +4,24 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import com.mmm.Reference;
 import com.mmm.config.Configs;
 import com.mmm.hud.HudMoveScreen;
-import com.mmm.hud.SessionHistoryScreen;
 import com.mmm.hud.SummaryScreen;
 import com.mmm.sync.CloudSyncManager;
 import com.mmm.tracker.MiningStats;
 
-import fi.dy.masa.malilib.config.IConfigColor;
-import fi.dy.masa.malilib.config.IConfigDouble;
 import fi.dy.masa.malilib.config.IConfigBase;
+import fi.dy.masa.malilib.config.IConfigDouble;
 import fi.dy.masa.malilib.config.IConfigInteger;
 import fi.dy.masa.malilib.config.IConfigOptionListEntry;
 import fi.dy.masa.malilib.config.IConfigResettable;
 import fi.dy.masa.malilib.config.IStringRepresentable;
 import fi.dy.masa.malilib.config.options.ConfigBoolean;
+import fi.dy.masa.malilib.config.options.ConfigColor;
 import fi.dy.masa.malilib.config.options.ConfigOptionList;
 import fi.dy.masa.malilib.gui.GuiBase;
 import fi.dy.masa.malilib.gui.GuiColorEditorHSV;
@@ -49,6 +49,8 @@ public class MmmSettingsScreen extends Screen
     private static final int ERROR = 0xFFFF5965;
 
     private static final int TOP_HEIGHT = 42;
+    private static final int SIDEBAR_WIDTH = 150;
+    private static final int PAGE_PAD = 14;
     private static final int GAP = 12;
     private static final int CARD_PAD = 12;
     private static final int ROW_HEIGHT = 32;
@@ -87,7 +89,7 @@ public class MmmSettingsScreen extends Screen
                 {
                     TextFieldWidget field = new TextFieldWidget(this.textRenderer, 0, 0, CONTROL_WIDTH, FIELD_HEIGHT, Text.empty());
                     field.setDrawsBackground(false);
-                    field.setCentered(false);
+
                     field.setEditableColor(TEXT);
                     field.setUneditableColor(MUTED);
                     field.setMaxLength(row.kind() == ControlKind.COLOR ? 9 : 64);
@@ -113,11 +115,10 @@ public class MmmSettingsScreen extends Screen
         this.drawSidebar(context, mouseX, mouseY);
         this.drawTopBar(context, mouseX, mouseY);
 
-        int pagePad = MmmUi.pagePad(this.width);
-        int viewportX = MmmUi.contentLeft(this.width);
+        int viewportX = SIDEBAR_WIDTH + PAGE_PAD;
         int viewportY = TOP_HEIGHT;
-        int viewportW = this.width - viewportX - pagePad;
-        int viewportH = this.height - TOP_HEIGHT - pagePad;
+        int viewportW = this.width - viewportX - PAGE_PAD;
+        int viewportH = this.height - TOP_HEIGHT - PAGE_PAD;
 
         context.enableScissor(viewportX, viewportY, viewportX + viewportW, viewportY + viewportH);
         this.drawMainContent(context, viewportX, viewportY, viewportW, mouseX, mouseY);
@@ -159,7 +160,7 @@ public class MmmSettingsScreen extends Screen
             }
         }
 
-        int viewportH = this.height - TOP_HEIGHT - MmmUi.pagePad(this.width);
+        int viewportH = this.height - TOP_HEIGHT - PAGE_PAD;
         int maxScroll = Math.max(0, this.contentHeight - viewportH);
         this.scrollY = Math.max(0.0D, Math.min(maxScroll, this.scrollY - verticalAmount * 28.0D));
         return true;
@@ -198,20 +199,14 @@ public class MmmSettingsScreen extends Screen
     {
         context.fill(0, 0, this.width, TOP_HEIGHT, TOP_BAR);
         context.drawBorder(0, 0, this.width, TOP_HEIGHT, BORDER);
-        context.fill(14, 12, 18, 30, RED);
-        MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 26, 10, 40, RED, false);
-        if (this.width >= 360)
-        {
-            MmmUi.drawTextWithin(context, this.textRenderer, "Manual Mining Maniacs", 68, 10, Math.max(0, this.width - 220), TEXT, false);
-        }
+        context.fill(14, 12, 18, 30, MmmUi.accent());
+        MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 26, 10, 40, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Manual Mining Maniacs", 68, 10, Math.max(0, this.width / 2 - 80), TEXT, false);
 
         String status = this.syncStatusText();
         int statusColor = Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() ? GREEN : MUTED;
         int closeX = this.width - 32;
-        if (this.width >= 460)
-        {
-            MmmUi.drawTextRightWithin(context, this.textRenderer, status, closeX - 12, 10, Math.max(0, this.width / 2 - 70), statusColor, false);
-        }
+        MmmUi.drawTextRightWithin(context, this.textRenderer, status, closeX - 12, 10, Math.max(0, this.width / 2 - 70), statusColor, false);
         this.drawButtonShell(context, closeX, 8, 20, 20, "X", mouseX, mouseY, false);
         this.clickTargets.add(new ClickTarget(closeX, 8, 20, 20, this::close));
     }
@@ -224,19 +219,18 @@ public class MmmSettingsScreen extends Screen
     private void drawMainContent(DrawContext context, int x, int viewportY, int width, int mouseX, int mouseY)
     {
         int y = viewportY + 18 - (int) Math.round(this.scrollY);
-        MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD SETTINGS", x, y, width, RED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD SETTINGS", x, y, width, MmmUi.accent(), false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Configure how MMM Mod works in Minecraft", x, y + 16, width, MUTED, false);
 
         int gridY = y + 44;
-        boolean singleColumn = this.useSingleColumn(width);
-        int columnW = singleColumn ? width : Math.max(210, (width - GAP) / 2);
+        int columnW = Math.max(210, (width - GAP) / 2);
         int rowY = gridY;
         int sectionIndex = 0;
 
         while (sectionIndex < this.sections.size())
         {
             SettingsSection left = this.sections.get(sectionIndex++);
-            SettingsSection right = !singleColumn && sectionIndex < this.sections.size() ? this.sections.get(sectionIndex++) : null;
+            SettingsSection right = sectionIndex < this.sections.size() ? this.sections.get(sectionIndex++) : null;
             int leftHeight = this.sectionHeight(left);
             int rightHeight = right == null ? 0 : this.sectionHeight(right);
             int rowHeight = Math.max(leftHeight, rightHeight);
@@ -272,21 +266,20 @@ public class MmmSettingsScreen extends Screen
     private void drawSettingRow(DrawContext context, SettingRow row, int x, int y, int width, int mouseX, int mouseY)
     {
         context.fill(x, y, x + width, y + 1, BORDER);
-        int controlWidth = this.controlWidth(width);
-        int labelW = Math.max(56, width - controlWidth - RESET_WIDTH - 24);
+        int labelW = Math.max(80, width - CONTROL_WIDTH - RESET_WIDTH - 24);
         MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x, y + 7, labelW, TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x, y + 18, labelW, MUTED, false);
 
         int resetX = x + width - RESET_WIDTH;
-        int controlX = resetX - controlWidth - 8;
+        int controlX = resetX - CONTROL_WIDTH - 8;
         int controlY = y + 7;
 
         switch (row.kind())
         {
-            case BOOLEAN -> this.drawBooleanControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
-            case TEXT, NUMBER, COLOR -> this.drawTextControl(context, row, controlX, controlY, controlWidth, mouseX, mouseY);
-            case OPTION -> this.drawOptionControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
-            case ACTION -> this.drawActionButton(context, controlX, controlY, controlWidth, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
+            case BOOLEAN -> this.drawBooleanControl(context, row.config(), controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
+            case TEXT, NUMBER, COLOR -> this.drawTextControl(context, row, controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
+            case OPTION -> this.drawOptionControl(context, row.config(), controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
+            case ACTION -> this.drawActionButton(context, controlX, controlY, CONTROL_WIDTH, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
                 if ("Move HUD".equals(row.label()))
                 {
                     MinecraftClient.getInstance().setScreen(new HudMoveScreen(this));
@@ -314,8 +307,8 @@ public class MmmSettingsScreen extends Screen
     {
         boolean enabled = config instanceof ConfigBoolean booleanConfig && booleanConfig.getBooleanValue();
         boolean hovered = this.contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
-        int fill = enabled ? RED : INSET;
-        int border = hovered ? RED : BORDER_SOFT;
+        int fill = enabled ? MmmUi.accent() : INSET;
+        int border = hovered ? MmmUi.accent() : BORDER_SOFT;
         context.fill(x, y, x + width, y + FIELD_HEIGHT, fill);
         context.drawBorder(x, y, width, FIELD_HEIGHT, border);
         String label = enabled ? "ON" : "OFF";
@@ -366,7 +359,7 @@ public class MmmSettingsScreen extends Screen
         {
             fieldX = x + FIELD_HEIGHT + 4;
             fieldW = width - FIELD_HEIGHT - 4;
-            int preview = parseHexColor(this.getConfigString(row.config()), RED);
+            int preview = this.getColorPreview(row.config(), MmmUi.accent());
             context.fill(x, y, x + FIELD_HEIGHT, y + FIELD_HEIGHT, preview);
             context.drawBorder(x, y, FIELD_HEIGHT, FIELD_HEIGHT, BORDER_SOFT);
             this.clickTargets.add(new ClickTarget(x, y, FIELD_HEIGHT, FIELD_HEIGHT, () -> {
@@ -388,7 +381,7 @@ public class MmmSettingsScreen extends Screen
 
     private void openColorEditor(IConfigBase config)
     {
-        if (!(config instanceof IConfigColor colorConfig))
+        if (!(config instanceof ConfigColor colorConfig))
         {
             return;
         }
@@ -435,8 +428,8 @@ public class MmmSettingsScreen extends Screen
     private void drawButtonShell(DrawContext context, int x, int y, int width, int height, String label, int mouseX, int mouseY, boolean subtle)
     {
         boolean hovered = this.contains(mouseX, mouseY, x, y, width, height);
-        int fill = subtle ? INSET : hovered ? 0x22E00000 : INSET;
-        int border = hovered ? RED : BORDER_SOFT;
+        int fill = subtle ? INSET : hovered ? MmmUi.accentHover() : INSET;
+        int border = hovered ? MmmUi.accent() : BORDER_SOFT;
         context.fill(x, y, x + width, y + height, fill);
         context.drawBorder(x, y, width, height, border);
         String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
@@ -455,7 +448,7 @@ public class MmmSettingsScreen extends Screen
         context.fill(x, y, x + 3, y + height, 0x55090909);
         int thumbH = Math.max(28, (int) (height * (height / (double) this.contentHeight)));
         int thumbY = y + (int) ((height - thumbH) * (this.scrollY / maxScroll));
-        context.fill(x, thumbY, x + 3, thumbY + thumbH, RED_DARK);
+        context.fill(x, thumbY, x + 3, thumbY + thumbH, MmmUi.accent());
     }
 
     private boolean isSidebarActive(SidebarItem item)
@@ -512,13 +505,11 @@ public class MmmSettingsScreen extends Screen
     {
         int rowY = 44;
         int index = 0;
-        int availableWidth = Math.max(1, this.width - MmmUi.contentLeft(this.width) - MmmUi.pagePad(this.width));
-        boolean singleColumn = this.useSingleColumn(availableWidth);
 
         while (index < this.sections.size())
         {
             SettingsSection left = this.sections.get(index++);
-            SettingsSection right = !singleColumn && index < this.sections.size() ? this.sections.get(index++) : null;
+            SettingsSection right = index < this.sections.size() ? this.sections.get(index++) : null;
             int rowHeight = this.sectionHeight(left);
             if (right != null)
             {
@@ -533,18 +524,8 @@ public class MmmSettingsScreen extends Screen
         }
         this.contentHeight = rowY + 26;
 
-        int maxScroll = Math.max(0, this.contentHeight - (this.height - TOP_HEIGHT - MmmUi.pagePad(this.width)));
+        int maxScroll = Math.max(0, this.contentHeight - (this.height - TOP_HEIGHT - PAGE_PAD));
         this.scrollY = Math.max(0.0D, Math.min(maxScroll, this.scrollY));
-    }
-
-    private boolean useSingleColumn(int contentWidth)
-    {
-        return contentWidth < 460;
-    }
-
-    private int controlWidth(int rowWidth)
-    {
-        return Math.min(CONTROL_WIDTH, Math.max(72, rowWidth / 3));
     }
 
     private int sectionHeight(SettingsSection section)
@@ -712,17 +693,44 @@ public class MmmSettingsScreen extends Screen
         {
             return "SYNC OFF";
         }
-        if (Configs.websiteLastSuccessfulSyncMs <= 0L)
+
+        String statusLabel = CloudSyncManager.getStatusLabel().toUpperCase(Locale.ROOT);
+        String nextSync = " | NEXT " + CloudSyncManager.getNextSyncLabel().toUpperCase(Locale.ROOT);
+        long lastSuccessfulSyncMs = CloudSyncManager.getLastSuccessfulSyncMs();
+        String lastOk = lastSuccessfulSyncMs > 0L
+                ? " | OK " + formatSyncAge((System.currentTimeMillis() - lastSuccessfulSyncMs) / 1000L)
+                : " | OK NEVER";
+
+        if ("QUEUED".equals(statusLabel) || "SYNCING".equals(statusLabel) || "RETRYING".equals(statusLabel))
+        {
+            return "SYNC " + statusLabel + nextSync + lastOk;
+        }
+
+        if (lastSuccessfulSyncMs <= 0L)
         {
             return "SYNC READY | NEXT NOW";
         }
-        long ageSeconds = Math.max(0L, (System.currentTimeMillis() - Configs.websiteLastSuccessfulSyncMs) / 1000L);
-        String nextSync = " | NEXT " + CloudSyncManager.getNextSyncLabel();
-        if (ageSeconds < 60L)
+
+        long ageSeconds = Math.max(0L, (System.currentTimeMillis() - lastSuccessfulSyncMs) / 1000L);
+        return "SYNC " + formatSyncAge(ageSeconds) + nextSync;
+    }
+
+    private String formatSyncAge(long ageSeconds)
+    {
+        long safeAge = Math.max(0L, ageSeconds);
+        if (safeAge < 60L)
         {
-            return "SYNC " + ageSeconds + "S AGO" + nextSync;
+            return safeAge + "S AGO";
         }
-        return "SYNC " + (ageSeconds / 60L) + "M AGO" + nextSync;
+        if (safeAge < 3_600L)
+        {
+            return (safeAge / 60L) + "M AGO";
+        }
+        if (safeAge < 86_400L)
+        {
+            return (safeAge / 3_600L) + "H AGO";
+        }
+        return (safeAge / 86_400L) + "D AGO";
     }
 
     private int parseHexColor(String value, int fallback)
@@ -736,19 +744,48 @@ public class MmmSettingsScreen extends Screen
         {
             hex = hex.substring(1);
         }
+        if (hex.startsWith("0x") || hex.startsWith("0X"))
+        {
+            hex = hex.substring(2);
+        }
         if (hex.length() != 6 && hex.length() != 8)
         {
-            return fallback;
+            try
+            {
+                return this.ensureOpaqueColor((int) Long.parseLong(hex));
+            }
+            catch (NumberFormatException ignored)
+            {
+                return fallback;
+            }
         }
         try
         {
             long parsed = Long.parseLong(hex, 16);
-            return hex.length() == 8 ? (int) parsed : 0xFF000000 | (int) parsed;
+            return hex.length() == 8 ? this.ensureOpaqueColor((int) parsed) : 0xFF000000 | (int) parsed;
         }
         catch (NumberFormatException exception)
         {
             return fallback;
         }
+    }
+
+    private int getColorPreview(IConfigBase config, int fallback)
+    {
+        if (config instanceof ConfigColor color)
+        {
+            return this.ensureOpaqueColor(color.getIntegerValue());
+        }
+        if (config instanceof IConfigInteger integer)
+        {
+            return this.ensureOpaqueColor(integer.getIntegerValue());
+        }
+        return this.parseHexColor(this.getConfigString(config), fallback);
+    }
+
+    private int ensureOpaqueColor(int color)
+    {
+        return (color & 0xFF000000) == 0 ? 0xFF000000 | color : color;
     }
 
     private boolean contains(double mouseX, double mouseY, int x, int y, int width, int height)
@@ -797,6 +834,7 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Block Icons", "Show item icons in block stats.", Configs.Generic.BLOCK_STATS_ICONS, ControlKind.BOOLEAN)
         ));
         this.sections.add(SettingsSection.colors(
+                new SettingRow("MMM Menu", "Accent color used by MMM menu screens.", Configs.Generic.MENU_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("HUD Title", "Title color used by the HUD.", Configs.Generic.HUD_TITLE_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("HUD Text", "Label and text color used by the HUD.", Configs.Generic.HUD_TEXT_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("HUD Numbers", "Number color used by HUD values.", Configs.Generic.HUD_NUMBER_HEX_COLOR, ControlKind.COLOR),

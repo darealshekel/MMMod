@@ -2,20 +2,13 @@ package com.mmm.mixin;
 
 import com.mmm.tweak.BlockEspRenderer;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.ShapeContext;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.border.WorldBorder;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -28,62 +21,39 @@ public abstract class WorldRendererMixin
 {
     @Shadow @Final private MinecraftClient client;
 
-    @Shadow
-    protected abstract void drawBlockOutline(MatrixStack matrices, VertexConsumer vertexConsumer, Entity entity,
-                                             double cameraX, double cameraY, double cameraZ,
-                                             BlockPos pos, BlockState state, int color);
-
-    @Inject(method = "renderTargetBlockOutline", at = @At("HEAD"), cancellable = true)
-    private void mmm$renderCustomBlockEspOutline(Camera camera,
-                                                      VertexConsumerProvider.Immediate vertexConsumers,
-                                                      MatrixStack matrices,
-                                                      boolean translucent,
-                                                      CallbackInfo ci)
+    @Inject(method = "drawBlockOutline", at = @At("HEAD"), cancellable = true)
+    private void mmm$drawCustomBlockEspOutline(MatrixStack matrices,
+                                               VertexConsumer vertexConsumer,
+                                               Entity entity,
+                                               double cameraX,
+                                               double cameraY,
+                                               double cameraZ,
+                                               BlockPos pos,
+                                               BlockState state,
+                                               CallbackInfo ci)
     {
-        if (!BlockEspRenderer.shouldReplaceVanillaOutline(this.client))
+        if (!BlockEspRenderer.shouldReplaceVanillaOutline(this.client) || this.client.world == null || state.isAir())
         {
             return;
         }
 
-        HitResult hitResult = this.client.crosshairTarget;
-        if (!(hitResult instanceof BlockHitResult blockHitResult) || hitResult.getType() == HitResult.Type.MISS)
-        {
-            return;
-        }
-
-        BlockPos pos = blockHitResult.getBlockPos();
-        BlockState state = this.client.world.getBlockState(pos);
-        if (state.isAir())
-        {
-            ci.cancel();
-            return;
-        }
-
-        WorldBorder border = this.client.world.getWorldBorder();
-        if (!border.contains(pos))
-        {
-            ci.cancel();
-            return;
-        }
-
-        if (RenderLayers.getBlockLayer(state).isTranslucent() != translucent)
-        {
-            ci.cancel();
-            return;
-        }
-
-        Vec3d cameraPos = camera.getPos();
-        VertexConsumer vertexConsumer = vertexConsumers.getBuffer(RenderLayer.getLines());
-        this.drawBlockOutline(
+        int color = BlockEspRenderer.getCurrentOutlineColor(this.client);
+        float alpha = ((color >>> 24) & 0xFF) / 255.0F;
+        float red = ((color >>> 16) & 0xFF) / 255.0F;
+        float green = ((color >>> 8) & 0xFF) / 255.0F;
+        float blue = (color & 0xFF) / 255.0F;
+        WorldRenderer.drawShapeOutline(
                 matrices,
                 vertexConsumer,
-                camera.getFocusedEntity(),
-                cameraPos.x,
-                cameraPos.y,
-                cameraPos.z,
-                pos,
-                state,
-                BlockEspRenderer.getCurrentOutlineColor(this.client)
+                state.getOutlineShape(this.client.world, pos, ShapeContext.of(entity)),
+                pos.getX() - cameraX,
+                pos.getY() - cameraY,
+                pos.getZ() - cameraZ,
+                red,
+                green,
+                blue,
+                alpha,
+                true
         );
         ci.cancel();
     }

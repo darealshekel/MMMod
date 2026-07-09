@@ -65,6 +65,10 @@ public final class Callbacks
             config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), Configs.Generic.DEFAULT_HUD_INACTIVE_HEX_COLOR));
             Configs.saveToFile();
         });
+        Configs.Generic.MENU_HEX_COLOR.setValueChangeCallback(config -> {
+            config.setValueFromString(Configs.normalizeHexColor(config.getStringValue(), Configs.Generic.DEFAULT_MENU_HEX_COLOR));
+            Configs.saveToFile();
+        });
         Configs.Generic.BPS_SMOOTHING.setValueChangeCallback(config -> {
             MiningStats.onBpsSmoothingChanged();
             Configs.saveToFile();

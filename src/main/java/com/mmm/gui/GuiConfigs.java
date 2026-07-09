@@ -104,7 +104,14 @@ public class GuiConfigs extends GuiConfigsBase
     protected void drawScreenBackground(DrawContext context, int mouseX, int mouseY)
     {
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, tab == ConfigGuiTab.HOTKEYS ? "HOTKEYS" : "TOGGLES");
+        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        context.fill(0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height, 0xE9080808);
+        context.drawBorder(0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height - MmmUi.TOP_BAR_HEIGHT, MmmUi.BORDER);
+        MmmUi.drawSectionHeading(context, this.textRenderer, "MMM SCREENS", 12, MmmUi.TOP_BAR_HEIGHT + 16, MmmUi.SIDEBAR_WIDTH - 24);
+        int bottomY = this.height - 42;
+        context.drawBorder(12, bottomY, MmmUi.SIDEBAR_WIDTH - 24, 28, MmmUi.BORDER_SOFT);
+        MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD", 20, bottomY + 7, MmmUi.SIDEBAR_WIDTH - 40, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, Reference.MOD_VERSION, 20, bottomY + 18, MmmUi.SIDEBAR_WIDTH - 40, MmmUi.MUTED, false);
     }
 
     @Override
@@ -171,17 +178,13 @@ public class GuiConfigs extends GuiConfigsBase
 
     private void createSettingsButton(int y)
     {
-        int sidebarWidth = MmmUi.sidebarWidth(this.width);
-        int sidebarPad = Math.max(8, Math.min(12, sidebarWidth / 12));
-        ButtonGeneric button = new MmmSidebarButton(sidebarPad, y, Math.max(72, sidebarWidth - sidebarPad * 2), 24, "Settings", false);
+        ButtonGeneric button = new MmmSidebarButton(12, y, MmmUi.SIDEBAR_WIDTH - 24, 24, "Settings", false);
         this.addButton(button, new SettingsButtonListener(this));
     }
 
     private void createSidebarButton(int y, ConfigGuiTab configTab)
     {
-        int sidebarWidth = MmmUi.sidebarWidth(this.width);
-        int sidebarPad = Math.max(8, Math.min(12, sidebarWidth / 12));
-        ButtonGeneric button = new MmmSidebarButton(sidebarPad, y, Math.max(72, sidebarWidth - sidebarPad * 2), 24, configTab.getDisplayName(), tab == configTab);
+        ButtonGeneric button = new MmmSidebarButton(12, y, MmmUi.SIDEBAR_WIDTH - 24, 24, configTab.getDisplayName(), tab == configTab);
         button.setEnabled(tab != configTab || configTab != ConfigGuiTab.TWEAKS && configTab != ConfigGuiTab.HOTKEYS);
         this.addButton(button, new TabButtonListener(configTab, this));
     }
@@ -234,19 +237,19 @@ public class GuiConfigs extends GuiConfigsBase
         }
 
         @Override
-        public void render(DrawContext context, int mouseX, int mouseY, boolean selected)
+        public void render(int mouseX, int mouseY, boolean selected, DrawContext context)
         {
             RowBounds bounds = this.getContentBounds();
             MmmUi.card(context, bounds.x(), this.y + 1, bounds.width(), Math.max(1, this.height - 3), MmmUi.CARD, MmmUi.BORDER_SOFT);
             this.drawStyledButtonShells(context, mouseX, mouseY);
-            super.render(context, mouseX, mouseY, selected);
+            super.render(mouseX, mouseY, selected, context);
         }
 
         @Override
         protected GuiTextFieldGeneric createTextField(int x, int y, int width, int height)
         {
             GuiTextFieldGeneric field = super.createTextField(x + 5, y + 1, Math.max(32, width - 10), Math.max(12, height - 2));
-            field.setCentered(false);
+
             field.setDrawsBackground(false);
             return field;
         }
@@ -278,7 +281,7 @@ public class GuiConfigs extends GuiConfigsBase
                 if (widget instanceof ButtonBase button && button.getWidth() > 0 && button.getHeight() > 0)
                 {
                     boolean hovered = button.isMouseOver(mouseX, mouseY);
-                    MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), hovered ? MmmUi.CARD : MmmUi.INSET, hovered ? MmmUi.ACCENT_BRIGHT : MmmUi.BORDER);
+                    MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), hovered ? MmmUi.CARD : MmmUi.INSET, hovered ? MmmUi.accent() : MmmUi.BORDER);
                 }
             }
 
@@ -288,7 +291,7 @@ public class GuiConfigs extends GuiConfigsBase
                 int x = field.getX();
                 int y = field.getY();
                 int width = field.getWidth();
-                MmmUi.card(context, x - 5, y - 2, width + 10, 18, MmmUi.INSET, field.isFocusedWrapper() ? MmmUi.ACCENT_BRIGHT : MmmUi.BORDER);
+                MmmUi.card(context, x - 5, y - 2, width + 10, 18, MmmUi.INSET, field.isFocusedWrapper() ? MmmUi.accent() : MmmUi.BORDER);
             }
         }
 
@@ -333,7 +336,7 @@ public class GuiConfigs extends GuiConfigsBase
         }
 
         @Override
-        public void render(DrawContext context, int mouseX, int mouseY, boolean selected)
+        public void render(int mouseX, int mouseY, boolean selected, DrawContext context)
         {
             if (!this.visible)
             {
@@ -341,8 +344,8 @@ public class GuiConfigs extends GuiConfigsBase
             }
 
             boolean hovered = this.enabled && this.isMouseOver(mouseX, mouseY);
-            int fill = this.selected ? 0x33E00000 : hovered ? 0x22E00000 : MmmUi.INSET;
-            int border = this.selected || hovered ? MmmUi.ACCENT : MmmUi.BORDER_SOFT;
+            int fill = this.selected ? MmmUi.accentSoft() : hovered ? MmmUi.accentHover() : MmmUi.INSET;
+            int border = this.selected || hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT;
             MmmUi.card(context, this.x, this.y, this.width, this.height, fill, border);
             MmmUi.drawTextWithin(context, this.textRenderer, this.displayString, this.x + 8, this.y + 8, this.width - 16, this.selected ? MmmUi.TEXT : MmmUi.MUTED, false);
         }

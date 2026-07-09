@@ -3,10 +3,7 @@ package com.mmm.storage;
 import com.mmm.sync.ScoreboardSourceResolver;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.WorldSavePath;
 
@@ -44,8 +41,9 @@ public final class WorldSessionContext
             }
 
             String host = address == null ? "" : address.trim();
-            // Keep local history stable without leaking raw server IPs/domains into paths or exports.
-            String resolvedId = host.isBlank() ? sanitise(displayName) : "server_" + shortHash(host);
+            // World ID stays IP-based for stable local stat tracking.
+            // Display name is always the player's custom server-list name — never the raw IP.
+            String resolvedId = sanitise(host);
             return new WorldInfo(resolvedId, displayName.trim(), "multiplayer", host);
         }
 
@@ -91,7 +89,7 @@ public final class WorldSessionContext
             return;
         }
 
-        String fingerprint = info.id() + "|" + info.displayName() + "|" + info.kind();
+        String fingerprint = info.id() + "|" + info.displayName() + "|" + info.kind() + "|" + info.host();
         if (fingerprint.equals(lastDebugFingerprint))
         {
             return;
@@ -99,29 +97,12 @@ public final class WorldSessionContext
 
         lastDebugFingerprint = fingerprint;
         MMM.LOGGER.info(
-                "[MMM_DEBUG] world-context-resolved worldId={} displayName={} kind={} host=redacted",
+                "[MMM_DEBUG] world-context-resolved worldId={} displayName={} kind={} host={}",
                 info.id(),
                 info.displayName(),
-                info.kind()
+                info.kind(),
+                info.host()
         );
-    }
-
-    private static String shortHash(String value)
-    {
-        try
-        {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.trim().toLowerCase().getBytes(StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder();
-            for (int i = 0; i < Math.min(6, digest.length); i++)
-            {
-                builder.append(String.format("%02x", digest[i]));
-            }
-            return builder.toString();
-        }
-        catch (NoSuchAlgorithmException exception)
-        {
-            return Integer.toHexString(value.trim().toLowerCase().hashCode());
-        }
     }
 
     private static String resolveSingleplayerWorldKey(MinecraftClient client, String levelName)

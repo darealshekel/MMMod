@@ -3,16 +3,17 @@ package com.mmm.tracker;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
 import java.util.ArrayDeque;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.Locale;
-import java.util.Set;
+import java.util.Map;
 import net.minecraft.util.math.BlockPos;
 
 public final class MiningSanityGuard
 {
     private static final long RATE_WINDOW_MS = 60_000L;
     private static final long RATE_LIMIT_LOG_INTERVAL_MS = 30_000L;
-    private static final Set<BlockCoordinate> COUNTED_BLOCK_COORDINATES = new HashSet<>();
+    private static final int MAX_ACCEPTED_BREAKS_PER_COORDINATE = 3;
+    private static final Map<BlockCoordinate, Integer> COUNTED_BLOCK_COORDINATES = new HashMap<>();
     private static final ArrayDeque<Long> ACCEPTED_BLOCK_TIMES = new ArrayDeque<>();
 
     private static String countedCoordinateWorldId = "";
@@ -45,11 +46,13 @@ public final class MiningSanityGuard
         if (pos != null)
         {
             BlockCoordinate coordinate = new BlockCoordinate(cleanScope(dimensionId), pos.asLong());
-            if (COUNTED_BLOCK_COORDINATES.add(coordinate) == false)
+            int previousBreaks = COUNTED_BLOCK_COORDINATES.getOrDefault(coordinate, 0);
+            if (previousBreaks >= MAX_ACCEPTED_BREAKS_PER_COORDINATE)
             {
                 worldDuplicateCoordinateRejects++;
                 return false;
             }
+            COUNTED_BLOCK_COORDINATES.put(coordinate, previousBreaks + 1);
         }
 
         pruneOldAcceptedBlocks(now);
