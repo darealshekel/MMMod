@@ -47,6 +47,11 @@ public final class SharedStoragePaths
         return root().resolve("cross-version-state.json");
     }
 
+    public static Path goalSoundsDir()
+    {
+        return root().resolve("goal-sounds");
+    }
+
     public static Set<Path> legacyConfigDirs()
     {
         Set<Path> dirs = new LinkedHashSet<>();

@@ -9,18 +9,19 @@ import java.util.Map;
 
 import com.mmm.Reference;
 import com.mmm.config.Configs;
+import com.mmm.config.FeatureToggle;
 import com.mmm.hud.HudMoveScreen;
 import com.mmm.hud.SummaryScreen;
 import com.mmm.sync.CloudSyncManager;
 import com.mmm.tracker.MiningStats;
 
 import fi.dy.masa.malilib.config.IConfigBase;
+import fi.dy.masa.malilib.config.IConfigBoolean;
 import fi.dy.masa.malilib.config.IConfigDouble;
 import fi.dy.masa.malilib.config.IConfigInteger;
 import fi.dy.masa.malilib.config.IConfigOptionListEntry;
 import fi.dy.masa.malilib.config.IConfigResettable;
 import fi.dy.masa.malilib.config.IStringRepresentable;
-import fi.dy.masa.malilib.config.options.ConfigBoolean;
 import fi.dy.masa.malilib.config.options.ConfigColor;
 import fi.dy.masa.malilib.config.options.ConfigOptionList;
 import fi.dy.masa.malilib.gui.GuiBase;
@@ -49,23 +50,24 @@ public class MmmSettingsScreen extends Screen
     private static final int ERROR = 0xFFFF5965;
 
     private static final int TOP_HEIGHT = 42;
-    private static final int SIDEBAR_WIDTH = 150;
-    private static final int PAGE_PAD = 14;
     private static final int GAP = 12;
     private static final int CARD_PAD = 12;
     private static final int ROW_HEIGHT = 32;
     private static final int FIELD_HEIGHT = 18;
     private static final int CONTROL_WIDTH = 112;
     private static final int RESET_WIDTH = 18;
+    private static final int TWO_COLUMN_MIN_WIDTH = 680;
 
     private final Screen parent;
     private final List<SettingsSection> sections = new ArrayList<>();
     private final List<ClickTarget> clickTargets = new ArrayList<>();
     private final List<ScrollTarget> scrollTargets = new ArrayList<>();
+    private final List<SliderTarget> sliderTargets = new ArrayList<>();
     private final Map<IConfigBase, TextFieldWidget> textFields = new IdentityHashMap<>();
     private final Map<SettingsSection, Integer> sectionY = new HashMap<>();
     private double scrollY = 0.0D;
     private int contentHeight = 0;
+    private SliderTarget draggingSlider;
 
     public MmmSettingsScreen(Screen parent)
     {
@@ -108,6 +110,7 @@ public class MmmSettingsScreen extends Screen
         MmmUi.ensureCursorVisible();
         this.clickTargets.clear();
         this.scrollTargets.clear();
+        this.sliderTargets.clear();
         this.sectionY.clear();
         this.updateLayout();
 
@@ -115,10 +118,11 @@ public class MmmSettingsScreen extends Screen
         this.drawSidebar(context, mouseX, mouseY);
         this.drawTopBar(context, mouseX, mouseY);
 
-        int viewportX = SIDEBAR_WIDTH + PAGE_PAD;
+        int pagePad = MmmUi.pagePad(this.width);
+        int viewportX = MmmUi.contentLeft(this.width);
         int viewportY = TOP_HEIGHT;
-        int viewportW = this.width - viewportX - PAGE_PAD;
-        int viewportH = this.height - TOP_HEIGHT - PAGE_PAD;
+        int viewportW = MmmUi.contentWidth(this.width);
+        int viewportH = Math.max(1, this.height - TOP_HEIGHT - pagePad);
 
         context.enableScissor(viewportX, viewportY, viewportX + viewportW, viewportY + viewportH);
         this.drawMainContent(context, viewportX, viewportY, viewportW, mouseX, mouseY);
@@ -136,6 +140,19 @@ public class MmmSettingsScreen extends Screen
             return true;
         }
 
+        if (button == 0)
+        {
+            for (SliderTarget target : List.copyOf(this.sliderTargets))
+            {
+                if (target.contains(mouseX, mouseY))
+                {
+                    this.draggingSlider = target;
+                    this.updateSlider(target, mouseX);
+                    return true;
+                }
+            }
+        }
+
         for (ClickTarget target : List.copyOf(this.clickTargets))
         {
             if (target.contains(mouseX, mouseY))
@@ -146,6 +163,29 @@ public class MmmSettingsScreen extends Screen
         }
 
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY)
+    {
+        if (button == 0 && this.draggingSlider != null)
+        {
+            this.updateSlider(this.draggingSlider, mouseX);
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button)
+    {
+        if (button == 0 && this.draggingSlider != null)
+        {
+            this.updateSlider(this.draggingSlider, mouseX);
+            this.draggingSlider = null;
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
@@ -160,7 +200,7 @@ public class MmmSettingsScreen extends Screen
             }
         }
 
-        int viewportH = this.height - TOP_HEIGHT - PAGE_PAD;
+        int viewportH = Math.max(1, this.height - TOP_HEIGHT - MmmUi.pagePad(this.width));
         int maxScroll = Math.max(0, this.contentHeight - viewportH);
         this.scrollY = Math.max(0.0D, Math.min(maxScroll, this.scrollY - verticalAmount * 28.0D));
         return true;
@@ -201,12 +241,16 @@ public class MmmSettingsScreen extends Screen
         context.drawBorder(0, 0, this.width, TOP_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, MmmUi.accent());
         MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 26, 10, 40, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Manual Mining Maniacs", 68, 10, Math.max(0, this.width / 2 - 80), TEXT, false);
 
         String status = this.syncStatusText();
         int statusColor = Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() ? GREEN : MUTED;
         int closeX = this.width - 32;
-        MmmUi.drawTextRightWithin(context, this.textRenderer, status, closeX - 12, 10, Math.max(0, this.width / 2 - 70), statusColor, false);
+        int statusLeft = this.width >= 620 ? this.width / 2 : 68;
+        if (this.width >= 620)
+        {
+            MmmUi.drawTextWithin(context, this.textRenderer, "Manual Mining Maniacs", 68, 10, Math.max(0, statusLeft - 80), TEXT, false);
+        }
+        MmmUi.drawTextRightWithin(context, this.textRenderer, status, closeX - 12, 10, Math.max(0, closeX - 12 - statusLeft), statusColor, false);
         this.drawButtonShell(context, closeX, 8, 20, 20, "X", mouseX, mouseY, false);
         this.clickTargets.add(new ClickTarget(closeX, 8, 20, 20, this::close));
     }
@@ -223,14 +267,15 @@ public class MmmSettingsScreen extends Screen
         MmmUi.drawTextWithin(context, this.textRenderer, "Configure how MMM Mod works in Minecraft", x, y + 16, width, MUTED, false);
 
         int gridY = y + 44;
-        int columnW = Math.max(210, (width - GAP) / 2);
+        boolean twoColumns = width >= TWO_COLUMN_MIN_WIDTH;
+        int columnW = twoColumns ? (width - GAP) / 2 : width;
         int rowY = gridY;
         int sectionIndex = 0;
 
         while (sectionIndex < this.sections.size())
         {
             SettingsSection left = this.sections.get(sectionIndex++);
-            SettingsSection right = sectionIndex < this.sections.size() ? this.sections.get(sectionIndex++) : null;
+            SettingsSection right = twoColumns && sectionIndex < this.sections.size() ? this.sections.get(sectionIndex++) : null;
             int leftHeight = this.sectionHeight(left);
             int rightHeight = right == null ? 0 : this.sectionHeight(right);
             int rowHeight = Math.max(leftHeight, rightHeight);
@@ -266,23 +311,28 @@ public class MmmSettingsScreen extends Screen
     private void drawSettingRow(DrawContext context, SettingRow row, int x, int y, int width, int mouseX, int mouseY)
     {
         context.fill(x, y, x + width, y + 1, BORDER);
-        int labelW = Math.max(80, width - CONTROL_WIDTH - RESET_WIDTH - 24);
+        int resetX = x + width - RESET_WIDTH;
+        int controlWidth = Math.min(CONTROL_WIDTH, Math.max(48, width / 2));
+        int controlX = resetX - controlWidth - 8;
+        int controlY = y + 7;
+        int labelW = Math.max(0, controlX - x - 8);
         MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x, y + 7, labelW, TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x, y + 18, labelW, MUTED, false);
 
-        int resetX = x + width - RESET_WIDTH;
-        int controlX = resetX - CONTROL_WIDTH - 8;
-        int controlY = y + 7;
-
         switch (row.kind())
         {
-            case BOOLEAN -> this.drawBooleanControl(context, row.config(), controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
-            case TEXT, NUMBER, COLOR -> this.drawTextControl(context, row, controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
-            case OPTION -> this.drawOptionControl(context, row.config(), controlX, controlY, CONTROL_WIDTH, mouseX, mouseY);
-            case ACTION -> this.drawActionButton(context, controlX, controlY, CONTROL_WIDTH, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
+            case BOOLEAN -> this.drawBooleanControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
+            case TEXT, NUMBER, COLOR -> this.drawTextControl(context, row, controlX, controlY, controlWidth, mouseX, mouseY);
+            case OPTION -> this.drawOptionControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
+            case SLIDER -> this.drawSliderControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
+            case ACTION -> this.drawActionButton(context, controlX, controlY, controlWidth, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
                 if ("Move HUD".equals(row.label()))
                 {
                     MinecraftClient.getInstance().setScreen(new HudMoveScreen(this));
+                }
+                else if ("Custom Sounds".equals(row.label()))
+                {
+                    MinecraftClient.getInstance().setScreen(new GoalSoundSettingsScreen(this));
                 }
                 else if ("Generate Dev Run".equals(row.label()))
                 {
@@ -305,7 +355,7 @@ public class MmmSettingsScreen extends Screen
 
     private void drawBooleanControl(DrawContext context, IConfigBase config, int x, int y, int width, int mouseX, int mouseY)
     {
-        boolean enabled = config instanceof ConfigBoolean booleanConfig && booleanConfig.getBooleanValue();
+        boolean enabled = config instanceof IConfigBoolean booleanConfig && booleanConfig.getBooleanValue();
         boolean hovered = this.contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
         int fill = enabled ? MmmUi.accent() : INSET;
         int border = hovered ? MmmUi.accent() : BORDER_SOFT;
@@ -315,7 +365,7 @@ public class MmmSettingsScreen extends Screen
         int labelW = this.textRenderer.getWidth(label);
         context.drawText(this.textRenderer, Text.literal(label), x + (width - labelW) / 2, y + 6, enabled ? TEXT : MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, FIELD_HEIGHT, () -> {
-            if (config instanceof ConfigBoolean booleanConfig)
+            if (config instanceof IConfigBoolean booleanConfig)
             {
                 booleanConfig.setBooleanValue(!booleanConfig.getBooleanValue());
                 Configs.saveToFile();
@@ -377,6 +427,67 @@ public class MmmSettingsScreen extends Screen
         field.setEditableColor(TEXT);
         field.setUneditableColor(MUTED);
         MmmUi.fieldShell(context, fieldX, y, fieldW, FIELD_HEIGHT, field.isFocused());
+    }
+
+    private void drawSliderControl(DrawContext context, IConfigBase config, int x, int y, int width, int mouseX, int mouseY)
+    {
+        double min;
+        double max;
+        double current;
+        String value;
+        if (config instanceof IConfigDouble doubleConfig)
+        {
+            min = doubleConfig.getMinDoubleValue();
+            max = doubleConfig.getMaxDoubleValue();
+            current = doubleConfig.getDoubleValue();
+            value = Math.round(current * 100.0D) + "%";
+        }
+        else if (config instanceof IConfigInteger integerConfig)
+        {
+            min = integerConfig.getMinIntegerValue();
+            max = integerConfig.getMaxIntegerValue();
+            current = integerConfig.getIntegerValue();
+            value = Integer.toString(integerConfig.getIntegerValue());
+        }
+        else
+        {
+            return;
+        }
+
+        double ratio = max <= min ? 0.0D : (current - min) / (max - min);
+        ratio = Math.max(0.0D, Math.min(1.0D, ratio));
+        int trackY = y + FIELD_HEIGHT / 2 - 1;
+        int fillWidth = (int) Math.round(width * ratio);
+        boolean hovered = this.contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
+
+        context.fill(x, trackY, x + width, trackY + 3, INSET);
+        context.fill(x, trackY, x + fillWidth, trackY + 3, MmmUi.accent());
+        context.drawBorder(x, trackY, width, 3, hovered ? MmmUi.accent() : BORDER_SOFT);
+        int thumbX = Math.max(x, Math.min(x + width - 4, x + fillWidth - 2));
+        context.fill(thumbX, y + 3, thumbX + 4, y + FIELD_HEIGHT - 3, MmmUi.accent());
+
+        int valueWidth = this.textRenderer.getWidth(value);
+        context.drawText(this.textRenderer, Text.literal(value), x + Math.max(0, (width - valueWidth) / 2), y + 5, TEXT, true);
+        this.sliderTargets.add(new SliderTarget(x, y, width, FIELD_HEIGHT, config));
+    }
+
+    private void updateSlider(SliderTarget target, double mouseX)
+    {
+        double ratio = target.width() <= 0 ? 0.0D : (mouseX - target.x()) / target.width();
+        ratio = Math.max(0.0D, Math.min(1.0D, ratio));
+        IConfigBase config = target.config();
+        if (config instanceof IConfigDouble doubleConfig)
+        {
+            double value = doubleConfig.getMinDoubleValue() + ratio * (doubleConfig.getMaxDoubleValue() - doubleConfig.getMinDoubleValue());
+            doubleConfig.setDoubleValue(Math.round(value * 100.0D) / 100.0D);
+        }
+        else if (config instanceof IConfigInteger integerConfig)
+        {
+            int value = (int) Math.round(integerConfig.getMinIntegerValue()
+                    + ratio * (integerConfig.getMaxIntegerValue() - integerConfig.getMinIntegerValue()));
+            integerConfig.setIntegerValue(value);
+        }
+        Configs.saveToFile();
     }
 
     private void openColorEditor(IConfigBase config)
@@ -505,11 +616,12 @@ public class MmmSettingsScreen extends Screen
     {
         int rowY = 44;
         int index = 0;
+        boolean twoColumns = MmmUi.contentWidth(this.width) >= TWO_COLUMN_MIN_WIDTH;
 
         while (index < this.sections.size())
         {
             SettingsSection left = this.sections.get(index++);
-            SettingsSection right = index < this.sections.size() ? this.sections.get(index++) : null;
+            SettingsSection right = twoColumns && index < this.sections.size() ? this.sections.get(index++) : null;
             int rowHeight = this.sectionHeight(left);
             if (right != null)
             {
@@ -524,7 +636,7 @@ public class MmmSettingsScreen extends Screen
         }
         this.contentHeight = rowY + 26;
 
-        int maxScroll = Math.max(0, this.contentHeight - (this.height - TOP_HEIGHT - PAGE_PAD));
+        int maxScroll = Math.max(0, this.contentHeight - (this.height - TOP_HEIGHT - MmmUi.pagePad(this.width)));
         this.scrollY = Math.max(0.0D, Math.min(maxScroll, this.scrollY));
     }
 
@@ -797,74 +909,102 @@ public class MmmSettingsScreen extends Screen
     {
         this.sections.clear();
         this.sections.add(SettingsSection.sync(
-                new SettingRow("Website Sync", "Send real mining data to MMM.", Configs.Generic.WEBSITE_SYNC_ENABLED, ControlKind.BOOLEAN),
-                new SettingRow("Total Digs Sync", "Sync total digs with your website profile.", Configs.Generic.TOTAL_DIGS_SYNC_ENABLED, ControlKind.BOOLEAN),
-                new SettingRow("Sync Debug", "Verbose sync logging for troubleshooting.", Configs.Generic.WEBSITE_SYNC_DEBUG, ControlKind.BOOLEAN),
-                new SettingRow("Abbreviated Numbers", "Use compact values like 12k and 10M.", Configs.Generic.ABBREVIATED_NUMBERS, ControlKind.BOOLEAN)
+                new SettingRow("Website Sync", "Send mining updates.", Configs.Generic.WEBSITE_SYNC_ENABLED, ControlKind.BOOLEAN),
+                new SettingRow("Total Digs Sync", "Include server totals.", Configs.Generic.TOTAL_DIGS_SYNC_ENABLED, ControlKind.BOOLEAN),
+                new SettingRow("Sync Debug", "Save detailed sync logs.", Configs.Generic.WEBSITE_SYNC_DEBUG, ControlKind.BOOLEAN),
+                new SettingRow("Abbreviated Numbers", "Show 12k instead of 12,000.", Configs.Generic.ABBREVIATED_NUMBERS, ControlKind.BOOLEAN)
         ));
         this.sections.add(SettingsSection.notifications(
-                new SettingRow("Daily Goal", "Target blocks mined before daily reset.", Configs.Generic.DAILY_GOAL, ControlKind.NUMBER),
-                new SettingRow("Notification Thresholds", "Popup milestones, comma separated.", Configs.Generic.NOTIFICATION_THRESHOLDS, ControlKind.TEXT),
-                new SettingRow("Sound Alert Threshold", "Percent reached before sound alert.", Configs.Generic.SOUND_ALERT_THRESHOLD, ControlKind.NUMBER)
+                new SettingRow("Daily Goal", "Blocks to mine today.", Configs.Generic.DAILY_GOAL, ControlKind.NUMBER),
+                new SettingRow("Decimal Percent", "Show decimals in goal progress.", Configs.Generic.GOAL_PERCENT_DECIMALS, ControlKind.BOOLEAN),
+                new SettingRow("Decimal Places", "Choose 1, 2, or 3 decimal places.", Configs.Generic.GOAL_PERCENT_DECIMAL_PLACES, ControlKind.SLIDER),
+                new SettingRow("Goal Tracking", "Track today's goal.", FeatureToggle.TWEAK_DAILY_GOAL, ControlKind.BOOLEAN),
+                new SettingRow("Milestone Messages", "Post progress alerts in chat.", FeatureToggle.TWEAK_NOTIFICATIONS, ControlKind.BOOLEAN),
+                new SettingRow("Sound Alerts", "Play milestone sounds.", FeatureToggle.TWEAK_SOUND_ALERTS, ControlKind.BOOLEAN),
+                new SettingRow("Custom Sounds", "Choose sounds for 25%, 50%, 75%, and 100%.", null, ControlKind.ACTION),
+                new SettingRow("Pickaxe Animation", "Show a pickaxe at each milestone.", Configs.Generic.GOAL_PICKAXE_ANIMATION, ControlKind.BOOLEAN)
         ));
         this.sections.add(SettingsSection.hud(
-                new SettingRow("Move HUD", "Open the live HUD placement screen.", null, ControlKind.ACTION),
-                new SettingRow("HUD X", "Horizontal HUD position.", Configs.Generic.HUD_X, ControlKind.NUMBER),
-                new SettingRow("HUD Y", "Vertical HUD position.", Configs.Generic.HUD_Y, ControlKind.NUMBER),
-                new SettingRow("HUD Alignment", "Screen corner anchor for the HUD.", Configs.Generic.HUD_ALIGNMENT, ControlKind.OPTION),
-                new SettingRow("HUD Scale", "HUD size multiplier.", Configs.Generic.HUD_SCALE, ControlKind.NUMBER),
-                new SettingRow("Text Background", "Draw small backgrounds behind HUD text.", Configs.Generic.HUD_TEXT_BACKGROUND, ControlKind.BOOLEAN)
+                new SettingRow("Move HUD", "Move and resize sections.", null, ControlKind.ACTION),
+                new SettingRow("HUD X", "Move left or right.", Configs.Generic.HUD_X, ControlKind.NUMBER),
+                new SettingRow("HUD Y", "Move up or down.", Configs.Generic.HUD_Y, ControlKind.NUMBER),
+                new SettingRow("HUD Alignment", "Choose its screen corner.", Configs.Generic.HUD_ALIGNMENT, ControlKind.OPTION),
+                new SettingRow("HUD Scale", "Change the HUD size.", Configs.Generic.HUD_SCALE, ControlKind.NUMBER)
+        ));
+        this.sections.add(SettingsSection.hudContent(
+                new SettingRow("Main HUD", "Show the stats HUD.", FeatureToggle.TWEAK_HUD, ControlKind.BOOLEAN),
+                new SettingRow("MMM Header", "Show MMM and sync status.", Configs.Generic.HUD_TITLE_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Project", "Show your active project.", FeatureToggle.TWEAK_HUD_PROJECT, ControlKind.BOOLEAN),
+                new SettingRow("Mining Totals", "Enable mining total rows.", FeatureToggle.TWEAK_HUD_TOTAL_MINED, ControlKind.BOOLEAN),
+                new SettingRow("Global Total", "Show your website total.", Configs.Generic.HUD_GLOBAL_TOTAL_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("World Total", "Show this world's total.", Configs.Generic.HUD_WORLD_TOTAL_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Session Total", "Show this session's total.", Configs.Generic.HUD_SESSION_TOTAL_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Today / Week", "Show today and this week.", Configs.Generic.HUD_DAILY_WEEK_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Personal Records", "Show day and week bests.", Configs.Generic.HUD_RECORDS_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Fastest 100k", "Show your fastest 100k time.", Configs.Generic.HUD_FASTEST_100K_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Mining Speed", "Show Blocks/hr and Blocks/sec.", FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR, ControlKind.BOOLEAN),
+                new SettingRow("Blocks/min", "Also show Blocks/min.", Configs.Generic.BLOCKS_PER_MINUTE_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Hour / Best Hour", "Show current and best hour.", Configs.Generic.HOURLY_STATS_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Timer Status", "Show timer status.", Configs.Generic.HUD_TIMER_STATUS_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Session Time", "Show session duration.", Configs.Generic.HUD_SESSION_TIME_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Daily Reset", "Show time until UTC reset.", Configs.Generic.HUD_DAILY_RESET_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Goal ETA", "Show time left to goal.", FeatureToggle.TWEAK_HUD_ETA, ControlKind.BOOLEAN),
+                new SettingRow("Override XP Bar", "Use goal progress in XP bar.", FeatureToggle.TWEAK_HUD_GOAL_PROGRESS, ControlKind.BOOLEAN),
+                new SettingRow("Always Override XP Bar", "Always replace vanilla XP.", Configs.Generic.ALWAYS_OVERRIDE_XP_BAR, ControlKind.BOOLEAN),
+                new SettingRow("Show Goal %", "Show goal % as XP level.", Configs.Generic.SHOW_GOAL_PERCENT, ControlKind.BOOLEAN),
+                new SettingRow("Speed Graph", "Show the live speed graph.", FeatureToggle.TWEAK_HUD_SPEED_GRAPH, ControlKind.BOOLEAN),
+                new SettingRow("Main Background", "Show one HUD background.", FeatureToggle.TWEAK_HUD_BOUNDING_BOX, ControlKind.BOOLEAN),
+                new SettingRow("Text Background", "Show backgrounds per line.", Configs.Generic.HUD_TEXT_BACKGROUND, ControlKind.BOOLEAN)
         ));
         this.sections.add(SettingsSection.timer(
-                new SettingRow("Timer HUD", "Show the timer module.", Configs.Generic.TIMER_HUD_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Hourly Stats", "Show current hour stats module.", Configs.Generic.HOURLY_STATS_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Blocks/min", "Show Blocks/min in the main HUD speed line.", Configs.Generic.BLOCKS_PER_MINUTE_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Timer X", "Horizontal timer module position.", Configs.Generic.TIMER_HUD_X, ControlKind.NUMBER),
-                new SettingRow("Timer Y", "Vertical timer module position.", Configs.Generic.TIMER_HUD_Y, ControlKind.NUMBER),
-                new SettingRow("Timer Scale", "Timer module size multiplier.", Configs.Generic.TIMER_HUD_SCALE, ControlKind.NUMBER),
-                new SettingRow("Notifications", "Show timer-hour notification cards.", Configs.Generic.TIMER_NOTIFICATIONS, ControlKind.BOOLEAN),
-                new SettingRow("Credits Screen", "Show run-complete credits screen.", Configs.Generic.TIMER_CREDITS, ControlKind.BOOLEAN)
+                new SettingRow("Timer HUD", "Show the challenge timer.", Configs.Generic.TIMER_HUD_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Timer X", "Move left or right.", Configs.Generic.TIMER_HUD_X, ControlKind.NUMBER),
+                new SettingRow("Timer Y", "Move up or down.", Configs.Generic.TIMER_HUD_Y, ControlKind.NUMBER),
+                new SettingRow("Timer Scale", "Change the timer size.", Configs.Generic.TIMER_HUD_SCALE, ControlKind.NUMBER),
+                new SettingRow("Notifications", "Show timer milestones.", Configs.Generic.TIMER_NOTIFICATIONS, ControlKind.BOOLEAN),
+                new SettingRow("Credits Screen", "Show results when finished.", Configs.Generic.TIMER_CREDITS, ControlKind.BOOLEAN)
         ));
         this.sections.add(SettingsSection.blockStats(
-                new SettingRow("Block Stats", "Show top block stats module.", Configs.Generic.BLOCK_STATS_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Block Stats X", "Horizontal block stats position.", Configs.Generic.BLOCK_STATS_X, ControlKind.NUMBER),
-                new SettingRow("Block Stats Y", "Vertical block stats position.", Configs.Generic.BLOCK_STATS_Y, ControlKind.NUMBER),
-                new SettingRow("Block Stats Scale", "Block stats size multiplier.", Configs.Generic.BLOCK_STATS_SCALE, ControlKind.NUMBER),
-                new SettingRow("Background", "Draw the block stats card background.", Configs.Generic.BLOCK_STATS_BACKGROUND, ControlKind.BOOLEAN),
-                new SettingRow("Block Icons", "Show item icons in block stats.", Configs.Generic.BLOCK_STATS_ICONS, ControlKind.BOOLEAN)
+                new SettingRow("Block Stats", "Show blocks from this run.", Configs.Generic.BLOCK_STATS_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Block Stats X", "Move left or right.", Configs.Generic.BLOCK_STATS_X, ControlKind.NUMBER),
+                new SettingRow("Block Stats Y", "Move up or down.", Configs.Generic.BLOCK_STATS_Y, ControlKind.NUMBER),
+                new SettingRow("Block Stats Scale", "Change block-stats size.", Configs.Generic.BLOCK_STATS_SCALE, ControlKind.NUMBER),
+                new SettingRow("Background", "Show the stats panel.", Configs.Generic.BLOCK_STATS_BACKGROUND, ControlKind.BOOLEAN),
+                new SettingRow("Block Icons", "Show each block icon.", Configs.Generic.BLOCK_STATS_ICONS, ControlKind.BOOLEAN)
         ));
         this.sections.add(SettingsSection.colors(
-                new SettingRow("MMM Menu", "Accent color used by MMM menu screens.", Configs.Generic.MENU_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("HUD Title", "Title color used by the HUD.", Configs.Generic.HUD_TITLE_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("HUD Text", "Label and text color used by the HUD.", Configs.Generic.HUD_TEXT_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("HUD Numbers", "Number color used by HUD values.", Configs.Generic.HUD_NUMBER_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("Inactive Text", "Paused and inactive HUD text color.", Configs.Generic.HUD_INACTIVE_HEX_COLOR, ControlKind.COLOR)
+                new SettingRow("MMM Menu", "Set the menu accent.", Configs.Generic.MENU_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("HUD Title", "Set the title color.", Configs.Generic.HUD_TITLE_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("HUD Text", "Set the label color.", Configs.Generic.HUD_TEXT_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("HUD Numbers", "Set the number color.", Configs.Generic.HUD_NUMBER_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Inactive Text", "Set the paused color.", Configs.Generic.HUD_INACTIVE_HEX_COLOR, ControlKind.COLOR)
         ));
         this.sections.add(SettingsSection.blockEsp(
-                new SettingRow("Color Mode", "Block ESP color mode.", Configs.Generic.BLOCK_ESP_COLOR_MODE, ControlKind.OPTION),
-                new SettingRow("Custom Color", "Used when color mode is Single Color.", Configs.Generic.BLOCK_ESP_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("Render Mode", "Block ESP shape rendering.", Configs.Generic.BLOCK_ESP_RENDER_MODE, ControlKind.OPTION),
-                new SettingRow("Opacity", "Block ESP opacity percentage.", Configs.Generic.BLOCK_ESP_OPACITY, ControlKind.NUMBER),
-                new SettingRow("Rainbow Speed", "Rainbow animation speed multiplier.", Configs.Generic.BLOCK_ESP_RAINBOW_SPEED, ControlKind.NUMBER)
+                new SettingRow("Color Mode", "Use one color or rainbow.", Configs.Generic.BLOCK_ESP_COLOR_MODE, ControlKind.OPTION),
+                new SettingRow("Custom Color", "Set the highlight color.", Configs.Generic.BLOCK_ESP_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Render Mode", "Choose the highlight shape.", Configs.Generic.BLOCK_ESP_RENDER_MODE, ControlKind.OPTION),
+                new SettingRow("Opacity", "Change highlight strength.", Configs.Generic.BLOCK_ESP_OPACITY, ControlKind.NUMBER),
+                new SettingRow("Rainbow Speed", "Change rainbow speed.", Configs.Generic.BLOCK_ESP_RAINBOW_SPEED, ControlKind.NUMBER)
         ));
         this.sections.add(SettingsSection.speedGraph(
-                new SettingRow("Background Opacity", "Graph background transparency.", Configs.Generic.GRAPH_BG_OPACITY, ControlKind.NUMBER),
-                new SettingRow("Line Color", "Speed graph line color.", Configs.Generic.GRAPH_LINE_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("Fill Color", "Speed graph area fill color.", Configs.Generic.GRAPH_FILL_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("Fill Opacity", "Speed graph fill opacity percentage.", Configs.Generic.GRAPH_FILL_OPACITY, ControlKind.NUMBER),
-                new SettingRow("Grid Color", "Speed graph grid line color.", Configs.Generic.GRAPH_GRID_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("Grid Opacity", "Speed graph grid line opacity percentage.", Configs.Generic.GRAPH_GRID_OPACITY, ControlKind.NUMBER),
-                new SettingRow("Scale Step", "Y-axis grid interval in blocks/hr.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
+                new SettingRow("Background Opacity", "Change background strength.", Configs.Generic.GRAPH_BG_OPACITY, ControlKind.NUMBER),
+                new SettingRow("Line Color", "Set the graph line color.", Configs.Generic.GRAPH_LINE_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Fill Color", "Set the graph fill color.", Configs.Generic.GRAPH_FILL_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Fill Opacity", "Change fill strength.", Configs.Generic.GRAPH_FILL_OPACITY, ControlKind.NUMBER),
+                new SettingRow("Grid Color", "Set the grid color.", Configs.Generic.GRAPH_GRID_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Grid Opacity", "Change grid strength.", Configs.Generic.GRAPH_GRID_OPACITY, ControlKind.NUMBER),
+                new SettingRow("Scale Step", "Set Blocks/hr grid gaps.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
         ));
         this.sections.add(SettingsSection.performance(
-                new SettingRow("Blocks/sec Smoothing", "Rolling window used for Blocks/sec display.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION),
-                new SettingRow("Small Dig Items", "Shrink dropped and held MMM breakdown blocks.", Configs.Generic.SMALL_DIG_ITEMS, ControlKind.BOOLEAN),
-                new SettingRow("No Swinging Animation", "Hide the local first-person mining swing.", Configs.Generic.NO_SWINGING_ANIMATION, ControlKind.BOOLEAN)
+                new SettingRow("Blocks/sec Smoothing", "Change speed response.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION),
+                new SettingRow("Small Dig Items", "Shrink tracked block items.", Configs.Generic.SMALL_DIG_ITEMS, ControlKind.BOOLEAN),
+                new SettingRow("Item Size", "Choose the smaller size.", Configs.Generic.SMALL_DIG_ITEM_SCALE, ControlKind.SLIDER),
+                new SettingRow("No Swinging Animation", "Keep your tool still.", Configs.Generic.NO_SWINGING_ANIMATION, ControlKind.BOOLEAN)
         ));
         if (Configs.isDevToolsEnabled())
         {
             this.sections.add(SettingsSection.developer(
-                    new SettingRow("Generate Dev Run", "Create a random 3-12h preview run without saving it.", null, ControlKind.ACTION)
+                    new SettingRow("Generate Dev Run", "Create a test run.", null, ControlKind.ACTION)
             ));
         }
     }
@@ -901,6 +1041,7 @@ public class MmmSettingsScreen extends Screen
         TEXT,
         OPTION,
         COLOR,
+        SLIDER,
         ACTION;
 
         private boolean usesTextField()
@@ -939,6 +1080,14 @@ public class MmmSettingsScreen extends Screen
         }
     }
 
+    private record SliderTarget(int x, int y, int width, int height, IConfigBase config)
+    {
+        private boolean contains(double mouseX, double mouseY)
+        {
+            return mouseX >= this.x && mouseX < this.x + this.width && mouseY >= this.y && mouseY < this.y + this.height;
+        }
+    }
+
     private static final class SettingsSection
     {
         private final SidebarItem sidebarItem;
@@ -957,47 +1106,52 @@ public class MmmSettingsScreen extends Screen
 
         private static SettingsSection sync(SettingRow... rows)
         {
-            return new SettingsSection(SidebarItem.SYNC, "SYNC", "Website sync and numeric display.", List.of(rows));
+            return new SettingsSection(SidebarItem.SYNC, "SYNC", "Choose what MMM sends to the website.", List.of(rows));
         }
 
         private static SettingsSection notifications(SettingRow... rows)
         {
-            return new SettingsSection(SidebarItem.NOTIFICATIONS, "GOALS & NOTIFICATIONS", "Daily goal and alert thresholds.", List.of(rows));
+            return new SettingsSection(SidebarItem.NOTIFICATIONS, "GOALS & NOTIFICATIONS", "Set your goal and milestone alerts.", List.of(rows));
         }
 
         private static SettingsSection hud(SettingRow... rows)
         {
-            return new SettingsSection(SidebarItem.HUD, "HUD LAYOUT", "Position, anchor, scale, and text panels.", List.of(rows));
+            return new SettingsSection(SidebarItem.HUD, "HUD LAYOUT", "Move and resize the main HUD.", List.of(rows));
+        }
+
+        private static SettingsSection hudContent(SettingRow... rows)
+        {
+            return new SettingsSection(SidebarItem.HUD, "HUD CONTENT", "Choose exactly what appears on screen.", List.of(rows));
         }
 
         private static SettingsSection timer(SettingRow... rows)
         {
-            return new SettingsSection(SidebarItem.HUD, "BLOCK TIMER", "Timer module, hourly HUD stats, and run-complete screen.", List.of(rows));
+            return new SettingsSection(SidebarItem.HUD, "BLOCK TIMER", "Set up the optional challenge timer.", List.of(rows));
         }
 
         private static SettingsSection blockStats(SettingRow... rows)
         {
-            return new SettingsSection(SidebarItem.HUD, "BLOCK STATS", "Side block breakdown module and icon display.", List.of(rows));
+            return new SettingsSection(SidebarItem.HUD, "BLOCK STATS", "Set up the live block list.", List.of(rows));
         }
 
         private static SettingsSection colors(SettingRow... rows)
         {
-            return new SettingsSection(SidebarItem.COLORS, "HUD COLORS", "Colors used by HUD text and values.", List.of(rows));
+            return new SettingsSection(SidebarItem.COLORS, "HUD COLORS", "Choose colors for menus and HUD text.", List.of(rows));
         }
 
         private static SettingsSection performance(SettingRow... rows)
         {
-            return new SettingsSection(SidebarItem.PERFORMANCE, "PERFORMANCE", "Rolling speed metric behavior.", List.of(rows));
+            return new SettingsSection(SidebarItem.PERFORMANCE, "PERFORMANCE", "Tune speed readings and mining visuals.", List.of(rows));
         }
 
         private static SettingsSection speedGraph(SettingRow... rows)
         {
-            return new SettingsSection(SidebarItem.SPEED_GRAPH, "SPEED GRAPH", "Speed graph colors and grid lines.", List.of(rows));
+            return new SettingsSection(SidebarItem.SPEED_GRAPH, "SPEED GRAPH", "Change how the live graph looks.", List.of(rows));
         }
 
         private static SettingsSection blockEsp(SettingRow... rows)
         {
-            return new SettingsSection(SidebarItem.BLOCK_ESP, "BLOCK ESP", "Visual block helper rendering.", List.of(rows));
+            return new SettingsSection(SidebarItem.BLOCK_ESP, "BLOCK ESP", "Change how block highlights look.", List.of(rows));
         }
 
         private static SettingsSection about(SettingRow... rows)

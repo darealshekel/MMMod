@@ -5,9 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.mmm.config.Configs;
-import com.mmm.config.FeatureToggle;
 import com.mmm.hud.HudModuleId;
-import com.mmm.tracker.MiningStats;
 import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
 
@@ -30,7 +28,7 @@ public final class TimerHudRenderer
     private static final int CARD_BG = 0xE9050505;
     private static final int CARD_BORDER = 0xFF1F1F1F;
     private static final int WIDTH_TIMER = 150;
-    private static final int HEIGHT_TIMER = 30;
+    private static final int HEIGHT_TIMER = 32;
     private static final int TIMER_BAR_WIDTH = 140;
     private static final int TIMER_BAR_HEIGHT = 4;
     private static final int WIDTH_HOURLY = 172;
@@ -57,7 +55,8 @@ public final class TimerHudRenderer
             return;
         }
 
-        if ((MmmTimerState.isTimerDisplayActive() || shouldShowDailyGoalInTimerSlot()) && isPlayerListOpen(client) == false)
+        boolean timerActive = MmmTimerState.isTimerDisplayActive();
+        if (timerActive && isPlayerListOpen(client) == false)
         {
             drawModule(context, client, HudModuleId.TIMER, false);
         }
@@ -114,7 +113,7 @@ public final class TimerHudRenderer
         return switch (module)
         {
             case MAIN -> Configs.Generic.HUD_SCALE.getDoubleValue() > 0D;
-            case TIMER -> MmmTimerState.isTimerDisplayActive() || shouldShowDailyGoalInTimerSlot();
+            case TIMER -> MmmTimerState.isTimerDisplayActive();
             case HOURLY -> Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue();
             case BLOCK_STATS -> Configs.Generic.BLOCK_STATS_VISIBLE.getBooleanValue();
             case NOTIFICATION -> Configs.Generic.TIMER_NOTIFICATIONS.getBooleanValue();
@@ -186,7 +185,6 @@ public final class TimerHudRenderer
     {
         if (MmmTimerState.isTimerDisplayActive() == false)
         {
-            drawDailyGoalTimerSlot(context, client);
             return;
         }
 
@@ -217,31 +215,6 @@ public final class TimerHudRenderer
             int expiredWidth = client.textRenderer.getWidth(expiredText);
             drawTextShadow(context, client.textRenderer, expiredText, (WIDTH_TIMER - expiredWidth) / 2, barY + TIMER_BAR_HEIGHT + 3 + client.textRenderer.fontHeight + 2, expiredColor);
         }
-    }
-
-    private static void drawDailyGoalTimerSlot(DrawContext context, MinecraftClient client)
-    {
-        MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
-        if (progress.enabled() == false)
-        {
-            return;
-        }
-
-        double ratio = progress.target() <= 0L ? 0D : progress.current() / (double) progress.target();
-        float clamped = Math.max(0F, Math.min(1F, (float) ratio));
-        int color = UiFormat.getGoalColor(progress);
-        int barX = (WIDTH_TIMER - TIMER_BAR_WIDTH) / 2;
-        int barY = 0;
-        context.fill(barX, barY, barX + TIMER_BAR_WIDTH, barY + TIMER_BAR_HEIGHT, 0xFF333333);
-        int filledWidth = (int) (TIMER_BAR_WIDTH * clamped);
-        if (filledWidth > 0)
-        {
-            context.fill(barX, barY, barX + filledWidth, barY + TIMER_BAR_HEIGHT, color);
-        }
-
-        String text = "Daily Goal " + UiFormat.formatProgress(progress.current(), progress.target()) + " (" + progress.getPercent() + "%)";
-        int textWidth = client.textRenderer.getWidth(text);
-        drawTextShadow(context, client.textRenderer, text, (WIDTH_TIMER - textWidth) / 2, barY + TIMER_BAR_HEIGHT + 3, color);
     }
 
     private static void drawHourly(DrawContext context, MinecraftClient client, boolean preview)
@@ -477,16 +450,6 @@ public final class TimerHudRenderer
     private static boolean isPlayerListOpen(MinecraftClient client)
     {
         return client != null && client.options != null && client.options.playerListKey.isPressed();
-    }
-
-    private static boolean shouldShowDailyGoalInTimerSlot()
-    {
-        return FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue()
-                && FeatureToggle.TWEAK_HUD.getBooleanValue()
-                && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()
-                && FeatureToggle.TWEAK_HUD_GOAL_PROGRESS.getBooleanValue()
-                && MiningStats.getDailyGoalProgress().enabled()
-                && MmmTimerState.isTimerDisplayActive() == false;
     }
 
     private static String blockName(String id)

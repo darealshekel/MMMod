@@ -1,0 +1,12 @@
+{
+  "goal_success": {
+    "sounds": [
+      "mmm:goal_success"
+    ]
+  },
+  "goal_complete": {
+    "sounds": [
+      "mmm:goal_complete"
+    ]
+  }
+}

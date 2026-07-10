@@ -55,16 +55,19 @@ public class GoalConfigScreen extends Screen
         MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
         MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, MmmUi.TEXT, true);
-        MmmUi.pill(context, this.textRenderer, layout.contentX, layout.headerY + 18, 116, 16, "Daily Target");
+        if (!layout.compact)
+        {
+            MmmUi.pill(context, this.textRenderer, layout.contentX, layout.headerY + 18, 116, 16, "Daily Target");
 
-        int summaryY = layout.headerY + 46;
-        MmmUi.card(context, layout.contentX, summaryY, layout.contentWidth, 54, MmmUi.CARD, MmmUi.BORDER_SOFT);
-        MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
-        MmmUi.drawTextWithin(context, this.textRenderer, "Progress", layout.contentX + CARD_PADDING, summaryY + 10, layout.contentWidth - CARD_PADDING * 2, MmmUi.LABEL, false);
-        String percent = progress.getPercent() + "%";
-        int percentWidth = this.textRenderer.getWidth(percent);
-        MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatProgress(progress.current(), progress.target()), layout.contentX + CARD_PADDING, summaryY + 24, Math.max(0, layout.contentWidth - CARD_PADDING * 2 - percentWidth - 8), MmmUi.TEXT, false);
-        MmmUi.drawTextRightWithin(context, this.textRenderer, percent, layout.contentX + layout.contentWidth - CARD_PADDING, summaryY + 24, percentWidth, MmmUi.ACCENT_BRIGHT, false);
+            int summaryY = layout.headerY + 46;
+            MmmUi.card(context, layout.contentX, summaryY, layout.contentWidth, 54, MmmUi.CARD, MmmUi.BORDER_SOFT);
+            MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
+            MmmUi.drawTextWithin(context, this.textRenderer, "Progress", layout.contentX + CARD_PADDING, summaryY + 10, layout.contentWidth - CARD_PADDING * 2, MmmUi.LABEL, false);
+            String percent = UiFormat.formatGoalPercent(progress);
+            int percentWidth = this.textRenderer.getWidth(percent);
+            MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatProgress(progress.current(), progress.target()), layout.contentX + CARD_PADDING, summaryY + 24, Math.max(0, layout.contentWidth - CARD_PADDING * 2 - percentWidth - 8), MmmUi.TEXT, false);
+            MmmUi.drawTextRightWithin(context, this.textRenderer, percent, layout.contentX + layout.contentWidth - CARD_PADDING, summaryY + 24, percentWidth, MmmUi.accent(), false);
+        }
 
         context.drawText(this.textRenderer, Text.literal("Daily Goal"), layout.fieldX, layout.goalLabelY, MmmUi.LABEL, false);
         context.drawText(this.textRenderer, Text.literal("Current Progress"), layout.fieldX, layout.progressLabelY, MmmUi.LABEL, false);
@@ -212,16 +215,19 @@ public class GoalConfigScreen extends Screen
 
     private Layout layout()
     {
-        int panelWidth = Math.min(420, Math.max(330, MmmUi.contentWidth(this.width) - 20));
-        int panelHeight = 274;
+        boolean compact = this.height < 360;
+        int panelWidth = Math.min(420, Math.max(1, MmmUi.contentWidth(this.width) - 20));
+        int availableHeight = Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT - 8);
+        int panelHeight = Math.min(274, availableHeight);
         int panelX = MmmUi.centerContentX(this.width, panelWidth);
-        int panelY = (this.height - panelHeight) / 2;
-        int contentX = panelX + PANEL_PADDING;
-        int contentWidth = panelWidth - PANEL_PADDING * 2;
-        int headerY = panelY + PANEL_PADDING;
+        int panelY = MmmUi.TOP_BAR_HEIGHT + Math.max(4, (availableHeight - panelHeight) / 2);
+        int padding = compact ? 10 : PANEL_PADDING;
+        int contentX = panelX + padding;
+        int contentWidth = panelWidth - padding * 2;
+        int headerY = panelY + padding;
         int fieldWidth = Math.min(240, contentWidth - CARD_PADDING * 2);
         int fieldX = contentX + (contentWidth - fieldWidth) / 2;
-        int goalLabelY = headerY + 116;
+        int goalLabelY = headerY + (compact ? 24 : 116);
         int goalFieldY = goalLabelY + 14;
         int progressLabelY = goalFieldY + 32;
         int progressFieldY = progressLabelY + 14;
@@ -230,7 +236,7 @@ public class GoalConfigScreen extends Screen
         int buttonX = contentX + (contentWidth - totalButtonWidth) / 2;
         int buttonY = progressFieldY + 36;
         int errorY = buttonY + 30;
-        return new Layout(panelX, panelY, panelWidth, panelHeight, contentX, contentWidth, headerY, fieldX, fieldWidth, goalLabelY, goalFieldY, progressLabelY, progressFieldY, buttonX, buttonY, buttonWidth, errorY);
+        return new Layout(panelX, panelY, panelWidth, panelHeight, contentX, contentWidth, headerY, fieldX, fieldWidth, goalLabelY, goalFieldY, progressLabelY, progressFieldY, buttonX, buttonY, buttonWidth, errorY, compact);
     }
 
     private record Layout(
@@ -250,7 +256,8 @@ public class GoalConfigScreen extends Screen
             int buttonX,
             int buttonY,
             int buttonWidth,
-            int errorY)
+            int errorY,
+            boolean compact)
     {
     }
 }

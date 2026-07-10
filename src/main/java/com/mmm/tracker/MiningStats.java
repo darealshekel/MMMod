@@ -652,11 +652,6 @@ public final class MiningStats
     {
         resetDailyProgressIfNeeded();
 
-        if (FeatureToggle.TWEAK_DAILY_AUTO_RESET.getBooleanValue() == false)
-        {
-            return "Disabled";
-        }
-
         ZonedDateTime now = ZonedDateTime.now(DAILY_RESET_ZONE);
         ZonedDateTime nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(DAILY_RESET_ZONE);
         long remainingMs = Math.max(0L, nextMidnight.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
@@ -906,11 +901,6 @@ public final class MiningStats
 
     private static void resetDailyProgressIfNeeded()
     {
-        if (FeatureToggle.TWEAK_DAILY_AUTO_RESET.getBooleanValue() == false)
-        {
-            return;
-        }
-
         long now = System.currentTimeMillis();
         ZoneId zoneId = DAILY_RESET_ZONE;
         LocalDate today = LocalDate.now(zoneId);
@@ -1480,9 +1470,14 @@ public final class MiningStats
 
     public record GoalProgress(String label, boolean enabled, long current, long target)
     {
+        public double getPercentValue()
+        {
+            return target <= 0 ? 0.0D : Math.max(0.0D, (current * 100.0D) / target);
+        }
+
         public int getPercent()
         {
-            return target <= 0 ? 0 : (int) Math.min(100, (current * 100) / target);
+            return (int) getPercentValue();
         }
     }
 

@@ -84,6 +84,31 @@ public final class MmmUi
         return withAlpha(accent(), 0x22);
     }
 
+    public static int rowSelected()
+    {
+        return withAlpha(accent(), 0x52);
+    }
+
+    public static int rowHover()
+    {
+        return withAlpha(accent(), 0x26);
+    }
+
+    public static int graphFill()
+    {
+        return withAlpha(accent(), 0xBF);
+    }
+
+    public static int graphGrid()
+    {
+        return withAlpha(accent(), 0x28);
+    }
+
+    public static int scrollbarThumb()
+    {
+        return accent();
+    }
+
     private static int withAlpha(int color, int alpha)
     {
         return (alpha << 24) | (color & 0x00FFFFFF);
@@ -99,42 +124,97 @@ public final class MmmUi
         return SIDEBAR_WIDTH + PAGE_PAD;
     }
 
+    public static int sidebarWidth(int screenWidth)
+    {
+        if (screenWidth < 520)
+        {
+            return 84;
+        }
+        if (screenWidth < 720)
+        {
+            return 104;
+        }
+        if (screenWidth < 900)
+        {
+            return 128;
+        }
+        return SIDEBAR_WIDTH;
+    }
+
+    public static int pagePad(int screenWidth)
+    {
+        return screenWidth < 720 ? 6 : screenWidth < 900 ? 10 : PAGE_PAD;
+    }
+
+    public static int contentLeft(int screenWidth)
+    {
+        return sidebarWidth(screenWidth) + pagePad(screenWidth);
+    }
+
     public static int contentWidth(int screenWidth)
     {
-        return Math.max(1, screenWidth - contentLeft() - PAGE_PAD);
+        return Math.max(1, screenWidth - contentLeft(screenWidth) - pagePad(screenWidth));
     }
 
     public static int centerContentX(int screenWidth, int contentWidth)
     {
-        return contentLeft() + Math.max(0, (contentWidth(screenWidth) - contentWidth) / 2);
+        return contentLeft(screenWidth) + Math.max(0, (contentWidth(screenWidth) - contentWidth) / 2);
+    }
+
+    public static int sidebarStartY(int screenHeight)
+    {
+        return sidebarMetrics(screenHeight).startY();
+    }
+
+    public static int sidebarRowHeight(int screenHeight)
+    {
+        return sidebarMetrics(screenHeight).rowHeight();
+    }
+
+    public static int sidebarRowGap(int screenHeight)
+    {
+        return sidebarMetrics(screenHeight).rowGap();
+    }
+
+    public static boolean sidebarFooterVisible(int screenHeight)
+    {
+        return sidebarMetrics(screenHeight).showFooter();
     }
 
     public static void drawMmmScreensSidebar(DrawContext context, TextRenderer renderer, int width, int height, int mouseX, int mouseY, String activeId)
     {
         drawMmmTopBar(context, renderer, width);
-        context.fill(0, TOP_BAR_HEIGHT, SIDEBAR_WIDTH, height, 0xE9080808);
-        context.drawBorder(0, TOP_BAR_HEIGHT, SIDEBAR_WIDTH, height - TOP_BAR_HEIGHT, BORDER);
+        int sidebarWidth = sidebarWidth(width);
+        int sidePad = sidebarWidth < 120 ? 8 : 12;
+        SidebarMetrics metrics = sidebarMetrics(height);
+        context.fill(0, TOP_BAR_HEIGHT, sidebarWidth, height, 0xE9080808);
+        context.drawBorder(0, TOP_BAR_HEIGHT, sidebarWidth, Math.max(1, height - TOP_BAR_HEIGHT), BORDER);
 
-        int titleY = TOP_BAR_HEIGHT + 16;
-        drawSectionHeading(context, renderer, "MMM SCREENS", 12, titleY, SIDEBAR_WIDTH - 24);
+        int titleY = metrics.titleY();
+        drawSectionHeading(context, renderer, "MMM SCREENS", sidePad, titleY, sidebarWidth - sidePad * 2);
 
-        int y = titleY + 28;
+        int y = metrics.startY();
         for (SidebarRoute route : SidebarRoute.values())
         {
             boolean active = route.id.equals(activeId);
-            boolean hovered = mouseX >= 12 && mouseX < SIDEBAR_WIDTH - 12 && mouseY >= y && mouseY < y + SIDEBAR_ROW_HEIGHT;
+            boolean hovered = mouseX >= sidePad && mouseX < sidebarWidth - sidePad && mouseY >= y && mouseY < y + metrics.rowHeight();
             int fill = active ? accentSoft() : hovered ? accentHover() : INSET;
             int border = active || hovered ? accent() : BORDER_SOFT;
-            context.fill(12, y, SIDEBAR_WIDTH - 12, y + SIDEBAR_ROW_HEIGHT, fill);
-            context.drawBorder(12, y, SIDEBAR_WIDTH - 24, SIDEBAR_ROW_HEIGHT, border);
-            drawTextWithin(context, renderer, route.label, 20, y + 8, SIDEBAR_WIDTH - 40, active ? TEXT : MUTED, false);
-            y += SIDEBAR_ROW_HEIGHT + SIDEBAR_ROW_GAP;
+            context.fill(sidePad, y, sidebarWidth - sidePad, y + metrics.rowHeight(), fill);
+            context.drawBorder(sidePad, y, sidebarWidth - sidePad * 2, metrics.rowHeight(), border);
+            int textY = y + Math.max(2, (metrics.rowHeight() - 8) / 2);
+            String label = sidebarWidth < 120 ? route.compactLabel : route.label;
+            drawTextWithin(context, renderer, label, sidePad + 8, textY, sidebarWidth - sidePad * 2 - 16, active ? TEXT : MUTED, false);
+            y += metrics.rowHeight() + metrics.rowGap();
         }
 
-        int bottomY = height - 42;
-        context.drawBorder(12, bottomY, SIDEBAR_WIDTH - 24, 28, BORDER_SOFT);
-        drawTextWithin(context, renderer, "MMM MOD", 20, bottomY + 7, SIDEBAR_WIDTH - 40, TEXT, false);
-        drawTextWithin(context, renderer, Reference.MOD_VERSION, 20, bottomY + 18, SIDEBAR_WIDTH - 40, MUTED, false);
+        if (metrics.showFooter())
+        {
+            int bottomY = height - 42;
+            context.drawBorder(sidePad, bottomY, sidebarWidth - sidePad * 2, 28, BORDER_SOFT);
+            drawTextWithin(context, renderer, "MMM MOD", sidePad + 8, bottomY + 7, sidebarWidth - sidePad * 2 - 16, TEXT, false);
+            drawTextWithin(context, renderer, Reference.MOD_VERSION, sidePad + 8, bottomY + 18, sidebarWidth - sidePad * 2 - 16, MUTED, false);
+        }
     }
 
     public static void drawMmmTopBar(DrawContext context, TextRenderer renderer, int width)
@@ -143,22 +223,33 @@ public final class MmmUi
         context.drawBorder(0, 0, width, TOP_BAR_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, accent());
         drawTextWithin(context, renderer, "MMM", 26, 10, 40, accent(), false);
-        drawTextWithin(context, renderer, "Manual Mining Maniacs", 68, 10, Math.max(0, width / 2 - 80), TEXT, false);
         int versionWidth = renderer.getWidth(Reference.MOD_VERSION);
-        drawTextRightWithin(context, renderer, Reference.MOD_VERSION, width - 16, 10, versionWidth, MUTED, false);
+        int versionSpace = width >= 300 ? versionWidth + 24 : 0;
+        int brandWidth = Math.max(0, width - 68 - versionSpace - 12);
+        if (brandWidth >= 72)
+        {
+            drawTextWithin(context, renderer, "Manual Mining Maniacs", 68, 10, brandWidth, TEXT, false);
+        }
+        if (versionSpace > 0)
+        {
+            drawTextRightWithin(context, renderer, Reference.MOD_VERSION, width - 16, 10, versionWidth, MUTED, false);
+        }
     }
 
     public static boolean handleMmmScreensSidebarClick(Screen current, Screen parent, double mouseX, double mouseY, String activeId)
     {
-        if (mouseX < 12 || mouseX >= SIDEBAR_WIDTH - 12)
+        int sidebarWidth = sidebarWidth(current.width);
+        int sidePad = sidebarWidth < 120 ? 8 : 12;
+        SidebarMetrics metrics = sidebarMetrics(current.height);
+        if (mouseX < sidePad || mouseX >= sidebarWidth - sidePad)
         {
             return false;
         }
 
-        int y = TOP_BAR_HEIGHT + 44;
+        int y = metrics.startY();
         for (SidebarRoute route : SidebarRoute.values())
         {
-            if (mouseY >= y && mouseY < y + SIDEBAR_ROW_HEIGHT)
+            if (mouseY >= y && mouseY < y + metrics.rowHeight())
             {
                 if (route.id.equals(activeId))
                 {
@@ -167,7 +258,7 @@ public final class MmmUi
                 openSidebarRoute(current, parent, route);
                 return true;
             }
-            y += SIDEBAR_ROW_HEIGHT + SIDEBAR_ROW_GAP;
+            y += metrics.rowHeight() + metrics.rowGap();
         }
 
         return false;
@@ -293,24 +384,44 @@ public final class MmmUi
         }
     }
 
+    private static SidebarMetrics sidebarMetrics(int screenHeight)
+    {
+        int routeCount = SidebarRoute.values().length;
+        boolean compact = screenHeight < 360;
+        int titleY = TOP_BAR_HEIGHT + (compact ? 8 : 16);
+        int startY = titleY + (compact ? 18 : 28);
+        boolean showFooter = !compact && screenHeight - startY >= routeCount * 24 + 50;
+        int available = Math.max(routeCount * 10, screenHeight - startY - (showFooter ? 50 : 8));
+        int rowGap = available >= routeCount * 24 + (routeCount - 1) * 7 ? 7
+                : available >= routeCount * 18 + (routeCount - 1) * 3 ? 3 : 1;
+        int rowHeight = Math.max(10, Math.min(SIDEBAR_ROW_HEIGHT, (available - rowGap * (routeCount - 1)) / routeCount));
+        return new SidebarMetrics(titleY, startY, rowHeight, rowGap, showFooter);
+    }
+
+    private record SidebarMetrics(int titleY, int startY, int rowHeight, int rowGap, boolean showFooter)
+    {
+    }
+
     private enum SidebarRoute
     {
-        SETTINGS("SETTINGS", "Settings"),
-        TOGGLES("TOGGLES", "Feature Toggles"),
-        HOTKEYS("HOTKEYS", "Hotkeys"),
-        PROJECTS("PROJECTS", "Projects"),
-        PROFILE("PROFILE", "Profile"),
-        WEBSITE_LINK("WEBSITE_LINK", "Website Link"),
-        HISTORY("HISTORY", "History"),
-        SUMMARY("SUMMARY", "Summary");
+        SETTINGS("SETTINGS", "Settings", "Settings"),
+        TOGGLES("TOGGLES", "Feature Toggles", "Toggles"),
+        HOTKEYS("HOTKEYS", "Hotkeys", "Hotkeys"),
+        PROJECTS("PROJECTS", "Projects", "Projects"),
+        PROFILE("PROFILE", "Profile", "Profile"),
+        WEBSITE_LINK("WEBSITE_LINK", "Website Link", "Link"),
+        HISTORY("HISTORY", "History", "History"),
+        SUMMARY("SUMMARY", "Summary", "Summary");
 
         private final String id;
         private final String label;
+        private final String compactLabel;
 
-        SidebarRoute(String id, String label)
+        SidebarRoute(String id, String label, String compactLabel)
         {
             this.id = id;
             this.label = label;
+            this.compactLabel = compactLabel;
         }
     }
 }

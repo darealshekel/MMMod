@@ -17,24 +17,23 @@ import fi.dy.masa.malilib.util.StringUtils;
 
 public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfigBoolean>
 {
-    TWEAK_MINING_TRACKER("tweakMiningTracker", true, "", "Master switch for the mining tracker addon."),
-    TWEAK_DAILY_GOAL("tweakDailyGoal", true, "", "Shows and tracks the daily goal."),
-    TWEAK_DAILY_AUTO_RESET("tweakDailyAutoReset", true, "", "Resets the daily goal progress every 24 hours."),
-    TWEAK_BLOCK_ESP("tweakBlockEsp", false, "", "Highlights the exact block currently under your cursor."),
-    TWEAK_FLAT_DIGGER("tweakFlatDigger", false, "", "Prevents mining blocks below your feet while enabled."),
-    TWEAK_PERIMETER_WALL_DIG_HELPER("tweakPerimeterWallDigHelper", false, "", "Prevents player from mining underneath the block types\nspecified in the Perimeter Outline Blocks list."),
-    TWEAK_NOTIFICATIONS("tweakGoalNotifications", true, "", "Shows centered milestone notifications while mining."),
-    TWEAK_SOUND_ALERTS("tweakGoalSoundAlerts", true, "", "Plays a level-up sound on configured goal thresholds."),
-    TWEAK_SUMMARY_ON_EXIT("tweakSummaryOnExit", true, "", "Shows the session summary after leaving a world or server."),
-    TWEAK_CARRY_GOAL_PROGRESS("tweakCarryGoalProgress", true, "", "Keeps daily goal progress between sessions."),
-    TWEAK_HUD("tweakMiningHud", true, "", "Renders the mining HUD."),
-    TWEAK_HUD_PROJECT("tweakMiningHudProject", true, "", "Shows active project progress in the HUD."),
-    TWEAK_HUD_TOTAL_MINED("tweakMiningHudTotalMined", true, "", "Shows total mined in the HUD."),
-    TWEAK_HUD_GOAL_PROGRESS("tweakMiningHudGoalProgress", true, "", "Shows daily goal progress in the HUD."),
-    TWEAK_HUD_BLOCKS_PER_HOUR("tweakMiningHudBlocksPerHour", true, "", "Shows Blocks/hr and Blocks/sec in the HUD."),
-    TWEAK_HUD_ETA("tweakMiningHudEta", true, "", "Shows ETA to the daily goal in the HUD."),
-    TWEAK_HUD_BOUNDING_BOX("tweakMiningHudBoundingBox", false, "", "Draws a panel border and background around the mining HUD."),
-    TWEAK_HUD_SPEED_GRAPH("tweakMiningHudSpeedGraph", true, "", "Shows a real-time mining speed graph below the HUD.");
+    TWEAK_MINING_TRACKER("tweakMiningTracker", true, "", "Turns all MMM mining tracking on or off."),
+    TWEAK_DAILY_GOAL("tweakDailyGoal", true, "", "Tracks your daily mining goal."),
+    TWEAK_BLOCK_ESP("tweakBlockEsp", false, "", "Highlights the block under your crosshair."),
+    TWEAK_FLAT_DIGGER("tweakFlatDigger", false, "", "Stops you from digging below your feet."),
+    TWEAK_PERIMETER_WALL_DIG_HELPER("tweakPerimeterWallDigHelper", false, "", "Protects the configured perimeter floor blocks."),
+    TWEAK_NOTIFICATIONS("tweakGoalNotifications", true, "", "Shows a message when you reach a goal milestone."),
+    TWEAK_SOUND_ALERTS("tweakGoalSoundAlerts", true, "", "Plays a sound at your chosen milestone."),
+    TWEAK_SUMMARY_ON_EXIT("tweakSummaryOnExit", true, "", "Opens your session summary when you leave."),
+    TWEAK_CARRY_GOAL_PROGRESS("tweakCarryGoalProgress", true, "", "Keeps today's progress between sessions."),
+    TWEAK_HUD("tweakMiningHud", true, "", "Shows the main mining HUD."),
+    TWEAK_HUD_PROJECT("tweakMiningHudProject", true, "", "Shows your active project."),
+    TWEAK_HUD_TOTAL_MINED("tweakMiningHudTotalMined", true, "", "Enables the mining total lines."),
+    TWEAK_HUD_GOAL_PROGRESS("tweakMiningHudGoalProgress", true, "", "Replaces the XP bar with daily-goal progress while Tab is held."),
+    TWEAK_HUD_BLOCKS_PER_HOUR("tweakMiningHudBlocksPerHour", true, "", "Shows Blocks/hr and Blocks/sec."),
+    TWEAK_HUD_ETA("tweakMiningHudEta", true, "", "Shows the estimated time to your goal."),
+    TWEAK_HUD_BOUNDING_BOX("tweakMiningHudBoundingBox", false, "", "Adds one background behind the main HUD."),
+    TWEAK_HUD_SPEED_GRAPH("tweakMiningHudSpeedGraph", true, "", "Shows your live mining-speed graph.");
 
     public static final ImmutableList<FeatureToggle> VALUES = ImmutableList.copyOf(values());
 

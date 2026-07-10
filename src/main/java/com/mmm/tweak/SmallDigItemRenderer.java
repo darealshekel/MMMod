@@ -13,8 +13,6 @@ import org.joml.Vector3f;
 
 public final class SmallDigItemRenderer
 {
-    private static final float GROUND_SCALE = 0.1F;
-    private static final float HAND_SCALE = 0.2F;
     private static final ThreadLocal<Float> ACTIVE_SCALE = ThreadLocal.withInitial(() -> 1.0F);
 
     private SmallDigItemRenderer()
@@ -39,7 +37,9 @@ public final class SmallDigItemRenderer
             return 1.0F;
         }
 
-        return displayContext == ModelTransformationMode.GROUND ? GROUND_SCALE : HAND_SCALE;
+        float handScale = (float) Configs.Generic.SMALL_DIG_ITEM_SCALE.getDoubleValue();
+        float groundScale = Math.max(0.05F, handScale * 0.5F);
+        return displayContext == ModelTransformationMode.GROUND ? groundScale : handScale;
     }
 
     public static void begin(ItemStack stack, ModelTransformationMode displayContext)

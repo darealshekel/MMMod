@@ -23,7 +23,7 @@ public class RenderHandler implements IRenderer
         {
             MiningHudRenderer.render(drawContext, mc);
             TimerHudRenderer.render(drawContext, mc);
-            if (FeatureToggle.TWEAK_HUD.getBooleanValue() && FeatureToggle.TWEAK_HUD_SPEED_GRAPH.getBooleanValue() && MiningSpeedTracker.hasSessionData())
+            if (FeatureToggle.TWEAK_HUD_SPEED_GRAPH.getBooleanValue() && MiningSpeedTracker.hasSessionData())
             {
                 SpeedGraphRenderer.render(drawContext, mc);
             }

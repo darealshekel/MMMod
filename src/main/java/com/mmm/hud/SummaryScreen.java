@@ -47,9 +47,6 @@ public class SummaryScreen extends Screen
     private static final int COLOR_INSET = MmmUi.INSET;
     private static final int COLOR_BORDER = MmmUi.BORDER;
     private static final int COLOR_BORDER_SOFT = MmmUi.BORDER_SOFT;
-    private static final int COLOR_ACCENT = MmmUi.ACCENT;
-    private static final int COLOR_GRAPH_FILL = MmmUi.GRAPH_FILL;
-    private static final int COLOR_GRAPH_GRID = MmmUi.GRAPH_GRID;
     private static final int COLOR_VALUE = MmmUi.TEXT;
     private static final int COLOR_LABEL = MmmUi.LABEL;
     private static final int COLOR_MUTED = MmmUi.MUTED;
@@ -248,9 +245,13 @@ public class SummaryScreen extends Screen
 
     private void drawHeader(DrawContext context, Layout layout)
     {
-        MmmUi.drawTextWithin(context, this.textRenderer, this.heading, layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
-        drawPill(context, layout.contentX, layout.headerY + 18, Math.min(200, layout.graphWidth - 20), 16, this.worldName, COLOR_CARD, COLOR_ACCENT);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Session pace, goals, and block mix in the MMM website style.", layout.contentX + 2, layout.headerY + 40, layout.contentWidth - 4, COLOR_LABEL, false);
+        int titleWidth = layout.compact ? Math.max(0, layout.contentWidth - 156) : layout.contentWidth;
+        MmmUi.drawTextWithin(context, this.textRenderer, this.heading, layout.contentX, layout.headerY, titleWidth, COLOR_VALUE, true);
+        if (!layout.compact)
+        {
+            drawPill(context, layout.contentX, layout.headerY + 18, Math.min(200, layout.graphWidth - 20), 16, this.worldName, COLOR_CARD, MmmUi.accent());
+            MmmUi.drawTextWithin(context, this.textRenderer, "Session pace, goals, and block mix in the MMM website style.", layout.contentX + 2, layout.headerY + 40, layout.contentWidth - 4, COLOR_LABEL, false);
+        }
     }
 
     private void drawStatCards(DrawContext context, Layout layout)
@@ -258,14 +259,19 @@ public class SummaryScreen extends Screen
         int cardY = layout.statY;
         int cardWidth = (layout.contentWidth - CARD_GAP * 3) / 4;
 
-        drawStatCard(context, layout.contentX, cardY, cardWidth, 54, "Total Mined", UiFormat.formatCompact(this.session.totalBlocks), "blocks");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP), cardY, cardWidth, 54, "Active Time", formatClock(this.session.getDurationMs()), "pauses excluded");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 2, cardY, cardWidth, 54, "Avg Rate", UiFormat.formatCompact(this.session.getAverageBlocksPerHour()), "blocks/hr");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 3, cardY, cardWidth, 54, "Peak Rate", UiFormat.formatCompact(this.session.getPeakBlocksPerHour()), "blocks/hr");
+        int cardHeight = layout.compact ? 40 : 54;
+        drawStatCard(context, layout.contentX, cardY, cardWidth, cardHeight, "Total Mined", UiFormat.formatCompact(this.session.totalBlocks), "blocks");
+        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP), cardY, cardWidth, cardHeight, "Active Time", formatClock(this.session.getDurationMs()), "pauses excluded");
+        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 2, cardY, cardWidth, cardHeight, "Avg Rate", UiFormat.formatCompact(this.session.getAverageBlocksPerHour()), "blocks/hr");
+        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 3, cardY, cardWidth, cardHeight, "Peak Rate", UiFormat.formatCompact(this.session.getPeakBlocksPerHour()), "blocks/hr");
     }
 
     private void drawGraphCard(DrawContext context, Layout layout, int mouseX, int mouseY, float animation)
     {
+        if (layout.compact)
+        {
+            return;
+        }
         fillRoundedCard(context, layout.graphX, layout.graphY, layout.graphWidth, layout.graphHeight, COLOR_CARD, COLOR_BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, "Mining Rate", layout.graphX + CARD_PADDING, layout.graphY + 10, layout.graphWidth - CARD_PADDING * 2, COLOR_VALUE, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Blocks per hour over active session time", layout.graphX + CARD_PADDING, layout.graphY + 24, layout.graphWidth - CARD_PADDING * 2, COLOR_LABEL, false);
@@ -279,6 +285,10 @@ public class SummaryScreen extends Screen
 
     private void drawGoalCard(DrawContext context, Layout layout)
     {
+        if (layout.compact)
+        {
+            return;
+        }
         fillRoundedCard(context, layout.goalX, layout.goalY, layout.goalWidth, layout.goalHeight, COLOR_CARD, COLOR_BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, "Daily Goal", layout.goalX + CARD_PADDING, layout.goalY + 10, layout.goalWidth - CARD_PADDING * 2, COLOR_VALUE, false);
 
@@ -293,9 +303,10 @@ public class SummaryScreen extends Screen
         int barX = layout.goalX + CARD_PADDING;
         int barY = layout.goalY + 42;
         int barWidth = layout.goalWidth - CARD_PADDING * 2;
-        int percentWidth = this.textRenderer.getWidth(progress.getPercent() + "%");
+        String percentText = UiFormat.formatGoalPercent(progress);
+        int percentWidth = this.textRenderer.getWidth(percentText);
         MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatProgress(progress.current(), progress.target()), barX, layout.goalY + 27, Math.max(0, barWidth - percentWidth - 8), COLOR_VALUE, false);
-        MmmUi.drawTextRightWithin(context, this.textRenderer, progress.getPercent() + "%", barX + barWidth, layout.goalY + 27, percentWidth, goalColor, false);
+        MmmUi.drawTextRightWithin(context, this.textRenderer, percentText, barX + barWidth, layout.goalY + 27, percentWidth, goalColor, false);
 
         int fillWidth = progress.target() <= 0 ? 0 : (int) Math.round(barWidth * Math.min(1.0D, progress.current() / (double) progress.target()));
         context.fill(barX, barY, barX + barWidth, barY + 8, MmmUi.INSET);
@@ -368,7 +379,7 @@ public class SummaryScreen extends Screen
         for (int i = 0; i < 4; i++)
         {
             int lineY = y + (height * i) / 4;
-            context.fill(x, lineY, x + width, lineY + 1, COLOR_GRAPH_GRID);
+            context.fill(x, lineY, x + width, lineY + 1, MmmUi.graphGrid());
         }
 
         if (rates.isEmpty())
@@ -419,7 +430,7 @@ public class SummaryScreen extends Screen
         {
             int pointX = pointsX[column];
             int pointY = Math.round(pointsY[column]);
-            context.fill(pointX, pointY, pointX + 2, fillBaseY, MmmUi.ACCENT_SOFT);
+            context.fill(pointX, pointY, pointX + 2, fillBaseY, MmmUi.accentSoft());
         }
 
         for (int column = 0; column < revealColumns - 1; column++)
@@ -435,7 +446,7 @@ public class SummaryScreen extends Screen
             int markerX = pointsX[lastVisibleIndex];
             int markerY = Math.round(pointsY[lastVisibleIndex]);
             context.fill(markerX - 2, markerY - 2, markerX + 3, markerY + 3, COLOR_VALUE);
-            context.fill(markerX - 1, markerY - 1, markerX + 2, markerY + 2, COLOR_ACCENT);
+            context.fill(markerX - 1, markerY - 1, markerX + 2, markerY + 2, MmmUi.accent());
         }
 
         String maxLabel = UiFormat.formatCompact(Math.round(maxRate)) + "/hr";
@@ -456,7 +467,7 @@ public class SummaryScreen extends Screen
         MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y + 9, textWidth, COLOR_LABEL, false);
         int valueColor = inactiveValueColor(value) == COLOR_INACTIVE ? COLOR_INACTIVE : Configs.getHudNumberColor();
         MmmUi.drawTextWithin(context, this.textRenderer, value, x + CARD_PADDING, y + 24, textWidth, valueColor, false);
-        if (suffix.isBlank() == false)
+        if (height >= 50 && suffix.isBlank() == false)
         {
             MmmUi.drawTextWithin(context, this.textRenderer, suffix, x + CARD_PADDING, y + 38, textWidth, COLOR_MUTED, false);
         }
@@ -473,7 +484,7 @@ public class SummaryScreen extends Screen
         int y = this.searchField.getY() - 1;
         int width = this.searchField.getWidth() + 2;
         int height = SEARCH_HEIGHT;
-        fillRoundedCard(context, x, y, width, height, COLOR_INSET, this.searchField.isFocused() ? COLOR_ACCENT : COLOR_BORDER_SOFT);
+        fillRoundedCard(context, x, y, width, height, COLOR_INSET, this.searchField.isFocused() ? MmmUi.accent() : COLOR_BORDER_SOFT);
     }
 
     private void drawScrollbar(DrawContext context, int x, int y, int height, int mouseX, int mouseY)
@@ -488,7 +499,7 @@ public class SummaryScreen extends Screen
         int thumbY = y + getScrollbarThumbOffset(height, thumbHeight);
         context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, MmmUi.SCROLLBAR_TRACK);
         context.drawBorder(x, y, SCROLLBAR_WIDTH, height, COLOR_BORDER_SOFT);
-        int thumbColor = this.draggingScrollbar ? MmmUi.SCROLLBAR_THUMB_ACTIVE : isOverScrollbar(mouseX, mouseY) ? MmmUi.SCROLLBAR_THUMB_HOVER : MmmUi.SCROLLBAR_THUMB;
+        int thumbColor = MmmUi.scrollbarThumb();
         context.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight, thumbColor);
     }
 
@@ -497,7 +508,7 @@ public class SummaryScreen extends Screen
         fillRoundedCard(context, x, y, width, height, fillColor, borderColor);
         String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
         int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, COLOR_ACCENT, false);
+        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, MmmUi.accent(), false);
     }
 
     private void fillRoundedCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
@@ -558,8 +569,8 @@ public class SummaryScreen extends Screen
                     (t3 - t2) * tangentEnd;
             int ix = Math.round(pointX);
             int iy = Math.round(pointY);
-            context.fill(ix, iy, ix + 2, iy + 2, COLOR_ACCENT);
-            context.fill(ix, iy + 2, ix + 2, iy + 3, COLOR_GRAPH_FILL);
+            context.fill(ix, iy, ix + 2, iy + 2, MmmUi.accent());
+            context.fill(ix, iy + 2, ix + 2, iy + 3, MmmUi.graphFill());
         }
     }
 
@@ -587,26 +598,26 @@ public class SummaryScreen extends Screen
 
     private Layout computeLayout()
     {
-        int availableWidth = this.showChrome ? Math.max(340, MmmUi.contentWidth(this.width) - PANEL_MARGIN) : Math.max(340, this.width - PANEL_MARGIN * 2);
-        int minPanelWidth = this.showChrome ? 520 : Math.min(520, availableWidth);
-        int panelWidth = Math.min(760, Math.max(minPanelWidth, availableWidth));
+        boolean compact = this.height < 400 || (this.showChrome && MmmUi.contentWidth(this.width) < 540);
+        int availableWidth = this.showChrome ? Math.max(1, MmmUi.contentWidth(this.width) - PANEL_MARGIN) : Math.max(1, this.width - PANEL_MARGIN * 2);
+        int panelWidth = Math.min(760, availableWidth);
         int topY = this.showChrome ? MmmUi.TOP_BAR_HEIGHT + 10 : PANEL_MARGIN;
-        int availableHeight = Math.max(260, this.height - topY - (this.showChrome ? 12 : PANEL_MARGIN));
-        int panelHeight = Math.min(540, Math.max(360, availableHeight));
-        panelHeight = Math.min(panelHeight, availableHeight);
+        int availableHeight = Math.max(1, this.height - topY - (this.showChrome ? 12 : PANEL_MARGIN));
+        int panelHeight = Math.min(540, availableHeight);
         int panelX = this.showChrome ? MmmUi.centerContentX(this.width, panelWidth) : Math.max(PANEL_MARGIN, (this.width - panelWidth) / 2);
         int panelY = topY + Math.max(0, (availableHeight - panelHeight) / 2);
-        int contentX = panelX + PANEL_PADDING;
-        int contentWidth = panelWidth - PANEL_PADDING * 2;
-        int headerY = panelY + PANEL_PADDING;
-        int statY = headerY + 58;
+        int padding = compact ? 8 : PANEL_PADDING;
+        int contentX = panelX + padding;
+        int contentWidth = panelWidth - padding * 2;
+        int headerY = panelY + padding;
+        int statY = headerY + (compact ? 24 : 58);
         int cardWidth = (contentWidth - CARD_GAP * 3) / 4;
-        int graphY = statY + 54 + CARD_GAP;
-        int goalWidth = Math.min(190, Math.max(172, contentWidth / 4));
+        int graphY = statY + (compact ? 40 : 54) + CARD_GAP;
+        int goalWidth = Math.min(190, Math.max(84, contentWidth / 4));
         int graphWidth = contentWidth - goalWidth - CARD_GAP;
-        int graphHeight = 140;
-        int breakdownY = graphY + graphHeight + CARD_GAP;
-        int breakdownHeight = panelY + panelHeight - PANEL_PADDING - breakdownY;
+        int graphHeight = compact ? 0 : 140;
+        int breakdownY = compact ? graphY : graphY + graphHeight + CARD_GAP;
+        int breakdownHeight = Math.max(76, panelY + panelHeight - padding - breakdownY);
 
         return new Layout(
                 panelX,
@@ -631,7 +642,8 @@ public class SummaryScreen extends Screen
                 contentX,
                 breakdownY,
                 contentWidth,
-                breakdownHeight);
+                breakdownHeight,
+                compact);
     }
 
     private boolean isMouseInsideBreakdown(double mouseX, double mouseY)
@@ -724,7 +736,7 @@ public class SummaryScreen extends Screen
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
         if (dailyGoal.enabled())
         {
-            builder.append(dailyGoal.label()).append(": ").append(UiFormat.formatProgress(dailyGoal.current(), dailyGoal.target())).append(" (").append(dailyGoal.getPercent()).append("%)\n");
+            builder.append(dailyGoal.label()).append(": ").append(UiFormat.formatProgress(dailyGoal.current(), dailyGoal.target())).append(" (").append(UiFormat.formatGoalPercent(dailyGoal)).append(")\n");
         }
 
         for (BlockBreakdownEntry entry : this.allEntries)
@@ -854,7 +866,8 @@ public class SummaryScreen extends Screen
             int breakdownX,
             int breakdownY,
             int breakdownWidth,
-            int breakdownHeight)
+            int breakdownHeight,
+            boolean compact)
     {
         private Layout withPanelY(int newPanelY)
         {
@@ -882,7 +895,8 @@ public class SummaryScreen extends Screen
                     this.breakdownX,
                     this.breakdownY + delta,
                     this.breakdownWidth,
-                    this.breakdownHeight);
+                    this.breakdownHeight,
+                    this.compact);
         }
     }
 }

@@ -7,7 +7,12 @@
     "ClientPlayerInteractionManagerAccessor",
     "ClientPlayerInteractionManagerMixin",
     "HeldItemRendererMixin",
+    "InGameHudMixin",
+    "MmmPressableWidgetMixin",
     "SmallDigItemRendererMixin",
+    "PlayerListHudMixin",
+    "SoundManagerAccessor",
+    "SoundSystemAccessor",
     "WorldRendererMixin"
   ],
   "injectors": {

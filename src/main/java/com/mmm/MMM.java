@@ -1,6 +1,7 @@
 package com.mmm;
 
 import fi.dy.masa.malilib.event.InitializationHandler;
+import com.mmm.sound.MmmSounds;
 import com.mmm.sync.SyncQueueManager;
 import com.mmm.timer.MmmTimerState;
 import com.mmm.tracker.MiningStats;
@@ -15,6 +16,7 @@ public class MMM implements ClientModInitializer
     @Override
     public void onInitializeClient()
     {
+        MmmSounds.register();
         InitializationHandler.getInstance().registerInitializationHandler(new InitHandler());
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try

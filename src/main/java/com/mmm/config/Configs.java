@@ -82,19 +82,32 @@ public class Configs implements IConfigHandler
         public static final String DEFAULT_GRAPH_FILL_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_GRAPH_GRID_HEX_COLOR = "#FFC8C8C8";
 
-        public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", true, "Enable MMM website sync.");
-        public static final ConfigBoolean TOTAL_DIGS_SYNC_ENABLED = new ConfigBoolean("totalDigsSyncEnabled", true, "Sync Total Digs to Website.");
+        public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", false, "Enable MMM website sync.");
+        public static final ConfigBoolean TOTAL_DIGS_SYNC_ENABLED = new ConfigBoolean("totalDigsSyncEnabled", false, "Sync Total Digs to Website.");
         public static final ConfigBoolean WEBSITE_SYNC_DEBUG = new ConfigBoolean("websiteSyncDebug", false, "Enable verbose website sync debug logging.");
         public static final ConfigInteger MAX_BLOCKS_PER_MINUTE = new ConfigInteger("maxBlocksPerMinute", 1200, 1, 1200, "Maximum accepted local valid block breaks per minute. Excess local counts are logged and ignored.");
         public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", false, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
-        public static final fi.dy.masa.malilib.config.options.ConfigString NOTIFICATION_THRESHOLDS = new fi.dy.masa.malilib.config.options.ConfigString("notificationThresholds", "25,50,75,100", "Popup threshold percentages, comma separated.");
-        public static final ConfigInteger SOUND_ALERT_THRESHOLD = new ConfigInteger("soundAlertThreshold", 100, 1, 100, "Sound alert threshold percentage.");
+        public static final ConfigBoolean GOAL_PICKAXE_ANIMATION = new ConfigBoolean("goalPickaxeAnimation", true, "Show a pickaxe animation at each main daily-goal milestone.");
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 820, "Mining HUD horizontal position.");
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 460, "Mining HUD vertical position.");
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
         public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.75D, 1.75D, "Mining HUD scale.");
         public static final ConfigBoolean HUD_TEXT_BACKGROUND = new ConfigBoolean("hudTextBackground", false, "Draw small background boxes behind individual MMM HUD text lines.");
+        public static final ConfigBoolean HUD_TITLE_VISIBLE = new ConfigBoolean("hudTitleVisible", true, "Show the MMM title and sync status.");
+        public static final ConfigBoolean HUD_GLOBAL_TOTAL_VISIBLE = new ConfigBoolean("hudGlobalTotalVisible", true, "Show your combined website total.");
+        public static final ConfigBoolean HUD_WORLD_TOTAL_VISIBLE = new ConfigBoolean("hudWorldTotalVisible", true, "Show the current source total.");
+        public static final ConfigBoolean HUD_SESSION_TOTAL_VISIBLE = new ConfigBoolean("hudSessionTotalVisible", true, "Show blocks mined in the current session.");
+        public static final ConfigBoolean HUD_DAILY_WEEK_VISIBLE = new ConfigBoolean("hudDailyWeekVisible", true, "Show today's and this week's blocks.");
+        public static final ConfigBoolean HUD_RECORDS_VISIBLE = new ConfigBoolean("hudRecordsVisible", true, "Show daily and weekly personal records.");
+        public static final ConfigBoolean HUD_FASTEST_100K_VISIBLE = new ConfigBoolean("hudFastest100kVisible", true, "Show your fastest 100k time.");
+        public static final ConfigBoolean HUD_SESSION_TIME_VISIBLE = new ConfigBoolean("hudSessionTimeVisible", true, "Show the current session time.");
+        public static final ConfigBoolean HUD_DAILY_RESET_VISIBLE = new ConfigBoolean("hudDailyResetVisible", true, "Show the countdown to the daily reset.");
+        public static final ConfigBoolean HUD_TIMER_STATUS_VISIBLE = new ConfigBoolean("hudTimerStatusVisible", true, "Show timer status in the main HUD.");
+        public static final ConfigBoolean ALWAYS_OVERRIDE_XP_BAR = new ConfigBoolean("alwaysOverrideXpBar", false, "Always replace the vanilla XP bar with daily-goal progress instead of only while Tab is held.");
+        public static final ConfigBoolean SHOW_GOAL_PERCENT = new ConfigBoolean("showGoalPercent", true, "Show daily-goal percentage instead of the vanilla XP level.");
+        public static final ConfigBoolean GOAL_PERCENT_DECIMALS = new ConfigBoolean("goalPercentDecimals", true, "Show decimal places in the daily-goal percentage.");
+        public static final ConfigInteger GOAL_PERCENT_DECIMAL_PLACES = new ConfigInteger("goalPercentDecimalPlaces", 1, 1, 3, "Number of decimal places shown in the daily-goal percentage.");
         public static final ConfigBoolean TIMER_HUD_VISIBLE = new ConfigBoolean("timerHudVisible", false, "Show the MMM timer HUD module.");
         public static final ConfigBoolean HOURLY_STATS_VISIBLE = new ConfigBoolean("hourlyStatsVisible", true, "Show the hourly mining stats HUD module.");
         public static final ConfigBoolean BLOCKS_PER_MINUTE_VISIBLE = new ConfigBoolean("blocksPerMinuteVisible", true, "Show Blocks/min in the main MMM HUD speed line.");
@@ -123,6 +136,7 @@ public class Configs implements IConfigHandler
         public static final ConfigColor MENU_HEX_COLOR = new ConfigColor("menuHexColor", DEFAULT_MENU_HEX_COLOR, "Accent color used by MMM menu screens.");
         public static final ConfigOptionList BPS_SMOOTHING = new ConfigOptionList("bpsSmoothing", BpsSmoothing.FAST, "Blocks/sec Smoothing");
         public static final ConfigBoolean SMALL_DIG_ITEMS = new ConfigBoolean("smallDigItems", false, "Render MMM breakdown block items smaller, like the Smoll Dig Items resource pack.");
+        public static final ConfigDouble SMALL_DIG_ITEM_SCALE = new ConfigDouble("smallDigItemScale", 0.2D, 0.1D, 1.0D, "Size of tracked mining block items while Small Dig Items is enabled.");
         public static final ConfigBoolean NO_SWINGING_ANIMATION = new ConfigBoolean("noSwingingAnimation", false, "Disable the local first-person hand swing animation while mining.");
         public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
         public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", DEFAULT_BLOCK_ESP_HEX_COLOR, "Block ESP custom color. Used when the color mode is Single Color.");
@@ -144,13 +158,26 @@ public class Configs implements IConfigHandler
                 WEBSITE_SYNC_DEBUG,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
-                NOTIFICATION_THRESHOLDS,
-                SOUND_ALERT_THRESHOLD,
+                GOAL_PICKAXE_ANIMATION,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
                 HUD_SCALE,
                 HUD_TEXT_BACKGROUND,
+                HUD_TITLE_VISIBLE,
+                HUD_GLOBAL_TOTAL_VISIBLE,
+                HUD_WORLD_TOTAL_VISIBLE,
+                HUD_SESSION_TOTAL_VISIBLE,
+                HUD_DAILY_WEEK_VISIBLE,
+                HUD_RECORDS_VISIBLE,
+                HUD_FASTEST_100K_VISIBLE,
+                HUD_SESSION_TIME_VISIBLE,
+                HUD_DAILY_RESET_VISIBLE,
+                HUD_TIMER_STATUS_VISIBLE,
+                ALWAYS_OVERRIDE_XP_BAR,
+                SHOW_GOAL_PERCENT,
+                GOAL_PERCENT_DECIMALS,
+                GOAL_PERCENT_DECIMAL_PLACES,
                 TIMER_HUD_VISIBLE,
                 HOURLY_STATS_VISIBLE,
                 BLOCKS_PER_MINUTE_VISIBLE,
@@ -179,6 +206,7 @@ public class Configs implements IConfigHandler
                 MENU_HEX_COLOR,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
+                SMALL_DIG_ITEM_SCALE,
                 NO_SWINGING_ANIMATION,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
@@ -201,13 +229,26 @@ public class Configs implements IConfigHandler
                 MAX_BLOCKS_PER_MINUTE,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
-                NOTIFICATION_THRESHOLDS,
-                SOUND_ALERT_THRESHOLD,
+                GOAL_PICKAXE_ANIMATION,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
                 HUD_SCALE,
                 HUD_TEXT_BACKGROUND,
+                HUD_TITLE_VISIBLE,
+                HUD_GLOBAL_TOTAL_VISIBLE,
+                HUD_WORLD_TOTAL_VISIBLE,
+                HUD_SESSION_TOTAL_VISIBLE,
+                HUD_DAILY_WEEK_VISIBLE,
+                HUD_RECORDS_VISIBLE,
+                HUD_FASTEST_100K_VISIBLE,
+                HUD_SESSION_TIME_VISIBLE,
+                HUD_DAILY_RESET_VISIBLE,
+                HUD_TIMER_STATUS_VISIBLE,
+                ALWAYS_OVERRIDE_XP_BAR,
+                SHOW_GOAL_PERCENT,
+                GOAL_PERCENT_DECIMALS,
+                GOAL_PERCENT_DECIMAL_PLACES,
                 TIMER_HUD_VISIBLE,
                 HOURLY_STATS_VISIBLE,
                 BLOCKS_PER_MINUTE_VISIBLE,
@@ -236,6 +277,7 @@ public class Configs implements IConfigHandler
                 MENU_HEX_COLOR,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
+                SMALL_DIG_ITEM_SCALE,
                 NO_SWINGING_ANIMATION,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
@@ -377,14 +419,6 @@ public class Configs implements IConfigHandler
         }
         PerimeterWallDigHelper.refreshFromConfig();
 
-        List<Integer> thresholds = getNotificationThresholds();
-        thresholds.removeIf(value -> value <= 0 || value > 100);
-        thresholds.sort(Comparator.naturalOrder());
-        if (thresholds.isEmpty())
-        {
-            thresholds = List.of(25, 50, 75, 100);
-        }
-        Generic.NOTIFICATION_THRESHOLDS.setValueFromString(String.join(",", thresholds.stream().map(String::valueOf).toList()));
         Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(normalizeBlockEspHexColor(Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
         Generic.HUD_TITLE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TITLE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TITLE_HEX_COLOR));
         Generic.HUD_TEXT_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TEXT_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TEXT_HEX_COLOR));
@@ -464,24 +498,7 @@ public class Configs implements IConfigHandler
 
     public static List<Integer> getNotificationThresholds()
     {
-        List<Integer> values = new ArrayList<>();
-        for (String part : Generic.NOTIFICATION_THRESHOLDS.getStringValue().split(","))
-        {
-            String trimmed = part.trim();
-            if (trimmed.isEmpty())
-            {
-                continue;
-            }
-            try
-            {
-                values.add(Integer.parseInt(trimmed));
-            }
-            catch (NumberFormatException e)
-            {
-                MMM.LOGGER.warn("[MMM] Failed to parse notificationThresholds entry '{}' in {}: {}", trimmed, getPrimaryConfigFile(), e.getMessage());
-            }
-        }
-        return values;
+        return List.of(25, 50, 75, 100);
     }
 
     public static ProjectEntry getActiveProject()
