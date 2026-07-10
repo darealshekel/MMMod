@@ -1,7 +1,9 @@
 package com.mmm;
 
 import fi.dy.masa.malilib.event.InitializationHandler;
+import com.mmm.sound.MmmSounds;
 import com.mmm.sync.SyncQueueManager;
+import com.mmm.timer.MmmTimerState;
 import com.mmm.tracker.MiningStats;
 import net.fabricmc.api.ClientModInitializer;
 import org.apache.logging.log4j.LogManager;
@@ -14,11 +16,13 @@ public class MMM implements ClientModInitializer
     @Override
     public void onInitializeClient()
     {
+        MmmSounds.register();
         InitializationHandler.getInstance().registerInitializationHandler(new InitHandler());
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try
             {
                 MiningStats.finaliseSession();
+                MmmTimerState.save();
                 SyncQueueManager.forceFlush("client shutdown");
             }
             catch (Exception e)

@@ -14,7 +14,6 @@ import com.mmm.storage.SessionData;
 import com.mmm.storage.SessionHistory;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
-import com.mmm.tracker.MiningValidationTracker;
 import com.mmm.util.MmmDebugLogger;
 import com.mmm.util.PeriodKeys;
 import com.mmm.util.UiFormat;
@@ -36,6 +35,7 @@ public final class CloudSyncManager
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
+    private static final long MIN_LIVE_SYNC_ATTEMPT_INTERVAL_MS = 15_000L;
     private static final int MAX_SAVED_SESSIONS_TO_QUEUE = 25;
 
     private static long lastHeartbeatMs;
@@ -299,6 +299,7 @@ public final class CloudSyncManager
     public static String getStatusLabel()
     {
         PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
+        long now = System.currentTimeMillis();
         int pending = snapshot.countFor(SyncItemType.CLOUD_LIVE_STATE)
                 + snapshot.countFor(SyncItemType.CLOUD_FINISHED_SESSION)
                 + snapshot.countFor(SyncItemType.PLAYER_TOTAL_DIGS)
@@ -311,6 +312,10 @@ public final class CloudSyncManager
 
         if (pending > 0)
         {
+            if (syncStatus == SyncStatus.FAILED || snapshot.nextAttemptAtMs() > now)
+            {
+                return "Retrying";
+            }
             return "Queued";
         }
 
@@ -338,6 +343,12 @@ public final class CloudSyncManager
         {
             long ageSeconds = Math.max(0L, (System.currentTimeMillis() - snapshot.lastSuccessfulSyncAtMs()) / 1000L);
             parts.add("lastOk=" + UiFormat.formatDuration(ageSeconds));
+        }
+
+        if (snapshot.nextAttemptAtMs() > 0L)
+        {
+            long waitSeconds = Math.max(0L, (snapshot.nextAttemptAtMs() - System.currentTimeMillis() + 999L) / 1000L);
+            parts.add(waitSeconds <= 0L ? "next=now" : "next=" + UiFormat.formatDuration(waitSeconds));
         }
 
         if (syncStatusDetail != null && syncStatusDetail.isBlank() == false)
@@ -379,6 +390,61 @@ public final class CloudSyncManager
         return Configs.normalizeWebsiteSyncIntervalMs(Configs.websiteSyncIntervalMs);
     }
 
+    public static long getNextSyncRemainingMs()
+    {
+        return getNextSyncRemainingMs(System.currentTimeMillis());
+    }
+
+    public static long getNextSyncRemainingMs(long now)
+    {
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            return -1L;
+        }
+
+        long lastSyncMs = lastSuccessfulSyncMs();
+        if (lastSyncMs <= 0L)
+        {
+            return 0L;
+        }
+
+        return Math.max(0L, lastSyncMs + getSyncIntervalMs() - now);
+    }
+
+    public static String getNextSyncLabel()
+    {
+        PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
+        if (snapshot.flushActive())
+        {
+            return "syncing";
+        }
+        int pending = snapshot.countFor(SyncItemType.CLOUD_LIVE_STATE)
+                + snapshot.countFor(SyncItemType.CLOUD_FINISHED_SESSION)
+                + snapshot.countFor(SyncItemType.PLAYER_TOTAL_DIGS)
+                + snapshot.countFor(SyncItemType.WEBSITE_LINK_CLAIM);
+        if (pending > 0)
+        {
+            long nextAttemptAtMs = snapshot.nextAttemptAtMs();
+            long now = System.currentTimeMillis();
+            if (nextAttemptAtMs <= 0L || nextAttemptAtMs <= now)
+            {
+                return "now";
+            }
+            return UiFormat.formatDuration(Math.max(1L, (nextAttemptAtMs - now + 999L) / 1000L));
+        }
+
+        long remainingMs = getNextSyncRemainingMs();
+        if (remainingMs < 0L)
+        {
+            return "off";
+        }
+        if (remainingMs <= 0L)
+        {
+            return "now";
+        }
+        return UiFormat.formatDuration(Math.max(1L, (remainingMs + 999L) / 1000L));
+    }
+
     public static String getSyncTier()
     {
         return Configs.normalizeWebsiteSyncTier(Configs.websiteSyncTier);
@@ -386,9 +452,36 @@ public final class CloudSyncManager
 
     private static boolean isSyncCadenceDue(long now)
     {
-        long interval = getSyncIntervalMs();
-        long lastSyncMs = Math.max(lastLiveBlockSyncMs, Configs.websiteLastSuccessfulSyncMs);
-        return lastSyncMs <= 0L || now - lastSyncMs >= interval;
+        if (hasPendingLiveSync())
+        {
+            return false;
+        }
+        if (lastLiveBlockSyncMs > 0L && now - lastLiveBlockSyncMs < MIN_LIVE_SYNC_ATTEMPT_INTERVAL_MS)
+        {
+            return false;
+        }
+
+        long lastSyncMs = lastSuccessfulSyncMs();
+        return lastSyncMs <= 0L || now - lastSyncMs >= getSyncIntervalMs();
+    }
+
+    private static boolean hasPendingLiveSync()
+    {
+        PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
+        return snapshot.flushActive()
+                || snapshot.countFor(SyncItemType.CLOUD_LIVE_STATE) > 0
+                || snapshot.countFor(SyncItemType.CLOUD_FINISHED_SESSION) > 0;
+    }
+
+    private static long lastSuccessfulSyncMs()
+    {
+        PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
+        return Math.max(Configs.websiteLastSuccessfulSyncMs, snapshot.lastSuccessfulSyncAtMs());
+    }
+
+    public static long getLastSuccessfulSyncMs()
+    {
+        return lastSuccessfulSyncMs();
     }
 
     private static void queueCurrentLivePayloadIfDue(long now)
@@ -617,7 +710,7 @@ public final class CloudSyncManager
             return;
         }
 
-        int queued = 0;
+        List<PendingSavedSession> pendingSessions = new ArrayList<>();
         for (SessionHistory.WorldHistory history : SessionHistory.getWorldHistories())
         {
             for (SessionData session : history.sessions())
@@ -628,16 +721,22 @@ public final class CloudSyncManager
                     continue;
                 }
 
-                SyncQueueManager.enqueueCloudFinishedSession(
-                        sessionKey,
-                        buildSavedSessionPayload(history, session));
-                queued++;
-                if (queued >= MAX_SAVED_SESSIONS_TO_QUEUE)
-                {
-                    break;
-                }
+                pendingSessions.add(new PendingSavedSession(history, session, sessionKey));
             }
+        }
 
+        pendingSessions.sort(Comparator
+                .comparingLong((PendingSavedSession pending) -> pending.session().endTimeMs)
+                .thenComparingLong(pending -> pending.session().startTimeMs)
+                .reversed());
+
+        int queued = 0;
+        for (PendingSavedSession pending : pendingSessions)
+        {
+            SyncQueueManager.enqueueCloudFinishedSession(
+                    pending.sessionKey(),
+                    buildSavedSessionPayload(pending.history(), pending.session()));
+            queued++;
             if (queued >= MAX_SAVED_SESSIONS_TO_QUEUE)
             {
                 break;
@@ -652,6 +751,8 @@ public final class CloudSyncManager
                     reason == null || reason.isBlank() ? "sync" : reason);
         }
     }
+
+    private record PendingSavedSession(SessionHistory.WorldHistory history, SessionData session, String sessionKey) {}
 
     private static JsonObject buildPayload(SessionData session, String sessionStatus)
     {
@@ -699,8 +800,6 @@ public final class CloudSyncManager
         payload.add("daily_goal", buildDailyGoal(dailyGoal));
         payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
         payload.add("session_state", buildSessionState());
-        payload.add("validation", buildValidationTelemetry(client, worldInfo, session));
-
         if (session != null && sessionStatus != null)
         {
             payload.add("session", buildSession(session, sessionStatus));
@@ -730,7 +829,6 @@ public final class CloudSyncManager
         payload.add("daily_goal", buildDailyGoal(dailyGoal));
         payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
         payload.add("session_state", buildSessionState());
-        payload.add("validation", buildValidationTelemetry(client, new WorldSessionContext.WorldInfo(history.worldId(), history.displayName(), "unknown", ""), session));
         payload.add("session", buildSession(session, "ended"));
         return payload;
     }
@@ -743,15 +841,6 @@ public final class CloudSyncManager
         state.addProperty("session_total_blocks", MiningStats.getSessionBlocksMined());
         state.addProperty("session_duration_seconds", Math.max(0L, MiningStats.getSessionDurationMs() / 1000L));
         return state;
-    }
-
-    private static JsonObject buildValidationTelemetry(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo, SessionData session)
-    {
-        long sessionStart = session == null ? 0L : session.startTimeMs;
-        long sessionEnd = session == null ? 0L : session.endTimeMs;
-        long blocksDelta = session == null ? MiningStats.getSessionBlocksMined() : session.totalBlocks;
-        String uuid = client != null && client.player != null ? client.player.getUuidAsString() : "";
-        return MiningValidationTracker.buildPayload(resolveUsername(client), uuid, worldInfo, blocksDelta, sessionStart, sessionEnd);
     }
 
     private static JsonObject buildLifetimeTotals()
@@ -1286,6 +1375,11 @@ public final class CloudSyncManager
         if (payload.has("world"))
         {
             minimal.add("world", payload.get("world"));
+        }
+
+        if (payload.has("lifetime_totals"))
+        {
+            minimal.add("lifetime_totals", payload.get("lifetime_totals"));
         }
 
         if (payload.has("current_world_totals"))

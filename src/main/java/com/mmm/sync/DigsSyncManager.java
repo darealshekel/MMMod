@@ -5,10 +5,8 @@ import com.google.gson.JsonArray;
 import com.mmm.MMM;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
-import com.mmm.storage.SessionData;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
-import com.mmm.tracker.MiningValidationTracker;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -331,17 +329,6 @@ public final class DigsSyncManager
         digs.addProperty("objective_title", model.objectiveTitle());
         payload.add("player_total_digs", digs);
 
-        SessionData currentSession = MiningStats.getCurrentSession();
-        long sessionStartMs = currentSession == null ? 0L : currentSession.startTimeMs;
-        long sessionEndMs = currentSession == null ? 0L : currentSession.endTimeMs;
-        payload.add("validation", MiningValidationTracker.buildPayload(
-                model.username(),
-                client != null && client.player != null ? client.player.getUuidAsString() : "",
-                worldInfo,
-                MiningStats.getSessionBlocksMined(),
-                sessionStartMs,
-                sessionEndMs));
-
         return payload;
     }
 
@@ -411,12 +398,18 @@ public final class DigsSyncManager
             return null;
         }
 
-        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, snapshot.entries());
-        List<SourceLeaderboardEntry> realEntries = snapshot.entries().stream()
+        List<SourceLeaderboardEntry> validEntries = snapshot.entries().stream()
+                .filter(SourceLeaderboardEntry::isValid)
+                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
+                .toList();
+        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, validEntries);
+        List<SourceLeaderboardEntry> filteredEntries = validEntries.stream()
                 .filter(SourceLeaderboardEntry::isValid)
                 .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
                 .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
                 .toList();
+        boolean fakeFilterCollapsedScoreboard = validEntries.size() >= 3 && filteredEntries.size() < 3;
+        List<SourceLeaderboardEntry> realEntries = fakeFilterCollapsedScoreboard ? validEntries : filteredEntries;
 
         if (realEntries.isEmpty())
         {
@@ -428,6 +421,7 @@ public final class DigsSyncManager
         leaderboard.addProperty("objective_title", snapshot.objectiveTitle());
         leaderboard.addProperty("captured_at", Instant.ofEpochMilli(snapshot.capturedAtMs()).toString());
         leaderboard.addProperty("source_type", "scoreboard");
+        leaderboard.addProperty("mode", realEntries.size() >= 3 ? "full" : "delta");
 
         long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
         long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();
@@ -448,7 +442,7 @@ public final class DigsSyncManager
             entries.add(row);
         }
 
-        if (fakeUsernames.isEmpty() == false)
+        if (fakeUsernames.isEmpty() == false && fakeFilterCollapsedScoreboard == false)
         {
             JsonArray filtered = new JsonArray();
             fakeUsernames.stream().sorted().forEach(filtered::add);

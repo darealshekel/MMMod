@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -37,7 +38,7 @@ public final class PendingSyncQueue
         default void onPersistenceFailed(String detail, Snapshot snapshot) {}
     }
 
-    public record Snapshot(int queueSize, long lastSuccessfulSyncAtMs, boolean flushActive, Map<SyncItemType, Integer> countsByType)
+    public record Snapshot(int queueSize, long lastSuccessfulSyncAtMs, long nextAttemptAtMs, boolean flushActive, Map<SyncItemType, Integer> countsByType)
     {
         public int countFor(SyncItemType type)
         {
@@ -163,16 +164,24 @@ public final class PendingSyncQueue
 
     public void forceFlush(String reason)
     {
-        synchronized (this.lock)
+        if (shouldResetRetryBackoff(reason))
         {
-            for (QueuedSyncItem item : this.items)
+            synchronized (this.lock)
             {
-                item.nextRetryAtMs = 0L;
+                for (QueuedSyncItem item : this.items)
+                {
+                    item.nextRetryAtMs = 0L;
+                }
+                persistLocked();
             }
-            persistLocked();
         }
-
         requestFlush(reason);
+    }
+
+    private static boolean shouldResetRetryBackoff(String reason)
+    {
+        String normalized = reason == null ? "" : reason.toLowerCase(Locale.ROOT);
+        return normalized.contains("manual") || normalized.contains("website link");
     }
 
     public Snapshot snapshot()
@@ -297,10 +306,39 @@ public final class PendingSyncQueue
             return this.items.stream()
                     .filter(item -> item.nextRetryAtMs <= now)
                     .filter(this.dueItemFilter)
-                    .min(Comparator.comparingLong(item -> item.createdAtMs))
+                    .min(Comparator
+                            .comparingInt(PendingSyncQueue::queuePriority)
+                            .thenComparingInt(item -> item.retryCount)
+                            .thenComparingLong(PendingSyncQueue::queueCreatedAtSortValue))
                     .map(QueuedSyncItem::copy)
                     .orElse(null);
         }
+    }
+
+    private static int queuePriority(QueuedSyncItem item)
+    {
+        if (item == null || item.type == null)
+        {
+            return 99;
+        }
+
+        return switch (item.type)
+        {
+            case WEBSITE_LINK_CLAIM -> 0;
+            case CLOUD_FINISHED_SESSION -> 1;
+            case CLOUD_LIVE_STATE -> 2;
+            case PLAYER_TOTAL_DIGS -> 3;
+        };
+    }
+
+    private static long queueCreatedAtSortValue(QueuedSyncItem item)
+    {
+        if (item == null)
+        {
+            return Long.MAX_VALUE;
+        }
+
+        return item.type == SyncItemType.CLOUD_FINISHED_SESSION ? -item.createdAtMs : item.createdAtMs;
     }
 
     private QueuedSyncItem findByTypeAndKey(SyncItemType type, String dedupeKey)
@@ -333,12 +371,17 @@ public final class PendingSyncQueue
     private Snapshot snapshotLocked()
     {
         EnumMap<SyncItemType, Integer> counts = new EnumMap<>(SyncItemType.class);
+        long nextAttemptAtMs = 0L;
         for (QueuedSyncItem item : this.items)
         {
             counts.merge(item.type, 1, Integer::sum);
+            if (nextAttemptAtMs <= 0L || item.nextRetryAtMs < nextAttemptAtMs)
+            {
+                nextAttemptAtMs = item.nextRetryAtMs;
+            }
         }
 
-        return new Snapshot(this.items.size(), this.lastSuccessfulSyncAtMs, this.flushActive, Map.copyOf(counts));
+        return new Snapshot(this.items.size(), this.lastSuccessfulSyncAtMs, Math.max(0L, nextAttemptAtMs), this.flushActive, Map.copyOf(counts));
     }
 
     private void persistLocked()

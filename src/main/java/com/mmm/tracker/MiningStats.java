@@ -5,6 +5,7 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -25,6 +26,7 @@ import com.mmm.sync.CloudSyncManager;
 import com.mmm.sync.DigsSyncManager;
 import com.mmm.sync.ScoreboardSourceResolver;
 import com.mmm.sync.SyncQueueManager;
+import com.mmm.timer.MmmTimerState;
 import com.mmm.util.BlockBreakdownCatalog;
 import com.mmm.util.MmmDebugLogger;
 import com.mmm.util.PeriodKeys;
@@ -93,11 +95,13 @@ public final class MiningStats
     public static void startWorldSession(String worldId)
     {
         currentWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
+        long now = System.currentTimeMillis();
+        MiningSanityGuard.resetWorld(currentWorldId);
         sessionActive = false;
         resetSession();
         resetRollingMetrics();
         MiningSpeedTracker.resetSession();
-        touchCurrentWorldStats(System.currentTimeMillis());
+        touchCurrentWorldStats(now);
 
         resetDailyProgressIfNeeded();
         resetPeriodStatsIfNeeded(System.currentTimeMillis());
@@ -151,6 +155,21 @@ public final class MiningStats
             return;
         }
 
+        String dimensionId = getCurrentDimensionId();
+        if (MiningSanityGuard.shouldAcceptBlock(pos, WorldSessionContext.getCurrentWorldId(), dimensionId, now) == false)
+        {
+            MmmDebugLogger.info(
+                    "miningstats.sanity-block-skipped",
+                    BLOCK_MINED_DEBUG_LOG_INTERVAL_MS,
+                    "[MMM_DEBUG] sanity-block-skipped worldId={} dimension={} pos={} duplicateRejects={} minuteCapRejects={}",
+                    WorldSessionContext.getCurrentWorldId(),
+                    dimensionId,
+                    coordinateString(pos),
+                    MiningSanityGuard.getWorldDuplicateCoordinateRejects(),
+                    MiningSanityGuard.getMinuteCapRejects());
+            return;
+        }
+
         handleAutoSessionOnValidMine(now);
         recordSuccessfulHarvestForRollingMetrics();
 
@@ -166,6 +185,7 @@ public final class MiningStats
         Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
         worldStats.totalBlocks++;
         recordCurrentWorldBlockBreakdown(worldStats, block, now);
+        MmmTimerState.onBlockMined(block);
 
         resetDailyProgressIfNeeded();
         long previousDaily = Configs.dailyProgress;
@@ -188,8 +208,6 @@ public final class MiningStats
 
         if (sessionActive && sessionPaused == false)
         {
-            MiningValidationTracker.onBlockMined(pos, previousState, now);
-
             currentSession.totalBlocks++;
             currentSession.endTimeMs = now;
             currentSession.recordMineEvent(getActiveElapsedMs(now));
@@ -244,7 +262,6 @@ public final class MiningStats
     {
         MINE_EVENTS.clear();
         currentSession = new SessionData(System.currentTimeMillis());
-        MiningValidationTracker.resetSession(currentSession.startTimeMs);
         streakStartMs = 0L;
         lastMineMs = 0L;
         pausedAtMs = 0L;
@@ -266,6 +283,7 @@ public final class MiningStats
         resetRollingMetrics();
         MiningSpeedTracker.resetSession();
         sessionActive = true;
+        MmmTimerState.onSessionStarted();
         sessionStartTotalMined = getCurrentSourceTotalMined();
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
         MmmDebugLogger.info(
@@ -353,7 +371,6 @@ public final class MiningStats
         DigsSyncManager.onClientTick(now);
         CloudSyncManager.onClientTick(now);
         BlockBreakdownTracker.onClientTick(client, now);
-        MiningValidationTracker.onClientTick(now);
         SyncQueueManager.onClientTick(now);
         maybeAutoPauseSession(now);
     }
@@ -635,11 +652,6 @@ public final class MiningStats
     {
         resetDailyProgressIfNeeded();
 
-        if (FeatureToggle.TWEAK_DAILY_AUTO_RESET.getBooleanValue() == false)
-        {
-            return "Disabled";
-        }
-
         ZonedDateTime now = ZonedDateTime.now(DAILY_RESET_ZONE);
         ZonedDateTime nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay(DAILY_RESET_ZONE);
         long remainingMs = Math.max(0L, nextMidnight.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
@@ -772,67 +784,47 @@ public final class MiningStats
     public static SessionData simulateDevFinishedSession()
     {
         long now = System.currentTimeMillis();
-        int durationMinutes = 195;
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        int durationMinutes = random.nextInt(180, 721);
+        long targetBlocks = random.nextLong(100_000L, 500_001L);
         long startTimeMs = now - durationMinutes * ONE_MINUTE_MS - 30_000L;
         SessionData session = new SessionData(startTimeMs);
 
         long totalBlocks = 0L;
+        double[] weights = new double[durationMinutes];
+        double totalWeight = 0.0D;
         for (int minute = 0; minute < durationMinutes; minute++)
         {
-            int warmup = Math.min(90, minute * 7);
-            int cooldown = Math.max(0, minute - 168) * 9;
-            int wave = (int) Math.round(Math.sin(minute / 8.0D) * 95.0D + Math.sin(minute / 21.0D) * 70.0D);
-            int bucketBlocks = Math.max(120, 650 + warmup - cooldown + wave + (minute % 11) * 11);
+            double warmup = Math.min(1.0D, (minute + 1) / 30.0D);
+            double cooldown = 1.0D - Math.max(0.0D, (minute - durationMinutes + 45) / 120.0D) * 0.35D;
+            double wave = 1.0D
+                    + Math.sin((minute + random.nextInt(0, 16)) / 9.0D) * 0.12D
+                    + Math.sin((minute + random.nextInt(0, 40)) / 31.0D) * 0.08D;
+            double jitter = random.nextDouble(0.82D, 1.22D);
+            double weight = Math.max(0.25D, warmup * cooldown * wave * jitter);
+            weights[minute] = weight;
+            totalWeight += weight;
+        }
+
+        for (int minute = 0; minute < durationMinutes; minute++)
+        {
+            long bucketBlocks = Math.max(0L, Math.round(targetBlocks * (weights[minute] / totalWeight)));
+            if (minute == durationMinutes - 1)
+            {
+                bucketBlocks = Math.max(0L, targetBlocks - totalBlocks);
+            }
+            else if (totalBlocks + bucketBlocks > targetBlocks)
+            {
+                bucketBlocks = Math.max(0L, targetBlocks - totalBlocks);
+            }
             session.recordMinedAmount(minute * ONE_MINUTE_MS, bucketBlocks);
             totalBlocks += bucketBlocks;
         }
 
         session.totalBlocks = totalBlocks;
         session.endTimeMs = startTimeMs + durationMinutes * ONE_MINUTE_MS;
-        session.bestStreakSeconds = 27L * 60L;
+        session.bestStreakSeconds = random.nextLong(12L * 60L, Math.min(90L * 60L, Math.max(13L * 60L, durationMinutes * 45L)));
         session.blockBreakdown = buildDevSessionBreakdown(totalBlocks);
-
-        resetDailyProgressIfNeeded();
-        resetPeriodStatsIfNeeded(now);
-
-        Configs.totalBlocksMined = Math.max(0L, Configs.totalBlocksMined) + totalBlocks;
-        Configs.dailyProgress = Math.max(0L, Configs.dailyProgress) + totalBlocks;
-        recordPeriodBlocksMined(totalBlocks, now);
-
-        ProjectEntry activeProject = Configs.getActiveProject();
-        if (activeProject != null)
-        {
-            activeProject.progress = Math.max(0L, activeProject.progress) + totalBlocks;
-        }
-
-        Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
-        worldStats.totalBlocks = Math.max(0L, worldStats.totalBlocks) + totalBlocks;
-        worldStats.lastSeenAt = now;
-        if (worldStats.blockBreakdown == null)
-        {
-            worldStats.blockBreakdown = new LinkedHashMap<>();
-        }
-        for (Map.Entry<String, Long> entry : session.blockBreakdown.entrySet())
-        {
-            worldStats.blockBreakdown.merge(entry.getKey(), entry.getValue(), Long::sum);
-        }
-        worldStats.blockBreakdown = Configs.sanitizeBlockBreakdown(worldStats.blockBreakdown);
-        worldStats.blockBreakdownSource = Configs.BLOCK_BREAKDOWN_SOURCE_LOCAL_OBSERVED;
-        worldStats.blockBreakdownUpdatedAtMs = now;
-
-        if (session.totalBlocks >= FASTEST_100K_TARGET)
-        {
-            long fastestDurationMs = Math.max(1L, (FASTEST_100K_TARGET * session.getDurationMs()) / session.totalBlocks);
-            if (Configs.fastest100kMs <= 0L || fastestDurationMs < Configs.fastest100kMs)
-            {
-                Configs.fastest100kMs = fastestDurationMs;
-                Configs.fastest100kStartedAtMs = session.startTimeMs;
-                Configs.fastest100kFinishedAtMs = session.startTimeMs + fastestDurationMs;
-            }
-        }
-
-        SessionHistory.save(session);
-        Configs.saveToFile();
         return session;
     }
 
@@ -909,11 +901,6 @@ public final class MiningStats
 
     private static void resetDailyProgressIfNeeded()
     {
-        if (FeatureToggle.TWEAK_DAILY_AUTO_RESET.getBooleanValue() == false)
-        {
-            return;
-        }
-
         long now = System.currentTimeMillis();
         ZoneId zoneId = DAILY_RESET_ZONE;
         LocalDate today = LocalDate.now(zoneId);
@@ -1196,7 +1183,7 @@ public final class MiningStats
     private static void updateDisplayedRollingMetrics()
     {
         displayedBlocksPerSecond = Math.max(0D, Math.min(20D, rollingBlocksPerSecond));
-        displayedBlocksPerHour = Math.max(0D, Math.min(SessionData.MAX_BLOCKS_PER_HOUR, rollingBlocksPerHour));
+        displayedBlocksPerHour = Math.max(0D, Math.min(SessionData.MAX_BLOCKS_PER_HOUR, MmmTimerState.getEstimatedBlocksPerHour()));
     }
 
 
@@ -1431,6 +1418,27 @@ public final class MiningStats
         return currentKey.equalsIgnoreCase(scoreboardKey);
     }
 
+    private static String getCurrentDimensionId()
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.world == null)
+        {
+            return "unknown";
+        }
+
+        return client.world.getRegistryKey().getValue().toString();
+    }
+
+    private static String coordinateString(BlockPos pos)
+    {
+        if (pos == null)
+        {
+            return "unknown";
+        }
+
+        return pos.getX() + "," + pos.getY() + "," + pos.getZ();
+    }
+
     private static void debugAttribution(String reason, long beforeSourceTotal, long afterSourceTotal, long delta)
     {
         if (MmmDebugLogger.shouldLog("miningstats.source-update." + reason, SOURCE_UPDATE_DEBUG_LOG_INTERVAL_MS) == false)
@@ -1462,9 +1470,14 @@ public final class MiningStats
 
     public record GoalProgress(String label, boolean enabled, long current, long target)
     {
+        public double getPercentValue()
+        {
+            return target <= 0 ? 0.0D : Math.max(0.0D, (current * 100.0D) / target);
+        }
+
         public int getPercent()
         {
-            return target <= 0 ? 0 : (int) Math.min(100, (current * 100) / target);
+            return (int) getPercentValue();
         }
     }
 

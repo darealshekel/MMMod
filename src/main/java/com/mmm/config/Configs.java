@@ -1,12 +1,15 @@
 package com.mmm.config;
 
 import java.io.File;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Properties;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -42,41 +45,99 @@ public class Configs implements IConfigHandler
     private static final String DEFAULT_CLOUD_SYNC_ENDPOINT = "https://sync.mmmaniacs.com/v1/sync";
     public static final int MIN_DAILY_GOAL = 35_000;
 
+    public static boolean isDevToolsEnabled()
+    {
+        String override = System.getProperty("mmm.devTools");
+        if (override != null)
+        {
+            return Boolean.parseBoolean(override);
+        }
+
+        try (InputStream input = Configs.class.getResourceAsStream("/mmm-build.properties"))
+        {
+            if (input == null)
+            {
+                return false;
+            }
+
+            Properties properties = new Properties();
+            properties.load(input);
+            return Boolean.parseBoolean(properties.getProperty("devTools", "false"));
+        }
+        catch (Exception ignored)
+        {
+            return false;
+        }
+    }
+
     public static class Generic
     {
         public static final String DEFAULT_HUD_TITLE_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_HUD_TEXT_HEX_COLOR = "#FFF6F3EF";
         public static final String DEFAULT_HUD_NUMBER_HEX_COLOR = "#FFFFFFFF";
         public static final String DEFAULT_HUD_INACTIVE_HEX_COLOR = "#FF949494";
+        public static final String DEFAULT_MENU_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_BLOCK_ESP_HEX_COLOR = "#FF55FF55";
         public static final String DEFAULT_GRAPH_LINE_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_GRAPH_FILL_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_GRAPH_GRID_HEX_COLOR = "#FFC8C8C8";
 
-        public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", true, "Enable MMM website sync.");
-        public static final ConfigBoolean TOTAL_DIGS_SYNC_ENABLED = new ConfigBoolean("totalDigsSyncEnabled", true, "Sync Total Digs to Website.");
+        public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", false, "Enable MMM website sync.");
+        public static final ConfigBoolean TOTAL_DIGS_SYNC_ENABLED = new ConfigBoolean("totalDigsSyncEnabled", false, "Sync Total Digs to Website.");
         public static final ConfigBoolean WEBSITE_SYNC_DEBUG = new ConfigBoolean("websiteSyncDebug", false, "Enable verbose website sync debug logging.");
-        public static final ConfigInteger VALIDATION_MIN_BLOCKS = new ConfigInteger("validationMinBlocks", 250, 1, 100_000, "Minimum physical blocks in a session before MMM anti-AFK and anti-farm checks apply.");
-        public static final ConfigDouble VALIDATION_CAMERA_VARIANCE_THRESHOLD = new ConfigDouble("validationCameraVarianceThreshold", 1.5D, 0.0D, 45.0D, "Pitch/yaw standard-deviation threshold, in degrees, below which a large mining session is flagged.");
-        public static final ConfigDouble VALIDATION_POSITION_VARIANCE_THRESHOLD = new ConfigDouble("validationPositionVarianceThreshold", 1.25D, 0.0D, 16.0D, "Movement radius threshold, in blocks, below which a large mining session is flagged.");
-        public static final ConfigInteger VALIDATION_CONTINUOUS_MINING_TICKS = new ConfigInteger("validationContinuousMiningTicks", 2400, 20, 72_000, "Maximum continuous held-mining ticks before a session is flagged for no action pauses.");
-        public static final ConfigInteger VALIDATION_CLUSTER_BUFFER_SIZE = new ConfigInteger("validationClusterBufferSize", 50, 20, 200, "Recent broken-block buffer size used for repeated cluster farm detection.");
-        public static final ConfigInteger VALIDATION_PLACE_BREAK_WINDOW_SECONDS = new ConfigInteger("validationPlaceBreakWindowSeconds", 30, 1, 600, "Seconds after placement during which breaking the same block counts toward place-and-break telemetry.");
-        public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", true, "Show shortened large numbers such as 10M instead of 10,000,000.");
+        public static final ConfigInteger MAX_BLOCKS_PER_MINUTE = new ConfigInteger("maxBlocksPerMinute", 1200, 1, 1200, "Maximum accepted local valid block breaks per minute. Excess local counts are logged and ignored.");
+        public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", false, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
-        public static final fi.dy.masa.malilib.config.options.ConfigString NOTIFICATION_THRESHOLDS = new fi.dy.masa.malilib.config.options.ConfigString("notificationThresholds", "25,50,75,100", "Popup threshold percentages, comma separated.");
-        public static final ConfigInteger SOUND_ALERT_THRESHOLD = new ConfigInteger("soundAlertThreshold", 100, 1, 100, "Sound alert threshold percentage.");
+        public static final ConfigBoolean GOAL_PICKAXE_ANIMATION = new ConfigBoolean("goalPickaxeAnimation", true, "Show a pickaxe animation at each main daily-goal milestone.");
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 820, "Mining HUD horizontal position.");
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 460, "Mining HUD vertical position.");
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
         public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.75D, 1.75D, "Mining HUD scale.");
         public static final ConfigBoolean HUD_TEXT_BACKGROUND = new ConfigBoolean("hudTextBackground", false, "Draw small background boxes behind individual MMM HUD text lines.");
+        public static final ConfigBoolean HUD_TITLE_VISIBLE = new ConfigBoolean("hudTitleVisible", true, "Show the MMM title and sync status.");
+        public static final ConfigBoolean HUD_GLOBAL_TOTAL_VISIBLE = new ConfigBoolean("hudGlobalTotalVisible", true, "Show your combined website total.");
+        public static final ConfigBoolean HUD_WORLD_TOTAL_VISIBLE = new ConfigBoolean("hudWorldTotalVisible", true, "Show the current source total.");
+        public static final ConfigBoolean HUD_SESSION_TOTAL_VISIBLE = new ConfigBoolean("hudSessionTotalVisible", true, "Show blocks mined in the current session.");
+        public static final ConfigBoolean HUD_DAILY_WEEK_VISIBLE = new ConfigBoolean("hudDailyWeekVisible", true, "Show today's and this week's blocks.");
+        public static final ConfigBoolean HUD_RECORDS_VISIBLE = new ConfigBoolean("hudRecordsVisible", true, "Show daily and weekly personal records.");
+        public static final ConfigBoolean HUD_FASTEST_100K_VISIBLE = new ConfigBoolean("hudFastest100kVisible", true, "Show your fastest 100k time.");
+        public static final ConfigBoolean HUD_SESSION_TIME_VISIBLE = new ConfigBoolean("hudSessionTimeVisible", true, "Show the current session time.");
+        public static final ConfigBoolean HUD_DAILY_RESET_VISIBLE = new ConfigBoolean("hudDailyResetVisible", true, "Show the countdown to the daily reset.");
+        public static final ConfigBoolean HUD_TIMER_STATUS_VISIBLE = new ConfigBoolean("hudTimerStatusVisible", true, "Show timer status in the main HUD.");
+        public static final ConfigBoolean ALWAYS_OVERRIDE_XP_BAR = new ConfigBoolean("alwaysOverrideXpBar", false, "Always replace the vanilla XP bar with daily-goal progress instead of only while Tab is held.");
+        public static final ConfigBoolean SHOW_GOAL_PERCENT = new ConfigBoolean("showGoalPercent", true, "Show daily-goal percentage instead of the vanilla XP level.");
+        public static final ConfigBoolean GOAL_PERCENT_DECIMALS = new ConfigBoolean("goalPercentDecimals", true, "Show decimal places in the daily-goal percentage.");
+        public static final ConfigInteger GOAL_PERCENT_DECIMAL_PLACES = new ConfigInteger("goalPercentDecimalPlaces", 1, 1, 3, "Number of decimal places shown in the daily-goal percentage.");
+        public static final ConfigBoolean TIMER_HUD_VISIBLE = new ConfigBoolean("timerHudVisible", false, "Show the MMM timer HUD module.");
+        public static final ConfigBoolean HOURLY_STATS_VISIBLE = new ConfigBoolean("hourlyStatsVisible", true, "Show the hourly mining stats HUD module.");
+        public static final ConfigBoolean BLOCKS_PER_MINUTE_VISIBLE = new ConfigBoolean("blocksPerMinuteVisible", true, "Show Blocks/min in the main MMM HUD speed line.");
+        public static final ConfigBoolean BLOCK_STATS_VISIBLE = new ConfigBoolean("blockStatsVisible", true, "Show the block stats HUD module.");
+        public static final ConfigBoolean BLOCK_STATS_BACKGROUND = new ConfigBoolean("blockStatsBackground", true, "Draw a background behind the block stats HUD module.");
+        public static final ConfigBoolean BLOCK_STATS_STATIC = new ConfigBoolean("blockStatsStatic", false, "Keep block stats on one page instead of auto-paging.");
+        public static final ConfigBoolean BLOCK_STATS_ICONS = new ConfigBoolean("blockStatsIcons", true, "Show block item icons in the block stats HUD module.");
+        public static final ConfigBoolean TIMER_NOTIFICATIONS = new ConfigBoolean("timerNotifications", true, "Show timer-hour notifications.");
+        public static final ConfigBoolean TIMER_CREDITS = new ConfigBoolean("timerCredits", true, "Show the timer-complete credits screen.");
+        public static final ConfigInteger TIMER_HUD_X = new ConfigInteger("timerHudX", 520, 0, 820, "Timer HUD horizontal position.");
+        public static final ConfigInteger TIMER_HUD_Y = new ConfigInteger("timerHudY", 24, 0, 460, "Timer HUD vertical position.");
+        public static final ConfigDouble TIMER_HUD_SCALE = new ConfigDouble("timerHudScale", 1.0D, 0.5D, 3.0D, "Timer HUD scale.");
+        public static final ConfigInteger HOURLY_STATS_X = new ConfigInteger("hourlyStatsX", 520, 0, 820, "Hourly stats HUD horizontal position.");
+        public static final ConfigInteger HOURLY_STATS_Y = new ConfigInteger("hourlyStatsY", 92, 0, 460, "Hourly stats HUD vertical position.");
+        public static final ConfigDouble HOURLY_STATS_SCALE = new ConfigDouble("hourlyStatsScale", 1.0D, 0.5D, 3.0D, "Hourly stats HUD scale.");
+        public static final ConfigInteger BLOCK_STATS_X = new ConfigInteger("blockStatsX", 520, 0, 820, "Block stats HUD horizontal position.");
+        public static final ConfigInteger BLOCK_STATS_Y = new ConfigInteger("blockStatsY", 190, 0, 460, "Block stats HUD vertical position.");
+        public static final ConfigDouble BLOCK_STATS_SCALE = new ConfigDouble("blockStatsScale", 1.0D, 0.5D, 3.0D, "Block stats HUD scale.");
+        public static final ConfigInteger TIMER_NOTIFICATION_X = new ConfigInteger("timerNotificationX", 325, 0, 820, "Timer notification horizontal position.");
+        public static final ConfigInteger TIMER_NOTIFICATION_Y = new ConfigInteger("timerNotificationY", 44, 0, 460, "Timer notification vertical position.");
+        public static final ConfigDouble TIMER_NOTIFICATION_SCALE = new ConfigDouble("timerNotificationScale", 1.0D, 0.5D, 3.0D, "Timer notification scale.");
         public static final ConfigColor HUD_TITLE_HEX_COLOR = new ConfigColor("hudTitleHexColor", DEFAULT_HUD_TITLE_HEX_COLOR, "Title color used by the MMM HUD.");
         public static final ConfigColor HUD_TEXT_HEX_COLOR = new ConfigColor("hudTextHexColor", DEFAULT_HUD_TEXT_HEX_COLOR, "Label/text color used by the MMM HUD.");
         public static final ConfigColor HUD_NUMBER_HEX_COLOR = new ConfigColor("hudNumberHexColor", DEFAULT_HUD_NUMBER_HEX_COLOR, "Number color used by MMM HUD and UI numeric values.");
         public static final ConfigColor HUD_INACTIVE_HEX_COLOR = new ConfigColor("hudInactiveHexColor", DEFAULT_HUD_INACTIVE_HEX_COLOR, "Inactive/paused text color used by the MMM HUD.");
-        public static final ConfigOptionList BPS_SMOOTHING = new ConfigOptionList("bpsSmoothing", BpsSmoothing.FAST, "BPS Smoothing");
+        public static final ConfigColor MENU_HEX_COLOR = new ConfigColor("menuHexColor", DEFAULT_MENU_HEX_COLOR, "Accent color used by MMM menu screens.");
+        public static final ConfigOptionList BPS_SMOOTHING = new ConfigOptionList("bpsSmoothing", BpsSmoothing.FAST, "Blocks/sec Smoothing");
         public static final ConfigBoolean SMALL_DIG_ITEMS = new ConfigBoolean("smallDigItems", false, "Render MMM breakdown block items smaller, like the Smoll Dig Items resource pack.");
+        public static final ConfigDouble SMALL_DIG_ITEM_SCALE = new ConfigDouble("smallDigItemScale", 0.2D, 0.1D, 1.0D, "Size of tracked mining block items while Small Dig Items is enabled.");
+        public static final ConfigBoolean NO_SWINGING_ANIMATION = new ConfigBoolean("noSwingingAnimation", false, "Disable the local first-person hand swing animation while mining.");
         public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
         public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", DEFAULT_BLOCK_ESP_HEX_COLOR, "Block ESP custom color. Used when the color mode is Single Color.");
         public static final ConfigOptionList BLOCK_ESP_RENDER_MODE = new ConfigOptionList("blockEspRenderMode", BlockEspRenderMode.FULL_BLOCK, "Block ESP render mode.");
@@ -97,19 +158,56 @@ public class Configs implements IConfigHandler
                 WEBSITE_SYNC_DEBUG,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
-                NOTIFICATION_THRESHOLDS,
-                SOUND_ALERT_THRESHOLD,
+                GOAL_PICKAXE_ANIMATION,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
                 HUD_SCALE,
                 HUD_TEXT_BACKGROUND,
+                HUD_TITLE_VISIBLE,
+                HUD_GLOBAL_TOTAL_VISIBLE,
+                HUD_WORLD_TOTAL_VISIBLE,
+                HUD_SESSION_TOTAL_VISIBLE,
+                HUD_DAILY_WEEK_VISIBLE,
+                HUD_RECORDS_VISIBLE,
+                HUD_FASTEST_100K_VISIBLE,
+                HUD_SESSION_TIME_VISIBLE,
+                HUD_DAILY_RESET_VISIBLE,
+                HUD_TIMER_STATUS_VISIBLE,
+                ALWAYS_OVERRIDE_XP_BAR,
+                SHOW_GOAL_PERCENT,
+                GOAL_PERCENT_DECIMALS,
+                GOAL_PERCENT_DECIMAL_PLACES,
+                TIMER_HUD_VISIBLE,
+                HOURLY_STATS_VISIBLE,
+                BLOCKS_PER_MINUTE_VISIBLE,
+                BLOCK_STATS_VISIBLE,
+                BLOCK_STATS_BACKGROUND,
+                BLOCK_STATS_STATIC,
+                BLOCK_STATS_ICONS,
+                TIMER_NOTIFICATIONS,
+                TIMER_CREDITS,
+                TIMER_HUD_X,
+                TIMER_HUD_Y,
+                TIMER_HUD_SCALE,
+                HOURLY_STATS_X,
+                HOURLY_STATS_Y,
+                HOURLY_STATS_SCALE,
+                BLOCK_STATS_X,
+                BLOCK_STATS_Y,
+                BLOCK_STATS_SCALE,
+                TIMER_NOTIFICATION_X,
+                TIMER_NOTIFICATION_Y,
+                TIMER_NOTIFICATION_SCALE,
                 HUD_TITLE_HEX_COLOR,
                 HUD_TEXT_HEX_COLOR,
                 HUD_NUMBER_HEX_COLOR,
                 HUD_INACTIVE_HEX_COLOR,
+                MENU_HEX_COLOR,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
+                SMALL_DIG_ITEM_SCALE,
+                NO_SWINGING_ANIMATION,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -128,27 +226,59 @@ public class Configs implements IConfigHandler
                 WEBSITE_SYNC_ENABLED,
                 TOTAL_DIGS_SYNC_ENABLED,
                 WEBSITE_SYNC_DEBUG,
-                VALIDATION_MIN_BLOCKS,
-                VALIDATION_CAMERA_VARIANCE_THRESHOLD,
-                VALIDATION_POSITION_VARIANCE_THRESHOLD,
-                VALIDATION_CONTINUOUS_MINING_TICKS,
-                VALIDATION_CLUSTER_BUFFER_SIZE,
-                VALIDATION_PLACE_BREAK_WINDOW_SECONDS,
+                MAX_BLOCKS_PER_MINUTE,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
-                NOTIFICATION_THRESHOLDS,
-                SOUND_ALERT_THRESHOLD,
+                GOAL_PICKAXE_ANIMATION,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
                 HUD_SCALE,
                 HUD_TEXT_BACKGROUND,
+                HUD_TITLE_VISIBLE,
+                HUD_GLOBAL_TOTAL_VISIBLE,
+                HUD_WORLD_TOTAL_VISIBLE,
+                HUD_SESSION_TOTAL_VISIBLE,
+                HUD_DAILY_WEEK_VISIBLE,
+                HUD_RECORDS_VISIBLE,
+                HUD_FASTEST_100K_VISIBLE,
+                HUD_SESSION_TIME_VISIBLE,
+                HUD_DAILY_RESET_VISIBLE,
+                HUD_TIMER_STATUS_VISIBLE,
+                ALWAYS_OVERRIDE_XP_BAR,
+                SHOW_GOAL_PERCENT,
+                GOAL_PERCENT_DECIMALS,
+                GOAL_PERCENT_DECIMAL_PLACES,
+                TIMER_HUD_VISIBLE,
+                HOURLY_STATS_VISIBLE,
+                BLOCKS_PER_MINUTE_VISIBLE,
+                BLOCK_STATS_VISIBLE,
+                BLOCK_STATS_BACKGROUND,
+                BLOCK_STATS_STATIC,
+                BLOCK_STATS_ICONS,
+                TIMER_NOTIFICATIONS,
+                TIMER_CREDITS,
+                TIMER_HUD_X,
+                TIMER_HUD_Y,
+                TIMER_HUD_SCALE,
+                HOURLY_STATS_X,
+                HOURLY_STATS_Y,
+                HOURLY_STATS_SCALE,
+                BLOCK_STATS_X,
+                BLOCK_STATS_Y,
+                BLOCK_STATS_SCALE,
+                TIMER_NOTIFICATION_X,
+                TIMER_NOTIFICATION_Y,
+                TIMER_NOTIFICATION_SCALE,
                 HUD_TITLE_HEX_COLOR,
                 HUD_TEXT_HEX_COLOR,
                 HUD_NUMBER_HEX_COLOR,
                 HUD_INACTIVE_HEX_COLOR,
+                MENU_HEX_COLOR,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
+                SMALL_DIG_ITEM_SCALE,
+                NO_SWINGING_ANIMATION,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -240,7 +370,12 @@ public class Configs implements IConfigHandler
         fastest100kStartedAtMs = Math.max(0L, fastest100kStartedAtMs);
         fastest100kFinishedAtMs = Math.max(0L, fastest100kFinishedAtMs);
         totalBlocksMined = Math.max(0L, totalBlocksMined);
+        boolean endpointMigrated = isLegacySupabaseSyncEndpoint(cloudSyncEndpoint);
         if (cloudSyncEndpoint == null || cloudSyncEndpoint.isBlank())
+        {
+            cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
+        }
+        else if (endpointMigrated)
         {
             cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
         }
@@ -284,19 +419,12 @@ public class Configs implements IConfigHandler
         }
         PerimeterWallDigHelper.refreshFromConfig();
 
-        List<Integer> thresholds = getNotificationThresholds();
-        thresholds.removeIf(value -> value <= 0 || value > 100);
-        thresholds.sort(Comparator.naturalOrder());
-        if (thresholds.isEmpty())
-        {
-            thresholds = List.of(25, 50, 75, 100);
-        }
-        Generic.NOTIFICATION_THRESHOLDS.setValueFromString(String.join(",", thresholds.stream().map(String::valueOf).toList()));
         Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(normalizeBlockEspHexColor(Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
         Generic.HUD_TITLE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TITLE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TITLE_HEX_COLOR));
         Generic.HUD_TEXT_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TEXT_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TEXT_HEX_COLOR));
         Generic.HUD_NUMBER_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_NUMBER_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_NUMBER_HEX_COLOR));
         Generic.HUD_INACTIVE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_INACTIVE_HEX_COLOR));
+        Generic.MENU_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.MENU_HEX_COLOR.getStringValue(), Generic.DEFAULT_MENU_HEX_COLOR));
         Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
         Generic.GRAPH_LINE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_LINE_HEX_COLOR));
         Generic.GRAPH_FILL_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_FILL_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_FILL_HEX_COLOR));
@@ -305,7 +433,7 @@ public class Configs implements IConfigHandler
         Generic.GRAPH_BG_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_BG_OPACITY.getIntegerValue())));
         Generic.GRAPH_GRID_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_GRID_OPACITY.getIntegerValue())));
 
-        if (syncIdentityGenerated || dailyGoalMigrated)
+        if (syncIdentityGenerated || dailyGoalMigrated || endpointMigrated)
         {
             saveToFile();
         }
@@ -370,24 +498,7 @@ public class Configs implements IConfigHandler
 
     public static List<Integer> getNotificationThresholds()
     {
-        List<Integer> values = new ArrayList<>();
-        for (String part : Generic.NOTIFICATION_THRESHOLDS.getStringValue().split(","))
-        {
-            String trimmed = part.trim();
-            if (trimmed.isEmpty())
-            {
-                continue;
-            }
-            try
-            {
-                values.add(Integer.parseInt(trimmed));
-            }
-            catch (NumberFormatException e)
-            {
-                MMM.LOGGER.warn("[MMM] Failed to parse notificationThresholds entry '{}' in {}: {}", trimmed, getPrimaryConfigFile(), e.getMessage());
-            }
-        }
-        return values;
+        return List.of(25, 50, 75, 100);
     }
 
     public static ProjectEntry getActiveProject()
@@ -492,6 +603,11 @@ public class Configs implements IConfigHandler
     public static int getHudInactiveColor()
     {
         return parseOpaqueHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_INACTIVE_HEX_COLOR);
+    }
+
+    public static int getMenuColor()
+    {
+        return parseOpaqueHexColor(Generic.MENU_HEX_COLOR.getStringValue(), Generic.DEFAULT_MENU_HEX_COLOR);
     }
 
     public static int getGraphLineColor()  { return parseOpaqueHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_LINE_HEX_COLOR); }
@@ -674,9 +790,10 @@ public class Configs implements IConfigHandler
 
     private static void mergeCrossVersionState(JsonObject state, String context)
     {
-        long dailyGoal = readLong(state, "dailyGoal", Generic.DAILY_GOAL.getIntegerValue(), context);
-        long mergedDailyGoal = Math.max(Generic.DAILY_GOAL.getIntegerValue(), dailyGoal);
-        Generic.DAILY_GOAL.setIntegerValue((int) Math.max(MIN_DAILY_GOAL, Math.min(1_000_000L, mergedDailyGoal)));
+        if (state.has("dailyGoal"))
+        {
+            Generic.DAILY_GOAL.setIntegerValue(clampDailyGoal(readLong(state, "dailyGoal", Generic.DAILY_GOAL.getIntegerValue(), context)));
+        }
 
         long incomingDailyProgress = readLong(state, "dailyProgress", 0L, context);
         long incomingDailyBlocks = readLong(state, "dailyBlocksMined", 0L, context);
@@ -755,7 +872,10 @@ public class Configs implements IConfigHandler
             return;
         }
 
+        int dailyGoal = Generic.DAILY_GOAL.getIntegerValue();
         readCrossVersionState();
+        Generic.DAILY_GOAL.setIntegerValue(clampDailyGoal(dailyGoal));
+
         JsonObject state = new JsonObject();
         state.addProperty("dailyGoal", Generic.DAILY_GOAL.getIntegerValue());
         state.addProperty("dailyProgress", dailyProgress);
@@ -770,6 +890,11 @@ public class Configs implements IConfigHandler
         JsonObject root = new JsonObject();
         root.add("State", state);
         JsonUtils.writeJsonToFile(root, stateFile);
+    }
+
+    private static int clampDailyGoal(long value)
+    {
+        return (int) Math.max(MIN_DAILY_GOAL, Math.min(1_000_000L, value));
     }
 
     private static void writeCustomState(JsonObject root)
@@ -996,6 +1121,18 @@ public class Configs implements IConfigHandler
             return DEFAULT_WEBSITE_SYNC_INTERVAL_MS;
         }
         return Math.max(MIN_WEBSITE_SYNC_INTERVAL_MS, Math.min(MAX_WEBSITE_SYNC_INTERVAL_MS, intervalMs));
+    }
+
+    private static boolean isLegacySupabaseSyncEndpoint(String endpoint)
+    {
+        if (endpoint == null)
+        {
+            return false;
+        }
+
+        String normalized = endpoint.trim().toLowerCase(Locale.ROOT);
+        return normalized.contains("supabase.co/functions/v1/mmm-sync")
+                || normalized.contains("jmspoiryzfilppiovhmf.supabase.co");
     }
 
     private static File getPrimaryConfigFile()

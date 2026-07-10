@@ -7,6 +7,8 @@ import com.mmm.event.InputHandler;
 import com.mmm.event.RenderHandler;
 import com.mmm.event.WorldLoadListener;
 import com.mmm.gui.GuiConfigs;
+import com.mmm.timer.MmmClientCommands;
+import com.mmm.timer.MmmTimerState;
 
 import fi.dy.masa.malilib.config.ConfigManager;
 import fi.dy.masa.malilib.event.InputEventHandler;
@@ -40,6 +42,8 @@ public class InitHandler implements IInitializationHandler
         WorldLoadHandler.getInstance().registerWorldLoadPostHandler(worldLoadListener);
 
         TickHandler.getInstance().registerClientTickHandler(new ClientTickHandler());
+        MmmTimerState.load();
+        MmmClientCommands.register();
         Callbacks.init();
     }
 }

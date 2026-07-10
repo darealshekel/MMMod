@@ -7,44 +7,51 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
+import com.mmm.sound.GoalSoundLibrary;
+import com.mmm.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.sound.SoundEvents;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.text.Text;
 
 public final class GoalNotificationManager
 {
     private static final List<String> MESSAGES_25 = List.of(
-            "LET’S GO! You’re officially on the board!",
-            "Good start! KEEP DIGGING!",
-            "Momentum is building! Don’t stop now!",
-            "You’ve begun! Stay locked in!",
-            "This is where it starts! KEEP PUSHING!"
+            "Great start - you are building solid momentum.",
+            "Good pace - keep mining and stay consistent.",
+            "Your goal is moving - keep the rhythm going.",
+            "Strong opening - settle in and keep digging.",
+            "Nice progress - keep this pace moving forward."
     );
     private static final List<String> MESSAGES_50 = List.of(
-            "HALFWAY THERE! KEEP GOING!",
-            "You’re deep in it now! DON’T SLOW DOWN!",
-            "This is where most quit! YOU WON’T!",
-            "Strong progress! DOUBLE IT!",
-            "Stay focused! FINISH THIS!"
+            "Halfway there - keep your pace steady.",
+            "Half complete - stay focused and keep digging.",
+            "You are halfway in - keep the momentum going.",
+            "Good work - the second half starts now.",
+            "Halfway done - keep moving toward the finish."
     );
     private static final List<String> MESSAGES_75 = List.of(
-            "YOU’RE SO CLOSE! DON’T STOP NOW!",
-            "FINAL STRETCH! GIVE IT EVERYTHING!",
-            "LOCK IN! BRING IT HOME!",
-            "THIS IS YOUR MOMENT! FINISH IT!",
-            "NO BREAKS! PUSH THROUGH!"
+            "Three quarters done - finish the last stretch.",
+            "Almost there - keep your pace through the finish.",
+            "Final stretch - stay steady and bring it home.",
+            "Your goal is close - keep mining to the end.",
+            "Great progress - one last push will finish it."
     );
     private static final List<String> MESSAGES_100 = List.of(
-            "GOAL COMPLETE! LET’S GOOO!!!",
-            "YOU DID IT! ABSOLUTE GRIND!",
-            "MISSION DONE! WHAT’S NEXT?!",
-            "ANOTHER ONE DOWN! KEEP CLIMBING!",
-            "DISCIPLINE WINS! YOU PROVED IT!!!"
+            "Daily goal complete - excellent work today.",
+            "Goal finished - your steady effort paid off.",
+            "Daily target reached - well done.",
+            "You completed the goal - strong work.",
+            "Goal complete - another solid mining day."
     );
 
     private static final Set<Integer> TRIGGERED_THRESHOLDS = new HashSet<>();
+    private static final List<Integer> PICKAXE_MILESTONES = List.of(25, 50, 75, 100);
+    private static final Set<Integer> TRIGGERED_PICKAXE_MILESTONES = new HashSet<>();
+    private static final Set<Integer> TRIGGERED_SOUND_MILESTONES = new HashSet<>();
     private static long lastObservedProgress;
     private static long lastObservedTarget;
 
@@ -67,6 +74,9 @@ public final class GoalNotificationManager
         int oldPercent = (int) Math.min(100, (oldProgress * 100) / progress.target());
         int newPercent = progress.getPercent();
 
+        triggerPickaxeMilestone(oldPercent, newPercent);
+        triggerMilestoneSound(oldPercent, newPercent);
+
         lastObservedProgress = progress.current();
         lastObservedTarget = progress.target();
 
@@ -77,21 +87,10 @@ public final class GoalNotificationManager
                 TRIGGERED_THRESHOLDS.add(threshold);
                 if (FeatureToggle.TWEAK_NOTIFICATIONS.getBooleanValue())
                 {
-                    showThresholdAnnouncement(threshold);
-                    if (FeatureToggle.TWEAK_SOUND_ALERTS.getBooleanValue())
-                    {
-                        playLevelUpSound();
-                    }
+                    showThresholdAnnouncement(threshold, progress);
                 }
                 return;
             }
-        }
-
-        if (FeatureToggle.TWEAK_SOUND_ALERTS.getBooleanValue() &&
-            oldPercent < Configs.Generic.SOUND_ALERT_THRESHOLD.getIntegerValue() &&
-            newPercent >= Configs.Generic.SOUND_ALERT_THRESHOLD.getIntegerValue())
-        {
-            playLevelUpSound();
         }
     }
 
@@ -102,27 +101,80 @@ public final class GoalNotificationManager
     public static void clear()
     {
         TRIGGERED_THRESHOLDS.clear();
+        TRIGGERED_PICKAXE_MILESTONES.clear();
+        TRIGGERED_SOUND_MILESTONES.clear();
         lastObservedProgress = 0L;
         lastObservedTarget = 0L;
     }
 
-    private static void playLevelUpSound()
+    private static void triggerMilestoneSound(int oldPercent, int newPercent)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player != null)
+        if (!FeatureToggle.TWEAK_SOUND_ALERTS.getBooleanValue())
         {
-            client.player.playSound(SoundEvents.ENTITY_PLAYER_LEVELUP, 1.0F, 1.0F);
+            return;
+        }
+
+        int highestCrossed = 0;
+        for (int milestone : PICKAXE_MILESTONES)
+        {
+            if (oldPercent < milestone && newPercent >= milestone && TRIGGERED_SOUND_MILESTONES.add(milestone))
+            {
+                highestCrossed = milestone;
+            }
+        }
+
+        if (highestCrossed <= 0)
+        {
+            return;
+        }
+        GoalSoundLibrary.play(highestCrossed);
+    }
+
+    private static void triggerPickaxeMilestone(int oldPercent, int newPercent)
+    {
+        int highestCrossed = 0;
+        for (int milestone : PICKAXE_MILESTONES)
+        {
+            if (newPercent >= milestone)
+            {
+                boolean firstCrossing = TRIGGERED_PICKAXE_MILESTONES.add(milestone);
+                if (firstCrossing && oldPercent < milestone)
+                {
+                    highestCrossed = milestone;
+                }
+            }
+        }
+
+        if (highestCrossed <= 0
+                || Configs.Generic.GOAL_PICKAXE_ANIMATION.getBooleanValue() == false
+                || FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue() == false)
+        {
+            return;
+        }
+
+        Item pickaxe = switch (highestCrossed)
+        {
+            case 25 -> Items.STONE_PICKAXE;
+            case 50 -> Items.IRON_PICKAXE;
+            case 75 -> Items.DIAMOND_PICKAXE;
+            default -> Items.NETHERITE_PICKAXE;
+        };
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null && client.player != null)
+        {
+            ItemStack stack = new ItemStack(pickaxe);
+            client.execute(() -> client.gameRenderer.showFloatingItem(stack));
         }
     }
 
-    private static void showThresholdAnnouncement(int threshold)
+    private static void showThresholdAnnouncement(int threshold, MiningStats.GoalProgress progress)
     {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null)
         {
-            String message = "You reached " + threshold + "%! " + getRandomMessage(threshold);
-            client.player.sendMessage(Text.literal("[MMM] ").formatted(net.minecraft.util.Formatting.GOLD)
-                    .append(Text.literal(message).formatted(getFormattingForThreshold(threshold))), false);
+            int color = UiFormat.getGoalProgressColor(progress) & 0x00FFFFFF;
+            String message = "[MMM] " + threshold + "% reached. " + getRandomMessage(threshold);
+            client.player.sendMessage(Text.literal(message).styled(style -> style.withColor(color)), false);
         }
     }
 
@@ -135,24 +187,4 @@ public final class GoalNotificationManager
         return pool.get(ThreadLocalRandom.current().nextInt(pool.size()));
     }
 
-    private static net.minecraft.util.Formatting getFormattingForThreshold(int threshold)
-    {
-        if (threshold >= 100)
-        {
-            return net.minecraft.util.Formatting.BLUE;
-        }
-        if (threshold <= 25)
-        {
-            return net.minecraft.util.Formatting.RED;
-        }
-        if (threshold <= 50)
-        {
-            return net.minecraft.util.Formatting.YELLOW;
-        }
-        if (threshold <= 75)
-        {
-            return net.minecraft.util.Formatting.GREEN;
-        }
-        return net.minecraft.util.Formatting.DARK_GREEN;
-    }
 }

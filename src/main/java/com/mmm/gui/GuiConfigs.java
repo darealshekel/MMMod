@@ -40,10 +40,8 @@ import net.minecraft.text.Text;
 
 public class GuiConfigs extends GuiConfigsBase
 {
-    public static ImmutableList<FeatureToggle> TWEAK_LIST = FeatureToggle.VALUES;
+    public static ImmutableList<FeatureToggle> TWEAK_LIST = buildFeatureToggleList();
     private static final int LIST_Y = MmmUi.TOP_BAR_HEIGHT + 12;
-    private static final int SIDEBAR_FIRST_ROW_Y = MmmUi.TOP_BAR_HEIGHT + 44;
-    private static final int SIDEBAR_ROW_STEP = 31;
     private static ConfigGuiTab tab = ConfigGuiTab.TWEAKS;
 
     public GuiConfigs()
@@ -76,28 +74,33 @@ public class GuiConfigs extends GuiConfigsBase
         super.initGui();
         this.clearOptions();
 
-        int y = SIDEBAR_FIRST_ROW_Y;
-        this.createSettingsButton(y);
-        y += SIDEBAR_ROW_STEP;
-        this.createSidebarButton(y, ConfigGuiTab.TWEAKS);
-        y += SIDEBAR_ROW_STEP;
-        this.createSidebarButton(y, ConfigGuiTab.HOTKEYS);
-        y += SIDEBAR_ROW_STEP;
-        this.createSidebarButton(y, ConfigGuiTab.PROJECTS);
-        y += SIDEBAR_ROW_STEP;
-        this.createSidebarButton(y, ConfigGuiTab.PROFILE);
-        y += SIDEBAR_ROW_STEP;
-        this.createSidebarButton(y, ConfigGuiTab.WEBSITE_LINK);
-        y += SIDEBAR_ROW_STEP;
-        this.createSidebarButton(y, ConfigGuiTab.HISTORY);
-        y += SIDEBAR_ROW_STEP;
-        this.createSidebarButton(y, ConfigGuiTab.SUMMARY);
+        int y = MmmUi.sidebarStartY(this.height);
+        int rowHeight = MmmUi.sidebarRowHeight(this.height);
+        int rowStep = rowHeight + MmmUi.sidebarRowGap(this.height);
+        int sidebarWidth = MmmUi.sidebarWidth(this.width);
+        this.createSettingsButton(y, rowHeight, sidebarWidth);
+        y += rowStep;
+        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.TWEAKS);
+        y += rowStep;
+        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.HOTKEYS);
+        y += rowStep;
+        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.PROJECTS);
+        y += rowStep;
+        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.PROFILE);
+        y += rowStep;
+        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.WEBSITE_LINK);
+        y += rowStep;
+        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.HISTORY);
+        y += rowStep;
+        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.SUMMARY);
     }
 
     @Override
     protected WidgetListConfigOptions createListWidget(int listX, int listY)
     {
-        return new MmmConfigListWidget(listX, listY, this.getBrowserWidth(), this.getBrowserHeight(), this.getConfigWidth(), 0.0F, this.useKeybindSearch(), this);
+        int responsiveX = MmmUi.contentLeft(this.width);
+        int responsiveWidth = Math.max(1, this.width - responsiveX - MmmUi.pagePad(this.width));
+        return new MmmConfigListWidget(responsiveX, listY, responsiveWidth, this.getBrowserHeight(), Math.min(this.getConfigWidth(), Math.max(120, responsiveWidth - 36)), 0.0F, this.useKeybindSearch(), this);
     }
 
     @Override
@@ -105,13 +108,18 @@ public class GuiConfigs extends GuiConfigsBase
     {
         MmmUi.backdrop(context, this.width, this.height);
         MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
-        context.fill(0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height, 0xE9080808);
-        context.drawBorder(0, MmmUi.TOP_BAR_HEIGHT, MmmUi.SIDEBAR_WIDTH, this.height - MmmUi.TOP_BAR_HEIGHT, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "MMM SCREENS", 12, MmmUi.TOP_BAR_HEIGHT + 16, MmmUi.SIDEBAR_WIDTH - 24);
-        int bottomY = this.height - 42;
-        context.drawBorder(12, bottomY, MmmUi.SIDEBAR_WIDTH - 24, 28, MmmUi.BORDER_SOFT);
-        MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD", 20, bottomY + 7, MmmUi.SIDEBAR_WIDTH - 40, MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, Reference.MOD_VERSION, 20, bottomY + 18, MmmUi.SIDEBAR_WIDTH - 40, MmmUi.MUTED, false);
+        int sidebarWidth = MmmUi.sidebarWidth(this.width);
+        int sidePad = sidebarWidth < 120 ? 8 : 12;
+        context.fill(0, MmmUi.TOP_BAR_HEIGHT, sidebarWidth, this.height, 0xE9080808);
+        context.drawBorder(0, MmmUi.TOP_BAR_HEIGHT, sidebarWidth, Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT), MmmUi.BORDER);
+        MmmUi.drawSectionHeading(context, this.textRenderer, "MMM SCREENS", sidePad, MmmUi.TOP_BAR_HEIGHT + (this.height < 360 ? 8 : 16), sidebarWidth - sidePad * 2);
+        if (MmmUi.sidebarFooterVisible(this.height))
+        {
+            int bottomY = this.height - 42;
+            context.drawBorder(sidePad, bottomY, sidebarWidth - sidePad * 2, 28, MmmUi.BORDER_SOFT);
+            MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD", sidePad + 8, bottomY + 7, sidebarWidth - sidePad * 2 - 16, MmmUi.TEXT, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, Reference.MOD_VERSION, sidePad + 8, bottomY + 18, sidebarWidth - sidePad * 2 - 16, MmmUi.MUTED, false);
+        }
     }
 
     @Override
@@ -176,15 +184,50 @@ public class GuiConfigs extends GuiConfigsBase
         return new BooleanHotkeyGuiWrapper(config.getName(), config, config.getKeybind());
     }
 
-    private void createSettingsButton(int y)
+    private void createSettingsButton(int y, int height, int sidebarWidth)
     {
-        ButtonGeneric button = new MmmSidebarButton(12, y, MmmUi.SIDEBAR_WIDTH - 24, 24, "Settings", false);
+        int sidePad = sidebarWidth < 120 ? 8 : 12;
+        ButtonGeneric button = new MmmSidebarButton(sidePad, y, sidebarWidth - sidePad * 2, height, "Settings", false);
         this.addButton(button, new SettingsButtonListener(this));
     }
 
-    private void createSidebarButton(int y, ConfigGuiTab configTab)
+    private static ImmutableList<FeatureToggle> buildFeatureToggleList()
     {
-        ButtonGeneric button = new MmmSidebarButton(12, y, MmmUi.SIDEBAR_WIDTH - 24, 24, configTab.getDisplayName(), tab == configTab);
+        ImmutableList.Builder<FeatureToggle> builder = ImmutableList.builder();
+        for (FeatureToggle toggle : FeatureToggle.VALUES)
+        {
+            if (!isHudContentToggle(toggle))
+            {
+                builder.add(toggle);
+            }
+        }
+        return builder.build();
+    }
+
+    private static boolean isHudContentToggle(FeatureToggle toggle)
+    {
+        return switch (toggle)
+        {
+            case TWEAK_HUD,
+                 TWEAK_DAILY_GOAL,
+                 TWEAK_NOTIFICATIONS,
+                 TWEAK_SOUND_ALERTS,
+                 TWEAK_HUD_PROJECT,
+                 TWEAK_HUD_TOTAL_MINED,
+                 TWEAK_HUD_GOAL_PROGRESS,
+                 TWEAK_HUD_BLOCKS_PER_HOUR,
+                 TWEAK_HUD_ETA,
+                 TWEAK_HUD_BOUNDING_BOX,
+                 TWEAK_HUD_SPEED_GRAPH -> true;
+            default -> false;
+        };
+    }
+
+    private void createSidebarButton(int y, int height, int sidebarWidth, ConfigGuiTab configTab)
+    {
+        int sidePad = sidebarWidth < 120 ? 8 : 12;
+        String label = sidebarWidth < 120 ? configTab.getCompactDisplayName() : configTab.getDisplayName();
+        ButtonGeneric button = new MmmSidebarButton(sidePad, y, sidebarWidth - sidePad * 2, height, label, tab == configTab);
         button.setEnabled(tab != configTab || configTab != ConfigGuiTab.TWEAKS && configTab != ConfigGuiTab.HOTKEYS);
         this.addButton(button, new TabButtonListener(configTab, this));
     }
@@ -249,6 +292,7 @@ public class GuiConfigs extends GuiConfigsBase
         protected GuiTextFieldGeneric createTextField(int x, int y, int width, int height)
         {
             GuiTextFieldGeneric field = super.createTextField(x + 5, y + 1, Math.max(32, width - 10), Math.max(12, height - 2));
+
             field.setDrawsBackground(false);
             return field;
         }
@@ -280,7 +324,7 @@ public class GuiConfigs extends GuiConfigsBase
                 if (widget instanceof ButtonBase button && button.getWidth() > 0 && button.getHeight() > 0)
                 {
                     boolean hovered = button.isMouseOver(mouseX, mouseY);
-                    MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), hovered ? MmmUi.CARD : MmmUi.INSET, hovered ? MmmUi.ACCENT_BRIGHT : MmmUi.BORDER);
+                    MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), hovered ? MmmUi.CARD : MmmUi.INSET, hovered ? MmmUi.accent() : MmmUi.BORDER);
                 }
             }
 
@@ -290,7 +334,7 @@ public class GuiConfigs extends GuiConfigsBase
                 int x = field.getX();
                 int y = field.getY();
                 int width = field.getWidth();
-                MmmUi.card(context, x - 5, y - 2, width + 10, 18, MmmUi.INSET, field.isFocusedWrapper() ? MmmUi.ACCENT_BRIGHT : MmmUi.BORDER);
+                MmmUi.card(context, x - 5, y - 2, width + 10, 18, MmmUi.INSET, field.isFocusedWrapper() ? MmmUi.accent() : MmmUi.BORDER);
             }
         }
 
@@ -343,10 +387,11 @@ public class GuiConfigs extends GuiConfigsBase
             }
 
             boolean hovered = this.enabled && this.isMouseOver(mouseX, mouseY);
-            int fill = this.selected ? 0x33E00000 : hovered ? 0x22E00000 : MmmUi.INSET;
-            int border = this.selected || hovered ? MmmUi.ACCENT : MmmUi.BORDER_SOFT;
+            int fill = this.selected ? MmmUi.accentSoft() : hovered ? MmmUi.accentHover() : MmmUi.INSET;
+            int border = this.selected || hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT;
             MmmUi.card(context, this.x, this.y, this.width, this.height, fill, border);
-            MmmUi.drawTextWithin(context, this.textRenderer, this.displayString, this.x + 8, this.y + 8, this.width - 16, this.selected ? MmmUi.TEXT : MmmUi.MUTED, false);
+            int textY = this.y + Math.max(2, (this.height - 8) / 2);
+            MmmUi.drawTextWithin(context, this.textRenderer, this.displayString, this.x + 8, textY, this.width - 16, this.selected ? MmmUi.TEXT : MmmUi.MUTED, false);
         }
     }
 
@@ -419,25 +464,32 @@ public class GuiConfigs extends GuiConfigsBase
 
     private enum ConfigGuiTab
     {
-        GENERIC("Generic"),
-        TWEAKS("Feature Toggles"),
-        HOTKEYS("Hotkeys"),
-        PROJECTS("Projects"),
-        PROFILE("Profile"),
-        WEBSITE_LINK("Website Link"),
-        SUMMARY("Summary"),
-        HISTORY("History");
+        GENERIC("Generic", "Generic"),
+        TWEAKS("Feature Toggles", "Toggles"),
+        HOTKEYS("Hotkeys", "Hotkeys"),
+        PROJECTS("Projects", "Projects"),
+        PROFILE("Profile", "Profile"),
+        WEBSITE_LINK("Website Link", "Link"),
+        SUMMARY("Summary", "Summary"),
+        HISTORY("History", "History");
 
         private final String displayName;
+        private final String compactDisplayName;
 
-        ConfigGuiTab(String displayName)
+        ConfigGuiTab(String displayName, String compactDisplayName)
         {
             this.displayName = displayName;
+            this.compactDisplayName = compactDisplayName;
         }
 
         public String getDisplayName()
         {
             return StringUtils.translate(this.displayName);
+        }
+
+        public String getCompactDisplayName()
+        {
+            return StringUtils.translate(this.compactDisplayName);
         }
     }
 }
