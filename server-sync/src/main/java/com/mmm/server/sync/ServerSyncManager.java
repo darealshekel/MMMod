@@ -15,10 +15,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashSet;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 import net.minecraft.block.BlockState;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
 import net.minecraft.scoreboard.Scoreboard;
@@ -40,6 +43,7 @@ final class ServerSyncManager
     private ServerSyncState state = new ServerSyncState();
     private MinecraftServer server;
     private boolean syncInFlight;
+    private final ServerMiningAbuseTracker abuseTracker = new ServerMiningAbuseTracker();
 
     void onServerStarted(MinecraftServer server)
     {
@@ -85,9 +89,9 @@ final class ServerSyncManager
         }
     }
 
-    void onBlockBroken(ServerPlayerEntity player, BlockState state)
+    void onBlockBroken(ServerPlayerEntity player, BlockPos pos, BlockState state)
     {
-        if (player == null || state == null || ServerBlockCatalog.isValid(state.getBlock()) == false)
+        if (player == null || pos == null || state == null || ServerBlockCatalog.isValid(state.getBlock()) == false)
         {
             return;
         }
@@ -100,6 +104,17 @@ final class ServerSyncManager
         Item item = player.getMainHandStack().getItem();
         String itemId = item == null ? "" : Registries.ITEM.getId(item).toString();
         record.incrementTool(itemId);
+        record.recordValidation(this.abuseTracker.record(
+                uuid,
+                System.currentTimeMillis(),
+                pos.getX(),
+                pos.getY(),
+                pos.getZ(),
+                player.getX(),
+                player.getY(),
+                player.getZ(),
+                player.getYaw(),
+                player.getPitch()));
         this.state.markDataChanged();
     }
 
@@ -216,6 +231,7 @@ final class ServerSyncManager
                     .nextAttemptAfterResponse(this.state.installStatus, true, completedAt, this.config.syncIntervalSeconds)
                     .toString();
             this.state.dataChangedSinceLastSuccessfulSync = false;
+            this.state.players.values().forEach(ServerSyncState.PlayerRecord::clearValidationEvidence);
             System.out.println("[MMM Server Sync] Daily authoritative sync accepted. nextSyncAt=" + this.state.nextAttemptAt);
         }
         else if ("rejected".equals(this.state.installStatus))
@@ -317,7 +333,56 @@ final class ServerSyncManager
         payload.add("source_scan", buildSourceScan(snapshot, sourceName, latestMinedAt));
         payload.add("source_leaderboard", buildSourceLeaderboard(snapshot, sourceName, latestMinedAt));
         payload.add("server_player_block_breakdowns", buildBlockBreakdowns(sourceKey, sourceName, latestMinedAt));
+        JsonObject validation = buildServerValidationEvidence(sourceName);
+        if (validation != null)
+        {
+            payload.add("validation", validation);
+        }
         return payload;
+    }
+
+    private JsonObject buildServerValidationEvidence(String sourceName)
+    {
+        List<ServerSyncState.PlayerRecord> flaggedPlayers = this.state.players.values().stream()
+                .filter(ServerSyncState.PlayerRecord::hasValidationEvidence)
+                .toList();
+        if (flaggedPlayers.isEmpty())
+        {
+            return null;
+        }
+
+        int suspicionScore = flaggedPlayers.stream()
+                .mapToInt(record -> record.validationSuspicionScore)
+                .max()
+                .orElse(0);
+        long blocksObserved = flaggedPlayers.stream()
+                .mapToLong(record -> record.validationBlocksObserved)
+                .sum();
+        Set<String> uniqueFlags = new LinkedHashSet<>();
+        flaggedPlayers.forEach(record -> uniqueFlags.addAll(record.validationFlags.keySet()));
+
+        JsonObject validation = new JsonObject();
+        validation.addProperty("username", this.config.reporterUsername);
+        validation.addProperty("sourceName", sourceName);
+        validation.addProperty("suspicionScore", suspicionScore);
+        validation.addProperty("blocksMinedDelta", blocksObserved);
+        validation.addProperty("sessionEnd", Instant.now().toString());
+
+        JsonArray flags = new JsonArray();
+        uniqueFlags.forEach(flags::add);
+        validation.add("flags", flags);
+
+        JsonObject details = new JsonObject();
+        details.addProperty("evidenceSource", "server_block_break_events");
+        JsonArray players = new JsonArray();
+        for (ServerSyncState.PlayerRecord record : flaggedPlayers)
+        {
+            JsonObject player = buildValidationEvidence(record, sourceName);
+            players.add(player);
+        }
+        details.add("flaggedPlayers", players);
+        validation.add("flagDetails", details);
+        return validation;
     }
 
     private JsonObject buildSourceScan(SourceSnapshot snapshot, String sourceName, String capturedAt)
@@ -353,6 +418,7 @@ final class ServerSyncManager
         leaderboard.addProperty("captured_at", capturedAt);
         leaderboard.addProperty("source_type", "server_authoritative");
         leaderboard.addProperty("mode", "full");
+        leaderboard.addProperty("complete_snapshot", snapshot.entries().size() <= this.config.maxPlayersPerSync);
 
         JsonArray entries = new JsonArray();
         int limit = Math.min(this.config.maxPlayersPerSync, snapshot.entries().size());
@@ -368,10 +434,38 @@ final class ServerSyncManager
             {
                 row.addProperty("last_mined_at", sourceEntry.lastMinedAt());
             }
+            ServerSyncState.PlayerRecord playerRecord = this.state.findByUsername(sourceEntry.username());
+            if (playerRecord != null && playerRecord.hasValidationEvidence())
+            {
+                row.add("validation", buildValidationEvidence(playerRecord, sourceName));
+            }
             entries.add(row);
         }
         leaderboard.add("entries", entries);
         return leaderboard;
+    }
+
+    private JsonObject buildValidationEvidence(ServerSyncState.PlayerRecord record, String sourceName)
+    {
+        JsonObject validation = new JsonObject();
+        validation.addProperty("username", record.username);
+        validation.addProperty("sourceName", sourceName);
+        validation.addProperty("suspicionScore", record.validationSuspicionScore);
+        validation.addProperty("blocksMinedDelta", record.validationBlocksObserved);
+        if (record.validationObservedAt != null && record.validationObservedAt.isBlank() == false)
+        {
+            validation.addProperty("sessionEnd", record.validationObservedAt);
+        }
+
+        JsonArray flags = new JsonArray();
+        record.validationFlags.keySet().forEach(flags::add);
+        validation.add("flags", flags);
+
+        JsonObject details = new JsonObject();
+        record.validationDetails.forEach(details::addProperty);
+        validation.add("flagDetails", details);
+        validation.addProperty("evidenceSource", "server_block_break_events");
+        return validation;
     }
 
     private JsonObject buildBlockBreakdowns(String sourceKey, String sourceName, String capturedAt)

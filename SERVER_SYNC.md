@@ -64,6 +64,9 @@ Pending installs check for approval every five minutes. Approved installs publis
 - If no matching scoreboard objectives exist, it falls back to server-side valid block-break events tracked after the server mod was installed.
 - Per-player block breakdown for MMM's allowed block breakdown catalog.
 - Per-player `last_mined_at` when the player actually mined a valid block.
+- Server-observed anti-abuse evidence for repeated coordinates, tiny mining areas, low-input mining, and impossible rates. Suspicious snapshots wait for owner review; the mod never auto-bans players.
+
+Only explicitly complete snapshots can replace or remove existing source rows. A snapshot is marked complete when all scoreboard rows fit in the configured `maxPlayersPerSync` limit (up to 2,048). The website commits complete snapshots as one monotonic database batch, so retries and delayed requests cannot roll a source back.
 
 The fallback state is stored in:
 

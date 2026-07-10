@@ -27,14 +27,19 @@ Until the new server-side anti-abuse system is implemented, MMMod keeps only a m
 
 This guard is intentionally small. It is not a replacement for server-side abuse detection.
 
-## TODO: Replacement Server-Side Anti-Abuse
+## Server-Side Review Evidence
 
-The replacement system should be server-authoritative and event-based:
+The separate `server-sync` module now collects server-authoritative, event-based review evidence:
 
 - trust server-owned source scoreboards and server-side block break events over client totals
 - accept client sessions as evidence, not as final authority
-- validate deltas against source/player scoreboard movement
 - detect farm abuse with server-side patterns such as repeated coordinates, tiny mining area, place-and-break loops, impossible BPS/BPH, and long low-variance runs
 - queue suspicious syncs for owner review instead of auto-punishing players
-- store audit decisions server-side so the client cannot bypass them
-- publish leaderboard totals only after the server has accepted the source/player delta
+- persist evidence until the website accepts it or an owner reviews it
+- hold the suspicious authoritative snapshot instead of silently publishing it
+
+## Follow-Up
+
+- Add longer-window movement and placement correlation without increasing false positives.
+- Show per-player server evidence and accepted baseline deltas in Owner Tools.
+- Add signed server audit receipts for approved review decisions.

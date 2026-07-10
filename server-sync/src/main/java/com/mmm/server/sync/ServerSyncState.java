@@ -140,6 +140,11 @@ final class ServerSyncState
         long shovelUses;
         long axeUses;
         String lastMinedAt;
+        int validationSuspicionScore;
+        long validationBlocksObserved;
+        Map<String, Long> validationFlags = new LinkedHashMap<>();
+        Map<String, Long> validationDetails = new LinkedHashMap<>();
+        String validationObservedAt;
 
         void incrementBlock(String blockId)
         {
@@ -178,6 +183,33 @@ final class ServerSyncState
             return ServerBlockCatalog.validTotal(this.blockBreakdown);
         }
 
+        void recordValidation(ServerMiningAbuseTracker.Evidence evidence)
+        {
+            if (evidence == null || evidence.suspicious() == false)
+            {
+                return;
+            }
+            this.validationSuspicionScore = Math.max(this.validationSuspicionScore, evidence.suspicionScore());
+            this.validationBlocksObserved = Math.max(this.validationBlocksObserved, evidence.blocksInWindow());
+            evidence.flags().forEach((flag, value) -> this.validationFlags.merge(flag, value, Math::max));
+            evidence.details().forEach((key, value) -> this.validationDetails.put(key, value));
+            this.validationObservedAt = Instant.now().toString();
+        }
+
+        boolean hasValidationEvidence()
+        {
+            return this.validationSuspicionScore > 0 && this.validationFlags.isEmpty() == false;
+        }
+
+        void clearValidationEvidence()
+        {
+            this.validationSuspicionScore = 0;
+            this.validationBlocksObserved = 0L;
+            this.validationFlags.clear();
+            this.validationDetails.clear();
+            this.validationObservedAt = null;
+        }
+
         Map<String, Long> sortedBreakdown()
         {
             Map<String, Long> sorted = new LinkedHashMap<>();
@@ -196,6 +228,16 @@ final class ServerSyncState
             {
                 this.blockBreakdown = new LinkedHashMap<>();
             }
+            if (this.validationFlags == null)
+            {
+                this.validationFlags = new LinkedHashMap<>();
+            }
+            if (this.validationDetails == null)
+            {
+                this.validationDetails = new LinkedHashMap<>();
+            }
+            this.validationSuspicionScore = Math.max(0, Math.min(100, this.validationSuspicionScore));
+            this.validationBlocksObserved = Math.max(0L, this.validationBlocksObserved);
             this.pickaxeUses = Math.max(0L, this.pickaxeUses);
             this.shovelUses = Math.max(0L, this.shovelUses);
             this.axeUses = Math.max(0L, this.axeUses);

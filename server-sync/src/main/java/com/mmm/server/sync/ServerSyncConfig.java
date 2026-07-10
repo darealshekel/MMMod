@@ -23,7 +23,7 @@ final class ServerSyncConfig
     String reporterUsername = "MMMServerSync";
     String host = "";
     int syncIntervalSeconds = 86_400;
-    int maxPlayersPerSync = 512;
+    int maxPlayersPerSync = 2_048;
 
     static ServerSyncConfig load()
     {

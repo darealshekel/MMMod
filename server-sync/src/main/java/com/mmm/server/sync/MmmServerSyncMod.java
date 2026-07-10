@@ -20,7 +20,7 @@ public final class MmmServerSyncMod implements ModInitializer
         PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
             if (player instanceof ServerPlayerEntity serverPlayer)
             {
-                SYNC_MANAGER.onBlockBroken(serverPlayer, state);
+                SYNC_MANAGER.onBlockBroken(serverPlayer, pos, state);
             }
         });
     }
