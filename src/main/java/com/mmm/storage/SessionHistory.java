@@ -21,8 +21,8 @@ import com.mmm.config.Configs;
 
 public final class SessionHistory
 {
-    private static final long MIN_SESSION_DURATION_MS = 10L * 60L * 1000L;
-    private static final long MIN_SESSION_BLOCKS = 1_000L;
+    public static final long MIN_SESSION_DURATION_MS = 10L * 60L * 1000L;
+    public static final long MIN_SESSION_BLOCKS = 10_000L;
     private static final Path ROOT_DIR = SharedStoragePaths.sessionsDir();
     private static final List<SessionData> HISTORY = new ArrayList<>();
     private static SessionData best = null;
@@ -49,7 +49,7 @@ public final class SessionHistory
 
     public static void save(SessionData session)
     {
-        if (session == null || session.getDurationMs() < MIN_SESSION_DURATION_MS || session.totalBlocks < MIN_SESSION_BLOCKS)
+        if (isQualifyingSession(session) == false)
         {
             return;
         }
@@ -109,6 +109,13 @@ public final class SessionHistory
     public static List<SessionData> getHistory()
     {
         return HISTORY;
+    }
+
+    public static boolean isQualifyingSession(SessionData session)
+    {
+        return session != null
+                && session.getDurationMs() >= MIN_SESSION_DURATION_MS
+                && session.totalBlocks >= MIN_SESSION_BLOCKS;
     }
 
     public static List<WorldHistory> getWorldHistories()
@@ -206,7 +213,7 @@ public final class SessionHistory
                     continue;
                 }
                 SessionData session = SessionData.deserialise(line);
-                if (session != null)
+                if (isQualifyingSession(session))
                 {
                     sessions.add(session);
                 }
