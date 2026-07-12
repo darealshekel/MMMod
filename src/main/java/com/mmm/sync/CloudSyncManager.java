@@ -138,7 +138,7 @@ public final class CloudSyncManager
 
     public static void syncFinishedSession(SessionData session)
     {
-        if (canSync() == false || session == null)
+        if (canSync() == false || SessionHistory.isQualifyingSession(session) == false)
         {
             return;
         }
@@ -767,6 +767,11 @@ public final class CloudSyncManager
         {
             for (SessionData session : history.sessions())
             {
+                if (SessionHistory.isQualifyingSession(session) == false)
+                {
+                    continue;
+                }
+
                 String sessionKey = sessionKey(session);
                 if (SessionSyncState.isSynced(sessionKey))
                 {
@@ -869,7 +874,7 @@ public final class CloudSyncManager
         payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
         payload.add("session_state", buildSessionState());
 
-        if (session != null && sessionStatus != null)
+        if (sessionStatus != null && SessionHistory.isQualifyingSession(session))
         {
             payload.add("session", buildSession(session, sessionStatus));
         }

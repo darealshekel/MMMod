@@ -36,8 +36,6 @@ public final class MiningStats
 {
     private static final long ONE_HOUR_MS = 3_600_000L;
     private static final long ONE_MINUTE_MS = 60_000L;
-    private static final long MIN_SYNCED_SESSION_DURATION_MS = 10L * 60L * 1000L;
-    private static final long MIN_SYNCED_SESSION_BLOCKS = 1_000L;
     private static final long STREAK_GAP_MS = 5_000L;
     private static final long AUTO_MINING_REQUIRED_MS = 10_000L;
     private static final long AUTO_MINING_GAP_MS = 2_000L;
@@ -1445,9 +1443,7 @@ public final class MiningStats
 
     private static boolean shouldPersistSession(SessionData session)
     {
-        return session != null
-                && session.totalBlocks >= MIN_SYNCED_SESSION_BLOCKS
-                && session.getDurationMs() >= MIN_SYNCED_SESSION_DURATION_MS;
+        return SessionHistory.isQualifyingSession(session);
     }
 
     public record GoalProgress(String label, boolean enabled, long current, long target)
