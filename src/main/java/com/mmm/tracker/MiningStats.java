@@ -980,7 +980,6 @@ public final class MiningStats
             if (resetPeriod)
             {
                 CloudSyncManager.syncNow("mining records period reset");
-                DigsSyncManager.syncNow("mining records period reset");
             }
         }
     }

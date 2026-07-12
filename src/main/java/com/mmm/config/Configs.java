@@ -297,9 +297,9 @@ public class Configs implements IConfigHandler
 
     public static final long DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS = 24L * 60L * 60L * 1000L;
     public static final long DEFAULT_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
-    public static final long SUPPORTER_WEBSITE_SYNC_INTERVAL_MS = 30L * 60L * 1000L;
-    public static final long SUPPORTER_PLUS_WEBSITE_SYNC_INTERVAL_MS = 60_000L;
-    public static final long MIN_WEBSITE_SYNC_INTERVAL_MS = 60_000L;
+    public static final long SUPPORTER_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
+    public static final long SUPPORTER_PLUS_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
+    public static final long MIN_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
     public static final long MAX_WEBSITE_SYNC_INTERVAL_MS = DAILY_RESET_WEBSITE_SYNC_INTERVAL_MS;
     public static long dailyProgress = 0L;
     public static long dailyGoalLastResetMs = System.currentTimeMillis();
@@ -318,6 +318,7 @@ public class Configs implements IConfigHandler
     public static String cloudClientId = "";
     public static String websiteLinkedMinecraftUuid = "";
     public static String websiteLinkedMinecraftUsername = "";
+    public static String websiteSyncToken = "";
     public static long websiteLinkedAtMs = 0L;
     public static String websiteSyncTier = "free";
     public static long websiteSyncIntervalMs = DEFAULT_WEBSITE_SYNC_INTERVAL_MS;
@@ -409,6 +410,7 @@ public class Configs implements IConfigHandler
         }
         websiteLinkedMinecraftUuid = websiteLinkedMinecraftUuid == null ? "" : websiteLinkedMinecraftUuid.trim().toLowerCase();
         websiteLinkedMinecraftUsername = websiteLinkedMinecraftUsername == null ? "" : websiteLinkedMinecraftUsername.trim();
+        websiteSyncToken = websiteSyncToken == null ? "" : websiteSyncToken.trim();
         websiteLinkedAtMs = Math.max(0L, websiteLinkedAtMs);
         websiteSyncTier = normalizeWebsiteSyncTier(websiteSyncTier);
         websiteSyncIntervalMs = normalizeWebsiteSyncIntervalMs(websiteSyncIntervalMs);
@@ -669,6 +671,7 @@ public class Configs implements IConfigHandler
             cloudClientId = readString(state, "cloudClientId", cloudClientId, "config State");
             websiteLinkedMinecraftUuid = readString(state, "websiteLinkedMinecraftUuid", websiteLinkedMinecraftUuid, "config State");
             websiteLinkedMinecraftUsername = readString(state, "websiteLinkedMinecraftUsername", websiteLinkedMinecraftUsername, "config State");
+            websiteSyncToken = readString(state, "websiteSyncToken", websiteSyncToken, "config State");
             websiteLinkedAtMs = readLong(state, "websiteLinkedAtMs", websiteLinkedAtMs, "config State");
             websiteSyncTier = readString(state, "websiteSyncTier", websiteSyncTier, "config State");
             websiteSyncIntervalMs = readLong(state, "websiteSyncIntervalMs", websiteSyncIntervalMs, "config State");
@@ -925,6 +928,7 @@ public class Configs implements IConfigHandler
         state.addProperty("cloudClientId", cloudClientId == null ? "" : cloudClientId);
         state.addProperty("websiteLinkedMinecraftUuid", websiteLinkedMinecraftUuid == null ? "" : websiteLinkedMinecraftUuid);
         state.addProperty("websiteLinkedMinecraftUsername", websiteLinkedMinecraftUsername == null ? "" : websiteLinkedMinecraftUsername);
+        state.addProperty("websiteSyncToken", websiteSyncToken == null ? "" : websiteSyncToken);
         state.addProperty("websiteLinkedAtMs", websiteLinkedAtMs);
         state.addProperty("websiteSyncTier", normalizeWebsiteSyncTier(websiteSyncTier));
         state.addProperty("websiteSyncIntervalMs", normalizeWebsiteSyncIntervalMs(websiteSyncIntervalMs));
