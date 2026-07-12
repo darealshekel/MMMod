@@ -393,6 +393,9 @@ public class Configs implements IConfigHandler
             entry.kind = entry.kind == null || entry.kind.isBlank() ? "unknown" : entry.kind;
             entry.host = entry.host == null ? "" : entry.host;
             entry.totalBlocks = Math.max(0L, entry.totalBlocks);
+            entry.scoreboardTotalBlocks = Math.max(0L, entry.scoreboardTotalBlocks);
+            entry.scoreboardTotalUpdatedAtMs = Math.max(0L, entry.scoreboardTotalUpdatedAtMs);
+            entry.pendingLocalBlocks = Math.max(0L, entry.pendingLocalBlocks);
             entry.lastSeenAt = Math.max(0L, entry.lastSeenAt);
             entry.blockBreakdown = sanitizeBlockBreakdown(entry.blockBreakdown);
             entry.blockBreakdownSource = sanitizeBlockBreakdownSource(entry.blockBreakdownSource);
@@ -708,6 +711,9 @@ public class Configs implements IConfigHandler
                         entry.kind = readString(object, "kind", "unknown", context);
                         entry.host = readString(object, "host", "", context);
                         entry.totalBlocks = readLong(object, "totalBlocks", 0L, context);
+                        entry.scoreboardTotalBlocks = readLong(object, "scoreboardTotalBlocks", 0L, context);
+                        entry.scoreboardTotalUpdatedAtMs = readLong(object, "scoreboardTotalUpdatedAtMs", 0L, context);
+                        entry.pendingLocalBlocks = readLong(object, "pendingLocalBlocks", 0L, context);
                         entry.lastSeenAt = readLong(object, "lastSeenAt", 0L, context);
                         entry.blockBreakdown = readBlockBreakdown(object);
                         entry.blockBreakdownSource = readString(object, "blockBreakdownSource", "", context);
@@ -947,6 +953,9 @@ public class Configs implements IConfigHandler
             object.addProperty("kind", entry.kind);
             object.addProperty("host", entry.host);
             object.addProperty("totalBlocks", entry.totalBlocks);
+            object.addProperty("scoreboardTotalBlocks", entry.scoreboardTotalBlocks);
+            object.addProperty("scoreboardTotalUpdatedAtMs", entry.scoreboardTotalUpdatedAtMs);
+            object.addProperty("pendingLocalBlocks", entry.pendingLocalBlocks);
             object.addProperty("lastSeenAt", entry.lastSeenAt);
             object.addProperty("blockBreakdownSource", sanitizeBlockBreakdownSource(entry.blockBreakdownSource));
             object.addProperty("blockBreakdownUpdatedAtMs", entry.blockBreakdownUpdatedAtMs);
@@ -1163,6 +1172,9 @@ public class Configs implements IConfigHandler
         public String kind;
         public String host;
         public long totalBlocks;
+        public long scoreboardTotalBlocks;
+        public long scoreboardTotalUpdatedAtMs;
+        public long pendingLocalBlocks;
         public long lastSeenAt;
         public Map<String, Long> blockBreakdown = new LinkedHashMap<>();
         public long blockBreakdownUpdatedAtMs;

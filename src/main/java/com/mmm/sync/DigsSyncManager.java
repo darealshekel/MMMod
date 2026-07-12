@@ -296,7 +296,8 @@ public final class DigsSyncManager
         world.addProperty("source_key", ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo));
         world.addProperty("source_name", ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo));
         payload.add("world", world);
-        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo, model.totalDigs()));
+        long effectivePlayerTotal = Math.max(model.totalDigs(), MiningStats.getCurrentSourceTotalMined());
+        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo, effectivePlayerTotal));
         payload.add("mining_records", buildMiningRecords());
 
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
@@ -323,10 +324,13 @@ public final class DigsSyncManager
 
         JsonObject digs = new JsonObject();
         digs.addProperty("username", model.username());
-        digs.addProperty("total_digs", model.totalDigs());
+        digs.addProperty("total_digs", effectivePlayerTotal);
         digs.addProperty("server", model.server());
         digs.addProperty("timestamp", Instant.ofEpochMilli(model.capturedAtMs()).toString());
         digs.addProperty("objective_title", model.objectiveTitle());
+        digs.addProperty("total_origin", MiningStats.getCurrentSourcePendingLocalBlocks() > 0L
+                ? "scoreboard_plus_client_valid_blocks"
+                : "scoreboard");
         payload.add("player_total_digs", digs);
 
         return payload;
@@ -466,7 +470,10 @@ public final class DigsSyncManager
         totals.addProperty("display_name", worldStats.displayName);
         totals.addProperty("kind", normaliseWorldKind(worldStats.kind));
         totals.addProperty("host", (String) null);
-        totals.addProperty("total_blocks", Math.max(0L, authoritativeTotal));
+        totals.addProperty("total_blocks", Math.max(Math.max(0L, authoritativeTotal), Math.max(0L, worldStats.totalBlocks)));
+        totals.addProperty("total_origin", MiningStats.getCurrentSourcePendingLocalBlocks() > 0L
+                ? "scoreboard_plus_client_valid_blocks"
+                : "scoreboard");
         totals.addProperty("last_seen_at", Instant.ofEpochMilli(Math.max(worldStats.lastSeenAt, System.currentTimeMillis())).toString());
         return totals;
     }

@@ -47,7 +47,6 @@ public final class MiningStats
     private static final long BLOCK_MINED_DEBUG_LOG_INTERVAL_MS = 5_000L;
     private static final long SESSION_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static final long SCOREBOARD_BOOTSTRAP_SKIPPED_LOG_INTERVAL_MS = 10_000L;
-    private static final long SCOREBOARD_BOOTSTRAP_APPLIED_LOG_INTERVAL_MS = 5_000L;
     private static final long SOURCE_UPDATE_DEBUG_LOG_INTERVAL_MS = 5_000L;
     private static final int TICKS_PER_SECOND = 20;
     private static final int BPH_WINDOW_TICKS = 72_000;
@@ -184,6 +183,10 @@ public final class MiningStats
         Configs.totalBlocksMined++;
         Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
         worldStats.totalBlocks++;
+        if (worldStats.scoreboardTotalUpdatedAtMs > 0L)
+        {
+            worldStats.pendingLocalBlocks++;
+        }
         recordCurrentWorldBlockBreakdown(worldStats, block, now);
         MmmTimerState.onBlockMined(block);
 
@@ -451,6 +454,12 @@ public final class MiningStats
         return Math.max(0L, worldStats.totalBlocks);
     }
 
+    public static long getCurrentSourcePendingLocalBlocks()
+    {
+        Configs.WorldStatsEntry worldStats = getCurrentWorldStats();
+        return worldStats == null ? 0L : Math.max(0L, worldStats.pendingLocalBlocks);
+    }
+
     public static long getSessionTotal()
     {
         return getSessionBlocksMined();
@@ -470,60 +479,77 @@ public final class MiningStats
 
         Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
         long previousSourceTotal = Math.max(0L, worldStats.totalBlocks);
-        if (totalDigs < previousSourceTotal)
+        long previousScoreboardTotal = Math.max(0L, worldStats.scoreboardTotalBlocks);
+        boolean firstScoreboardSnapshot = worldStats.scoreboardTotalUpdatedAtMs <= 0L;
+
+        if (!firstScoreboardSnapshot && totalDigs < previousScoreboardTotal)
         {
-            long correction = previousSourceTotal - totalDigs;
-            worldStats.totalBlocks = totalDigs;
-            worldStats.lastSeenAt = now;
-            Configs.totalBlocksMined = Math.max(0L, Configs.totalBlocksMined - correction);
-            if (sessionActive)
+            if (MmmDebugLogger.shouldLog("miningstats.scoreboard-regression-ignored", SCOREBOARD_BOOTSTRAP_SKIPPED_LOG_INTERVAL_MS))
             {
-                sessionStartTotalMined = Math.max(0L, sessionStartTotalMined - correction);
-                currentSession.totalBlocks = Math.max(0L, currentSession.totalBlocks - correction);
-                lastScoreboardSessionUpdateActiveElapsedMs = Math.min(lastScoreboardSessionUpdateActiveElapsedMs, getActiveElapsedMs(now));
+                MMM.LOGGER.info(
+                        "[MMM_DEBUG] scoreboard-regression-ignored worldId={} previousScoreboardTotal={} incomingScoreboardTotal={} effectiveTotal={}",
+                        WorldSessionContext.getCurrentWorldId(),
+                        previousScoreboardTotal,
+                        totalDigs,
+                        previousSourceTotal);
             }
-            debugAttribution("authoritative-correction", previousSourceTotal, worldStats.totalBlocks, 0L);
-            Configs.saveToFile();
             return;
         }
 
-        long delta = Math.max(0L, totalDigs - previousSourceTotal);
-        worldStats.totalBlocks = totalDigs;
-        worldStats.lastSeenAt = now;
-        if (delta > 0L)
+        long scoreboardIncrease = firstScoreboardSnapshot
+                ? 0L
+                : Math.max(0L, totalDigs - previousScoreboardTotal);
+        long consumedPendingBlocks = firstScoreboardSnapshot
+                ? 0L
+                : Math.min(Math.max(0L, worldStats.pendingLocalBlocks), scoreboardIncrease);
+
+        if (firstScoreboardSnapshot)
         {
-            Configs.totalBlocksMined += delta;
-            recordPeriodBlocksMined(delta, now);
+            worldStats.pendingLocalBlocks = 0L;
+        }
+        else
+        {
+            worldStats.pendingLocalBlocks = Math.max(0L, worldStats.pendingLocalBlocks - consumedPendingBlocks);
+        }
+
+        worldStats.scoreboardTotalBlocks = totalDigs;
+        worldStats.scoreboardTotalUpdatedAtMs = now;
+        worldStats.totalBlocks = totalDigs + worldStats.pendingLocalBlocks;
+        worldStats.lastSeenAt = now;
+
+        long effectiveDelta = worldStats.totalBlocks - previousSourceTotal;
+        if (effectiveDelta > 0L)
+        {
+            Configs.totalBlocksMined += effectiveDelta;
+            recordPeriodBlocksMined(effectiveDelta, now);
             // Authoritative scoreboard deltas are the live mining update path on some servers.
             // Trigger sync from this authoritative path as well.
             CloudSyncManager.onBlockMined(now);
         }
+        else if (firstScoreboardSnapshot && effectiveDelta < 0L)
+        {
+            Configs.totalBlocksMined = Math.max(0L, Configs.totalBlocksMined + effectiveDelta);
+        }
 
         if (sessionActive)
         {
-            if (sessionPaused && delta > 0L)
+            long scoreboardOnlyDelta = Math.max(0L, scoreboardIncrease - consumedPendingBlocks);
+            if (sessionPaused && scoreboardOnlyDelta > 0L)
             {
-                pausedSessionMinedOffset += delta;
+                pausedSessionMinedOffset += scoreboardOnlyDelta;
             }
-
-            long sessionTotal = Math.max(0L, totalDigs - sessionStartTotalMined - pausedSessionMinedOffset);
-            long sessionDelta = Math.max(0L, sessionTotal - currentSession.totalBlocks);
-            currentSession.totalBlocks = sessionTotal;
-            currentSession.endTimeMs = now;
-
-            if (sessionPaused == false)
+            else if (sessionPaused == false && scoreboardOnlyDelta > 0L)
             {
                 long activeElapsedMs = getActiveElapsedMs(now);
-                if (sessionDelta > 0L)
-                {
-                    currentSession.recordMinedAmountOverInterval(lastScoreboardSessionUpdateActiveElapsedMs, activeElapsedMs, sessionDelta);
-                    recordFastest100kIfReached(now);
-                }
+                currentSession.totalBlocks += scoreboardOnlyDelta;
+                currentSession.endTimeMs = now;
+                currentSession.recordMinedAmountOverInterval(lastScoreboardSessionUpdateActiveElapsedMs, activeElapsedMs, scoreboardOnlyDelta);
+                recordFastest100kIfReached(now);
                 lastScoreboardSessionUpdateActiveElapsedMs = activeElapsedMs;
             }
         }
 
-        debugAttribution("authoritative-update", previousSourceTotal, worldStats.totalBlocks, delta);
+        debugAttribution("authoritative-update", previousSourceTotal, worldStats.totalBlocks, Math.max(0L, effectiveDelta));
 
         if (now - lastPersistedTotalMinedMs >= TOTAL_MINED_PERSIST_INTERVAL_MS)
         {
@@ -554,46 +580,7 @@ public final class MiningStats
             return;
         }
 
-        Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
-        long sourceBefore = Math.max(0L, worldStats.totalBlocks);
-        long lifetimeBefore = Math.max(0L, Configs.totalBlocksMined);
-
-        if (scoreboardPlayerTotal <= sourceBefore)
-        {
-            return;
-        }
-
-        long delta = scoreboardPlayerTotal - sourceBefore;
-        worldStats.totalBlocks = scoreboardPlayerTotal;
-        Configs.totalBlocksMined += delta;
-
-        // Bootstrap should not retroactively inflate session progress.
-        if (sessionActive)
-        {
-            sessionStartTotalMined += delta;
-        }
-
-        if (MmmDebugLogger.shouldLog("miningstats.scoreboard-bootstrap-applied", SCOREBOARD_BOOTSTRAP_APPLIED_LOG_INTERVAL_MS))
-        {
-            String sourceKey = ScoreboardSourceResolver.sourceKey(
-                    worldInfo.displayName(),
-                    worldInfo
-            );
-            String sourceDisplay = ScoreboardSourceResolver.displayName(
-                    worldInfo.displayName(),
-                    worldInfo
-            );
-            MMM.LOGGER.info(
-                    "[MMM_DEBUG] scoreboard-bootstrap-applied sourceKey={} sourceName={} scoreboardPlayerTotal={} sourceBefore={} sourceAfter={} lifetimeBefore={} lifetimeAfter={}",
-                    sourceKey,
-                    sourceDisplay,
-                    scoreboardPlayerTotal,
-                    sourceBefore,
-                    worldStats.totalBlocks,
-                    lifetimeBefore,
-                    Configs.totalBlocksMined
-            );
-        }
+        applyScoreboardTotalMined(scoreboardPlayerTotal, now);
     }
 
     public static void applyMinecraftStatsBlockBreakdown(Map<String, Long> breakdown, long now)
@@ -606,8 +593,6 @@ public final class MiningStats
 
         Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
         Map<String, Long> previous = Configs.sanitizeBlockBreakdown(worldStats.blockBreakdown);
-        long sourceBefore = Math.max(0L, worldStats.totalBlocks);
-        long statsTotal = sanitized.values().stream().mapToLong(Long::longValue).sum();
         boolean breakdownChanged = sanitized.equals(previous) == false
                 || Configs.BLOCK_BREAKDOWN_SOURCE_MINECRAFT_STATS.equals(worldStats.blockBreakdownSource) == false;
 
@@ -619,23 +604,10 @@ public final class MiningStats
             worldStats.lastSeenAt = now;
         }
 
-        if (statsTotal > sourceBefore)
-        {
-            long delta = statsTotal - sourceBefore;
-            worldStats.totalBlocks = statsTotal;
-            Configs.totalBlocksMined += delta;
-
-            if (sessionActive)
-            {
-                sessionStartTotalMined += delta;
-            }
-        }
-
-        if (breakdownChanged || statsTotal > sourceBefore)
+        if (breakdownChanged)
         {
             Configs.saveToFile();
             CloudSyncManager.syncHeartbeat();
-            debugAttribution("minecraft-stats-breakdown", sourceBefore, worldStats.totalBlocks, Math.max(0L, worldStats.totalBlocks - sourceBefore));
         }
     }
 

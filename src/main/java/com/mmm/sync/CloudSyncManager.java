@@ -917,11 +917,7 @@ public final class CloudSyncManager
                 worldInfo.displayName(),
                 worldInfo.kind(),
                 worldInfo.host());
-        long totalBlocks = Math.max(0L, authoritativePlayerTotal);
-        if (totalBlocks <= 0L)
-        {
-            totalBlocks = Math.max(0L, worldStats.totalBlocks);
-        }
+        long totalBlocks = Math.max(Math.max(0L, authoritativePlayerTotal), Math.max(0L, worldStats.totalBlocks));
 
         JsonObject totals = new JsonObject();
         totals.addProperty("world_key", worldStats.worldId);
@@ -929,6 +925,11 @@ public final class CloudSyncManager
         totals.addProperty("kind", normaliseWorldKind(worldStats.kind));
         totals.addProperty("host", (String) null);
         totals.addProperty("total_blocks", totalBlocks);
+        totals.addProperty("total_origin", authoritativePlayerTotal > 0L
+                ? MiningStats.getCurrentSourcePendingLocalBlocks() > 0L
+                    ? "scoreboard_plus_client_valid_blocks"
+                    : "scoreboard"
+                : "client_valid_blocks");
         totals.addProperty("last_seen_at", toIso(Math.max(worldStats.lastSeenAt, System.currentTimeMillis())));
         return totals;
     }
@@ -1126,18 +1127,20 @@ public final class CloudSyncManager
                                                    WorldSessionContext.WorldInfo worldInfo,
                                                    SourceEvidence sourceEvidence)
     {
-        if (sourceEvidence == null || sourceEvidence.playerTotalDigs() <= 0L)
+        long scoreboardTotal = sourceEvidence == null ? 0L : Math.max(0L, sourceEvidence.playerTotalDigs());
+        long effectivePlayerTotal = Math.max(scoreboardTotal, MiningStats.getCurrentSourceTotalMined());
+        if (effectivePlayerTotal <= 0L)
         {
             return null;
         }
 
-        String serverName = sourceEvidence.scan() != null && sourceEvidence.scan().sourceName() != null && sourceEvidence.scan().sourceName().isBlank() == false
+        String serverName = sourceEvidence != null && sourceEvidence.scan() != null && sourceEvidence.scan().sourceName() != null && sourceEvidence.scan().sourceName().isBlank() == false
                 ? sourceEvidence.scan().sourceName()
                 : latestLeaderboardSnapshot != null && latestLeaderboardSnapshot.serverName() != null && latestLeaderboardSnapshot.serverName().isBlank() == false
                 ? latestLeaderboardSnapshot.serverName()
                 : ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo);
 
-        String objectiveTitle = sourceEvidence.scan() != null && sourceEvidence.scan().scoreboardTitle() != null && sourceEvidence.scan().scoreboardTitle().isBlank() == false
+        String objectiveTitle = sourceEvidence != null && sourceEvidence.scan() != null && sourceEvidence.scan().scoreboardTitle() != null && sourceEvidence.scan().scoreboardTitle().isBlank() == false
                 ? sourceEvidence.scan().scoreboardTitle()
                 : latestLeaderboardSnapshot != null && latestLeaderboardSnapshot.objectiveTitle() != null && latestLeaderboardSnapshot.objectiveTitle().isBlank() == false
                 ? latestLeaderboardSnapshot.objectiveTitle()
@@ -1145,10 +1148,15 @@ public final class CloudSyncManager
 
         JsonObject digs = new JsonObject();
         digs.addProperty("username", resolveUsername(client));
-        digs.addProperty("total_digs", sourceEvidence.playerTotalDigs());
+        digs.addProperty("total_digs", effectivePlayerTotal);
         digs.addProperty("server", serverName);
         digs.addProperty("timestamp", toIso(System.currentTimeMillis()));
         digs.addProperty("objective_title", objectiveTitle);
+        digs.addProperty("total_origin", scoreboardTotal > 0L
+                ? MiningStats.getCurrentSourcePendingLocalBlocks() > 0L
+                    ? "scoreboard_plus_client_valid_blocks"
+                    : "scoreboard"
+                : "client_valid_blocks");
         return digs;
     }
 
