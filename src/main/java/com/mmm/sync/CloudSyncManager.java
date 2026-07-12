@@ -36,9 +36,7 @@ public final class CloudSyncManager
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
     private static final long MIN_LIVE_SYNC_ATTEMPT_INTERVAL_MS = 15_000L;
-    private static final long ONE_MINUTE_SYNC_INTERVAL_MS = 60_000L;
     private static final int MAX_SAVED_SESSIONS_TO_QUEUE = 25;
-    private static final Set<String> ONE_MINUTE_SYNC_USERNAMES = Set.of("5hekel");
 
     private static long lastHeartbeatMs;
     private static long lastLiveBlockSyncMs;
@@ -121,8 +119,7 @@ public final class CloudSyncManager
         }
 
         long now = System.currentTimeMillis();
-        boolean bypassCadence = shouldBypassCadence(reason);
-        if (bypassCadence == false && isSyncCadenceDue(now) == false)
+        if (isSyncCadenceDue(now) == false)
         {
             syncStatusDetail = "Next sync in " + getNextSyncLabel();
             return;
@@ -219,21 +216,46 @@ public final class CloudSyncManager
             return;
         }
 
-        syncStatus = SyncStatus.SYNCED;
-        syncStatusDetail = type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
+        boolean skippedByCadence = responseBoolean(responseBody, "sync_skipped");
+        boolean sourceSyncAccepted = responseBoolean(responseBody, "source_sync_accepted");
+        syncStatus = skippedByCadence ? SyncStatus.CONNECTED : SyncStatus.SYNCED;
+        syncStatusDetail = skippedByCadence
+                ? "Source sync is on its 24-hour cooldown."
+                : type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
         touchHealthy();
-        markSyncedSessions(payload, responseBody);
+        if (skippedByCadence == false)
+        {
+            markSyncedSessions(payload, responseBody);
+        }
         applySuccessfulSyncResponse(responseBody);
 
-        if (type == SyncItemType.CLOUD_LIVE_STATE)
+        if (type == SyncItemType.CLOUD_LIVE_STATE && skippedByCadence == false)
         {
             lastSuccessfulLiveFingerprint = livePayloadFingerprint(payload);
             lastQueuedLiveFingerprint = lastSuccessfulLiveFingerprint;
         }
 
-        if (latestLeaderboardSnapshot != null)
+        if (sourceSyncAccepted && latestLeaderboardSnapshot != null)
         {
             lastSuccessfulLeaderboardFingerprint = leaderboardFingerprint(latestLeaderboardSnapshot);
+        }
+    }
+
+    private static boolean responseBoolean(String responseBody, String key)
+    {
+        if (responseBody == null || responseBody.isBlank() || key == null || key.isBlank())
+        {
+            return false;
+        }
+
+        try
+        {
+            JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
+            return root.has(key) && root.get(key).isJsonPrimitive() && root.get(key).getAsBoolean();
+        }
+        catch (Exception ignored)
+        {
+            return false;
         }
     }
 
@@ -391,11 +413,6 @@ public final class CloudSyncManager
 
     public static long getSyncIntervalMs()
     {
-        String username = currentSyncUsernameKey();
-        if (ONE_MINUTE_SYNC_USERNAMES.contains(username))
-        {
-            return ONE_MINUTE_SYNC_INTERVAL_MS;
-        }
         return Configs.normalizeWebsiteSyncIntervalMs(Configs.websiteSyncIntervalMs);
     }
 
@@ -459,28 +476,6 @@ public final class CloudSyncManager
         return Configs.normalizeWebsiteSyncTier(Configs.websiteSyncTier);
     }
 
-    private static String currentSyncUsernameKey()
-    {
-        if (Configs.websiteLinkedMinecraftUsername != null && Configs.websiteLinkedMinecraftUsername.isBlank() == false)
-        {
-            return Configs.websiteLinkedMinecraftUsername.trim().toLowerCase(Locale.ROOT);
-        }
-
-        try
-        {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client != null && client.getSession() != null && client.getSession().getUsername() != null)
-            {
-                return client.getSession().getUsername().trim().toLowerCase(Locale.ROOT);
-            }
-        }
-        catch (Exception ignored)
-        {
-        }
-
-        return "";
-    }
-
     private static boolean isSyncCadenceDue(long now)
     {
         if (hasPendingLiveSync())
@@ -522,18 +517,12 @@ public final class CloudSyncManager
 
     private static long lastSuccessfulSyncMs()
     {
-        PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
-        return Math.max(Configs.websiteLastSuccessfulSyncMs, snapshot.lastSuccessfulSyncAtMs());
+        return Math.max(0L, Configs.websiteLastSuccessfulSyncMs);
     }
 
     public static long getLastSuccessfulSyncMs()
     {
         return lastSuccessfulSyncMs();
-    }
-
-    private static boolean shouldBypassCadence(String reason)
-    {
-        return reason != null && reason.equalsIgnoreCase("mining records period reset");
     }
 
     private static void queueCurrentLivePayloadIfDue(long now)
@@ -582,8 +571,42 @@ public final class CloudSyncManager
     {
         applySyncResponse(responseBody);
         WebsiteProfileTotals.refresh(true);
-        Configs.websiteLastSuccessfulSyncMs = System.currentTimeMillis();
-        Configs.saveToFile();
+        long cadenceAnchorMs = sourceSyncCadenceAnchor(responseBody);
+        if (cadenceAnchorMs > 0L)
+        {
+            Configs.websiteLastSuccessfulSyncMs = cadenceAnchorMs;
+            Configs.saveToFile();
+        }
+    }
+
+    private static long sourceSyncCadenceAnchor(String responseBody)
+    {
+        if (responseBody == null || responseBody.isBlank())
+        {
+            return 0L;
+        }
+
+        try
+        {
+            JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
+            if (root.has("source_sync_accepted")
+                    && root.get("source_sync_accepted").isJsonPrimitive()
+                    && root.get("source_sync_accepted").getAsBoolean())
+            {
+                return System.currentTimeMillis();
+            }
+
+            if (root.has("next_sync_at") && root.get("next_sync_at").isJsonPrimitive())
+            {
+                long nextSyncMs = Instant.parse(root.get("next_sync_at").getAsString()).toEpochMilli();
+                return Math.max(1L, nextSyncMs - getSyncIntervalMs());
+            }
+        }
+        catch (Exception ignored)
+        {
+        }
+
+        return 0L;
     }
 
     private static void applySyncResponse(String responseBody)
@@ -704,6 +727,12 @@ public final class CloudSyncManager
         if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
         {
             logSyncUnavailable("endpoint_blank");
+            return false;
+        }
+
+        if (WebsiteLinkManager.hasPersistedLink() == false)
+        {
+            logSyncUnavailable("website_link_required");
             return false;
         }
 
@@ -1064,6 +1093,8 @@ public final class CloudSyncManager
         leaderboard.addProperty("objective_title", snapshot.objectiveTitle());
         leaderboard.addProperty("captured_at", toIso(snapshot.capturedAtMs()));
         leaderboard.addProperty("source_type", "scoreboard");
+        leaderboard.addProperty("mode", "full");
+        leaderboard.addProperty("complete_snapshot", true);
 
         long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
         long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();

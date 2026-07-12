@@ -72,49 +72,8 @@ public final class DigsSyncManager
             touchHealthy();
         }
 
-        if (latestModel == null || latestModel.isValid() == false)
-        {
-            return;
-        }
-
-        if (Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false)
-        {
-            logSyncUnavailable("totalDigsSyncEnabled_false");
-            return;
-        }
-
-        if (canSync() == false)
-        {
-            return;
-        }
-
-        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        boolean cadenceDue = CloudSyncManager.getNextSyncRemainingMs(now) == 0L
-                && (lastQueueAttemptMs <= 0L || now - lastQueueAttemptMs >= CloudSyncManager.getSyncIntervalMs());
-        if (cadenceDue == false)
-        {
-            return;
-        }
-
-        JsonObject payload = buildPayload(latestModel);
-        String fingerprint = fingerprint(
-                latestModel,
-                BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(worldInfo),
-                sourcePayloadFingerprint(payload));
-        lastQueueAttemptMs = now;
-
-        if (fingerprint.equals(lastSuccessfulFingerprint) && status == SyncStatus.SYNCED)
-        {
-            return;
-        }
-
-        if (fingerprint.equals(lastQueuedFingerprint) && status == SyncStatus.QUEUED)
-        {
-            return;
-        }
-
-        lastQueuedFingerprint = fingerprint;
-        SyncQueueManager.enqueuePlayerTotalDigs(dedupeKey(latestModel), payload);
+        // CloudSyncManager owns transport so one complete payload claims the
+        // server-enforced daily source-sync slot. This class only detects totals.
     }
 
     static void onQueued(JsonObject payload)
@@ -135,32 +94,6 @@ public final class DigsSyncManager
                     BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(WorldSessionContext.getCurrentWorldInfo()),
                     sourcePayloadFingerprint(payload));
         lastQueuedFingerprint = lastSuccessfulFingerprint;
-    }
-
-    public static void syncNow(String reason)
-    {
-        long now = System.currentTimeMillis();
-        if (latestModel == null
-                || latestModel.isValid() == false
-                || now - latestModel.capturedAtMs() > AUTHORITATIVE_MODEL_STALE_MS
-                || canSync() == false)
-        {
-            return;
-        }
-
-        if (shouldBypassCadence(reason) == false && CloudSyncManager.getNextSyncRemainingMs(now) > 0L)
-        {
-            return;
-        }
-
-        JsonObject payload = buildPayload(latestModel);
-        lastQueueAttemptMs = now;
-        lastQueuedFingerprint = fingerprint(
-                latestModel,
-                BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(WorldSessionContext.getCurrentWorldInfo()),
-                sourcePayloadFingerprint(payload));
-        SyncQueueManager.enqueuePlayerTotalDigs(dedupeKey(latestModel), payload);
-        SyncQueueManager.forceFlush(reason == null || reason.isBlank() ? "total digs sync" : reason);
     }
 
     static void onQueueRetry(String detail, long nextRetryAtMs)
@@ -426,6 +359,8 @@ public final class DigsSyncManager
         leaderboard.addProperty("objective_title", snapshot.objectiveTitle());
         leaderboard.addProperty("captured_at", Instant.ofEpochMilli(snapshot.capturedAtMs()).toString());
         leaderboard.addProperty("source_type", "scoreboard");
+        leaderboard.addProperty("mode", "full");
+        leaderboard.addProperty("complete_snapshot", true);
 
         long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
         long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();
@@ -549,6 +484,12 @@ public final class DigsSyncManager
         if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
         {
             logSyncUnavailable("endpoint_blank");
+            return false;
+        }
+
+        if (WebsiteLinkManager.hasPersistedLink() == false)
+        {
+            logSyncUnavailable("website_link_required");
             return false;
         }
 
@@ -757,11 +698,6 @@ public final class DigsSyncManager
     public static void resetForWorldChange(String worldId)
     {
         resetForDisconnect();
-    }
-
-    private static boolean shouldBypassCadence(String reason)
-    {
-        return reason != null && reason.equalsIgnoreCase("mining records period reset");
     }
 
     public static boolean hasAuthoritativeTotalDigs()

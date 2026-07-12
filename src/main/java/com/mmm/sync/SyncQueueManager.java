@@ -2,6 +2,7 @@ package com.mmm.sync;
 
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -150,6 +151,11 @@ public final class SyncQueueManager
                 return SyncSendResult.drop(-1, "Invalid queue item.", "");
             }
 
+            if (item.type == SyncItemType.PLAYER_TOTAL_DIGS)
+            {
+                return SyncSendResult.drop(410, "Legacy partial sync replaced by the complete daily sync.", "");
+            }
+
             if (isSyncEnabledFor(item.type) == false)
             {
                 MmmDebugLogger.info("syncqueue-send-disabled-" + item.type.name(), DISABLED_SYNC_LOG_INTERVAL_MS,
@@ -178,6 +184,8 @@ public final class SyncQueueManager
                     && item.payload.get("minecraft_uuid").getAsString().isBlank() == false;
             boolean hasLinkedIdentity = Configs.websiteLinkedMinecraftUuid != null
                     && Configs.websiteLinkedMinecraftUuid.isBlank() == false;
+            boolean hasClientSyncToken = Configs.websiteSyncToken != null
+                    && Configs.websiteSyncToken.isBlank() == false;
 
             if (hasClientId == false || hasUsername == false)
             {
@@ -208,9 +216,18 @@ public final class SyncQueueManager
                         item.type);
             }
 
-            Map<String, String> headers = Map.of(
-                    "x-mmm-sync-item-id", item.id,
-                    "x-mmm-sync-item-type", item.type.name());
+            if (item.type != SyncItemType.WEBSITE_LINK_CLAIM && (hasLinkedIdentity == false || hasClientSyncToken == false))
+            {
+                return SyncSendResult.drop(401, "Link MMMod to the website before syncing.", "");
+            }
+
+            Map<String, String> headers = new HashMap<>();
+            headers.put("x-mmm-sync-item-id", item.id);
+            headers.put("x-mmm-sync-item-type", item.type.name());
+            if (item.type != SyncItemType.WEBSITE_LINK_CLAIM)
+            {
+                headers.put("x-mmm-client-sync-token", Configs.websiteSyncToken);
+            }
 
             MmmDebugLogger.info(
                     "syncqueue-request-" + item.type.name(),
@@ -421,6 +438,18 @@ public final class SyncQueueManager
         }
 
         String compact = body.replace('\n', ' ').replace('\r', ' ').trim();
+        try
+        {
+            JsonObject response = JsonParser.parseString(compact).getAsJsonObject();
+            if (response.has("syncToken"))
+            {
+                response.addProperty("syncToken", "<redacted>");
+                compact = response.toString();
+            }
+        }
+        catch (Exception ignored)
+        {
+        }
         int maxLength = 700;
         return compact.length() <= maxLength ? compact : compact.substring(0, maxLength) + "...";
     }
