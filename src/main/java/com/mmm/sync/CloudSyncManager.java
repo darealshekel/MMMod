@@ -21,9 +21,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import net.minecraft.client.MinecraftClient;
 
 public final class CloudSyncManager
@@ -31,17 +29,15 @@ public final class CloudSyncManager
     private static final String LOG_PREFIX = "[MMM_SYNC]";
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final long SOURCE_SCOREBOARD_SCAN_INTERVAL_MS = 3_000L;
-    private static final long SAVED_SESSION_BACKLOG_SCAN_INTERVAL_MS = 30_000L;
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
     private static final long MIN_LIVE_SYNC_ATTEMPT_INTERVAL_MS = 15_000L;
-    private static final int MAX_SAVED_SESSIONS_TO_QUEUE = 25;
+    private static final int MAX_SAVED_SESSIONS_PER_PAYLOAD = 25;
 
     private static long lastHeartbeatMs;
     private static long lastLiveBlockSyncMs;
     private static long lastSourceScoreboardScanMs;
-    private static long lastSavedSessionBacklogScanMs;
     private static volatile SyncStatus syncStatus = SyncStatus.CONNECTED;
     private static volatile String syncStatusDetail = "";
     private static volatile long lastHealthySignalMs;
@@ -73,8 +69,6 @@ public final class CloudSyncManager
         {
             syncHeartbeat();
         }
-        queueSavedSessionsIfDue(now);
-
         if (latestLeaderboardSnapshot != null && syncStatus != SyncStatus.SYNCING && syncStatus != SyncStatus.SYNCED)
         {
             syncStatus = SyncStatus.CONNECTED;
@@ -106,7 +100,6 @@ public final class CloudSyncManager
         refreshLeaderboardSnapshot(MinecraftClient.getInstance(), now, true);
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
-        queueSavedSessionsForSync("heartbeat");
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
         queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
     }
@@ -127,7 +120,6 @@ public final class CloudSyncManager
         refreshLeaderboardSnapshot(MinecraftClient.getInstance(), now, true);
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
-        queueSavedSessionsForSync(reason == null || reason.isBlank() ? "manual sync" : reason);
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
         queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
         SyncQueueManager.forceFlush(reason == null || reason.isBlank() ? "manual sync" : reason);
@@ -136,6 +128,11 @@ public final class CloudSyncManager
     public static void syncFinishedSession(SessionData session)
     {
         if (canSync() == false || SessionHistory.isQualifyingSession(session) == false)
+        {
+            return;
+        }
+
+        if (isSyncCadenceDue(System.currentTimeMillis()) == false)
         {
             return;
         }
@@ -774,73 +771,6 @@ public final class CloudSyncManager
         return MiningStats.isSessionPaused() ? "paused" : "active";
     }
 
-    private static void queueSavedSessionsIfDue(long now)
-    {
-        if (now - lastSavedSessionBacklogScanMs < SAVED_SESSION_BACKLOG_SCAN_INTERVAL_MS)
-        {
-            return;
-        }
-
-        lastSavedSessionBacklogScanMs = now;
-        queueSavedSessionsForSync("saved session backlog");
-    }
-
-    private static void queueSavedSessionsForSync(String reason)
-    {
-        if (canSync() == false || hasLiveContext() == false)
-        {
-            return;
-        }
-
-        List<PendingSavedSession> pendingSessions = new ArrayList<>();
-        for (SessionHistory.WorldHistory history : SessionHistory.getWorldHistories())
-        {
-            for (SessionData session : history.sessions())
-            {
-                if (SessionHistory.isQualifyingSession(session) == false)
-                {
-                    continue;
-                }
-
-                String sessionKey = sessionKey(session);
-                if (SessionSyncState.isSynced(sessionKey))
-                {
-                    continue;
-                }
-
-                pendingSessions.add(new PendingSavedSession(history, session, sessionKey));
-            }
-        }
-
-        pendingSessions.sort(Comparator
-                .comparingLong((PendingSavedSession pending) -> pending.session().endTimeMs)
-                .thenComparingLong(pending -> pending.session().startTimeMs)
-                .reversed());
-
-        int queued = 0;
-        for (PendingSavedSession pending : pendingSessions)
-        {
-            SyncQueueManager.enqueueCloudFinishedSession(
-                    pending.sessionKey(),
-                    buildSavedSessionPayload(pending.history(), pending.session()));
-            queued++;
-            if (queued >= MAX_SAVED_SESSIONS_TO_QUEUE)
-            {
-                break;
-            }
-        }
-
-        if (queued > 0)
-        {
-            MMM.LOGGER.info("{} saved-session-backlog-queued count={} reason={}",
-                    LOG_PREFIX,
-                    queued,
-                    reason == null || reason.isBlank() ? "sync" : reason);
-        }
-    }
-
-    private record PendingSavedSession(SessionHistory.WorldHistory history, SessionData session, String sessionKey) {}
-
     private record SourceEvidence(
             SourceScanResult scan,
             List<SourceLeaderboardSnapshot> leaderboards,
@@ -908,33 +838,62 @@ public final class CloudSyncManager
             payload.add("session", buildSession(session, sessionStatus));
         }
 
+        JsonArray savedSessions = buildPendingSavedSessions(worldInfo, session);
+        if (savedSessions.size() > 0)
+        {
+            payload.add("sessions", savedSessions);
+        }
+
         debugPayloadSource(worldInfo, payload);
 
         return payload;
     }
 
-    private static JsonObject buildSavedSessionPayload(SessionHistory.WorldHistory history, SessionData session)
+    private static JsonArray buildPendingSavedSessions(WorldSessionContext.WorldInfo worldInfo,
+                                                       SessionData primarySession)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
-        MiningStats.ProjectProgress projectProgress = MiningStats.getActiveProjectProgress();
+        JsonArray result = new JsonArray();
+        if (worldInfo == null || worldInfo.id() == null || worldInfo.id().isBlank())
+        {
+            return result;
+        }
 
-        JsonObject payload = new JsonObject();
-        payload.addProperty("client_id", Configs.cloudClientId);
-        payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
-        payload.addProperty("username", resolveUsername(client));
-        payload.addProperty("mod_version", Reference.MOD_VERSION);
-        payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
-        payload.addProperty("sync_origin", "client_evidence");
-        payload.add("world", buildWorld(history.worldId(), history.displayName()));
-        payload.add("lifetime_totals", buildLifetimeTotals());
-        payload.add("mining_records", buildMiningRecords());
-        payload.add("projects", buildProjects());
-        payload.add("daily_goal", buildDailyGoal(dailyGoal));
-        payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
-        payload.add("session_state", buildSessionState());
-        payload.add("session", buildSession(session, "ended"));
-        return payload;
+        String primarySessionKey = primarySession == null ? "" : sessionKey(primarySession);
+        List<SessionData> pendingSessions = new ArrayList<>();
+        for (SessionHistory.WorldHistory history : SessionHistory.getWorldHistories())
+        {
+            if (worldInfo.id().equals(history.worldId()) == false)
+            {
+                continue;
+            }
+
+            for (SessionData savedSession : history.sessions())
+            {
+                String savedSessionKey = sessionKey(savedSession);
+                if (SessionHistory.isQualifyingSession(savedSession) == false
+                        || SessionSyncState.isSynced(savedSessionKey)
+                        || savedSessionKey.equals(primarySessionKey))
+                {
+                    continue;
+                }
+                pendingSessions.add(savedSession);
+            }
+        }
+
+        pendingSessions.sort(Comparator
+                .comparingLong((SessionData savedSession) -> savedSession.endTimeMs)
+                .thenComparingLong(savedSession -> savedSession.startTimeMs)
+                .reversed());
+
+        for (SessionData savedSession : pendingSessions)
+        {
+            result.add(buildSession(savedSession, "ended"));
+            if (result.size() >= MAX_SAVED_SESSIONS_PER_PAYLOAD)
+            {
+                break;
+            }
+        }
+        return result;
     }
 
     private static JsonObject buildSessionState()
@@ -1074,14 +1033,10 @@ public final class CloudSyncManager
             return null;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, snapshot.entries());
-
-        List<SourceLeaderboardEntry> realEntries = snapshot.entries().stream()
-                .filter(entry -> entry.isValid())
-                .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
-                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
-                .toList();
+        SourceLeaderboardPayloadSupport.FilterResult filtered = SourceLeaderboardPayloadSupport.filterEntries(
+                MinecraftClient.getInstance(),
+                snapshot.entries());
+        List<SourceLeaderboardEntry> realEntries = filtered.entries();
 
         if (realEntries.isEmpty())
         {
@@ -1096,9 +1051,7 @@ public final class CloudSyncManager
         leaderboard.addProperty("mode", "full");
         leaderboard.addProperty("complete_snapshot", true);
 
-        long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
-        long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();
-        long payloadTotalDigs = snapshotTotalDigs > 0L ? snapshotTotalDigs : filteredTotalDigs;
+        long payloadTotalDigs = SourceLeaderboardPayloadSupport.resolveTotal(snapshot, realEntries);
         if (payloadTotalDigs > 0L)
         {
             leaderboard.addProperty("total_digs", payloadTotalDigs);
@@ -1115,11 +1068,11 @@ public final class CloudSyncManager
             entries.add(row);
         }
 
-        if (fakeUsernames.isEmpty() == false)
+        if (filtered.fakeUsernames().isEmpty() == false && filtered.filterCollapsedScoreboard() == false)
         {
-            JsonArray filtered = new JsonArray();
-            fakeUsernames.stream().sorted().forEach(filtered::add);
-            leaderboard.add("filtered_fake_usernames", filtered);
+            JsonArray filteredUsernames = new JsonArray();
+            filtered.fakeUsernames().stream().sorted().forEach(filteredUsernames::add);
+            leaderboard.add("filtered_fake_usernames", filteredUsernames);
         }
 
         leaderboard.add("entries", entries);

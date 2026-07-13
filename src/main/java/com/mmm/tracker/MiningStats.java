@@ -494,9 +494,12 @@ public final class MiningStats
             return;
         }
 
+        long effectiveScoreboardTotal = firstScoreboardSnapshot
+                ? Math.max(previousSourceTotal, totalDigs)
+                : totalDigs;
         long scoreboardIncrease = firstScoreboardSnapshot
                 ? 0L
-                : Math.max(0L, totalDigs - previousScoreboardTotal);
+                : Math.max(0L, effectiveScoreboardTotal - previousScoreboardTotal);
         long consumedPendingBlocks = firstScoreboardSnapshot
                 ? 0L
                 : Math.min(Math.max(0L, worldStats.pendingLocalBlocks), scoreboardIncrease);
@@ -510,9 +513,9 @@ public final class MiningStats
             worldStats.pendingLocalBlocks = Math.max(0L, worldStats.pendingLocalBlocks - consumedPendingBlocks);
         }
 
-        worldStats.scoreboardTotalBlocks = totalDigs;
+        worldStats.scoreboardTotalBlocks = effectiveScoreboardTotal;
         worldStats.scoreboardTotalUpdatedAtMs = now;
-        worldStats.totalBlocks = totalDigs + worldStats.pendingLocalBlocks;
+        worldStats.totalBlocks = effectiveScoreboardTotal + worldStats.pendingLocalBlocks;
         worldStats.lastSeenAt = now;
 
         long effectiveDelta = worldStats.totalBlocks - previousSourceTotal;
@@ -525,11 +528,6 @@ public final class MiningStats
             // Trigger sync from this authoritative path as well.
             CloudSyncManager.onBlockMined(now);
         }
-        else if (firstScoreboardSnapshot && effectiveDelta < 0L)
-        {
-            Configs.totalBlocksMined = Math.max(0L, Configs.totalBlocksMined + effectiveDelta);
-        }
-
         if (sessionActive)
         {
             long scoreboardOnlyDelta = Math.max(0L, scoreboardIncrease - consumedPendingBlocks);

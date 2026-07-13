@@ -1,12 +1,10 @@
 package com.mmm.sync;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
 import java.util.regex.Pattern;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.PlayerListEntry;
@@ -62,7 +60,7 @@ final class CarpetFakePlayerDetector
                 continue;
             }
 
-            if (isFakePlayer(playerListEntry))
+            if (looksSynthetic(entry.username()) || isFakePlayer(playerListEntry))
             {
                 usernames.add(entry.username().toLowerCase(Locale.ROOT));
             }
@@ -75,17 +73,9 @@ final class CarpetFakePlayerDetector
      * Returns true when the given tab-list entry looks like a Carpet fake player
      * rather than a real Mojang account.
      *
-     * Two signals are checked (either alone is sufficient):
-     *
-     *   1. Null profile or null UUID — the classic signal that still appears in
-     *      some older server/Carpet configurations.
-     *
-     *   2. Offline-mode UUID match — Carpet (1.20+) gives fake players a UUID
-     *      derived from their name via the vanilla offline formula:
-     *        UUID.nameUUIDFromBytes("OfflinePlayer:<name>")
-     *      This produces a version-3 UUID.  Real Mojang accounts always carry a
-     *      randomly-generated version-4 UUID, so this comparison has no false
-     *      positives on an online-mode server.
+     * Null profiles remain a reliable fake-player signal. Offline UUIDs are not:
+     * legitimate players receive them on offline-mode and mixed proxy servers,
+     * so UUID shape must never remove a public scoreboard row by itself.
      */
     private static boolean isFakePlayer(PlayerListEntry entry)
     {
@@ -94,20 +84,12 @@ final class CarpetFakePlayerDetector
             return true;
         }
 
-        // Use the name exactly as the server stored it in the profile — this is
-        // the same string Carpet passes to UUID.nameUUIDFromBytes when creating
-        // the fake player, so the comparison is byte-for-byte identical.
         String profileName = entry.getProfile().getName();
         if (profileName == null || profileName.isBlank())
         {
             return true;
         }
-
-        UUID profileId = entry.getProfile().getId();
-        UUID expectedOfflineId = UUID.nameUUIDFromBytes(
-            ("OfflinePlayer:" + profileName).getBytes(StandardCharsets.UTF_8)
-        );
-        return profileId.equals(expectedOfflineId);
+        return false;
     }
 
     private static PlayerListEntry findPlayerListEntry(Collection<PlayerListEntry> playerList, String username)

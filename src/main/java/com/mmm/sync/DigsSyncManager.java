@@ -8,10 +8,8 @@ import com.mmm.config.Configs;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import net.minecraft.client.MinecraftClient;
 
 public final class DigsSyncManager
@@ -342,18 +340,8 @@ public final class DigsSyncManager
             return null;
         }
 
-        List<SourceLeaderboardEntry> validEntries = snapshot.entries().stream()
-                .filter(SourceLeaderboardEntry::isValid)
-                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
-                .toList();
-        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, validEntries);
-        List<SourceLeaderboardEntry> filteredEntries = validEntries.stream()
-                .filter(SourceLeaderboardEntry::isValid)
-                .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
-                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
-                .toList();
-        boolean fakeFilterCollapsedScoreboard = validEntries.size() >= 3 && filteredEntries.size() < 3;
-        List<SourceLeaderboardEntry> realEntries = fakeFilterCollapsedScoreboard ? validEntries : filteredEntries;
+        SourceLeaderboardPayloadSupport.FilterResult filtered = SourceLeaderboardPayloadSupport.filterEntries(client, snapshot.entries());
+        List<SourceLeaderboardEntry> realEntries = filtered.entries();
 
         if (realEntries.isEmpty())
         {
@@ -368,9 +356,7 @@ public final class DigsSyncManager
         leaderboard.addProperty("mode", "full");
         leaderboard.addProperty("complete_snapshot", true);
 
-        long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
-        long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();
-        long payloadTotalDigs = Math.max(snapshotTotalDigs, filteredTotalDigs);
+        long payloadTotalDigs = SourceLeaderboardPayloadSupport.resolveTotal(snapshot, realEntries);
         if (payloadTotalDigs > 0L)
         {
             leaderboard.addProperty("total_digs", payloadTotalDigs);
@@ -387,11 +373,11 @@ public final class DigsSyncManager
             entries.add(row);
         }
 
-        if (fakeUsernames.isEmpty() == false && fakeFilterCollapsedScoreboard == false)
+        if (filtered.fakeUsernames().isEmpty() == false && filtered.filterCollapsedScoreboard() == false)
         {
-            JsonArray filtered = new JsonArray();
-            fakeUsernames.stream().sorted().forEach(filtered::add);
-            leaderboard.add("filtered_fake_usernames", filtered);
+            JsonArray filteredUsernames = new JsonArray();
+            filtered.fakeUsernames().stream().sorted().forEach(filteredUsernames::add);
+            leaderboard.add("filtered_fake_usernames", filteredUsernames);
         }
 
         leaderboard.add("entries", entries);
