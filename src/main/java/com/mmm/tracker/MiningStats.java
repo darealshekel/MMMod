@@ -519,7 +519,8 @@ public final class MiningStats
         if (effectiveDelta > 0L)
         {
             Configs.totalBlocksMined += effectiveDelta;
-            recordPeriodBlocksMined(effectiveDelta, now);
+            // Scoreboard reconciliation updates lifetime/source totals only.
+            // Daily, weekly, and PR counters advance from accepted local block breaks.
             // Authoritative scoreboard deltas are the live mining update path on some servers.
             // Trigger sync from this authoritative path as well.
             CloudSyncManager.onBlockMined(now);
