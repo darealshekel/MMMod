@@ -2,7 +2,6 @@ package com.mmm.sync;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import net.minecraft.client.MinecraftClient;
 
@@ -20,20 +19,9 @@ final class SourceLeaderboardPayloadSupport
                         .filter(SourceLeaderboardEntry::isValid)
                         .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
                         .toList();
-        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, validEntries);
-        List<SourceLeaderboardEntry> filteredEntries = validEntries.stream()
-                .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
-                .toList();
-
-        // Some proxy/plugin setups expose incomplete tab profiles or use names
-        // that resemble automation accounts. Never let a heuristic collapse the
-        // whole scoreboard; the API can review explicit exclusions separately.
-        boolean filterCollapsedScoreboard = filteredEntries.size() < Math.min(3, validEntries.size());
-        return new FilterResult(
-                filterCollapsedScoreboard ? validEntries : filteredEntries,
-                fakeUsernames,
-                filterCollapsedScoreboard
-        );
+        // A linked client reports scoreboard evidence, not player legitimacy.
+        // Only explicit owner-managed exclusions may remove a public source row.
+        return new FilterResult(validEntries, Set.of(), false);
     }
 
     static long resolveTotal(SourceLeaderboardSnapshot snapshot, List<SourceLeaderboardEntry> entries)

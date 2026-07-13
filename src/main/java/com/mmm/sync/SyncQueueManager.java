@@ -301,7 +301,16 @@ public final class SyncQueueManager
 
     private static boolean isSyncEnabledFor(QueuedSyncItem item)
     {
-        return item != null && isSyncEnabledFor(item.type);
+        if (item == null || isSyncEnabledFor(item.type) == false)
+        {
+            return false;
+        }
+
+        if (item.type == SyncItemType.CLOUD_LIVE_STATE || item.type == SyncItemType.CLOUD_FINISHED_SESSION)
+        {
+            return CloudSyncManager.isCurrentContextPayloadPreparedForSync();
+        }
+        return true;
     }
 
     private static boolean isSyncEnabledFor(SyncItemType type)

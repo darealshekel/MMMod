@@ -752,7 +752,17 @@ public class Configs implements IConfigHandler
 
             JsonObject root = element.getAsJsonObject();
             JsonObject state = root.has("State") && root.get("State").isJsonObject() ? root.getAsJsonObject("State") : root;
-            mergeCrossVersionState(state, "cross-version State");
+            File primaryConfigFile = getPrimaryConfigFile();
+            boolean sharedPeriodsAreAuthoritative = primaryConfigFile.exists() == false
+                    || stateFile.lastModified() >= primaryConfigFile.lastModified();
+            if (sharedPeriodsAreAuthoritative)
+            {
+                applyAuthoritativeCrossVersionPeriods(state, "cross-version State");
+            }
+            else
+            {
+                mergeCrossVersionState(state, "cross-version State");
+            }
             return true;
         }
         catch (Exception e)
@@ -828,6 +838,55 @@ public class Configs implements IConfigHandler
         personalRecordWeeklyBlocks = Math.max(personalRecordWeeklyBlocks, readLong(state, "personalRecordWeeklyBlocks", 0L, context));
         personalRecordDailyBlocks = Math.max(personalRecordDailyBlocks, dailyBlocksMined);
         personalRecordWeeklyBlocks = Math.max(personalRecordWeeklyBlocks, weeklyBlocksMined);
+    }
+
+    private static void applyAuthoritativeCrossVersionPeriods(JsonObject state, String context)
+    {
+        long now = System.currentTimeMillis();
+
+        if (state.has("dailyGoal"))
+        {
+            Generic.DAILY_GOAL.setIntegerValue(clampDailyGoal(readLong(state, "dailyGoal", Generic.DAILY_GOAL.getIntegerValue(), context)));
+        }
+
+        long incomingDailyProgress = readLong(state, "dailyProgress", 0L, context);
+        long incomingDailyBlocks = readLong(state, "dailyBlocksMined", 0L, context);
+        long incomingDailyTotal = Math.max(0L, Math.max(incomingDailyBlocks, incomingDailyProgress));
+        String incomingDailyDate = normalizeStateKey(readString(state, "dailyBlocksDate", "", context));
+        if (PeriodKeys.isCurrentDailyKey(incomingDailyDate, now))
+        {
+            dailyBlocksDate = PeriodKeys.normalizeDailyKey(incomingDailyDate, now);
+            dailyBlocksMined = incomingDailyTotal;
+            dailyProgress = incomingDailyTotal;
+            dailyGoalLastResetMs = Math.max(0L, readLong(state, "dailyGoalLastResetMs", dailyGoalLastResetMs, context));
+        }
+        else
+        {
+            dailyBlocksDate = PeriodKeys.currentDailyKey(now);
+            dailyBlocksMined = 0L;
+            dailyProgress = 0L;
+            dailyGoalLastResetMs = now;
+        }
+
+        long incomingWeeklyBlocks = Math.max(0L, readLong(state, "weeklyBlocksMined", 0L, context));
+        String incomingWeeklyWeek = normalizeStateKey(readString(state, "weeklyBlocksWeek", "", context));
+        if (PeriodKeys.isCurrentWeeklyKey(incomingWeeklyWeek, now))
+        {
+            weeklyBlocksWeek = PeriodKeys.normalizeWeeklyKey(incomingWeeklyWeek, now);
+            weeklyBlocksMined = incomingWeeklyBlocks;
+        }
+        else
+        {
+            weeklyBlocksWeek = PeriodKeys.currentWeeklyKey(now);
+            weeklyBlocksMined = 0L;
+        }
+
+        personalRecordDailyBlocks = Math.max(
+                personalRecordDailyBlocks,
+                Math.max(incomingDailyTotal, readLong(state, "personalRecordDailyBlocks", 0L, context)));
+        personalRecordWeeklyBlocks = Math.max(
+                personalRecordWeeklyBlocks,
+                Math.max(incomingWeeklyBlocks, readLong(state, "personalRecordWeeklyBlocks", 0L, context)));
     }
 
     private static void mergeDailyState(String incomingDate, long incomingBlocks, long incomingResetMs)

@@ -325,8 +325,8 @@ public final class PendingSyncQueue
         return switch (item.type)
         {
             case WEBSITE_LINK_CLAIM -> 0;
-            case CLOUD_FINISHED_SESSION -> 1;
-            case CLOUD_LIVE_STATE -> 2;
+            case CLOUD_LIVE_STATE -> 1;
+            case CLOUD_FINISHED_SESSION -> 2;
             case PLAYER_TOTAL_DIGS -> 3;
         };
     }

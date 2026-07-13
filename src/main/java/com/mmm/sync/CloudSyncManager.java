@@ -48,6 +48,7 @@ public final class CloudSyncManager
     private static String lastSuccessfulLeaderboardFingerprint;
     private static volatile String lastPayloadSourceKey = "";
     private static volatile String lastPayloadSourceName = "";
+    private static volatile boolean currentContextPayloadPrepared;
     private static volatile long lastSyncUnavailableLogMs;
     private static volatile String lastSyncUnavailableReason = "";
 
@@ -234,7 +235,11 @@ public final class CloudSyncManager
 
         if (sourceSyncAccepted && latestLeaderboardSnapshot != null)
         {
-            lastSuccessfulLeaderboardFingerprint = leaderboardFingerprint(latestLeaderboardSnapshot);
+            String sentLeaderboardFingerprint = leaderboardFingerprint(payload);
+            if (sentLeaderboardFingerprint.isBlank() == false)
+            {
+                lastSuccessfulLeaderboardFingerprint = sentLeaderboardFingerprint;
+            }
         }
     }
 
@@ -397,6 +402,7 @@ public final class CloudSyncManager
         lastFailureSignalMs = 0L;
         lastPayloadSourceKey = "";
         lastPayloadSourceName = "";
+        currentContextPayloadPrepared = false;
     }
 
     public static String getLastPayloadSourceKey()
@@ -476,10 +482,6 @@ public final class CloudSyncManager
 
     private static boolean isSyncCadenceDue(long now)
     {
-        if (hasPendingLiveSync())
-        {
-            return false;
-        }
         if (lastLiveBlockSyncMs > 0L && now - lastLiveBlockSyncMs < MIN_LIVE_SYNC_ATTEMPT_INTERVAL_MS)
         {
             return false;
@@ -489,12 +491,9 @@ public final class CloudSyncManager
         return lastSyncMs <= 0L || now - lastSyncMs >= getSyncIntervalMs();
     }
 
-    private static boolean hasPendingLiveSync()
+    static boolean isCurrentContextPayloadPreparedForSync()
     {
-        PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
-        return snapshot.flushActive()
-                || snapshot.countFor(SyncItemType.CLOUD_LIVE_STATE) > 0
-                || snapshot.countFor(SyncItemType.CLOUD_FINISHED_SESSION) > 0;
+        return currentContextPayloadPrepared;
     }
 
     private static void refreshLeaderboardSnapshot(MinecraftClient client, long now, boolean force)
@@ -562,6 +561,7 @@ public final class CloudSyncManager
         }
 
         lastQueuedLiveFingerprint = fingerprint;
+        currentContextPayloadPrepared = true;
         SyncQueueManager.enqueueCloudLiveState(payload);
     }
 
@@ -1612,15 +1612,17 @@ public final class CloudSyncManager
             return "";
         }
 
+        List<SourceLeaderboardEntry> validEntries = snapshot.entries().stream()
+                .filter(SourceLeaderboardEntry::isValid)
+                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
+                .toList();
         JsonObject object = new JsonObject();
         object.addProperty("server_name", snapshot.serverName());
         object.addProperty("objective_title", snapshot.objectiveTitle());
-        object.addProperty("total_digs", snapshot.totalDigs());
+        object.addProperty("total_digs", SourceLeaderboardPayloadSupport.resolveTotal(snapshot, validEntries));
 
         JsonArray entries = new JsonArray();
-        snapshot.entries().stream()
-                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
-                .forEach(entry -> {
+        validEntries.forEach(entry -> {
                     JsonObject row = new JsonObject();
                     row.addProperty("username", entry.username());
                     row.addProperty("rank", entry.rank());
@@ -1628,6 +1630,53 @@ public final class CloudSyncManager
                     entries.add(row);
                 });
 
+        object.add("entries", entries);
+        return GSON.toJson(object);
+    }
+
+    private static String leaderboardFingerprint(JsonObject payload)
+    {
+        if (payload == null)
+        {
+            return "";
+        }
+
+        JsonObject leaderboard = getObject(payload, "source_leaderboard");
+        if (leaderboard == null && payload.has("source_leaderboards") && payload.get("source_leaderboards").isJsonArray())
+        {
+            JsonArray leaderboards = payload.getAsJsonArray("source_leaderboards");
+            if (leaderboards.isEmpty() == false && leaderboards.get(0).isJsonObject())
+            {
+                leaderboard = leaderboards.get(0).getAsJsonObject();
+            }
+        }
+        if (leaderboard == null)
+        {
+            return "";
+        }
+
+        JsonObject object = new JsonObject();
+        object.addProperty("server_name", getString(leaderboard, "server_name", ""));
+        object.addProperty("objective_title", getString(leaderboard, "objective_title", ""));
+        object.addProperty("total_digs", Math.max(0L, getLong(leaderboard, "total_digs", 0L)));
+
+        JsonArray entries = new JsonArray();
+        if (leaderboard.has("entries") && leaderboard.get("entries").isJsonArray())
+        {
+            for (JsonElement element : leaderboard.getAsJsonArray("entries"))
+            {
+                if (element.isJsonObject() == false)
+                {
+                    continue;
+                }
+                JsonObject entry = element.getAsJsonObject();
+                JsonObject row = new JsonObject();
+                row.addProperty("username", getString(entry, "username", ""));
+                row.addProperty("rank", Math.max(0L, getLong(entry, "rank", 0L)));
+                row.addProperty("digs", Math.max(0L, getLong(entry, "digs", 0L)));
+                entries.add(row);
+            }
+        }
         object.add("entries", entries);
         return GSON.toJson(object);
     }
