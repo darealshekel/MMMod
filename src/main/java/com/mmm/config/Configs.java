@@ -471,7 +471,11 @@ public class Configs implements IConfigHandler
             }
         }
 
-        boolean importedLegacySharedState = importLegacyCrossVersionStateCandidates();
+        // Legacy instance configs are migration inputs only. Re-reading them after the
+        // shared file exists can resurrect stale counters that were intentionally reset.
+        boolean sharedStateExists = hasReadableCrossVersionState();
+        boolean importedLegacySharedState = sharedStateExists == false
+                && importLegacyCrossVersionStateCandidates();
         boolean sharedStateLoaded = readCrossVersionState();
         onConfigLoaded();
         if (sharedStateLoaded == false || importedLegacySharedState)
@@ -758,6 +762,12 @@ public class Configs implements IConfigHandler
         }
     }
 
+    private static boolean hasReadableCrossVersionState()
+    {
+        File stateFile = SharedStoragePaths.crossVersionStateFile().toFile();
+        return stateFile.exists() && stateFile.isFile() && stateFile.canRead();
+    }
+
     private static boolean importLegacyCrossVersionStateCandidates()
     {
         boolean imported = false;
@@ -880,10 +890,6 @@ public class Configs implements IConfigHandler
             MMM.LOGGER.warn("[MMM] Failed to create cross-version state directory for {}", stateFile);
             return;
         }
-
-        int dailyGoal = Generic.DAILY_GOAL.getIntegerValue();
-        readCrossVersionState();
-        Generic.DAILY_GOAL.setIntegerValue(clampDailyGoal(dailyGoal));
 
         JsonObject state = new JsonObject();
         state.addProperty("dailyGoal", Generic.DAILY_GOAL.getIntegerValue());
