@@ -226,6 +226,7 @@ public final class DigsSyncManager
         payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.addProperty("sync_origin", "client_evidence");
 
         JsonObject world = new JsonObject();
         world.addProperty("key", worldInfo.id());

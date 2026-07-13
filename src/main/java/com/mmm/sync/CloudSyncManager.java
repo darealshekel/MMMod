@@ -862,6 +862,7 @@ public final class CloudSyncManager
         payload.addProperty("username", resolveUsername(client));
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.addProperty("sync_origin", "client_evidence");
         payload.add("world", buildWorld(worldInfo));
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
@@ -924,6 +925,7 @@ public final class CloudSyncManager
         payload.addProperty("username", resolveUsername(client));
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.addProperty("sync_origin", "client_evidence");
         payload.add("world", buildWorld(history.worldId(), history.displayName()));
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
