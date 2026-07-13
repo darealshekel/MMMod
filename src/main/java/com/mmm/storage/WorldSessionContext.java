@@ -3,10 +3,7 @@ package com.mmm.storage;
 import com.mmm.sync.ScoreboardSourceResolver;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.WorldSavePath;
 
@@ -45,7 +42,7 @@ public final class WorldSessionContext
 
             String host = address == null ? "" : address.trim();
             // Keep local history stable without leaking raw server IPs/domains into paths or exports.
-            String resolvedId = host.isBlank() ? sanitise(displayName) : "server_" + shortHash(host);
+            String resolvedId = host.isBlank() ? sanitise(displayName) : WorldIdentity.multiplayerWorldId(host);
             return new WorldInfo(resolvedId, displayName.trim(), "multiplayer", host);
         }
 
@@ -104,24 +101,6 @@ public final class WorldSessionContext
                 info.displayName(),
                 info.kind()
         );
-    }
-
-    private static String shortHash(String value)
-    {
-        try
-        {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.trim().toLowerCase().getBytes(StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder();
-            for (int i = 0; i < Math.min(6, digest.length); i++)
-            {
-                builder.append(String.format("%02x", digest[i]));
-            }
-            return builder.toString();
-        }
-        catch (NoSuchAlgorithmException exception)
-        {
-            return Integer.toHexString(value.trim().toLowerCase().hashCode());
-        }
     }
 
     private static String resolveSingleplayerWorldKey(MinecraftClient client, String levelName)

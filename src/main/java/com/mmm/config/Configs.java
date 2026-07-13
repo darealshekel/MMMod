@@ -8,6 +8,7 @@ import java.util.Properties;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -21,6 +22,7 @@ import com.google.gson.JsonObject;
 import com.mmm.MMM;
 import com.mmm.Reference;
 import com.mmm.storage.SharedStoragePaths;
+import com.mmm.storage.WorldIdentity;
 import com.mmm.tweak.PerimeterWallDigHelper;
 import com.mmm.util.BlockBreakdownCatalog;
 import com.mmm.util.PeriodKeys;
@@ -328,6 +330,7 @@ public class Configs implements IConfigHandler
     public static long totalBlocksMined = 0L;
     public static final List<ProjectEntry> PROJECTS = new ArrayList<>();
     public static final List<WorldStatsEntry> WORLD_STATS = new ArrayList<>();
+    private static final Map<String, Set<String>> LEGACY_WORLD_ID_ALIASES = new LinkedHashMap<>();
     public static final String BLOCK_BREAKDOWN_SOURCE_MINECRAFT_STATS = "minecraft_stats";
     public static final String BLOCK_BREAKDOWN_SOURCE_LOCAL_OBSERVED = "local_observed";
 
@@ -402,6 +405,7 @@ public class Configs implements IConfigHandler
             entry.blockBreakdownSource = sanitizeBlockBreakdownSource(entry.blockBreakdownSource);
             entry.blockBreakdownUpdatedAtMs = Math.max(0L, entry.blockBreakdownUpdatedAtMs);
         }
+        boolean worldStatsMigrated = mergeCanonicalWorldStats();
         cloudSyncSecret = cloudSyncSecret == null ? "" : cloudSyncSecret.trim();
         if (cloudClientId == null || cloudClientId.isBlank())
         {
@@ -438,7 +442,7 @@ public class Configs implements IConfigHandler
         Generic.GRAPH_BG_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_BG_OPACITY.getIntegerValue())));
         Generic.GRAPH_GRID_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.GRAPH_GRID_OPACITY.getIntegerValue())));
 
-        if (syncIdentityGenerated || dailyGoalMigrated || endpointMigrated)
+        if (syncIdentityGenerated || dailyGoalMigrated || endpointMigrated || worldStatsMigrated)
         {
             saveToFile();
         }
@@ -1037,7 +1041,14 @@ public class Configs implements IConfigHandler
 
     public static WorldStatsEntry getOrCreateWorldStats(String worldId, String displayName, String kind, String host)
     {
-        String normalizedWorldId = worldId == null || worldId.isBlank() ? "default" : worldId;
+        String suppliedWorldId = worldId == null || worldId.isBlank() ? "default" : worldId.trim();
+        String normalizedWorldId = WorldIdentity.canonicalWorldId(suppliedWorldId, kind, host);
+        if (suppliedWorldId.equals(normalizedWorldId) == false)
+        {
+            LEGACY_WORLD_ID_ALIASES
+                    .computeIfAbsent(normalizedWorldId, ignored -> new LinkedHashSet<>())
+                    .add(suppliedWorldId);
+        }
         for (WorldStatsEntry entry : WORLD_STATS)
         {
             if (normalizedWorldId.equals(entry.worldId))
@@ -1063,6 +1074,106 @@ public class Configs implements IConfigHandler
         entry.blockBreakdownSource = "";
         WORLD_STATS.add(entry);
         return entry;
+    }
+
+    public static Set<String> getLegacyWorldIds(String canonicalWorldId)
+    {
+        if (canonicalWorldId == null || canonicalWorldId.isBlank())
+        {
+            return Set.of();
+        }
+
+        Set<String> aliases = LEGACY_WORLD_ID_ALIASES.get(canonicalWorldId.trim());
+        return aliases == null ? Set.of() : Set.copyOf(aliases);
+    }
+
+    static boolean mergeCanonicalWorldStats()
+    {
+        LEGACY_WORLD_ID_ALIASES.clear();
+        Map<String, WorldStatsEntry> merged = new LinkedHashMap<>();
+        boolean changed = false;
+
+        for (WorldStatsEntry entry : WORLD_STATS)
+        {
+            String originalWorldId = entry.worldId == null || entry.worldId.isBlank()
+                    ? "default"
+                    : entry.worldId.trim();
+            String canonicalWorldId = WorldIdentity.canonicalWorldId(originalWorldId, entry.kind, entry.host);
+            if (canonicalWorldId.equals(originalWorldId) == false)
+            {
+                LEGACY_WORLD_ID_ALIASES
+                        .computeIfAbsent(canonicalWorldId, ignored -> new LinkedHashSet<>())
+                        .add(originalWorldId);
+                changed = true;
+            }
+
+            WorldStatsEntry existing = merged.get(canonicalWorldId);
+            if (existing == null)
+            {
+                entry.worldId = canonicalWorldId;
+                merged.put(canonicalWorldId, entry);
+                continue;
+            }
+
+            if (existing != entry)
+            {
+                LEGACY_WORLD_ID_ALIASES
+                        .computeIfAbsent(canonicalWorldId, ignored -> new LinkedHashSet<>())
+                        .add(originalWorldId);
+                mergeWorldStatsEntry(existing, entry);
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            WORLD_STATS.clear();
+            WORLD_STATS.addAll(merged.values());
+        }
+        return changed;
+    }
+
+    private static void mergeWorldStatsEntry(WorldStatsEntry target, WorldStatsEntry candidate)
+    {
+        boolean candidateIsNewer = candidate.lastSeenAt >= target.lastSeenAt;
+        if (candidateIsNewer && candidate.displayName != null && candidate.displayName.isBlank() == false)
+        {
+            target.displayName = candidate.displayName;
+        }
+        if (candidateIsNewer && candidate.kind != null && candidate.kind.isBlank() == false)
+        {
+            target.kind = candidate.kind;
+        }
+        if ((candidateIsNewer || target.host == null || target.host.isBlank())
+                && candidate.host != null && candidate.host.isBlank() == false)
+        {
+            target.host = candidate.host;
+        }
+
+        // These are cumulative snapshots of the same server. Summing duplicates would inflate totals.
+        target.totalBlocks = Math.max(target.totalBlocks, candidate.totalBlocks);
+        target.scoreboardTotalBlocks = Math.max(target.scoreboardTotalBlocks, candidate.scoreboardTotalBlocks);
+        target.scoreboardTotalUpdatedAtMs = Math.max(target.scoreboardTotalUpdatedAtMs, candidate.scoreboardTotalUpdatedAtMs);
+        target.pendingLocalBlocks = Math.max(target.pendingLocalBlocks, candidate.pendingLocalBlocks);
+        target.lastSeenAt = Math.max(target.lastSeenAt, candidate.lastSeenAt);
+
+        if (target.blockBreakdown == null)
+        {
+            target.blockBreakdown = new LinkedHashMap<>();
+        }
+        if (candidate.blockBreakdown != null)
+        {
+            for (Map.Entry<String, Long> block : candidate.blockBreakdown.entrySet())
+            {
+                target.blockBreakdown.merge(block.getKey(), Math.max(0L, block.getValue()), Math::max);
+            }
+        }
+        if (candidate.blockBreakdownUpdatedAtMs >= target.blockBreakdownUpdatedAtMs)
+        {
+            target.blockBreakdownSource = candidate.blockBreakdownSource;
+        }
+        target.blockBreakdownUpdatedAtMs = Math.max(target.blockBreakdownUpdatedAtMs, candidate.blockBreakdownUpdatedAtMs);
+        target.blockBreakdownSource = sanitizeBlockBreakdownSource(target.blockBreakdownSource);
     }
 
     private static Map<String, Long> readBlockBreakdown(JsonObject object)

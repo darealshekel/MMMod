@@ -12,6 +12,7 @@ import com.mmm.config.Configs;
 import com.mmm.config.Configs.ProjectEntry;
 import com.mmm.storage.SessionData;
 import com.mmm.storage.SessionHistory;
+import com.mmm.storage.WorldIdentity;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
 import com.mmm.util.MmmDebugLogger;
@@ -862,7 +863,11 @@ public final class CloudSyncManager
         List<SessionData> pendingSessions = new ArrayList<>();
         for (SessionHistory.WorldHistory history : SessionHistory.getWorldHistories())
         {
-            if (worldInfo.id().equals(history.worldId()) == false)
+            if (WorldIdentity.matchesCurrentWorld(
+                    history.worldId(),
+                    worldInfo.id(),
+                    worldInfo.kind(),
+                    worldInfo.host()) == false)
             {
                 continue;
             }

@@ -3,16 +3,20 @@ package com.mmm.storage;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.mmm.MMM;
@@ -37,6 +41,7 @@ public final class SessionHistory
     {
         currentWorldId = normalizeWorldId(worldId);
         migrateLegacySessionsIfNeeded();
+        migrateCurrentWorldIdentity();
         HISTORY.clear();
         best = null;
 
@@ -320,6 +325,138 @@ public final class SessionHistory
             roots.add(configDir.resolve(Reference.LEGACY_STORAGE_ID).resolve("sessions").toAbsolutePath().normalize());
         }
         return roots;
+    }
+
+    private static void migrateCurrentWorldIdentity()
+    {
+        WorldSessionContext.WorldInfo info = WorldSessionContext.getCurrentWorldInfo();
+        if (info == null || WorldIdentity.matchesCurrentWorld(currentWorldId, info.id(), info.kind(), info.host()) == false)
+        {
+            return;
+        }
+
+        Set<String> aliases = new LinkedHashSet<>(Configs.getLegacyWorldIds(currentWorldId));
+        aliases.addAll(WorldIdentity.legacyWorldIds(currentWorldId, info.kind(), info.host()));
+        aliases.removeIf(alias -> alias == null || alias.isBlank() || alias.equals(currentWorldId));
+        if (aliases.isEmpty() || Files.isDirectory(ROOT_DIR) == false)
+        {
+            return;
+        }
+
+        try (var paths = Files.list(ROOT_DIR))
+        {
+            paths.filter(Files::isDirectory)
+                    .filter(path -> isLegacyAlias(path, aliases))
+                    .forEach(path -> mergeWorldIdentitySessions(path, currentWorldId));
+        }
+        catch (IOException e)
+        {
+            MMM.LOGGER.warn("[MMM] Failed to migrate legacy world identity sessions into {}: {}", currentWorldId, e.getMessage());
+        }
+    }
+
+    private static boolean isLegacyAlias(Path path, Set<String> aliases)
+    {
+        String folderName = path.getFileName() == null ? "" : path.getFileName().toString();
+        return aliases.stream().anyMatch(alias -> folderName.equalsIgnoreCase(alias));
+    }
+
+    private static void mergeWorldIdentitySessions(Path legacyWorldDir, String canonicalWorldId)
+    {
+        Path legacyFile = legacyWorldDir.resolve("sessions.csv");
+        Path canonicalFile = getSaveFile(canonicalWorldId);
+        if (Files.exists(legacyFile) == false || legacyFile.equals(canonicalFile))
+        {
+            return;
+        }
+
+        try
+        {
+            int mergedSessionCount = mergeSessionFiles(canonicalFile, legacyFile);
+            Files.deleteIfExists(legacyFile);
+            try (var remaining = Files.list(legacyWorldDir))
+            {
+                if (remaining.findAny().isEmpty())
+                {
+                    Files.deleteIfExists(legacyWorldDir);
+                }
+            }
+            MMM.LOGGER.info(
+                    "[MMM] Migrated {} saved sessions from a legacy server profile into {}.",
+                    mergedSessionCount,
+                    canonicalWorldId);
+        }
+        catch (IOException e)
+        {
+            MMM.LOGGER.warn(
+                    "[MMM] Failed to merge legacy server profile sessions from {} into {}: {}",
+                    legacyWorldDir,
+                    canonicalWorldId,
+                    e.getMessage());
+        }
+    }
+
+    static int mergeSessionFiles(Path canonicalFile, Path legacyFile) throws IOException
+    {
+        Map<Long, SessionData> sessionsByStart = new LinkedHashMap<>();
+        readSessionsForMigration(canonicalFile, sessionsByStart);
+        readSessionsForMigration(legacyFile, sessionsByStart);
+
+        List<String> mergedLines = sessionsByStart.values().stream()
+                .sorted(Comparator.comparingLong(session -> session.startTimeMs))
+                .map(SessionData::serialise)
+                .toList();
+        Files.createDirectories(canonicalFile.getParent());
+        Path temporaryFile = canonicalFile.resolveSibling(canonicalFile.getFileName() + ".tmp");
+        Files.write(
+                temporaryFile,
+                mergedLines,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+        try
+        {
+            Files.move(
+                    temporaryFile,
+                    canonicalFile,
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        }
+        catch (AtomicMoveNotSupportedException ignored)
+        {
+            Files.move(temporaryFile, canonicalFile, StandardCopyOption.REPLACE_EXISTING);
+        }
+        return sessionsByStart.size();
+    }
+
+    private static void readSessionsForMigration(Path source, Map<Long, SessionData> sessionsByStart) throws IOException
+    {
+        if (Files.exists(source) == false)
+        {
+            return;
+        }
+
+        for (String line : Files.readAllLines(source))
+        {
+            String trimmed = line == null ? "" : line.trim();
+            if (trimmed.isEmpty() || trimmed.startsWith("#"))
+            {
+                continue;
+            }
+
+            SessionData candidate = SessionData.deserialise(trimmed);
+            if (candidate == null)
+            {
+                throw new IOException("invalid session row in " + source);
+            }
+
+            SessionData existing = sessionsByStart.get(candidate.startTimeMs);
+            if (existing == null
+                    || candidate.endTimeMs > existing.endTimeMs
+                    || candidate.endTimeMs == existing.endTimeMs && candidate.totalBlocks > existing.totalBlocks)
+            {
+                sessionsByStart.put(candidate.startTimeMs, candidate);
+            }
+        }
     }
 
     private static void mergeLegacyWorldSessions(Path legacyWorldDir)
