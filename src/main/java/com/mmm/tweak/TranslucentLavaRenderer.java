@@ -35,6 +35,7 @@ public final class TranslucentLavaRenderer
     private static int pendingReloadTicks = -1;
     private static int reconcileTicks;
     private static boolean reloadInFlight;
+    private static int lastAppliedOpacity = -1;
 
     private TranslucentLavaRenderer()
     {
@@ -66,8 +67,9 @@ public final class TranslucentLavaRenderer
             {
                 reconcileTicks = 0;
                 ResourcePackManager manager = client.getResourcePackManager();
-                boolean enabled = manager.getEnabledIds().contains(PACK_ID);
-                if (enabled != isEnabled())
+                boolean packEnabled = manager.getEnabledIds().contains(PACK_ID);
+                int configuredOpacity = Math.clamp(Configs.Generic.LAVA_OPACITY.getIntegerValue(), 10, 100);
+                if (packEnabled != isEnabled() || (packEnabled && configuredOpacity != lastAppliedOpacity))
                 {
                     pendingReloadTicks = 0;
                 }
@@ -121,8 +123,16 @@ public final class TranslucentLavaRenderer
                 stateChanged = manager.getEnabledIds().contains(PACK_ID) && manager.disable(PACK_ID);
             }
 
-            if (contentChanged == false && stateChanged == false)
+            if (stateChanged)
             {
+                client.options.refreshResourcePacks(manager);
+                lastAppliedOpacity = shouldEnable ? opacity : -1;
+                return;
+            }
+
+            if (contentChanged == false)
+            {
+                lastAppliedOpacity = shouldEnable ? opacity : -1;
                 return;
             }
 
@@ -132,7 +142,10 @@ public final class TranslucentLavaRenderer
                 if (throwable != null)
                 {
                     MMM.LOGGER.warn("[MMM] Failed to reload translucent lava resources: {}", throwable.getMessage());
+                    pendingReloadTicks = RELOAD_DEBOUNCE_TICKS;
+                    return;
                 }
+                lastAppliedOpacity = opacity;
             }));
         }
         catch (Exception exception)
@@ -177,22 +190,24 @@ public final class TranslucentLavaRenderer
     {
         try (InputStream input = requireBundledResource(resourceName))
         {
-            BufferedImage image = ImageIO.read(input);
-            if (image == null)
+            BufferedImage source = ImageIO.read(input);
+            if (source == null)
             {
                 throw new IOException("Unsupported image resource " + resourceName);
             }
 
             int targetAlpha = alphaFromPercent(opacityPercent);
-            for (int y = 0; y < image.getHeight(); y++)
+            BufferedImage image = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < source.getHeight(); y++)
             {
-                for (int x = 0; x < image.getWidth(); x++)
+                for (int x = 0; x < source.getWidth(); x++)
                 {
-                    int color = image.getRGB(x, y);
+                    int color = source.getRGB(x, y);
                     if ((color >>> 24) != 0)
                     {
-                        image.setRGB(x, y, (targetAlpha << 24) | (color & 0x00FFFFFF));
+                        color = (targetAlpha << 24) | (color & 0x00FFFFFF);
                     }
+                    image.setRGB(x, y, color);
                 }
             }
 

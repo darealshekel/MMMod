@@ -211,7 +211,7 @@ public class HudMoveScreen extends Screen
 
     private void drawModuleBounds(DrawContext context, MinecraftClient client)
     {
-        for (HudModuleId module : HudModuleId.values())
+        for (HudModuleId module : movableModules())
         {
             if (module != HudModuleId.MAIN && TimerHudRenderer.isVisible(module) == false && module != this.selected)
             {
@@ -227,7 +227,7 @@ public class HudMoveScreen extends Screen
     {
         if (this.selected == HudModuleId.MAIN)
         {
-            Configs.Generic.HUD_SCALE.setDoubleValue(Math.max(0.75D, Math.min(1.75D, Configs.Generic.HUD_SCALE.getDoubleValue() + delta)));
+            Configs.Generic.HUD_SCALE.setDoubleValue(Math.max(0.25D, Math.min(1.75D, Configs.Generic.HUD_SCALE.getDoubleValue() + delta)));
             Configs.saveToFile();
             return;
         }

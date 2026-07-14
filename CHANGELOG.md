@@ -2,9 +2,24 @@
 
 ## 1.0.14 - 2026-07-14
 
-- Added `tweakToggleTab` with a configurable hotkey to keep the player list open.
-- Added optional translucent animated lava with an automatically managed resource pack and adjustable opacity.
-- Improved world-total detection by combining supported tool-use scoreboards when no total objective exists.
+### Added
+
+- Added a search bar to settings.
+- Added an optional Daily Goal bar to the main HUD. It is off by default.
+- Added `tweakToggleTab` and a hotkey for keeping the player list open.
+- Added translucent lava with adjustable opacity.
+
+### Changed
+
+- World Total now uses supported tool scoreboards when a server has no total scoreboard.
+- Timer and Block Stats controls are now grouped under HUD Content and HUD Layout.
+- HUD modules can scale down to 25%, and their move boxes now fit their content.
+- Lava opacity changes now apply correctly.
+
+### Removed
+
+- Removed the separate Timer and Block Stats settings cards.
+- Hid the unfinished Speed Graph and removed unused HUD move boxes.
 
 ## 1.0.13 - 2026-07-10
 

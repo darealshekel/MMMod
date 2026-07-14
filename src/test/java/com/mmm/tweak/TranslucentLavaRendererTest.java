@@ -43,6 +43,20 @@ class TranslucentLavaRendererTest
         assertEquals(115, firstVisibleAlpha(image));
     }
 
+    @Test
+    void regeneratesManagedTexturesWhenOpacityChanges(@TempDir Path temporaryDirectory) throws Exception
+    {
+        Path packDirectory = temporaryDirectory.resolve("MMM-Translucent-Lava");
+
+        assertTrue(TranslucentLavaRenderer.ensureGeneratedPack(packDirectory, 45));
+        assertTrue(TranslucentLavaRenderer.ensureGeneratedPack(packDirectory, 20));
+
+        BufferedImage image = ImageIO.read(packDirectory
+                .resolve("assets/minecraft/textures/block/lava_still.png")
+                .toFile());
+        assertEquals(51, firstVisibleAlpha(image));
+    }
+
     private static int firstVisibleAlpha(BufferedImage image)
     {
         for (int y = 0; y < image.getHeight(); y++)
