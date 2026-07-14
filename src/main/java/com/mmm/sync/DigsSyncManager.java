@@ -149,32 +149,58 @@ public final class DigsSyncManager
         long tabTotal = Math.max(0L, detection.tabTotal());
         long sidebarTotal = Math.max(0L, detection.sidebarTotal());
         long parserTotal = parserModel != null && parserModel.isValid() ? Math.max(0L, parserModel.totalDigs()) : 0L;
+        long toolUsageTotal = Math.max(0L, detection.toolUsageTotal());
         long cachedTotal = Math.max(0L, MiningStats.getCurrentSourceTotalMined());
 
-        Candidate chosen = chooseBestCandidate(tabTotal, sidebarTotal, parserTotal, cachedTotal);
+        // A dedicated total-digs objective is authoritative. Tool counters are
+        // the fallback only when the server does not expose such an objective.
+        if (ScoreboardParser.isToolUsesObjective(detection.tabObjectiveTitle()))
+        {
+            tabTotal = 0L;
+        }
+        if (ScoreboardParser.isToolUsesObjective(detection.sidebarObjectiveTitle()))
+        {
+            sidebarTotal = 0L;
+        }
+        if (parserModel != null && ScoreboardParser.isToolUsesObjective(parserModel.objectiveTitle()))
+        {
+            parserTotal = 0L;
+        }
+
+        Candidate chosen = chooseBestCandidate(tabTotal, sidebarTotal, parserTotal, toolUsageTotal, cachedTotal);
         if (!chosen.valid())
         {
             return new TotalSelection(sourceName, null, chosen.reason());
         }
 
         String username = resolveUsername(client, parserModel);
-        String objectiveTitle = resolveObjectiveTitle(parserModel, detection);
+        String objectiveTitle = "tool-uses".equals(chosen.sourceType())
+                ? detection.toolUsageObjectiveTitle()
+                : resolveObjectiveTitle(parserModel, detection);
         PlayerDigsModel model = new PlayerDigsModel(username, chosen.total(), now, sourceName, objectiveTitle);
         return new TotalSelection(sourceName, model, chosen.reason());
     }
 
-    private static Candidate chooseBestCandidate(long tabTotal, long sidebarTotal, long parserTotal, long cachedTotal)
+    private static Candidate chooseBestCandidate(long tabTotal,
+                                                 long sidebarTotal,
+                                                 long parserTotal,
+                                                 long toolUsageTotal,
+                                                 long cachedTotal)
     {
         // Reject tiny ambiguous totals when stronger evidence exists.
-        long strongest = Math.max(Math.max(tabTotal, sidebarTotal), Math.max(parserTotal, cachedTotal));
+        long strongest = Math.max(
+                Math.max(tabTotal, sidebarTotal),
+                Math.max(Math.max(parserTotal, toolUsageTotal), cachedTotal));
 
         Candidate tab = validate("tab", tabTotal, strongest);
         Candidate sidebar = validate("sidebar", sidebarTotal, strongest);
         Candidate parser = validate("parser", parserTotal, strongest);
+        Candidate toolUsage = validate("tool-uses", toolUsageTotal, strongest);
         Candidate cached = validate("cached", cachedTotal, strongest);
 
-        Candidate live = strongestValid(tab, sidebar, parser);
-        if (live.valid()) return live;
+        Candidate dedicatedTotal = strongestValid(tab, sidebar, parser);
+        if (dedicatedTotal.valid()) return dedicatedTotal;
+        if (toolUsage.valid()) return toolUsage;
         if (cached.valid()) return cached;
 
         return new Candidate("none", 0L, false, "no-valid-total");

@@ -10,6 +10,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
+import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -20,6 +21,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(InGameHud.class)
@@ -27,6 +29,15 @@ public abstract class InGameHudMixin
 {
     @Shadow @Final private MinecraftClient client;
     @Unique private static final Identifier mmm$experienceBarBackground = Identifier.ofVanilla("hud/experience_bar_background");
+
+    @Redirect(
+            method = "renderPlayerList",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/option/KeyBinding;isPressed()Z")
+    )
+    private boolean mmm$keepPlayerListOpen(KeyBinding keyBinding)
+    {
+        return keyBinding.isPressed() || FeatureToggle.TWEAK_TOGGLE_TAB.getBooleanValue();
+    }
 
     @Inject(method = "renderExperienceBar", at = @At("HEAD"), cancellable = true)
     private void mmm$renderDailyGoalExperienceBar(DrawContext context, int x, CallbackInfo ci)

@@ -140,6 +140,8 @@ public class Configs implements IConfigHandler
         public static final ConfigBoolean SMALL_DIG_ITEMS = new ConfigBoolean("smallDigItems", false, "Render MMM breakdown block items smaller, like the Smoll Dig Items resource pack.");
         public static final ConfigDouble SMALL_DIG_ITEM_SCALE = new ConfigDouble("smallDigItemScale", 0.2D, 0.1D, 1.0D, "Size of tracked mining block items while Small Dig Items is enabled.");
         public static final ConfigBoolean NO_SWINGING_ANIMATION = new ConfigBoolean("noSwingingAnimation", false, "Disable the local first-person hand swing animation while mining.");
+        public static final ConfigBoolean TRANSLUCENT_LAVA = new ConfigBoolean("translucentLava", false, "Make lava transparent enough to see through.");
+        public static final ConfigInteger LAVA_OPACITY = new ConfigInteger("lavaOpacity", 45, 10, 100, "How visible lava is while Translucent Lava is enabled.");
         public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
         public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", DEFAULT_BLOCK_ESP_HEX_COLOR, "Block ESP custom color. Used when the color mode is Single Color.");
         public static final ConfigOptionList BLOCK_ESP_RENDER_MODE = new ConfigOptionList("blockEspRenderMode", BlockEspRenderMode.FULL_BLOCK, "Block ESP render mode.");
@@ -210,6 +212,8 @@ public class Configs implements IConfigHandler
                 SMALL_DIG_ITEMS,
                 SMALL_DIG_ITEM_SCALE,
                 NO_SWINGING_ANIMATION,
+                TRANSLUCENT_LAVA,
+                LAVA_OPACITY,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -281,6 +285,8 @@ public class Configs implements IConfigHandler
                 SMALL_DIG_ITEMS,
                 SMALL_DIG_ITEM_SCALE,
                 NO_SWINGING_ANIMATION,
+                TRANSLUCENT_LAVA,
+                LAVA_OPACITY,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,

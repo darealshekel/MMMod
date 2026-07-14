@@ -65,7 +65,15 @@ final class ScoreboardParser
             "shoveluses",
             "shovel uses",
             "shovel_uses",
-            "shovel-uses"
+            "shovel-uses",
+            "hoeuses",
+            "hoe uses",
+            "hoe_uses",
+            "hoe-uses",
+            "shearuses",
+            "shear uses",
+            "shearsuses",
+            "shears uses"
     );
 
     private ScoreboardParser()
@@ -459,6 +467,10 @@ final class ScoreboardParser
         {
             return 50;
         }
+        if (isToolUsesObjective(lower))
+        {
+            return 50;
+        }
         return 0;
     }
 
@@ -490,6 +502,26 @@ final class ScoreboardParser
         return compactLower.equals("shovel")
                 || compactLower.contains("shoveluses")
                 || (compactLower.contains("shovel") && compactLower.contains("use"));
+    }
+
+    static boolean isHoeUsesObjective(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        String compactLower = compact(lower);
+        return compactLower.equals("hoe")
+                || compactLower.contains("hoeuses")
+                || (compactLower.contains("hoe") && compactLower.contains("use"));
+    }
+
+    static boolean isShearsUsesObjective(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        String compactLower = compact(lower);
+        return compactLower.equals("shear")
+                || compactLower.equals("shears")
+                || compactLower.contains("shearuses")
+                || compactLower.contains("shearsuses")
+                || (compactLower.contains("shear") && compactLower.contains("use"));
     }
 
     static boolean isToolUsesObjective(String value)
@@ -568,6 +600,14 @@ final class ScoreboardParser
         {
             return ToolKind.AXE;
         }
+        if (isHoeUsesObjective(lower))
+        {
+            return ToolKind.HOE;
+        }
+        if (isShearsUsesObjective(lower))
+        {
+            return ToolKind.SHEARS;
+        }
         return ToolKind.NONE;
     }
 
@@ -578,13 +618,21 @@ final class ScoreboardParser
         {
             labels.add("Pickaxe Uses");
         }
+        if (detectedKinds.contains(ToolKind.SHOVEL))
+        {
+            labels.add("Shovel Uses");
+        }
         if (detectedKinds.contains(ToolKind.AXE))
         {
             labels.add("Axe Uses");
         }
-        if (detectedKinds.contains(ToolKind.SHOVEL))
+        if (detectedKinds.contains(ToolKind.HOE))
         {
-            labels.add("Shovel Uses");
+            labels.add("Hoe Uses");
+        }
+        if (detectedKinds.contains(ToolKind.SHEARS))
+        {
+            labels.add("Shears Uses");
         }
         if (labels.isEmpty())
         {
@@ -757,7 +805,9 @@ final class ScoreboardParser
         NONE,
         PICKAXE,
         AXE,
-        SHOVEL
+        SHOVEL,
+        HOE,
+        SHEARS
     }
 
     private static final class ToolUsageEntry

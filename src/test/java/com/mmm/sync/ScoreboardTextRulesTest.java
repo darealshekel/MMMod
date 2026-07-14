@@ -26,4 +26,17 @@ class ScoreboardTextRulesTest
         assertEquals("WkeyAki", ScoreboardTextRules.extractUsername("WkeyAki", "[VIP] WkeyAki 123456"));
         assertEquals("WkeyAki", ScoreboardTextRules.extractUsername("#hidden", "WkeyAki 123456"));
     }
+
+    @Test
+    void recognizesToolUseObjectivesUsedForWorldTotals()
+    {
+        assertTrue(ScoreboardParser.isPickUsesObjective("minecraft.used:diamond_pickaxe Pick Uses"));
+        assertTrue(ScoreboardParser.isShovelUsesObjective("shovel_uses Shovel Uses"));
+        assertTrue(ScoreboardParser.isAxeUsesObjective("axe_uses Axe Uses"));
+        assertTrue(ScoreboardParser.isHoeUsesObjective("minecraft.used:minecraft.diamond_hoe"));
+        assertTrue(ScoreboardParser.isShearsUsesObjective("minecraft.used:minecraft.shears"));
+        assertEquals(50, ScoreboardParser.objectivePriority("minecraft.used:minecraft.diamond_hoe"));
+        assertEquals(50, ScoreboardParser.objectivePriority("minecraft.used:minecraft.shears"));
+        assertFalse(ScoreboardParser.isAxeUsesObjective("pickaxe_uses Pickaxe Uses"));
+    }
 }

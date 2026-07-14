@@ -8,6 +8,7 @@ import com.mmm.hud.SummaryScreen;
 import com.mmm.tracker.MiningStats;
 import com.mmm.tweak.BlockEspRenderer;
 import com.mmm.tweak.PerimeterWallDigHelper;
+import com.mmm.tweak.TranslucentLavaRenderer;
 import com.mmm.ui.MmmSettingsScreen;
 
 import fi.dy.masa.malilib.config.IConfigBoolean;
@@ -71,6 +72,14 @@ public final class Callbacks
         });
         Configs.Generic.BPS_SMOOTHING.setValueChangeCallback(config -> {
             MiningStats.onBpsSmoothingChanged();
+            Configs.saveToFile();
+        });
+        Configs.Generic.TRANSLUCENT_LAVA.setValueChangeCallback(config -> {
+            TranslucentLavaRenderer.requestReload();
+            Configs.saveToFile();
+        });
+        Configs.Generic.LAVA_OPACITY.setValueChangeCallback(config -> {
+            TranslucentLavaRenderer.requestReload();
             Configs.saveToFile();
         });
         Configs.Generic.BLOCK_ESP_COLOR_MODE.setValueChangeCallback(config -> Configs.saveToFile());
