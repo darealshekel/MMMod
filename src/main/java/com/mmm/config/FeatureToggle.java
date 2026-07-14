@@ -33,7 +33,8 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     TWEAK_HUD_BLOCKS_PER_HOUR("tweakMiningHudBlocksPerHour", true, "", "Shows Blocks/hr and Blocks/sec."),
     TWEAK_HUD_ETA("tweakMiningHudEta", true, "", "Shows the estimated time to your goal."),
     TWEAK_HUD_BOUNDING_BOX("tweakMiningHudBoundingBox", false, "", "Adds one background behind the main HUD."),
-    TWEAK_HUD_SPEED_GRAPH("tweakMiningHudSpeedGraph", true, "", "Shows your live mining-speed graph.");
+    TWEAK_HUD_SPEED_GRAPH("tweakMiningHudSpeedGraph", true, "", "Shows your live mining-speed graph."),
+    TWEAK_TOGGLE_TAB("tweakToggleTab", false, "", "Keeps the player list open without holding Tab.");
 
     public static final ImmutableList<FeatureToggle> VALUES = ImmutableList.copyOf(values());
 

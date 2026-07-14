@@ -3,6 +3,7 @@ package com.mmm.sync;
 import com.mmm.MMM;
 import com.mmm.util.MmmDebugLogger;
 import com.mojang.authlib.GameProfile;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -40,9 +41,14 @@ final class PersonalTotalDetector
         String usernameLower = username == null ? "" : username.toLowerCase(Locale.ROOT);
         SidebarResult sidebar = detectFromSidebar(client, username, usernameLower);
         TabResult tab = detectFromTabList(client, username, usernameLower);
+        ToolUsageResult toolUsage = detectToolUsageTotal(client, username);
 
-        long chosen = Math.max(sidebar.total(), tab.total());
-        String chosenSource = chosen <= 0L ? "none" : (sidebar.total() >= tab.total() ? "sidebar" : "tab");
+        long chosen = Math.max(Math.max(sidebar.total(), tab.total()), toolUsage.total());
+        String chosenSource = chosen <= 0L
+                ? "none"
+                : toolUsage.total() >= sidebar.total() && toolUsage.total() >= tab.total()
+                    ? "tool-uses"
+                    : sidebar.total() >= tab.total() ? "sidebar" : "tab";
         String skipReason = chosen <= 0L ? "no-valid-personal-total" : "";
 
         return new Detection(
@@ -58,8 +64,98 @@ final class PersonalTotalDetector
                 tab.matchedUsername(),
                 tab.rawScore(),
                 tab.renderedText(),
+                toolUsage.total(),
+                toolUsage.objectiveTitle(),
                 skipReason
         );
+    }
+
+    private static ToolUsageResult detectToolUsageTotal(MinecraftClient client, String username)
+    {
+        if (client == null || client.world == null || client.player == null || username == null || username.isBlank())
+        {
+            return new ToolUsageResult(0L, "");
+        }
+
+        Scoreboard scoreboard = client.world.getScoreboard();
+        long pickaxeUses = 0L;
+        long shovelUses = 0L;
+        long axeUses = 0L;
+        long hoeUses = 0L;
+        long shearsUses = 0L;
+
+        for (ScoreboardObjective objective : scoreboard.getObjectives())
+        {
+            String context = clean(objective.getName()) + " " + clean(objective.getDisplayName().getString());
+            boolean pickaxe = ScoreboardParser.isPickUsesObjective(context);
+            boolean shovel = ScoreboardParser.isShovelUsesObjective(context);
+            boolean axe = ScoreboardParser.isAxeUsesObjective(context);
+            boolean hoe = ScoreboardParser.isHoeUsesObjective(context);
+            boolean shears = ScoreboardParser.isShearsUsesObjective(context);
+            int matchedKinds = (pickaxe ? 1 : 0)
+                    + (shovel ? 1 : 0)
+                    + (axe ? 1 : 0)
+                    + (hoe ? 1 : 0)
+                    + (shears ? 1 : 0);
+            if (matchedKinds != 1)
+            {
+                continue;
+            }
+
+            long value = readDirectScore(scoreboard, objective, client.player.getGameProfile(), username);
+            if (pickaxe)
+            {
+                pickaxeUses = Math.max(pickaxeUses, value);
+            }
+            else if (shovel)
+            {
+                shovelUses = Math.max(shovelUses, value);
+            }
+            else if (axe)
+            {
+                axeUses = Math.max(axeUses, value);
+            }
+            else if (hoe)
+            {
+                hoeUses = Math.max(hoeUses, value);
+            }
+            else
+            {
+                shearsUses = Math.max(shearsUses, value);
+            }
+        }
+
+        return new ToolUsageResult(
+                combineToolUsageTotals(pickaxeUses, shovelUses, axeUses, hoeUses, shearsUses),
+                toolUsageObjectiveTitle(pickaxeUses, shovelUses, axeUses, hoeUses, shearsUses));
+    }
+
+    static long combineToolUsageTotals(long pickaxeUses,
+                                       long shovelUses,
+                                       long axeUses,
+                                       long hoeUses,
+                                       long shearsUses)
+    {
+        return Math.max(0L, pickaxeUses)
+                + Math.max(0L, shovelUses)
+                + Math.max(0L, axeUses)
+                + Math.max(0L, hoeUses)
+                + Math.max(0L, shearsUses);
+    }
+
+    static String toolUsageObjectiveTitle(long pickaxeUses,
+                                          long shovelUses,
+                                          long axeUses,
+                                          long hoeUses,
+                                          long shearsUses)
+    {
+        List<String> labels = new ArrayList<>();
+        if (pickaxeUses > 0L) labels.add("Pickaxe Uses");
+        if (shovelUses > 0L) labels.add("Shovel Uses");
+        if (axeUses > 0L) labels.add("Axe Uses");
+        if (hoeUses > 0L) labels.add("Hoe Uses");
+        if (shearsUses > 0L) labels.add("Shears Uses");
+        return labels.isEmpty() ? "" : "Combined Tool Uses: " + String.join(" + ", labels);
     }
 
     private static SidebarResult detectFromSidebar(MinecraftClient client, String username, String usernameLower)
@@ -407,12 +503,14 @@ final class PersonalTotalDetector
             String tabMatchedUsername,
             long tabRawScore,
             String tabRenderedText,
+            long toolUsageTotal,
+            String toolUsageObjectiveTitle,
             String skipReason
     )
     {
         static Detection empty(String reason)
         {
-            return new Detection(0L, 0L, 0L, "none", "", "", 0L, "", "", "", 0L, "", reason == null ? "" : reason);
+            return new Detection(0L, 0L, 0L, "none", "", "", 0L, "", "", "", 0L, "", 0L, "", reason == null ? "" : reason);
         }
     }
 
@@ -433,6 +531,10 @@ final class PersonalTotalDetector
             long rawScore,
             String renderedText
     )
+    {
+    }
+
+    private record ToolUsageResult(long total, String objectiveTitle)
     {
     }
 }

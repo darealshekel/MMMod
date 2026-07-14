@@ -6,8 +6,8 @@ MMMod is the official client-side companion for [Manual Mining Maniacs](https://
 
 | Minecraft | Release asset | Required Fabric API |
 | --- | --- | --- |
-| 1.21 | `mmm-1.0.13+1.21.jar` | `0.102.0+1.21` or newer compatible build |
-| 1.21.1 | `mmm-1.0.13+1.21.1.jar` | `0.116.12+1.21.1` or newer compatible build |
+| 1.21 | `mmm-1.0.14+1.21.jar` | `0.102.0+1.21` or newer compatible build |
+| 1.21.1 | `mmm-1.0.14+1.21.1.jar` | `0.116.12+1.21.1` or newer compatible build |
 
 MMMod also requires:
 
@@ -100,6 +100,8 @@ Durations accept values such as `90s`, `30m`, and `2h`.
 - Perimeter Wall Dig Helper with configurable protected blocks.
 - Small Dig Items mode with an adjustable item scale.
 - No Swinging Animation mode that keeps the first-person tool visible and static.
+- Toggle Tab keeps the player list open and can be assigned its own hotkey.
+- Optional translucent animated lava with an automatically managed resource pack and adjustable opacity.
 
 ### Website linking and synchronization
 
@@ -150,6 +152,7 @@ The remapped release jar is written to `build/libs`.
 - **Shekel** - creator and lead developer
 - **Manual Mining Maniacs community** - testing, mining data, and feature feedback
 - **BlockTimer project (MIT)** - reference for timer and hourly-stat behavior
+- **I-See-Lava by AzureDoom / jlstout1998 (MIT)** - reference for translucent lava behavior
 - **Fabric API**, **Mod Menu**, **MaLiLib**, and **Tweakeroo** - modding platform and integrations
 - Minecraft is a trademark of Microsoft. MMMod is an independent community project and is not affiliated with Mojang Studios or Microsoft.
 

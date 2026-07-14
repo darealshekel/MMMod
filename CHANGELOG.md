@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.14 - 2026-07-14
+
+- Added `tweakToggleTab` with a configurable hotkey to keep the player list open.
+- Added optional translucent animated lava with an automatically managed resource pack and adjustable opacity.
+- Improved world-total detection by combining supported tool-use scoreboards when no total objective exists.
+
 ## 1.0.13 - 2026-07-10
 
 ### Daily goals and notifications

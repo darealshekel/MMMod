@@ -1001,6 +1001,10 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Item Size", "Choose the smaller size.", Configs.Generic.SMALL_DIG_ITEM_SCALE, ControlKind.SLIDER),
                 new SettingRow("No Swinging Animation", "Keep your tool still.", Configs.Generic.NO_SWINGING_ANIMATION, ControlKind.BOOLEAN)
         ));
+        this.sections.add(SettingsSection.translucentLava(
+                new SettingRow("Translucent Lava", "See through lava.", Configs.Generic.TRANSLUCENT_LAVA, ControlKind.BOOLEAN),
+                new SettingRow("Lava Opacity", "Choose how visible lava looks.", Configs.Generic.LAVA_OPACITY, ControlKind.SLIDER)
+        ));
         if (Configs.isDevToolsEnabled())
         {
             this.sections.add(SettingsSection.developer(
@@ -1142,6 +1146,11 @@ public class MmmSettingsScreen extends Screen
         private static SettingsSection performance(SettingRow... rows)
         {
             return new SettingsSection(SidebarItem.PERFORMANCE, "PERFORMANCE", "Tune speed readings and mining visuals.", List.of(rows));
+        }
+
+        private static SettingsSection translucentLava(SettingRow... rows)
+        {
+            return new SettingsSection(SidebarItem.PERFORMANCE, "TRANSLUCENT LAVA", "See through animated lava safely.", List.of(rows));
         }
 
         private static SettingsSection speedGraph(SettingRow... rows)
