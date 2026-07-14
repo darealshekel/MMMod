@@ -92,7 +92,7 @@ public class Configs implements IConfigHandler
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 820, "Mining HUD horizontal position.");
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 460, "Mining HUD vertical position.");
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
-        public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.75D, 1.75D, "Mining HUD scale.");
+        public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.25D, 1.75D, "Mining HUD scale.");
         public static final ConfigBoolean HUD_TEXT_BACKGROUND = new ConfigBoolean("hudTextBackground", false, "Draw small background boxes behind individual MMM HUD text lines.");
         public static final ConfigBoolean HUD_TITLE_VISIBLE = new ConfigBoolean("hudTitleVisible", true, "Show the MMM title and sync status.");
         public static final ConfigBoolean HUD_GLOBAL_TOTAL_VISIBLE = new ConfigBoolean("hudGlobalTotalVisible", true, "Show your combined website total.");
@@ -104,6 +104,7 @@ public class Configs implements IConfigHandler
         public static final ConfigBoolean HUD_SESSION_TIME_VISIBLE = new ConfigBoolean("hudSessionTimeVisible", true, "Show the current session time.");
         public static final ConfigBoolean HUD_DAILY_RESET_VISIBLE = new ConfigBoolean("hudDailyResetVisible", true, "Show the countdown to the daily reset.");
         public static final ConfigBoolean HUD_TIMER_STATUS_VISIBLE = new ConfigBoolean("hudTimerStatusVisible", true, "Show timer status in the main HUD.");
+        public static final ConfigBoolean HUD_DAILY_GOAL_BAR_VISIBLE = new ConfigBoolean("hudDailyGoalBarVisible", false, "Show daily-goal progress and a colored bar in the main HUD.");
         public static final ConfigBoolean ALWAYS_OVERRIDE_XP_BAR = new ConfigBoolean("alwaysOverrideXpBar", false, "Always replace the vanilla XP bar with daily-goal progress instead of only while Tab is held.");
         public static final ConfigBoolean SHOW_GOAL_PERCENT = new ConfigBoolean("showGoalPercent", true, "Show daily-goal percentage instead of the vanilla XP level.");
         public static final ConfigBoolean GOAL_PERCENT_DECIMALS = new ConfigBoolean("goalPercentDecimals", true, "Show decimal places in the daily-goal percentage.");
@@ -119,16 +120,16 @@ public class Configs implements IConfigHandler
         public static final ConfigBoolean TIMER_CREDITS = new ConfigBoolean("timerCredits", true, "Show the timer-complete credits screen.");
         public static final ConfigInteger TIMER_HUD_X = new ConfigInteger("timerHudX", 520, 0, 820, "Timer HUD horizontal position.");
         public static final ConfigInteger TIMER_HUD_Y = new ConfigInteger("timerHudY", 24, 0, 460, "Timer HUD vertical position.");
-        public static final ConfigDouble TIMER_HUD_SCALE = new ConfigDouble("timerHudScale", 1.0D, 0.5D, 3.0D, "Timer HUD scale.");
+        public static final ConfigDouble TIMER_HUD_SCALE = new ConfigDouble("timerHudScale", 1.0D, 0.25D, 3.0D, "Timer HUD scale.");
         public static final ConfigInteger HOURLY_STATS_X = new ConfigInteger("hourlyStatsX", 520, 0, 820, "Hourly stats HUD horizontal position.");
         public static final ConfigInteger HOURLY_STATS_Y = new ConfigInteger("hourlyStatsY", 92, 0, 460, "Hourly stats HUD vertical position.");
-        public static final ConfigDouble HOURLY_STATS_SCALE = new ConfigDouble("hourlyStatsScale", 1.0D, 0.5D, 3.0D, "Hourly stats HUD scale.");
+        public static final ConfigDouble HOURLY_STATS_SCALE = new ConfigDouble("hourlyStatsScale", 1.0D, 0.25D, 3.0D, "Hourly stats HUD scale.");
         public static final ConfigInteger BLOCK_STATS_X = new ConfigInteger("blockStatsX", 520, 0, 820, "Block stats HUD horizontal position.");
         public static final ConfigInteger BLOCK_STATS_Y = new ConfigInteger("blockStatsY", 190, 0, 460, "Block stats HUD vertical position.");
-        public static final ConfigDouble BLOCK_STATS_SCALE = new ConfigDouble("blockStatsScale", 1.0D, 0.5D, 3.0D, "Block stats HUD scale.");
+        public static final ConfigDouble BLOCK_STATS_SCALE = new ConfigDouble("blockStatsScale", 1.0D, 0.25D, 3.0D, "Block stats HUD scale.");
         public static final ConfigInteger TIMER_NOTIFICATION_X = new ConfigInteger("timerNotificationX", 325, 0, 820, "Timer notification horizontal position.");
         public static final ConfigInteger TIMER_NOTIFICATION_Y = new ConfigInteger("timerNotificationY", 44, 0, 460, "Timer notification vertical position.");
-        public static final ConfigDouble TIMER_NOTIFICATION_SCALE = new ConfigDouble("timerNotificationScale", 1.0D, 0.5D, 3.0D, "Timer notification scale.");
+        public static final ConfigDouble TIMER_NOTIFICATION_SCALE = new ConfigDouble("timerNotificationScale", 1.0D, 0.25D, 3.0D, "Timer notification scale.");
         public static final ConfigColor HUD_TITLE_HEX_COLOR = new ConfigColor("hudTitleHexColor", DEFAULT_HUD_TITLE_HEX_COLOR, "Title color used by the MMM HUD.");
         public static final ConfigColor HUD_TEXT_HEX_COLOR = new ConfigColor("hudTextHexColor", DEFAULT_HUD_TEXT_HEX_COLOR, "Label/text color used by the MMM HUD.");
         public static final ConfigColor HUD_NUMBER_HEX_COLOR = new ConfigColor("hudNumberHexColor", DEFAULT_HUD_NUMBER_HEX_COLOR, "Number color used by MMM HUD and UI numeric values.");
@@ -176,6 +177,7 @@ public class Configs implements IConfigHandler
                 HUD_SESSION_TIME_VISIBLE,
                 HUD_DAILY_RESET_VISIBLE,
                 HUD_TIMER_STATUS_VISIBLE,
+                HUD_DAILY_GOAL_BAR_VISIBLE,
                 ALWAYS_OVERRIDE_XP_BAR,
                 SHOW_GOAL_PERCENT,
                 GOAL_PERCENT_DECIMALS,
@@ -249,6 +251,7 @@ public class Configs implements IConfigHandler
                 HUD_SESSION_TIME_VISIBLE,
                 HUD_DAILY_RESET_VISIBLE,
                 HUD_TIMER_STATUS_VISIBLE,
+                HUD_DAILY_GOAL_BAR_VISIBLE,
                 ALWAYS_OVERRIDE_XP_BAR,
                 SHOW_GOAL_PERCENT,
                 GOAL_PERCENT_DECIMALS,

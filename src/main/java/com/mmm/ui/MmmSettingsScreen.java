@@ -57,9 +57,12 @@ public class MmmSettingsScreen extends Screen
     private static final int CONTROL_WIDTH = 112;
     private static final int RESET_WIDTH = 18;
     private static final int TWO_COLUMN_MIN_WIDTH = 680;
+    private static final int CONTENT_HEADER_HEIGHT = 68;
+    private static final boolean SPEED_GRAPH_AVAILABLE = false;
 
     private final Screen parent;
     private final List<SettingsSection> sections = new ArrayList<>();
+    private final List<VisibleSection> visibleSections = new ArrayList<>();
     private final List<ClickTarget> clickTargets = new ArrayList<>();
     private final List<ScrollTarget> scrollTargets = new ArrayList<>();
     private final List<SliderTarget> sliderTargets = new ArrayList<>();
@@ -68,6 +71,8 @@ public class MmmSettingsScreen extends Screen
     private double scrollY = 0.0D;
     private int contentHeight = 0;
     private SliderTarget draggingSlider;
+    private TextFieldWidget searchField;
+    private String searchQuery = "";
 
     public MmmSettingsScreen(Screen parent)
     {
@@ -82,6 +87,18 @@ public class MmmSettingsScreen extends Screen
         MmmUi.ensureCursorVisible();
         this.clearChildren();
         this.textFields.clear();
+
+        this.searchField = new TextFieldWidget(this.textRenderer, 0, 0, 220, FIELD_HEIGHT, Text.literal("Search settings"));
+        this.searchField.setDrawsBackground(false);
+        this.searchField.setEditableColor(TEXT);
+        this.searchField.setMaxLength(64);
+        this.searchField.setPlaceholder(Text.literal("Search settings..."));
+        this.searchField.setText(this.searchQuery);
+        this.searchField.setChangedListener(value -> {
+            this.searchQuery = value;
+            this.scrollY = 0.0D;
+        });
+        this.addDrawableChild(this.searchField);
 
         for (SettingsSection section : this.sections)
         {
@@ -112,6 +129,12 @@ public class MmmSettingsScreen extends Screen
         this.scrollTargets.clear();
         this.sliderTargets.clear();
         this.sectionY.clear();
+        for (TextFieldWidget field : this.textFields.values())
+        {
+            field.setVisible(false);
+        }
+        this.searchField.setVisible(true);
+        this.refreshVisibleSections();
         this.updateLayout();
 
         context.fill(0, 0, this.width, this.height, BG);
@@ -266,26 +289,39 @@ public class MmmSettingsScreen extends Screen
         MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD SETTINGS", x, y, width, MmmUi.accent(), false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Configure how MMM Mod works in Minecraft", x, y + 16, width, MUTED, false);
 
-        int gridY = y + 44;
+        int searchY = y + 34;
+        int searchWidth = Math.min(260, width);
+        this.searchField.setX(x + 5);
+        this.searchField.setY(searchY + 5);
+        this.searchField.setWidth(Math.max(40, searchWidth - 10));
+        MmmUi.fieldShell(context, x, searchY, searchWidth, FIELD_HEIGHT, this.searchField.isFocused());
+
+        int gridY = y + CONTENT_HEADER_HEIGHT;
+        if (this.visibleSections.isEmpty())
+        {
+            MmmUi.drawTextWithin(context, this.textRenderer, "No settings match your search.", x, gridY + 8, width, MUTED, false);
+            return;
+        }
+
         boolean twoColumns = width >= TWO_COLUMN_MIN_WIDTH;
         int columnW = twoColumns ? (width - GAP) / 2 : width;
         int rowY = gridY;
         int sectionIndex = 0;
 
-        while (sectionIndex < this.sections.size())
+        while (sectionIndex < this.visibleSections.size())
         {
-            SettingsSection left = this.sections.get(sectionIndex++);
-            SettingsSection right = twoColumns && sectionIndex < this.sections.size() ? this.sections.get(sectionIndex++) : null;
+            VisibleSection left = this.visibleSections.get(sectionIndex++);
+            VisibleSection right = twoColumns && sectionIndex < this.visibleSections.size() ? this.visibleSections.get(sectionIndex++) : null;
             int leftHeight = this.sectionHeight(left);
             int rightHeight = right == null ? 0 : this.sectionHeight(right);
             int rowHeight = Math.max(leftHeight, rightHeight);
 
-            this.sectionY.put(left, rowY);
+            this.sectionY.put(left.section(), rowY);
             this.drawSection(context, left, x, rowY, columnW, rowHeight, mouseX, mouseY);
 
             if (right != null)
             {
-                this.sectionY.put(right, rowY);
+                this.sectionY.put(right.section(), rowY);
                 this.drawSection(context, right, x + columnW + GAP, rowY, columnW, rowHeight, mouseX, mouseY);
             }
 
@@ -293,15 +329,16 @@ public class MmmSettingsScreen extends Screen
         }
     }
 
-    private void drawSection(DrawContext context, SettingsSection section, int x, int y, int width, int height, int mouseX, int mouseY)
+    private void drawSection(DrawContext context, VisibleSection visibleSection, int x, int y, int width, int height, int mouseX, int mouseY)
     {
+        SettingsSection section = visibleSection.section();
         context.fill(x, y, x + width, y + height, CARD);
         context.drawBorder(x, y, width, height, BORDER);
         MmmUi.drawSectionHeading(context, this.textRenderer, section.title(), x + CARD_PAD, y + 12, width - CARD_PAD * 2);
         MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, MUTED, false);
 
         int rowY = y + 48;
-        for (SettingRow row : section.rows())
+        for (SettingRow row : visibleSection.rows())
         {
             this.drawSettingRow(context, row, x + CARD_PAD, rowY, width - CARD_PAD * 2, mouseX, mouseY);
             rowY += ROW_HEIGHT;
@@ -311,6 +348,13 @@ public class MmmSettingsScreen extends Screen
     private void drawSettingRow(DrawContext context, SettingRow row, int x, int y, int width, int mouseX, int mouseY)
     {
         context.fill(x, y, x + width, y + 1, BORDER);
+        if (row.kind() == ControlKind.HEADING)
+        {
+            context.fill(x, y + 8, x + 3, y + 24, MmmUi.accent());
+            MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x + 10, y + 12, width - 10, TEXT, false);
+            return;
+        }
+
         int resetX = x + width - RESET_WIDTH;
         int controlWidth = Math.min(CONTROL_WIDTH, Math.max(48, width / 2));
         int controlX = resetX - controlWidth - 8;
@@ -325,6 +369,7 @@ public class MmmSettingsScreen extends Screen
             case TEXT, NUMBER, COLOR -> this.drawTextControl(context, row, controlX, controlY, controlWidth, mouseX, mouseY);
             case OPTION -> this.drawOptionControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
             case SLIDER -> this.drawSliderControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
+            case HEADING -> {}
             case ACTION -> this.drawActionButton(context, controlX, controlY, controlWidth, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
                 if ("Move HUD".equals(row.label()))
                 {
@@ -402,6 +447,7 @@ public class MmmSettingsScreen extends Screen
         {
             return;
         }
+        field.setVisible(true);
 
         int fieldX = x;
         int fieldW = width;
@@ -614,23 +660,23 @@ public class MmmSettingsScreen extends Screen
 
     private void updateLayout()
     {
-        int rowY = 44;
+        int rowY = CONTENT_HEADER_HEIGHT;
         int index = 0;
         boolean twoColumns = MmmUi.contentWidth(this.width) >= TWO_COLUMN_MIN_WIDTH;
 
-        while (index < this.sections.size())
+        while (index < this.visibleSections.size())
         {
-            SettingsSection left = this.sections.get(index++);
-            SettingsSection right = twoColumns && index < this.sections.size() ? this.sections.get(index++) : null;
+            VisibleSection left = this.visibleSections.get(index++);
+            VisibleSection right = twoColumns && index < this.visibleSections.size() ? this.visibleSections.get(index++) : null;
             int rowHeight = this.sectionHeight(left);
             if (right != null)
             {
                 rowHeight = Math.max(rowHeight, this.sectionHeight(right));
             }
-            left.setAbsoluteOffset(rowY);
+            left.section().setAbsoluteOffset(rowY);
             if (right != null)
             {
-                right.setAbsoluteOffset(rowY);
+                right.section().setAbsoluteOffset(rowY);
             }
             rowY += rowHeight + GAP;
         }
@@ -640,9 +686,81 @@ public class MmmSettingsScreen extends Screen
         this.scrollY = Math.max(0.0D, Math.min(maxScroll, this.scrollY));
     }
 
-    private int sectionHeight(SettingsSection section)
+    private int sectionHeight(VisibleSection section)
     {
         return 58 + section.rows().size() * ROW_HEIGHT + CARD_PAD;
+    }
+
+    private void refreshVisibleSections()
+    {
+        this.visibleSections.clear();
+        String query = this.searchQuery == null ? "" : this.searchQuery.trim().toLowerCase(Locale.ROOT);
+        for (SettingsSection section : this.sections)
+        {
+            if (query.isEmpty() || this.matchesSearch(section.title(), section.description(), section.sidebarItem().label(), query))
+            {
+                this.visibleSections.add(new VisibleSection(section, section.rows()));
+                continue;
+            }
+
+            List<SettingRow> matches = new ArrayList<>();
+            List<SettingRow> rows = section.rows();
+            int index = 0;
+            while (index < rows.size())
+            {
+                SettingRow row = rows.get(index);
+                if (row.kind() != ControlKind.HEADING)
+                {
+                    if (this.matchesSearch(row, query))
+                    {
+                        matches.add(row);
+                    }
+                    index++;
+                    continue;
+                }
+
+                SettingRow heading = row;
+                int groupStart = ++index;
+                while (index < rows.size() && rows.get(index).kind() != ControlKind.HEADING)
+                {
+                    index++;
+                }
+
+                boolean headingMatches = this.matchesSearch(heading, query);
+                List<SettingRow> groupMatches = new ArrayList<>();
+                for (int rowIndex = groupStart; rowIndex < index; rowIndex++)
+                {
+                    SettingRow groupRow = rows.get(rowIndex);
+                    if (headingMatches || this.matchesSearch(groupRow, query))
+                    {
+                        groupMatches.add(groupRow);
+                    }
+                }
+                if (headingMatches || groupMatches.isEmpty() == false)
+                {
+                    matches.add(heading);
+                    matches.addAll(groupMatches);
+                }
+            }
+
+            if (matches.isEmpty() == false)
+            {
+                this.visibleSections.add(new VisibleSection(section, List.copyOf(matches)));
+            }
+        }
+    }
+
+    private boolean matchesSearch(SettingRow row, String query)
+    {
+        String configName = row.config() == null ? "" : row.config().getName();
+        return this.matchesSearch(row.label(), row.description(), configName, query);
+    }
+
+    private boolean matchesSearch(String first, String second, String third, String query)
+    {
+        return (first != null && first.toLowerCase(Locale.ROOT).contains(query))
+                || (second != null && second.toLowerCase(Locale.ROOT).contains(query))
+                || (third != null && third.toLowerCase(Locale.ROOT).contains(query));
     }
 
     private void commitTextValue(SettingRow row, String value)
@@ -926,12 +1044,22 @@ public class MmmSettingsScreen extends Screen
         ));
         this.sections.add(SettingsSection.hud(
                 new SettingRow("Move HUD", "Move and resize sections.", null, ControlKind.ACTION),
+                SettingRow.heading("MAIN HUD POSITION"),
                 new SettingRow("HUD X", "Move left or right.", Configs.Generic.HUD_X, ControlKind.NUMBER),
                 new SettingRow("HUD Y", "Move up or down.", Configs.Generic.HUD_Y, ControlKind.NUMBER),
                 new SettingRow("HUD Alignment", "Choose its screen corner.", Configs.Generic.HUD_ALIGNMENT, ControlKind.OPTION),
-                new SettingRow("HUD Scale", "Change the HUD size.", Configs.Generic.HUD_SCALE, ControlKind.NUMBER)
+                new SettingRow("HUD Scale", "Change the HUD size.", Configs.Generic.HUD_SCALE, ControlKind.NUMBER),
+                SettingRow.heading("BLOCK TIMER POSITION"),
+                new SettingRow("Timer X", "Move left or right.", Configs.Generic.TIMER_HUD_X, ControlKind.NUMBER),
+                new SettingRow("Timer Y", "Move up or down.", Configs.Generic.TIMER_HUD_Y, ControlKind.NUMBER),
+                new SettingRow("Timer Scale", "Change the timer size.", Configs.Generic.TIMER_HUD_SCALE, ControlKind.NUMBER),
+                SettingRow.heading("BLOCK STATS POSITION"),
+                new SettingRow("Block Stats X", "Move left or right.", Configs.Generic.BLOCK_STATS_X, ControlKind.NUMBER),
+                new SettingRow("Block Stats Y", "Move up or down.", Configs.Generic.BLOCK_STATS_Y, ControlKind.NUMBER),
+                new SettingRow("Block Stats Scale", "Change block-stats size.", Configs.Generic.BLOCK_STATS_SCALE, ControlKind.NUMBER)
         ));
         this.sections.add(SettingsSection.hudContent(
+                SettingRow.heading("MAIN HUD"),
                 new SettingRow("Main HUD", "Show the stats HUD.", FeatureToggle.TWEAK_HUD, ControlKind.BOOLEAN),
                 new SettingRow("MMM Header", "Show MMM and sync status.", Configs.Generic.HUD_TITLE_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Project", "Show your active project.", FeatureToggle.TWEAK_HUD_PROJECT, ControlKind.BOOLEAN),
@@ -949,26 +1077,18 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Session Time", "Show session duration.", Configs.Generic.HUD_SESSION_TIME_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Daily Reset", "Show time until UTC reset.", Configs.Generic.HUD_DAILY_RESET_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Goal ETA", "Show time left to goal.", FeatureToggle.TWEAK_HUD_ETA, ControlKind.BOOLEAN),
+                new SettingRow("Daily Goal Bar", "Show goal progress and % in the HUD.", Configs.Generic.HUD_DAILY_GOAL_BAR_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Override XP Bar", "Use goal progress in XP bar.", FeatureToggle.TWEAK_HUD_GOAL_PROGRESS, ControlKind.BOOLEAN),
                 new SettingRow("Always Override XP Bar", "Always replace vanilla XP.", Configs.Generic.ALWAYS_OVERRIDE_XP_BAR, ControlKind.BOOLEAN),
                 new SettingRow("Show Goal %", "Show goal % as XP level.", Configs.Generic.SHOW_GOAL_PERCENT, ControlKind.BOOLEAN),
-                new SettingRow("Speed Graph", "Show the live speed graph.", FeatureToggle.TWEAK_HUD_SPEED_GRAPH, ControlKind.BOOLEAN),
                 new SettingRow("Main Background", "Show one HUD background.", FeatureToggle.TWEAK_HUD_BOUNDING_BOX, ControlKind.BOOLEAN),
-                new SettingRow("Text Background", "Show backgrounds per line.", Configs.Generic.HUD_TEXT_BACKGROUND, ControlKind.BOOLEAN)
-        ));
-        this.sections.add(SettingsSection.timer(
+                new SettingRow("Text Background", "Show backgrounds per line.", Configs.Generic.HUD_TEXT_BACKGROUND, ControlKind.BOOLEAN),
+                SettingRow.heading("BLOCK TIMER"),
                 new SettingRow("Timer HUD", "Show the challenge timer.", Configs.Generic.TIMER_HUD_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Timer X", "Move left or right.", Configs.Generic.TIMER_HUD_X, ControlKind.NUMBER),
-                new SettingRow("Timer Y", "Move up or down.", Configs.Generic.TIMER_HUD_Y, ControlKind.NUMBER),
-                new SettingRow("Timer Scale", "Change the timer size.", Configs.Generic.TIMER_HUD_SCALE, ControlKind.NUMBER),
                 new SettingRow("Notifications", "Show timer milestones.", Configs.Generic.TIMER_NOTIFICATIONS, ControlKind.BOOLEAN),
-                new SettingRow("Credits Screen", "Show results when finished.", Configs.Generic.TIMER_CREDITS, ControlKind.BOOLEAN)
-        ));
-        this.sections.add(SettingsSection.blockStats(
+                new SettingRow("Credits Screen", "Show results when finished.", Configs.Generic.TIMER_CREDITS, ControlKind.BOOLEAN),
+                SettingRow.heading("BLOCK STATS"),
                 new SettingRow("Block Stats", "Show blocks from this run.", Configs.Generic.BLOCK_STATS_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Block Stats X", "Move left or right.", Configs.Generic.BLOCK_STATS_X, ControlKind.NUMBER),
-                new SettingRow("Block Stats Y", "Move up or down.", Configs.Generic.BLOCK_STATS_Y, ControlKind.NUMBER),
-                new SettingRow("Block Stats Scale", "Change block-stats size.", Configs.Generic.BLOCK_STATS_SCALE, ControlKind.NUMBER),
                 new SettingRow("Background", "Show the stats panel.", Configs.Generic.BLOCK_STATS_BACKGROUND, ControlKind.BOOLEAN),
                 new SettingRow("Block Icons", "Show each block icon.", Configs.Generic.BLOCK_STATS_ICONS, ControlKind.BOOLEAN)
         ));
@@ -986,15 +1106,19 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Opacity", "Change highlight strength.", Configs.Generic.BLOCK_ESP_OPACITY, ControlKind.NUMBER),
                 new SettingRow("Rainbow Speed", "Change rainbow speed.", Configs.Generic.BLOCK_ESP_RAINBOW_SPEED, ControlKind.NUMBER)
         ));
-        this.sections.add(SettingsSection.speedGraph(
-                new SettingRow("Background Opacity", "Change background strength.", Configs.Generic.GRAPH_BG_OPACITY, ControlKind.NUMBER),
-                new SettingRow("Line Color", "Set the graph line color.", Configs.Generic.GRAPH_LINE_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("Fill Color", "Set the graph fill color.", Configs.Generic.GRAPH_FILL_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("Fill Opacity", "Change fill strength.", Configs.Generic.GRAPH_FILL_OPACITY, ControlKind.NUMBER),
-                new SettingRow("Grid Color", "Set the grid color.", Configs.Generic.GRAPH_GRID_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("Grid Opacity", "Change grid strength.", Configs.Generic.GRAPH_GRID_OPACITY, ControlKind.NUMBER),
-                new SettingRow("Scale Step", "Set Blocks/hr grid gaps.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
-        ));
+        if (SPEED_GRAPH_AVAILABLE)
+        {
+            this.sections.add(SettingsSection.speedGraph(
+                    new SettingRow("Speed Graph", "Show the live speed graph.", FeatureToggle.TWEAK_HUD_SPEED_GRAPH, ControlKind.BOOLEAN),
+                    new SettingRow("Background Opacity", "Change background strength.", Configs.Generic.GRAPH_BG_OPACITY, ControlKind.NUMBER),
+                    new SettingRow("Line Color", "Set the graph line color.", Configs.Generic.GRAPH_LINE_HEX_COLOR, ControlKind.COLOR),
+                    new SettingRow("Fill Color", "Set the graph fill color.", Configs.Generic.GRAPH_FILL_HEX_COLOR, ControlKind.COLOR),
+                    new SettingRow("Fill Opacity", "Change fill strength.", Configs.Generic.GRAPH_FILL_OPACITY, ControlKind.NUMBER),
+                    new SettingRow("Grid Color", "Set the grid color.", Configs.Generic.GRAPH_GRID_HEX_COLOR, ControlKind.COLOR),
+                    new SettingRow("Grid Opacity", "Change grid strength.", Configs.Generic.GRAPH_GRID_OPACITY, ControlKind.NUMBER),
+                    new SettingRow("Scale Step", "Set Blocks/hr grid gaps.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
+            ));
+        }
         this.sections.add(SettingsSection.performance(
                 new SettingRow("Blocks/sec Smoothing", "Change speed response.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION),
                 new SettingRow("Small Dig Items", "Shrink tracked block items.", Configs.Generic.SMALL_DIG_ITEMS, ControlKind.BOOLEAN),
@@ -1046,6 +1170,7 @@ public class MmmSettingsScreen extends Screen
         OPTION,
         COLOR,
         SLIDER,
+        HEADING,
         ACTION;
 
         private boolean usesTextField()
@@ -1055,6 +1180,14 @@ public class MmmSettingsScreen extends Screen
     }
 
     private record SettingRow(String label, String description, IConfigBase config, ControlKind kind)
+    {
+        private static SettingRow heading(String label)
+        {
+            return new SettingRow(label, "", null, ControlKind.HEADING);
+        }
+    }
+
+    private record VisibleSection(SettingsSection section, List<SettingRow> rows)
     {
     }
 

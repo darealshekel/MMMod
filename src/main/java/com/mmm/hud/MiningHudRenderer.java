@@ -26,6 +26,9 @@ public final class MiningHudRenderer
     private static final int SYNC_FAIL_COLOR = MmmUi.ERROR;
     private static final int BBOX_FILL_COLOR = MmmUi.PANEL;
     private static final int HUD_NEUTRAL_BORDER_COLOR = 0x66090909;
+    private static final int GOAL_BAR_BG = MmmUi.INSET;
+    private static final int GOAL_BAR_BORDER = HUD_NEUTRAL_BORDER_COLOR;
+    private static final int GOAL_BAR_EXTRA_HEIGHT = 24;
     private static final String ZERO_CLOCK = "00:00:00";
 
     private MiningHudRenderer()
@@ -43,14 +46,89 @@ public final class MiningHudRenderer
             return;
         }
 
-        List<HudLine> lines = new ArrayList<>();
         boolean showTitle = Configs.Generic.HUD_TITLE_VISIBLE.getBooleanValue();
+        boolean sessionPaused = MiningStats.isSessionPaused();
+        List<HudLine> lines = buildHudLines(showTitle, sessionPaused);
+        MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
+        boolean showDailyGoalBar = shouldShowDailyGoalBar(dailyGoal);
+
+        if (lines.isEmpty() && !showDailyGoalBar)
+        {
+            GoalNotificationManager.render(context, client);
+            return;
+        }
+        int lineHeight = client.textRenderer.fontHeight + 2;
+        int padding = 4;
+        int width = Math.max(Math.max(getTextWidth(client, lines), getGoalHeaderWidth(client, dailyGoal, showDailyGoalBar)), 190);
+        int extraHeight = showDailyGoalBar ? GOAL_BAR_EXTRA_HEIGHT : 0;
+        int totalHeight = lines.size() * lineHeight + extraHeight + padding * 2;
+
+        float scale = (float) Configs.Generic.HUD_SCALE.getDoubleValue();
+        int scaledWidth = (int) ((width + padding * 2) * scale);
+        int scaledHeight = (int) (totalHeight * scale);
+        int x = resolveHudX(client, scaledWidth);
+        int y = resolveHudY(client, scaledHeight);
+
+        context.getMatrices().push();
+        context.getMatrices().translate(x, y, 0.0F);
+        context.getMatrices().scale(scale, scale, 1.0F);
+
+        if (FeatureToggle.TWEAK_HUD_BOUNDING_BOX.getBooleanValue())
+        {
+            int bboxX = -padding;
+            int bboxY = -2;
+            int bboxW = width + padding * 2;
+            int bboxH = lines.size() * lineHeight + extraHeight + 4;
+            context.fill(bboxX, bboxY, bboxX + bboxW, bboxY + bboxH, BBOX_FILL_COLOR);
+        }
+
+        int drawY = 0;
+        long now = System.currentTimeMillis();
+        boolean syncHealthy = CloudSyncManager.isHudHealthy(now) && DigsSyncManager.isHudHealthy(now);
+        int firstContentLine = 0;
+        if (showTitle)
+        {
+            String title = lines.getFirst().text();
+            int titleTextWidth = client.textRenderer.getWidth(title);
+            int syncIndicatorSize = client.textRenderer.fontHeight;
+            int titleX = syncIndicatorSize + 4;
+            if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
+            {
+                drawLineBox(context, 0, drawY, titleX + titleTextWidth);
+            }
+            drawSyncIndicator(context, 0, drawY, syncIndicatorSize, syncHealthy ? SYNC_OK_COLOR : SYNC_FAIL_COLOR);
+            context.drawText(client.textRenderer, Text.literal(title), titleX, drawY, hudTitleColor(), true);
+            drawY += lineHeight;
+            firstContentLine = 1;
+        }
+        for (int i = firstContentLine; i < lines.size(); i++)
+        {
+            HudLine line = lines.get(i);
+            if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
+            {
+                drawLineBox(context, 0, drawY, line.width(client.textRenderer));
+            }
+            line.draw(context, client.textRenderer, 0, drawY, false);
+            drawY += lineHeight;
+        }
+
+        if (showDailyGoalBar)
+        {
+            drawGoalProgress(context, client, 0, drawY + 2, width, dailyGoal);
+        }
+
+        context.getMatrices().pop();
+        GoalNotificationManager.render(context, client);
+    }
+
+    private static List<HudLine> buildHudLines(boolean showTitle, boolean sessionPaused)
+    {
+        List<HudLine> lines = new ArrayList<>();
         if (showTitle)
         {
             lines.add(HudLine.text("MMM", hudTitleColor()));
         }
 
-        boolean sessionPaused = MiningStats.isSessionPaused();
         boolean sessionInactive = MiningStats.isSessionActive() == false || sessionPaused;
         if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue())
         {
@@ -112,94 +190,20 @@ public final class MiningHudRenderer
             lines.add(HudLine.text("ETA To Goal: " + eta, inactiveTextColor(eta, sessionPaused)));
         }
 
-        if (lines.isEmpty())
-        {
-            GoalNotificationManager.render(context, client);
-            return;
-        }
-        int lineHeight = client.textRenderer.fontHeight + 2;
-        int padding = 4;
-        int width = Math.max(getTextWidth(client, lines), 190);
-        int totalHeight = lines.size() * lineHeight + padding * 2;
-
-        float scale = (float) Configs.Generic.HUD_SCALE.getDoubleValue();
-        int scaledWidth = (int) ((width + padding * 2) * scale);
-        int scaledHeight = (int) (totalHeight * scale);
-        int x = resolveHudX(client, scaledWidth);
-        int y = resolveHudY(client, scaledHeight);
-
-        context.getMatrices().push();
-        context.getMatrices().translate(x, y, 0.0F);
-        context.getMatrices().scale(scale, scale, 1.0F);
-
-        if (FeatureToggle.TWEAK_HUD_BOUNDING_BOX.getBooleanValue())
-        {
-            int bboxX = -padding;
-            int bboxY = -2;
-            int bboxW = width + padding * 2;
-            int bboxH = lines.size() * lineHeight + 4;
-            context.fill(bboxX, bboxY, bboxX + bboxW, bboxY + bboxH, BBOX_FILL_COLOR);
-        }
-
-        int drawY = 0;
-        long now = System.currentTimeMillis();
-        boolean syncHealthy = CloudSyncManager.isHudHealthy(now) && DigsSyncManager.isHudHealthy(now);
-        int firstContentLine = 0;
-        if (showTitle)
-        {
-            String title = lines.getFirst().text();
-            int titleTextWidth = client.textRenderer.getWidth(title);
-            int syncIndicatorSize = client.textRenderer.fontHeight;
-            int titleX = syncIndicatorSize + 4;
-            if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
-            {
-                drawLineBox(context, 0, drawY, titleX + titleTextWidth);
-            }
-            drawSyncIndicator(context, 0, drawY, syncIndicatorSize, syncHealthy ? SYNC_OK_COLOR : SYNC_FAIL_COLOR);
-            context.drawText(client.textRenderer, Text.literal(title), titleX, drawY, hudTitleColor(), true);
-            drawY += lineHeight;
-            firstContentLine = 1;
-        }
-        for (int i = firstContentLine; i < lines.size(); i++)
-        {
-            HudLine line = lines.get(i);
-            if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
-            {
-                drawLineBox(context, 0, drawY, line.width(client.textRenderer));
-            }
-            line.draw(context, client.textRenderer, 0, drawY, false);
-            drawY += lineHeight;
-        }
-
-        context.getMatrices().pop();
-        GoalNotificationManager.render(context, client);
+        return lines;
     }
 
     public static int[] getBounds(MinecraftClient client)
     {
-        List<String> lines = new ArrayList<>();
-        if (Configs.Generic.HUD_TITLE_VISIBLE.getBooleanValue()) lines.add("MMM");
-        if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue()) lines.add("Project: Example Project | 12.3k Blocks Mined");
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue() && Configs.Generic.HUD_GLOBAL_TOTAL_VISIBLE.getBooleanValue()) lines.add("Global Total: 123M Blocks Mined");
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue() && Configs.Generic.HUD_WORLD_TOTAL_VISIBLE.getBooleanValue()) lines.add("World Total: 12.3k Blocks Mined");
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue() && Configs.Generic.HUD_SESSION_TOTAL_VISIBLE.getBooleanValue()) lines.add("Session Total: 890 Blocks Mined");
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue() && Configs.Generic.HUD_DAILY_WEEK_VISIBLE.getBooleanValue()) lines.add("Today / Week: 12.3k / 84.2k Blocks Mined");
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue() && Configs.Generic.HUD_RECORDS_VISIBLE.getBooleanValue()) lines.add("PR Day / Week: 21.5k / 120k Blocks Mined");
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue() && Configs.Generic.HUD_FASTEST_100K_VISIBLE.getBooleanValue()) lines.add("Fastest 100k: 8h 20m");
-        if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue())
-        {
-            lines.add(Configs.Generic.BLOCKS_PER_MINUTE_VISIBLE.getBooleanValue() ? "Blocks/hr: 12.3k / Blocks/sec: 3.4 / Blocks/min: 123.4" : "Blocks/hr: 12.3k / Blocks/sec: 3.4");
-        }
-        if (Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue()) lines.add("Hour / Best Hour: 12.3k / 84.2k Blocks Mined");
-        if (Configs.Generic.HUD_TIMER_STATUS_VISIBLE.getBooleanValue()) lines.add("Timer: 23:59:59");
-        if (Configs.Generic.HUD_SESSION_TIME_VISIBLE.getBooleanValue()) lines.add("Session Time: 01:23:45");
-        if (Configs.Generic.HUD_DAILY_RESET_VISIBLE.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()) lines.add("Daily Reset In: 23:59:59");
-        if (FeatureToggle.TWEAK_HUD_ETA.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()) lines.add("ETA To Goal: 1h 12m");
+        List<HudLine> lines = buildHudLines(Configs.Generic.HUD_TITLE_VISIBLE.getBooleanValue(), MiningStats.isSessionPaused());
+        MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
+        boolean showDailyGoalBar = shouldShowDailyGoalBar(dailyGoal);
 
-        int width = Math.max(getTextWidth(client, lines), 190);
+        int width = Math.max(Math.max(getTextWidth(client, lines), getGoalHeaderWidth(client, dailyGoal, showDailyGoalBar)), 190);
         int lineHeight = client.textRenderer.fontHeight + 2;
         int padding = 4;
-        int totalHeight = lines.size() * lineHeight + padding * 2;
+        int extraHeight = showDailyGoalBar ? GOAL_BAR_EXTRA_HEIGHT : 0;
+        int totalHeight = lines.size() * lineHeight + extraHeight + padding * 2;
         double scale = Configs.Generic.HUD_SCALE.getDoubleValue();
         int scaledWidth = (int) ((width + padding * 2) * scale);
         int scaledHeight = (int) (totalHeight * scale);
@@ -336,6 +340,51 @@ public final class MiningHudRenderer
     {
         context.fill(x, y, x + size, y + size, color);
         context.drawBorder(x, y, size, size, 0xAA000000);
+    }
+
+    private static boolean shouldShowDailyGoalBar(MiningStats.GoalProgress progress)
+    {
+        return Configs.Generic.HUD_DAILY_GOAL_BAR_VISIBLE.getBooleanValue()
+                && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()
+                && progress != null
+                && progress.enabled();
+    }
+
+    private static int getGoalHeaderWidth(MinecraftClient client, MiningStats.GoalProgress progress, boolean visible)
+    {
+        if (!visible || progress == null)
+        {
+            return 0;
+        }
+
+        return client.textRenderer.getWidth("Daily Goal")
+                + client.textRenderer.getWidth(UiFormat.formatProgress(progress.current(), progress.target()))
+                + client.textRenderer.getWidth(UiFormat.formatGoalPercent(progress))
+                + 16;
+    }
+
+    private static void drawGoalProgress(DrawContext context, MinecraftClient client, int x, int y, int width, MiningStats.GoalProgress progress)
+    {
+        int fillColor = UiFormat.getGoalProgressColor(progress);
+        int fillWidth = progress.target() <= 0L
+                ? 0
+                : (int) Math.min(width, width * Math.max(0.0D, progress.current() / (double) progress.target()));
+        String percentText = UiFormat.formatGoalPercent(progress);
+        String progressText = UiFormat.formatProgress(progress.current(), progress.target());
+
+        context.drawText(client.textRenderer, Text.literal("Daily Goal"), x, y, hudTitleColor(), false);
+        int progressX = x + Math.max(0, (width - client.textRenderer.getWidth(progressText)) / 2);
+        context.drawText(client.textRenderer, Text.literal(progressText), progressX, y, hudTextColor(), false);
+        int percentX = x + width - client.textRenderer.getWidth(percentText);
+        context.drawText(client.textRenderer, Text.literal(percentText), percentX, y, fillColor, false);
+
+        int barY = y + 11;
+        context.fill(x, barY, x + width, barY + 6, GOAL_BAR_BG);
+        if (fillWidth > 0)
+        {
+            context.fill(x, barY, x + fillWidth, barY + 6, fillColor);
+        }
+        context.drawBorder(x, barY, width, 6, GOAL_BAR_BORDER);
     }
 
     private static int getTextWidth(MinecraftClient client, List<String> lines)

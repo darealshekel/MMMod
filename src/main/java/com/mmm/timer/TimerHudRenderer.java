@@ -28,7 +28,7 @@ public final class TimerHudRenderer
     private static final int CARD_BG = 0xE9050505;
     private static final int CARD_BORDER = 0xFF1F1F1F;
     private static final int WIDTH_TIMER = 150;
-    private static final int HEIGHT_TIMER = 32;
+    private static final int HEIGHT_TIMER = 16;
     private static final int TIMER_BAR_WIDTH = 140;
     private static final int TIMER_BAR_HEIGHT = 4;
     private static final int WIDTH_HOURLY = 172;
@@ -99,7 +99,7 @@ public final class TimerHudRenderer
         }
 
         int width = rawWidth(module);
-        int height = rawHeight(module);
+        int height = rawHeight(client, module);
         double scale = getScale(module);
         int scaledW = (int) Math.round(width * scale);
         int scaledH = (int) Math.round(height * scale);
@@ -183,7 +183,7 @@ public final class TimerHudRenderer
 
     private static void drawTimer(DrawContext context, MinecraftClient client, boolean preview)
     {
-        if (MmmTimerState.isTimerDisplayActive() == false)
+        if (preview == false && MmmTimerState.isTimerDisplayActive() == false)
         {
             return;
         }
@@ -233,6 +233,11 @@ public final class TimerHudRenderer
         List<MmmTimerState.BlockCount> blocks = MmmTimerState.getTopBlocks();
         if (blocks.isEmpty())
         {
+            if (preview)
+            {
+                String header = "Block Statistics";
+                drawTextShadow(context, client.textRenderer, header, WIDTH_BLOCKS - client.textRenderer.getWidth(header), 0, 0xFFDDDDDD);
+            }
             return;
         }
 
@@ -372,11 +377,11 @@ public final class TimerHudRenderer
         };
     }
 
-    private static int rawHeight(HudModuleId module)
+    private static int rawHeight(MinecraftClient client, HudModuleId module)
     {
         return switch (module)
         {
-            case TIMER -> HEIGHT_TIMER;
+            case TIMER -> HEIGHT_TIMER + (MmmTimerState.isExpired() ? client.textRenderer.fontHeight + 2 : 0);
             case HOURLY -> HEIGHT_HOURLY;
             case BLOCK_STATS -> blockStatsHeight(MmmTimerState.getTopBlocks().size());
             case NOTIFICATION -> HEIGHT_NOTIFICATION;
@@ -422,7 +427,7 @@ public final class TimerHudRenderer
 
     private static double getScale(HudModuleId module)
     {
-        return Math.max(0.5D, Math.min(3.0D, scaleConfig(module).getDoubleValue()));
+        return Math.max(0.25D, Math.min(3.0D, scaleConfig(module).getDoubleValue()));
     }
 
     private static int resolveX(MinecraftClient client, IConfigInteger config, int scaledWidth)
@@ -444,7 +449,7 @@ public final class TimerHudRenderer
         int lineHeight = showIcons ? 18 : MinecraftClient.getInstance().textRenderer.fontHeight + 2;
         int visibleEntries = isStatic ? Math.min(BLOCK_STATS_STATIC_SIZE, entries) : Math.min(BLOCK_STATS_PAGE_SIZE, entries);
         int pageLine = isStatic || entries <= BLOCK_STATS_PAGE_SIZE ? 0 : 1;
-        return Math.max(lineHeight * 2, lineHeight * (1 + Math.max(0, visibleEntries) + pageLine));
+        return Math.max(lineHeight, lineHeight * (1 + Math.max(0, visibleEntries) + pageLine));
     }
 
     private static boolean isPlayerListOpen(MinecraftClient client)

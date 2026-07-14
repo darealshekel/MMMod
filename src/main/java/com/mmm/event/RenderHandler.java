@@ -15,6 +15,8 @@ import org.joml.Matrix4f;
 
 public class RenderHandler implements IRenderer
 {
+    private static final boolean SPEED_GRAPH_AVAILABLE = false;
+
     @Override
     public void onRenderGameOverlayPost(DrawContext drawContext)
     {
@@ -23,7 +25,7 @@ public class RenderHandler implements IRenderer
         {
             MiningHudRenderer.render(drawContext, mc);
             TimerHudRenderer.render(drawContext, mc);
-            if (FeatureToggle.TWEAK_HUD_SPEED_GRAPH.getBooleanValue() && MiningSpeedTracker.hasSessionData())
+            if (SPEED_GRAPH_AVAILABLE && FeatureToggle.TWEAK_HUD_SPEED_GRAPH.getBooleanValue() && MiningSpeedTracker.hasSessionData())
             {
                 SpeedGraphRenderer.render(drawContext, mc);
             }
