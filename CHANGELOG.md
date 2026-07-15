@@ -14,7 +14,7 @@
 
 - Website totals used by Tier / Name Tags now share the exact milestone colors used on MMM profiles and leaderboards.
 - Minecraft team prefixes and suffixes are replaced by the MMM tag only when a matching website player is found.
-- Tier / Name Tag totals are abbreviated to keep names readable, for example `16M`.
+- Tier / Name Tag totals keep one useful decimal without trailing zeroes, for example `18.5M` or `16M`.
 - Tier / Name Tags load directly from the live canonical leaderboard API and report a concise result in the client log.
 - Goal milestone messages were rewritten to be shorter and more natural.
 - The settings sidebar now includes the dedicated Scoreboard screen below Summary.
