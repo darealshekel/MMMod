@@ -6,13 +6,17 @@
     "ClientPlayNetworkHandlerMixin",
     "ClientPlayerInteractionManagerAccessor",
     "ClientPlayerInteractionManagerMixin",
+    "DecorationParameterMixin",
     "HeldItemRendererMixin",
     "InGameHudMixin",
     "MmmPressableWidgetMixin",
     "SmallDigItemRendererMixin",
     "PlayerListHudMixin",
+    "ScoreboardChatScreenMixin",
+    "ScoreboardInGameHudMixin",
     "SoundManagerAccessor",
     "SoundSystemAccessor",
+    "TeamMixin",
     "WorldRendererMixin"
   ],
   "injectors": {

@@ -11,6 +11,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -59,14 +60,15 @@ public abstract class InGameHudMixin
         }
 
         RenderSystem.enableBlend();
-        context.drawGuiTexture(mmm$experienceBarBackground, x, y, 182, 5);
+        context.drawGuiTexture(RenderLayer::getGuiTextured, mmm$experienceBarBackground, x, y, 182, 5);
         if (filledWidth > 0)
         {
             int color = UiFormat.getGoalProgressColor(progress);
             Identifier texture = GoalProgressTexture.get(color);
             if (texture != null)
             {
-                context.drawTexture(texture, x, y, 0.0F, 0.0F, Math.min(filledWidth, 182), 5, 182, 5);
+                context.drawTexture(RenderLayer::getGuiTextured, texture, x, y, 0.0F, 0.0F,
+                        Math.min(filledWidth, 182), 5, 182, 5);
             }
             else
             {

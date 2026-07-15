@@ -12,6 +12,7 @@ import com.mmm.config.Hotkeys;
 import com.mmm.hud.SessionHistoryScreen;
 import com.mmm.hud.SummaryScreen;
 import com.mmm.tracker.MiningStats;
+import com.mmm.scoreboard.ScoreboardScreen;
 import com.mmm.ui.MmmUi;
 import com.mmm.ui.MmmSettingsScreen;
 import com.mmm.ui.PlayerProfileScreen;
@@ -93,6 +94,8 @@ public class GuiConfigs extends GuiConfigsBase
         this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.HISTORY);
         y += rowStep;
         this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.SUMMARY);
+        y += rowStep;
+        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.SCOREBOARD);
     }
 
     @Override
@@ -449,6 +452,12 @@ public class GuiConfigs extends GuiConfigsBase
                 return;
             }
 
+            if (this.tab == ConfigGuiTab.SCOREBOARD)
+            {
+                MinecraftClient.getInstance().setScreen(new ScoreboardScreen(this.parent));
+                return;
+            }
+
             if (this.tab == ConfigGuiTab.HISTORY)
             {
                 MinecraftClient.getInstance().setScreen(new SessionHistoryScreen(this.parent));
@@ -471,6 +480,7 @@ public class GuiConfigs extends GuiConfigsBase
         PROFILE("Profile", "Profile"),
         WEBSITE_LINK("Website Link", "Link"),
         SUMMARY("Summary", "Summary"),
+        SCOREBOARD("Scoreboard", "Scores"),
         HISTORY("History", "History");
 
         private final String displayName;

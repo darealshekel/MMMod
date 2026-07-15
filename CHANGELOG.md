@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.0.15 - 2026-07-15
+
+### Added
+
+- Added a complete Scoreboard screen with sorting, paging, layout, opacity, export, record, and operator editing tools.
+- Added score and Tab-list commas, score abbreviation, scoreboard visibility, team-chat, and scoreboard hotkeys.
+- Added optional milestone sharing between linked MMMod players on the same server.
+- Added Tier / Name Tags that show a player's website total before their name in chat, Tab, scoreboards, and world nametags.
+- Added a hotkey for No Swinging Animation.
+
+### Changed
+
+- Website totals used by Tier / Name Tags now share the exact milestone colors used on MMM profiles and leaderboards.
+- Minecraft team prefixes and suffixes are replaced by the MMM tag only when a matching website player is found.
+- Goal milestone messages were rewritten to be shorter and more natural.
+- The settings sidebar now includes the dedicated Scoreboard screen below Summary.
+
+### Removed
+
+- No existing MMMod features were removed in this release.
+
 ## 1.0.14 - 2026-07-14
 
 ### Added

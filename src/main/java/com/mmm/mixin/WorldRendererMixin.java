@@ -5,6 +5,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.VertexRendering;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.Entity;
@@ -30,6 +31,7 @@ public abstract class WorldRendererMixin
                                                double cameraZ,
                                                BlockPos pos,
                                                BlockState state,
+                                               int vanillaColor,
                                                CallbackInfo ci)
     {
         if (!BlockEspRenderer.shouldReplaceVanillaOutline(this.client) || this.client.world == null || state.isAir())
@@ -38,22 +40,14 @@ public abstract class WorldRendererMixin
         }
 
         int color = BlockEspRenderer.getCurrentOutlineColor(this.client);
-        float alpha = ((color >>> 24) & 0xFF) / 255.0F;
-        float red = ((color >>> 16) & 0xFF) / 255.0F;
-        float green = ((color >>> 8) & 0xFF) / 255.0F;
-        float blue = (color & 0xFF) / 255.0F;
-        WorldRenderer.drawShapeOutline(
+        VertexRendering.drawOutline(
                 matrices,
                 vertexConsumer,
                 state.getOutlineShape(this.client.world, pos, ShapeContext.of(entity)),
                 pos.getX() - cameraX,
                 pos.getY() - cameraY,
                 pos.getZ() - cameraZ,
-                red,
-                green,
-                blue,
-                alpha,
-                true
+                color
         );
         ci.cancel();
     }
