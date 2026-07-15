@@ -12,6 +12,7 @@ import com.mmm.config.Configs;
 import com.mmm.config.Configs.ProjectEntry;
 import com.mmm.storage.SessionData;
 import com.mmm.storage.SessionHistory;
+import com.mmm.storage.MiningCalendarStore;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
 import com.mmm.util.MmmDebugLogger;
@@ -218,6 +219,10 @@ public final class CloudSyncManager
         syncStatusDetail = type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
         touchHealthy();
         markSyncedSessions(payload, responseBody);
+        if (responseBoolean(responseBody, "daily_mining_synced"))
+        {
+            MiningCalendarStore.markPayloadSynced(payload);
+        }
         applySuccessfulSyncResponse(responseBody);
 
         if (type == SyncItemType.CLOUD_LIVE_STATE)
@@ -752,6 +757,23 @@ public final class CloudSyncManager
         }
     }
 
+    private static boolean responseBoolean(String responseBody, String key)
+    {
+        if (responseBody == null || responseBody.isBlank() || key == null || key.isBlank())
+        {
+            return false;
+        }
+        try
+        {
+            JsonObject response = JsonParser.parseString(responseBody).getAsJsonObject();
+            return response.has(key) && response.get(key).getAsBoolean();
+        }
+        catch (Exception ignored)
+        {
+            return false;
+        }
+    }
+
     private record PendingSavedSession(SessionHistory.WorldHistory history, SessionData session, String sessionKey) {}
 
     private static JsonObject buildPayload(SessionData session, String sessionStatus)
@@ -770,6 +792,11 @@ public final class CloudSyncManager
         payload.add("world", buildWorld(worldInfo));
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
+        JsonArray dailyMining = MiningCalendarStore.pendingEntries();
+        if (dailyMining.size() > 0)
+        {
+            payload.add("daily_mining", dailyMining);
+        }
         payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo));
 
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
@@ -825,6 +852,11 @@ public final class CloudSyncManager
         payload.add("world", buildWorld(history.worldId(), history.displayName()));
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
+        JsonArray dailyMining = MiningCalendarStore.pendingEntries();
+        if (dailyMining.size() > 0)
+        {
+            payload.add("daily_mining", dailyMining);
+        }
         payload.add("projects", buildProjects());
         payload.add("daily_goal", buildDailyGoal(dailyGoal));
         payload.add("synced_stats", buildSyncedStats(projectProgress, dailyGoal));
@@ -1390,6 +1422,11 @@ public final class CloudSyncManager
         if (payload.has("mining_records"))
         {
             minimal.add("mining_records", payload.get("mining_records"));
+        }
+
+        if (payload.has("daily_mining"))
+        {
+            minimal.add("daily_mining", payload.get("daily_mining"));
         }
 
         if (payload.has("current_world_block_breakdown"))
