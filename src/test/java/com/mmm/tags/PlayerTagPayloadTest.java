@@ -1,6 +1,7 @@
 package com.mmm.tags;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -30,6 +31,20 @@ class PlayerTagPayloadTest
         assertEquals("16M", PlayerTagPayload.formatBlocks(16_214_598L));
         assertEquals("2.5B", PlayerTagPayload.formatBlocks(2_500_000_000L));
         assertEquals("1T", PlayerTagPayload.formatBlocks(1_000_000_000_000L));
+    }
+
+    @Test
+    void parsesCanonicalLeaderboardFallbackPayload()
+    {
+        Map<String, PlayerTagData> tags = PlayerTagPayload.parseLeaderboard("""
+                {"rows":[{"username":"5hekel","blocksMined":16214598}]}
+                """);
+
+        assertEquals(16_214_598L, tags.get("5hekel").totalBlocks());
+        assertEquals(0xFFB300, tags.get("5hekel").colorRgb());
+        assertTrue(PlayerTagPayload.isLeaderboardPayload("{\"rows\":[]}"));
+        assertTrue(PlayerTagPayload.isTagPayload("{\"tags\":[]}"));
+        assertFalse(PlayerTagPayload.isTagPayload("<!doctype html>"));
     }
 
     @Test
