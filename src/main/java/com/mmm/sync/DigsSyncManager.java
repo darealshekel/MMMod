@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.mmm.MMM;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
+import com.mmm.storage.MiningCalendarStore;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
 import java.time.Instant;
@@ -85,6 +86,10 @@ public final class DigsSyncManager
         touchHealthy();
         CloudSyncManager.applySuccessfulSyncResponse(responseBody);
         SyncDeltaStore.markPayloadSynced(payload);
+        if (responseAcknowledgesDailyMining(responseBody))
+        {
+            MiningCalendarStore.markPayloadSynced(payload);
+        }
         lastSuccessfulFingerprint = latestModel == null
                 ? fingerprint(payload)
                 : fingerprint(
@@ -263,6 +268,11 @@ public final class DigsSyncManager
         long effectivePlayerTotal = Math.max(model.totalDigs(), MiningStats.getCurrentSourceTotalMined());
         payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo, effectivePlayerTotal));
         payload.add("mining_records", buildMiningRecords());
+        JsonArray dailyMining = MiningCalendarStore.pendingEntries();
+        if (dailyMining.size() > 0)
+        {
+            payload.add("daily_mining", dailyMining);
+        }
 
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
         if (currentWorldBlockBreakdown != null)
@@ -571,8 +581,26 @@ public final class DigsSyncManager
         String blockBreakdownFingerprint = payload.has("current_world_block_breakdown")
                 ? BlockBreakdownPayloads.fingerprint(payload.getAsJsonObject("current_world_block_breakdown"))
                 : "";
+        String dailyMiningFingerprint = payload.has("daily_mining") ? payload.get("daily_mining").toString() : "";
         return username.toLowerCase(Locale.ROOT) + "|" + server.toLowerCase(Locale.ROOT) + "|" + total + "|"
-                + worldTotal + "|" + blockBreakdownFingerprint + "|" + sourcePayloadFingerprint(payload);
+                + worldTotal + "|" + blockBreakdownFingerprint + "|" + dailyMiningFingerprint + "|" + sourcePayloadFingerprint(payload);
+    }
+
+    private static boolean responseAcknowledgesDailyMining(String responseBody)
+    {
+        if (responseBody == null || responseBody.isBlank())
+        {
+            return false;
+        }
+        try
+        {
+            JsonObject response = com.google.gson.JsonParser.parseString(responseBody).getAsJsonObject();
+            return response.has("daily_mining_synced") && response.get("daily_mining_synced").getAsBoolean();
+        }
+        catch (Exception ignored)
+        {
+            return false;
+        }
     }
 
     private static String sourcePayloadFingerprint(JsonObject payload)

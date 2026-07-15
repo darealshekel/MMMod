@@ -12,6 +12,7 @@ import com.mmm.config.Configs;
 import com.mmm.config.Configs.ProjectEntry;
 import com.mmm.storage.SessionData;
 import com.mmm.storage.SessionHistory;
+import com.mmm.storage.MiningCalendarStore;
 import com.mmm.storage.WorldIdentity;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
@@ -225,6 +226,10 @@ public final class CloudSyncManager
         if (skippedByCadence == false)
         {
             markSyncedSessions(payload, responseBody);
+            if (responseBoolean(responseBody, "daily_mining_synced"))
+            {
+                MiningCalendarStore.markPayloadSynced(payload);
+            }
         }
         applySuccessfulSyncResponse(responseBody);
 
@@ -797,6 +802,11 @@ public final class CloudSyncManager
         payload.add("world", buildWorld(worldInfo));
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
+        JsonArray dailyMining = MiningCalendarStore.pendingEntries();
+        if (dailyMining.size() > 0)
+        {
+            payload.add("daily_mining", dailyMining);
+        }
         payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo, sourceEvidence.playerTotalDigs()));
 
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
@@ -1570,6 +1580,11 @@ public final class CloudSyncManager
         if (payload.has("mining_records"))
         {
             minimal.add("mining_records", payload.get("mining_records"));
+        }
+
+        if (payload.has("daily_mining"))
+        {
+            minimal.add("daily_mining", payload.get("daily_mining"));
         }
 
         if (payload.has("current_world_block_breakdown"))

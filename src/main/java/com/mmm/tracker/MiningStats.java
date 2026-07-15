@@ -20,6 +20,7 @@ import com.mmm.config.Configs.ProjectEntry;
 import com.mmm.config.FeatureToggle;
 import com.mmm.storage.SessionData;
 import com.mmm.storage.SessionHistory;
+import com.mmm.storage.MiningCalendarStore;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.MMM;
 import com.mmm.sync.CloudSyncManager;
@@ -119,6 +120,7 @@ public final class MiningStats
 
         resetDailyProgressIfNeeded();
         resetPeriodStatsIfNeeded(System.currentTimeMillis());
+        MiningCalendarStore.flush();
         currentSession.endTimeMs = System.currentTimeMillis() - pausedAccumulatedMs;
         if (shouldPersistSession(currentSession))
         {
@@ -192,6 +194,7 @@ public final class MiningStats
         long previousDaily = Configs.dailyProgress;
         Configs.dailyProgress++;
         recordPeriodBlocksMined(1L, now);
+        MiningCalendarStore.recordBlock(now);
         recordFastest100kWindow(now);
         GoalNotificationManager.onGoalProgressChanged(previousDaily, getDailyGoalProgress());
 
