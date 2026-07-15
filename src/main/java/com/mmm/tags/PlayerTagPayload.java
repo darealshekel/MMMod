@@ -133,9 +133,7 @@ public final class PlayerTagPayload
             return Long.toString((long) compactValue);
         }
 
-        String number = compactValue < 10D
-                ? String.format(Locale.US, "%.1f", compactValue)
-                : String.format(Locale.US, "%.0f", compactValue);
+        String number = String.format(Locale.US, "%.1f", compactValue);
         if (number.endsWith(".0"))
         {
             number = number.substring(0, number.length() - 2);
