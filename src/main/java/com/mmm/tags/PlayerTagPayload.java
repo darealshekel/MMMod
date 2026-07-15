@@ -71,7 +71,28 @@ public final class PlayerTagPayload
 
     public static String formatBlocks(long totalBlocks)
     {
-        return String.format(Locale.US, "%,d", Math.max(0L, totalBlocks));
+        double compactValue = Math.max(0L, totalBlocks);
+        String[] suffixes = {"", "k", "M", "B", "T"};
+        int suffixIndex = 0;
+        while (compactValue >= 1_000D && suffixIndex < suffixes.length - 1)
+        {
+            compactValue /= 1_000D;
+            suffixIndex++;
+        }
+
+        if (suffixIndex == 0)
+        {
+            return Long.toString((long) compactValue);
+        }
+
+        String number = compactValue < 10D
+                ? String.format(Locale.US, "%.1f", compactValue)
+                : String.format(Locale.US, "%.0f", compactValue);
+        if (number.endsWith(".0"))
+        {
+            number = number.substring(0, number.length() - 2);
+        }
+        return number + suffixes[suffixIndex];
     }
 
     public static String normalize(String username)
