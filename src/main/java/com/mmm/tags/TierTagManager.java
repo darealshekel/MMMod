@@ -1,5 +1,6 @@
 package com.mmm.tags;
 
+import com.mmm.MMM;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
 import java.net.URI;
@@ -23,8 +24,7 @@ import net.minecraft.text.Text;
 
 public final class TierTagManager
 {
-    private static final String TAG_API = "https://www.mmmaniacs.com/api/mod-player-tags?names=";
-    private static final String LEADERBOARD_FALLBACK_API = "https://www.mmmaniacs.com/api/leaderboard?friendsOnly=1&page=1&pageSize=100&friendNames=";
+    private static final String LEADERBOARD_TAG_API = "https://www.mmmaniacs.com/api/leaderboard?friendsOnly=1&page=1&pageSize=100&friendNames=";
     private static final long REFRESH_INTERVAL_MS = 60_000L;
     private static final long RETRY_INTERVAL_MS = 15_000L;
     private static final int MAX_NAMES_PER_REQUEST = 80;
@@ -36,6 +36,7 @@ public final class TierTagManager
     private static volatile Map<String, String> onlineNames = Map.of();
     private static volatile String observedSignature = "";
     private static volatile String requestedSignature = "";
+    private static volatile String lastResultLog = "";
     private static volatile long nextRefreshAtMs;
     private static int tickCounter;
 
@@ -191,29 +192,17 @@ public final class TierTagManager
     private static CompletableFuture<BatchResult> requestBatch(List<String> batch)
     {
         String encodedNames = URLEncoder.encode(String.join(",", batch), StandardCharsets.UTF_8);
-        HttpRequest request = buildRequest(TAG_API + encodedNames);
-        return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .handle((response, throwable) -> {
-                    if (isSuccessful(response, throwable) && PlayerTagPayload.isTagPayload(response.body()))
-                    {
-                        return CompletableFuture.completedFuture(
-                                new BatchResult(batch, PlayerTagPayload.parse(response.body()), true));
-                    }
-                    return requestLeaderboardFallback(batch, encodedNames);
-                })
-                .thenCompose(result -> result);
-    }
-
-    private static CompletableFuture<BatchResult> requestLeaderboardFallback(List<String> batch, String encodedNames)
-    {
-        HttpRequest request = buildRequest(LEADERBOARD_FALLBACK_API + encodedNames);
+        HttpRequest request = buildRequest(LEADERBOARD_TAG_API + encodedNames);
         return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .handle((response, throwable) -> {
                     if (!isSuccessful(response, throwable) || !PlayerTagPayload.isLeaderboardPayload(response.body()))
                     {
+                        logResult("failed", batch.size(), 0, response, throwable);
                         return new BatchResult(batch, Map.of(), false);
                     }
-                    return new BatchResult(batch, PlayerTagPayload.parseLeaderboard(response.body()), true);
+                    Map<String, PlayerTagData> loadedTags = PlayerTagPayload.parseLeaderboard(response.body());
+                    logResult("leaderboard", batch.size(), loadedTags.size(), response, null);
+                    return new BatchResult(batch, loadedTags, true);
                 });
     }
 
@@ -233,6 +222,27 @@ public final class TierTagManager
         return throwable == null && response != null && response.statusCode() >= 200 && response.statusCode() < 300;
     }
 
+    private static void logResult(String source, int requested, int matched, HttpResponse<String> response, Throwable throwable)
+    {
+        String detail = throwable != null
+                ? throwable.getClass().getSimpleName()
+                : response == null ? "no-response" : "http-" + response.statusCode();
+        String fingerprint = source + ':' + requested + ':' + matched + ':' + detail;
+        if (fingerprint.equals(lastResultLog))
+        {
+            return;
+        }
+        lastResultLog = fingerprint;
+        if ("failed".equals(source))
+        {
+            MMM.LOGGER.warn("[MMM_TAGS] load failed requested={} detail={}", requested, detail);
+        }
+        else
+        {
+            MMM.LOGGER.info("[MMM_TAGS] loaded source={} requested={} matched={} detail={}", source, requested, matched, detail);
+        }
+    }
+
     private static void clear()
     {
         if (observedSignature.isEmpty() && tags.isEmpty())
@@ -243,6 +253,7 @@ public final class TierTagManager
         onlineNames = Map.of();
         observedSignature = "";
         requestedSignature = "";
+        lastResultLog = "";
         nextRefreshAtMs = 0L;
     }
 
