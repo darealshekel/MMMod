@@ -87,6 +87,30 @@ public final class PlayerTagPayload
         return Map.copyOf(tags);
     }
 
+    public static PlayerTagData parseProfile(String body, String requestedName)
+    {
+        try
+        {
+            JsonObject root = JsonParser.parseString(body).getAsJsonObject();
+            String username = stringValue(root, "name").trim();
+            if (!isMinecraftUsername(username))
+            {
+                username = requestedName == null ? "" : requestedName.trim();
+            }
+            if (!isMinecraftUsername(username) || !root.has("blocksNum"))
+            {
+                return null;
+            }
+            long totalBlocks = Math.max(0L, longValue(root, "blocksNum"));
+            int color = UiFormat.getBlocksMinedMilestoneColor(totalBlocks) & 0x00FFFFFF;
+            return new PlayerTagData(username, totalBlocks, color);
+        }
+        catch (Exception ignored)
+        {
+            return null;
+        }
+    }
+
     public static boolean isTagPayload(String body)
     {
         return hasArray(body, "tags");
