@@ -1,7 +1,9 @@
 package com.mmm.event;
 
 import com.mmm.hud.SummaryScreen;
+import com.mmm.social.MilestoneSocialRelay;
 import com.mmm.storage.SessionData;
+import com.mmm.tags.TierTagManager;
 import com.mmm.timer.MmmBlockBreakDetector;
 import com.mmm.timer.MmmTimerState;
 import com.mmm.timer.TimerCreditsScreen;
@@ -24,6 +26,8 @@ public class ClientTickHandler implements IClientTickHandler
         MmmBlockBreakDetector.onClientTick(mc);
         MmmTimerState.onClientTick(mc);
         MiningSpeedTracker.tick(mc);
+        MilestoneSocialRelay.onClientTick(mc);
+        TierTagManager.onClientTick(mc);
 
         if (MmmTimerState.consumeCreditsPending() && mc.currentScreen == null)
         {

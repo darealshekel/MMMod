@@ -6,8 +6,9 @@ MMMod is the official client-side companion for [Manual Mining Maniacs](https://
 
 | Minecraft | Release asset | Required Fabric API |
 | --- | --- | --- |
-| 1.21 | `mmm-1.0.14+1.21.jar` | `0.102.0+1.21` or newer compatible build |
-| 1.21.1 | `mmm-1.0.14+1.21.1.jar` | `0.116.12+1.21.1` or newer compatible build |
+| 1.21 | `mmm-1.0.15+1.21.jar` | `0.102.0+1.21` or newer compatible build |
+| 1.21.1 | `mmm-1.0.15+1.21.1.jar` | `0.116.12+1.21.1` or newer compatible build |
+| 1.21.4 | `mmm-1.0.15+1.21.4.jar` | `0.119.4+1.21.4` or newer compatible build |
 
 MMMod also requires:
 
@@ -62,6 +63,7 @@ Do not install both MMMod version jars in the same instance.
 - Pickaxe milestone animation: stone, iron, diamond, then netherite.
 - Built-in milestone sounds plus a separate custom OGG sound for every milestone.
 - Custom sounds are stored in MMM's shared data folder and work across supported versions.
+- Optional milestone sharing between linked MMMod players on the same server.
 
 ### Timer challenge
 
@@ -103,6 +105,18 @@ Durations accept values such as `90s`, `30m`, and `2h`.
 - Toggle Tab keeps the player list open and can be assigned its own hotkey.
 - Optional translucent animated lava with an automatically managed resource pack and adjustable opacity.
 
+### Scoreboard tools
+
+- Dedicated **Scoreboard** screen below Summary in the MMM sidebar.
+- Hide the sidebar or its scores, add commas, or abbreviate large values.
+- Optional Tier / Name Tags show each ranked player's website total before their name in chat, Tab, scoreboards, and world nametags.
+- Sort by score or name in either direction and page through up to 100 rows at a time.
+- Move, scale, and adjust the background/title/text opacity of the vanilla sidebar.
+- Export the current objective directly to CSV or record, reorder, remove, and combine several snapshots.
+- Add, edit, and remove scoreboard rows when the server grants operator permission level 2.
+- Optional team chat by default, with `#` used to send a normal public message.
+- `/mmm scoreboard max <count>`, `/mmm scoreboard pageUp`, and `/mmm scoreboard pageDown` client commands.
+
 ### Website linking and synchronization
 
 - Website synchronization is **off by default**.
@@ -125,6 +139,9 @@ The website/API remains responsible for validating data before publishing it. MM
 | Pause/resume session | `Left Alt + P` |
 | Start/end session | `Left Alt + T` |
 | Export current history | Unbound |
+| Previous/next scoreboard page | `Page Up` / `Page Down` |
+| Open scoreboard exports | `Backslash` |
+| Edit current scoreboard | `C` |
 
 Every hotkey can be changed in the MMMod Hotkeys screen.
 
@@ -153,6 +170,7 @@ The remapped release jar is written to `build/libs`.
 - **Manual Mining Maniacs community** - testing, mining data, and feature feedback
 - **BlockTimer project (MIT)** - reference for timer and hourly-stat behavior
 - **I-See-Lava by AzureDoom / jlstout1998 (MIT)** - reference for translucent lava behavior
+- **ScoreboardHelper by 小猪之最 (MIT)** - scoreboard rendering, export, editing, and team-chat feature reference
 - **Fabric API**, **Mod Menu**, **MaLiLib**, and **Tweakeroo** - modding platform and integrations
 - Minecraft is a trademark of Microsoft. MMMod is an independent community project and is not affiliated with Mojang Studios or Microsoft.
 

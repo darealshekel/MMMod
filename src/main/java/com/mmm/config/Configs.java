@@ -89,6 +89,8 @@ public class Configs implements IConfigHandler
         public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", false, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
         public static final ConfigBoolean GOAL_PICKAXE_ANIMATION = new ConfigBoolean("goalPickaxeAnimation", true, "Show a pickaxe animation at each main daily-goal milestone.");
+        public static final ConfigBoolean SHARE_GOAL_MILESTONES = new ConfigBoolean("shareGoalMilestones", true, "Share goal milestones with linked MMM players on this server.");
+        public static final ConfigBoolean RECEIVE_GOAL_MILESTONES = new ConfigBoolean("receiveGoalMilestones", true, "Show goal milestones from linked MMM players on this server.");
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 820, "Mining HUD horizontal position.");
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 460, "Mining HUD vertical position.");
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
@@ -141,6 +143,22 @@ public class Configs implements IConfigHandler
         public static final ConfigBoolean NO_SWINGING_ANIMATION = new ConfigBoolean("noSwingingAnimation", false, "Disable the local first-person hand swing animation while mining.");
         public static final ConfigBoolean TRANSLUCENT_LAVA = new ConfigBoolean("translucentLava", false, "Make lava transparent enough to see through.");
         public static final ConfigInteger LAVA_OPACITY = new ConfigInteger("lavaOpacity", 45, 10, 100, "How visible lava is while Translucent Lava is enabled.");
+        public static final ConfigBoolean SCOREBOARD_VISIBLE = new ConfigBoolean("scoreboardVisible", true, "Show the sidebar scoreboard.");
+        public static final ConfigBoolean SCOREBOARD_SCORES_VISIBLE = new ConfigBoolean("scoreboardScoresVisible", true, "Show score values beside player names.");
+        public static final ConfigBoolean SCOREBOARD_SCORE_COMMAS = new ConfigBoolean("scoreboardScoreCommas", true, "Format scores with thousands separators.");
+        public static final ConfigBoolean SCOREBOARD_TAB_LIST_COMMAS = new ConfigBoolean("scoreboardTabListCommas", true, "Format player-list scores with thousands separators.");
+        public static final ConfigBoolean TIER_NAME_TAGS = new ConfigBoolean("tierNameTags", true, "Show website totals before player names in chat, Tab, scoreboards, and nametags.");
+        public static final ConfigBoolean SCOREBOARD_SCORE_ABBREVIATED = new ConfigBoolean("scoreboardScoreAbbreviated", false, "Shorten large scores with k, M, and B.");
+        public static final ConfigOptionList SCOREBOARD_SORTING = new ConfigOptionList("scoreboardSorting", ScoreboardSorting.SCORE_DESCENDING, "Choose how sidebar rows are sorted.");
+        public static final ConfigInteger SCOREBOARD_MAX_ENTRIES = new ConfigInteger("scoreboardMaxEntries", 15, 0, 100, "Maximum rows shown on one scoreboard page.");
+        public static final ConfigOptionList SCOREBOARD_POSITION = new ConfigOptionList("scoreboardPosition", ScoreboardPosition.RIGHT, "Choose the sidebar anchor on screen.");
+        public static final ConfigInteger SCOREBOARD_Y_OFFSET = new ConfigInteger("scoreboardYOffset", 0, -100, 100, "Move the scoreboard up or down.");
+        public static final ConfigDouble SCOREBOARD_SCALE = new ConfigDouble("scoreboardScale", 1.0D, 0.5D, 2.0D, "Resize the complete scoreboard sidebar.");
+        public static final ConfigDouble SCOREBOARD_BODY_OPACITY = new ConfigDouble("scoreboardBodyOpacity", 0.3D, 0.0D, 1.0D, "Change the row background opacity.");
+        public static final ConfigDouble SCOREBOARD_TITLE_OPACITY = new ConfigDouble("scoreboardTitleOpacity", 0.4D, 0.0D, 1.0D, "Change the title background opacity.");
+        public static final ConfigDouble SCOREBOARD_TEXT_OPACITY = new ConfigDouble("scoreboardTextOpacity", 1.0D, 0.0D, 1.0D, "Change player and score text opacity.");
+        public static final ConfigDouble SCOREBOARD_TITLE_TEXT_OPACITY = new ConfigDouble("scoreboardTitleTextOpacity", 1.0D, 0.0D, 1.0D, "Change scoreboard title text opacity.");
+        public static final ConfigBoolean SCOREBOARD_DEFAULT_TEAM_CHAT = new ConfigBoolean("scoreboardDefaultTeamChat", false, "Send normal chat to your team; prefix # for public chat.");
         public static final ConfigOptionList BLOCK_ESP_COLOR_MODE = new ConfigOptionList("blockEspColorMode", BlockEspColorMode.RAINBOW, "Block ESP color mode.");
         public static final ConfigColor BLOCK_ESP_HEX_COLOR = new ConfigColor("blockEspHexColor", DEFAULT_BLOCK_ESP_HEX_COLOR, "Block ESP custom color. Used when the color mode is Single Color.");
         public static final ConfigOptionList BLOCK_ESP_RENDER_MODE = new ConfigOptionList("blockEspRenderMode", BlockEspRenderMode.FULL_BLOCK, "Block ESP render mode.");
@@ -162,6 +180,8 @@ public class Configs implements IConfigHandler
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
                 GOAL_PICKAXE_ANIMATION,
+                SHARE_GOAL_MILESTONES,
+                RECEIVE_GOAL_MILESTONES,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
@@ -228,6 +248,25 @@ public class Configs implements IConfigHandler
                 GRAPH_SCALE_STEP
         );
 
+        public static final ImmutableList<IConfigBase> SCOREBOARD_OPTIONS = ImmutableList.of(
+                SCOREBOARD_VISIBLE,
+                SCOREBOARD_SCORES_VISIBLE,
+                SCOREBOARD_SCORE_COMMAS,
+                SCOREBOARD_TAB_LIST_COMMAS,
+                TIER_NAME_TAGS,
+                SCOREBOARD_SCORE_ABBREVIATED,
+                SCOREBOARD_SORTING,
+                SCOREBOARD_MAX_ENTRIES,
+                SCOREBOARD_POSITION,
+                SCOREBOARD_Y_OFFSET,
+                SCOREBOARD_SCALE,
+                SCOREBOARD_BODY_OPACITY,
+                SCOREBOARD_TITLE_OPACITY,
+                SCOREBOARD_TEXT_OPACITY,
+                SCOREBOARD_TITLE_TEXT_OPACITY,
+                SCOREBOARD_DEFAULT_TEAM_CHAT
+        );
+
         public static final ImmutableList<IConfigBase> PERSISTED_OPTIONS = ImmutableList.of(
                 WEBSITE_SYNC_ENABLED,
                 TOTAL_DIGS_SYNC_ENABLED,
@@ -236,6 +275,8 @@ public class Configs implements IConfigHandler
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
                 GOAL_PICKAXE_ANIMATION,
+                SHARE_GOAL_MILESTONES,
+                RECEIVE_GOAL_MILESTONES,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
@@ -288,6 +329,22 @@ public class Configs implements IConfigHandler
                 NO_SWINGING_ANIMATION,
                 TRANSLUCENT_LAVA,
                 LAVA_OPACITY,
+                SCOREBOARD_VISIBLE,
+                SCOREBOARD_SCORES_VISIBLE,
+                SCOREBOARD_SCORE_COMMAS,
+                SCOREBOARD_TAB_LIST_COMMAS,
+                TIER_NAME_TAGS,
+                SCOREBOARD_SCORE_ABBREVIATED,
+                SCOREBOARD_SORTING,
+                SCOREBOARD_MAX_ENTRIES,
+                SCOREBOARD_POSITION,
+                SCOREBOARD_Y_OFFSET,
+                SCOREBOARD_SCALE,
+                SCOREBOARD_BODY_OPACITY,
+                SCOREBOARD_TITLE_OPACITY,
+                SCOREBOARD_TEXT_OPACITY,
+                SCOREBOARD_TITLE_TEXT_OPACITY,
+                SCOREBOARD_DEFAULT_TEAM_CHAT,
                 BLOCK_ESP_COLOR_MODE,
                 BLOCK_ESP_HEX_COLOR,
                 BLOCK_ESP_RENDER_MODE,
@@ -327,6 +384,7 @@ public class Configs implements IConfigHandler
     public static String cloudClientId = "";
     public static String websiteLinkedMinecraftUuid = "";
     public static String websiteLinkedMinecraftUsername = "";
+    public static String websiteSyncToken = "";
     public static long websiteLinkedAtMs = 0L;
     public static String websiteSyncTier = "free";
     public static long websiteSyncIntervalMs = DEFAULT_WEBSITE_SYNC_INTERVAL_MS;
@@ -415,6 +473,7 @@ public class Configs implements IConfigHandler
         }
         websiteLinkedMinecraftUuid = websiteLinkedMinecraftUuid == null ? "" : websiteLinkedMinecraftUuid.trim().toLowerCase();
         websiteLinkedMinecraftUsername = websiteLinkedMinecraftUsername == null ? "" : websiteLinkedMinecraftUsername.trim();
+        websiteSyncToken = websiteSyncToken == null ? "" : websiteSyncToken.trim();
         websiteLinkedAtMs = Math.max(0L, websiteLinkedAtMs);
         websiteSyncTier = normalizeWebsiteSyncTier(websiteSyncTier);
         websiteSyncIntervalMs = normalizeWebsiteSyncIntervalMs(websiteSyncIntervalMs);
@@ -675,6 +734,7 @@ public class Configs implements IConfigHandler
             cloudClientId = readString(state, "cloudClientId", cloudClientId, "config State");
             websiteLinkedMinecraftUuid = readString(state, "websiteLinkedMinecraftUuid", websiteLinkedMinecraftUuid, "config State");
             websiteLinkedMinecraftUsername = readString(state, "websiteLinkedMinecraftUsername", websiteLinkedMinecraftUsername, "config State");
+            websiteSyncToken = readString(state, "websiteSyncToken", websiteSyncToken, "config State");
             websiteLinkedAtMs = readLong(state, "websiteLinkedAtMs", websiteLinkedAtMs, "config State");
             websiteSyncTier = readString(state, "websiteSyncTier", websiteSyncTier, "config State");
             websiteSyncIntervalMs = readLong(state, "websiteSyncIntervalMs", websiteSyncIntervalMs, "config State");
@@ -928,6 +988,7 @@ public class Configs implements IConfigHandler
         state.addProperty("cloudClientId", cloudClientId == null ? "" : cloudClientId);
         state.addProperty("websiteLinkedMinecraftUuid", websiteLinkedMinecraftUuid == null ? "" : websiteLinkedMinecraftUuid);
         state.addProperty("websiteLinkedMinecraftUsername", websiteLinkedMinecraftUsername == null ? "" : websiteLinkedMinecraftUsername);
+        state.addProperty("websiteSyncToken", websiteSyncToken == null ? "" : websiteSyncToken);
         state.addProperty("websiteLinkedAtMs", websiteLinkedAtMs);
         state.addProperty("websiteSyncTier", normalizeWebsiteSyncTier(websiteSyncTier));
         state.addProperty("websiteSyncIntervalMs", normalizeWebsiteSyncIntervalMs(websiteSyncIntervalMs));
@@ -1380,6 +1441,88 @@ public class Configs implements IConfigHandler
             }
 
             return FAST;
+        }
+    }
+
+    public enum ScoreboardSorting implements IConfigOptionListEntry
+    {
+        SCORE_DESCENDING("score_descending", "Score: High to Low"),
+        SCORE_ASCENDING("score_ascending", "Score: Low to High"),
+        NAME_DESCENDING("name_descending", "Name: Z to A"),
+        NAME_ASCENDING("name_ascending", "Name: A to Z");
+
+        private final String value;
+        private final String displayName;
+
+        ScoreboardSorting(String value, String displayName)
+        {
+            this.value = value;
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String getStringValue() { return this.value; }
+
+        @Override
+        public String getDisplayName() { return this.displayName; }
+
+        @Override
+        public IConfigOptionListEntry cycle(boolean forward)
+        {
+            return values()[(this.ordinal() + (forward ? 1 : values().length - 1)) % values().length];
+        }
+
+        @Override
+        public IConfigOptionListEntry fromString(String value)
+        {
+            for (ScoreboardSorting sorting : values())
+            {
+                if (sorting.value.equalsIgnoreCase(value) || sorting.displayName.equalsIgnoreCase(value)) return sorting;
+            }
+            return SCORE_DESCENDING;
+        }
+    }
+
+    public enum ScoreboardPosition implements IConfigOptionListEntry
+    {
+        LEFT("left", "Left"),
+        LEFT_UPPER("left_upper", "Left Upper"),
+        LEFT_LOWER("left_lower", "Left Lower"),
+        RIGHT("right", "Right"),
+        RIGHT_UPPER("right_upper", "Right Upper"),
+        RIGHT_LOWER("right_lower", "Right Lower");
+
+        private final String value;
+        private final String displayName;
+
+        ScoreboardPosition(String value, String displayName)
+        {
+            this.value = value;
+            this.displayName = displayName;
+        }
+
+        public boolean isLeft() { return this == LEFT || this == LEFT_UPPER || this == LEFT_LOWER; }
+
+        @Override
+        public String getStringValue() { return this.value; }
+
+        @Override
+        public String getDisplayName() { return this.displayName; }
+
+        @Override
+        public IConfigOptionListEntry cycle(boolean forward)
+        {
+            return values()[(this.ordinal() + (forward ? 1 : values().length - 1)) % values().length];
+        }
+
+        @Override
+        public IConfigOptionListEntry fromString(String value)
+        {
+            for (ScoreboardPosition position : values())
+            {
+                if (position.value.equalsIgnoreCase(value) || position.displayName.equalsIgnoreCase(value)) return position;
+            }
+            return RIGHT;
         }
     }
 

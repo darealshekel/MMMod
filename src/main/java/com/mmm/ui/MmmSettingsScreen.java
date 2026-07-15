@@ -1038,6 +1038,8 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Decimal Places", "Choose 1, 2, or 3 decimal places.", Configs.Generic.GOAL_PERCENT_DECIMAL_PLACES, ControlKind.SLIDER),
                 new SettingRow("Goal Tracking", "Track today's goal.", FeatureToggle.TWEAK_DAILY_GOAL, ControlKind.BOOLEAN),
                 new SettingRow("Milestone Messages", "Post progress alerts in chat.", FeatureToggle.TWEAK_NOTIFICATIONS, ControlKind.BOOLEAN),
+                new SettingRow("Share Milestones", "Share progress with MMM players here.", Configs.Generic.SHARE_GOAL_MILESTONES, ControlKind.BOOLEAN),
+                new SettingRow("Receive Milestones", "Show progress from MMM players here.", Configs.Generic.RECEIVE_GOAL_MILESTONES, ControlKind.BOOLEAN),
                 new SettingRow("Sound Alerts", "Play milestone sounds.", FeatureToggle.TWEAK_SOUND_ALERTS, ControlKind.BOOLEAN),
                 new SettingRow("Custom Sounds", "Choose sounds for 25%, 50%, 75%, and 100%.", null, ControlKind.ACTION),
                 new SettingRow("Pickaxe Animation", "Show a pickaxe at each milestone.", Configs.Generic.GOAL_PICKAXE_ANIMATION, ControlKind.BOOLEAN)

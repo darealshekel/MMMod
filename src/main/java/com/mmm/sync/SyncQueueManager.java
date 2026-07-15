@@ -3,6 +3,7 @@ package com.mmm.sync;
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.HashMap;
 import java.util.Map;
 
 import com.google.gson.JsonObject;
@@ -208,9 +209,13 @@ public final class SyncQueueManager
                         item.type);
             }
 
-            Map<String, String> headers = Map.of(
-                    "x-mmm-sync-item-id", item.id,
-                    "x-mmm-sync-item-type", item.type.name());
+            Map<String, String> headers = new HashMap<>();
+            headers.put("x-mmm-sync-item-id", item.id);
+            headers.put("x-mmm-sync-item-type", item.type.name());
+            if (item.type != SyncItemType.WEBSITE_LINK_CLAIM && Configs.websiteSyncToken.isBlank() == false)
+            {
+                headers.put("x-mmm-client-sync-token", Configs.websiteSyncToken);
+            }
 
             MmmDebugLogger.info(
                     "syncqueue-request-" + item.type.name(),

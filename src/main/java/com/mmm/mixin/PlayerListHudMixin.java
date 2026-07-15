@@ -2,14 +2,19 @@ package com.mmm.mixin;
 
 import java.util.Locale;
 
+import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.tracker.MiningStats;
+import com.mmm.tags.TierTagManager;
 import com.mmm.util.UiFormat;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.PlayerListHud;
+import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardObjective;
+import net.minecraft.scoreboard.ReadableScoreboardScore;
+import net.minecraft.scoreboard.number.NumberFormat;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -19,7 +24,9 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(PlayerListHud.class)
 public abstract class PlayerListHudMixin
@@ -28,6 +35,32 @@ public abstract class PlayerListHudMixin
 
     @Unique private Text mmm$originalFooter;
     @Unique private boolean mmm$goalFooterAdded;
+
+    @Inject(method = "getPlayerName", at = @At("RETURN"), cancellable = true)
+    private void mmm$applyTierNameTag(PlayerListEntry entry, CallbackInfoReturnable<Text> cir)
+    {
+        MutableText decorated = TierTagManager.decorateName(entry.getProfile().getName(), cir.getReturnValue());
+        if (decorated != null)
+        {
+            cir.setReturnValue(decorated);
+        }
+    }
+
+    @Redirect(
+            method = "render",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/scoreboard/ReadableScoreboardScore;getFormattedScore(Lnet/minecraft/scoreboard/ReadableScoreboardScore;Lnet/minecraft/scoreboard/number/NumberFormat;)Lnet/minecraft/text/MutableText;"))
+    private MutableText mmm$formatTabListScore(ReadableScoreboardScore score, NumberFormat numberFormat)
+    {
+        MutableText vanilla = ReadableScoreboardScore.getFormattedScore(score, numberFormat);
+        if (!Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS.getBooleanValue()
+                || !vanilla.getString().equals(Integer.toString(score.getScore())))
+        {
+            return vanilla;
+        }
+        return Text.literal(String.format(Locale.US, "%,d", score.getScore())).setStyle(vanilla.getStyle());
+    }
 
     @Inject(method = "render", at = @At("HEAD"))
     private void mmm$addDailyGoalToPlayerList(DrawContext context, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)

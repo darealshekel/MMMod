@@ -2,12 +2,13 @@ package com.mmm.tracker;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.sound.GoalSoundLibrary;
+import com.mmm.social.MilestoneSocialRelay;
 import com.mmm.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
@@ -19,35 +20,6 @@ import net.minecraft.text.Text;
 
 public final class GoalNotificationManager
 {
-    private static final List<String> MESSAGES_25 = List.of(
-            "Great start - you are building solid momentum.",
-            "Good pace - keep mining and stay consistent.",
-            "Your goal is moving - keep the rhythm going.",
-            "Strong opening - settle in and keep digging.",
-            "Nice progress - keep this pace moving forward."
-    );
-    private static final List<String> MESSAGES_50 = List.of(
-            "Halfway there - keep your pace steady.",
-            "Half complete - stay focused and keep digging.",
-            "You are halfway in - keep the momentum going.",
-            "Good work - the second half starts now.",
-            "Halfway done - keep moving toward the finish."
-    );
-    private static final List<String> MESSAGES_75 = List.of(
-            "Three quarters done - finish the last stretch.",
-            "Almost there - keep your pace through the finish.",
-            "Final stretch - stay steady and bring it home.",
-            "Your goal is close - keep mining to the end.",
-            "Great progress - one last push will finish it."
-    );
-    private static final List<String> MESSAGES_100 = List.of(
-            "Daily goal complete - excellent work today.",
-            "Goal finished - your steady effort paid off.",
-            "Daily target reached - well done.",
-            "You completed the goal - strong work.",
-            "Goal complete - another solid mining day."
-    );
-
     private static final Set<Integer> TRIGGERED_THRESHOLDS = new HashSet<>();
     private static final List<Integer> PICKAXE_MILESTONES = List.of(25, 50, 75, 100);
     private static final Set<Integer> TRIGGERED_PICKAXE_MILESTONES = new HashSet<>();
@@ -85,6 +57,7 @@ public final class GoalNotificationManager
             if (!TRIGGERED_THRESHOLDS.contains(threshold) && oldPercent < threshold && newPercent >= threshold)
             {
                 TRIGGERED_THRESHOLDS.add(threshold);
+                MilestoneSocialRelay.publishMilestone(threshold, progress);
                 if (FeatureToggle.TWEAK_NOTIFICATIONS.getBooleanValue())
                 {
                     showThresholdAnnouncement(threshold, progress);
@@ -173,18 +146,26 @@ public final class GoalNotificationManager
         if (client.player != null)
         {
             int color = UiFormat.getGoalProgressColor(progress) & 0x00FFFFFF;
-            String message = "[MMM] " + threshold + "% reached. " + getRandomMessage(threshold);
+            String message = String.format(
+                    Locale.US,
+                    "[MMM] %s (%,d / %,d blocks).",
+                    getMilestoneMessage(threshold),
+                    progress.current(),
+                    progress.target()
+            );
             client.player.sendMessage(Text.literal(message).styled(style -> style.withColor(color)), false);
         }
     }
 
-    private static String getRandomMessage(int threshold)
+    private static String getMilestoneMessage(int threshold)
     {
-        List<String> pool = threshold >= 100 ? MESSAGES_100
-                : threshold >= 75 ? MESSAGES_75
-                : threshold >= 50 ? MESSAGES_50
-                : MESSAGES_25;
-        return pool.get(ThreadLocalRandom.current().nextInt(pool.size()));
+        return switch (threshold)
+        {
+            case 25 -> "Nice start - 25% done today";
+            case 50 -> "Halfway there - 50% done today";
+            case 75 -> "Almost there - 75% done today";
+            default -> "Daily goal complete - 100% done";
+        };
     }
 
 }
