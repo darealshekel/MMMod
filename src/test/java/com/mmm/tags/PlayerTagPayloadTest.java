@@ -19,7 +19,17 @@ class PlayerTagPayloadTest
         PlayerTagData tag = tags.get("5hekel");
         assertEquals(16_214_598L, tag.totalBlocks());
         assertEquals(0xFFB300, tag.colorRgb());
-        assertEquals("16,214,598", PlayerTagPayload.formatBlocks(tag.totalBlocks()));
+        assertEquals("16M", PlayerTagPayload.formatBlocks(tag.totalBlocks()));
+    }
+
+    @Test
+    void abbreviatesTagTotalsIndependentlyOfHudFormatting()
+    {
+        assertEquals("999", PlayerTagPayload.formatBlocks(999L));
+        assertEquals("1.2k", PlayerTagPayload.formatBlocks(1_200L));
+        assertEquals("16M", PlayerTagPayload.formatBlocks(16_214_598L));
+        assertEquals("2.5B", PlayerTagPayload.formatBlocks(2_500_000_000L));
+        assertEquals("1T", PlayerTagPayload.formatBlocks(1_000_000_000_000L));
     }
 
     @Test
