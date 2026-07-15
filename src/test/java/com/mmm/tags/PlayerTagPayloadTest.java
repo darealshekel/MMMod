@@ -2,6 +2,7 @@ package com.mmm.tags;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -35,14 +36,15 @@ class PlayerTagPayloadTest
     }
 
     @Test
-    void staleRefreshCannotReplaceAHigherCachedTotal()
+    void parsesTheExactTotalRenderedByThePlayerProfile()
     {
-        PlayerTagData current = new PlayerTagData("5hekel", 18_500_000L, 0x55FF55);
-        PlayerTagData stale = new PlayerTagData("5hekel", 13_000_000L, 0xFFFF55);
-        PlayerTagData newer = new PlayerTagData("5hekel", 18_700_000L, 0x55FF55);
+        PlayerTagData tag = PlayerTagPayload.parseProfile("""
+                {"name":"5hekel","blocksNum":18570880}
+                """, "5hekel");
 
-        assertEquals(current, TierTagManager.preferHigherTotal(current, stale));
-        assertEquals(newer, TierTagManager.preferHigherTotal(current, newer));
+        assertNotNull(tag);
+        assertEquals(18_570_880L, tag.totalBlocks());
+        assertEquals("18.6M", PlayerTagPayload.formatBlocks(tag.totalBlocks()));
     }
 
     @Test

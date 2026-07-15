@@ -24,8 +24,10 @@ import net.minecraft.text.Text;
 
 public final class TierTagManager
 {
-    private static final String LEADERBOARD_TAG_API = "https://www.mmmaniacs.com/api/leaderboard?friendsOnly=1&page=1&pageSize=100&friendNames=";
+    private static final String PLAYER_TAG_API = "https://www.mmmaniacs.com/api/mod-player-tags?names=";
+    private static final String PLAYER_PROFILE_API = "https://www.mmmaniacs.com/api/player-detail?slug=";
     private static final long REFRESH_INTERVAL_MS = 60_000L;
+    private static final long PROFILE_FALLBACK_REFRESH_INTERVAL_MS = 300_000L;
     private static final long RETRY_INTERVAL_MS = 15_000L;
     private static final int MAX_NAMES_PER_REQUEST = 80;
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
@@ -156,6 +158,7 @@ public final class TierTagManager
                 }
 
                 boolean anySuccess = false;
+                boolean usedProfileFallback = false;
                 for (CompletableFuture<BatchResult> request : requests)
                 {
                     BatchResult result = request.join();
@@ -164,13 +167,17 @@ public final class TierTagManager
                         continue;
                     }
                     anySuccess = true;
-                    result.tags().forEach((username, incoming) ->
-                            next.merge(username, incoming, TierTagManager::preferHigherTotal));
+                    usedProfileFallback |= result.profileFallback();
+                    result.tags().forEach(next::put);
                 }
 
                 if (anySuccess)
                 {
                     tags = Map.copyOf(next);
+                    if (usedProfileFallback)
+                    {
+                        nextRefreshAtMs = System.currentTimeMillis() + PROFILE_FALLBACK_REFRESH_INTERVAL_MS;
+                    }
                 }
                 else
                 {
@@ -187,17 +194,53 @@ public final class TierTagManager
     private static CompletableFuture<BatchResult> requestBatch(List<String> batch)
     {
         String encodedNames = URLEncoder.encode(String.join(",", batch), StandardCharsets.UTF_8);
-        HttpRequest request = buildRequest(LEADERBOARD_TAG_API + encodedNames);
+        HttpRequest request = buildRequest(PLAYER_TAG_API + encodedNames);
         return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .handle((response, throwable) -> {
-                    if (!isSuccessful(response, throwable) || !PlayerTagPayload.isLeaderboardPayload(response.body()))
+                    if (!isSuccessful(response, throwable) || !PlayerTagPayload.isTagPayload(response.body()))
                     {
                         logResult("failed", batch.size(), 0, response, throwable);
-                        return new BatchResult(Map.of(), false);
+                        return requestProfileBatch(batch);
                     }
-                    Map<String, PlayerTagData> loadedTags = PlayerTagPayload.parseLeaderboard(response.body());
-                    logResult("leaderboard", batch.size(), loadedTags.size(), response, null);
-                    return new BatchResult(loadedTags, true);
+                    Map<String, PlayerTagData> loadedTags = PlayerTagPayload.parse(response.body());
+                    logResult("profile-tags", batch.size(), loadedTags.size(), response, null);
+                    return CompletableFuture.completedFuture(new BatchResult(loadedTags, true, false));
+                })
+                .thenCompose(result -> result);
+    }
+
+    private static CompletableFuture<BatchResult> requestProfileBatch(List<String> batch)
+    {
+        List<CompletableFuture<Map.Entry<String, PlayerTagData>>> requests = batch.stream()
+                .map(TierTagManager::requestProfile)
+                .toList();
+        return CompletableFuture.allOf(requests.toArray(CompletableFuture[]::new))
+                .thenApply(ignored -> {
+                    Map<String, PlayerTagData> loadedTags = new LinkedHashMap<>();
+                    for (CompletableFuture<Map.Entry<String, PlayerTagData>> request : requests)
+                    {
+                        Map.Entry<String, PlayerTagData> entry = request.join();
+                        if (entry != null)
+                        {
+                            loadedTags.put(entry.getKey(), entry.getValue());
+                        }
+                    }
+                    logResult("profile-fallback", batch.size(), loadedTags.size(), null, null);
+                    return new BatchResult(loadedTags, !loadedTags.isEmpty(), true);
+                });
+    }
+
+    private static CompletableFuture<Map.Entry<String, PlayerTagData>> requestProfile(String username)
+    {
+        String encodedName = URLEncoder.encode(username, StandardCharsets.UTF_8);
+        return HTTP_CLIENT.sendAsync(buildRequest(PLAYER_PROFILE_API + encodedName), HttpResponse.BodyHandlers.ofString())
+                .handle((response, throwable) -> {
+                    if (!isSuccessful(response, throwable))
+                    {
+                        return null;
+                    }
+                    PlayerTagData tag = PlayerTagPayload.parseProfile(response.body(), username);
+                    return tag == null ? null : Map.entry(PlayerTagPayload.normalize(username), tag);
                 });
     }
 
@@ -215,11 +258,6 @@ public final class TierTagManager
     private static boolean isSuccessful(HttpResponse<String> response, Throwable throwable)
     {
         return throwable == null && response != null && response.statusCode() >= 200 && response.statusCode() < 300;
-    }
-
-    static PlayerTagData preferHigherTotal(PlayerTagData current, PlayerTagData incoming)
-    {
-        return incoming.totalBlocks() >= current.totalBlocks() ? incoming : current;
     }
 
     private static void logResult(String source, int requested, int matched, HttpResponse<String> response, Throwable throwable)
@@ -257,7 +295,7 @@ public final class TierTagManager
         nextRefreshAtMs = 0L;
     }
 
-    private record BatchResult(Map<String, PlayerTagData> tags, boolean success)
+    private record BatchResult(Map<String, PlayerTagData> tags, boolean success, boolean profileFallback)
     {
     }
 }
