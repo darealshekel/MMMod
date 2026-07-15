@@ -3,6 +3,7 @@ package com.mmm.tags;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mmm.util.UiFormat;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
@@ -47,6 +48,53 @@ public final class PlayerTagPayload
             return Map.of();
         }
         return Map.copyOf(tags);
+    }
+
+    public static Map<String, PlayerTagData> parseLeaderboard(String body)
+    {
+        Map<String, PlayerTagData> tags = new HashMap<>();
+        try
+        {
+            JsonObject root = JsonParser.parseString(body).getAsJsonObject();
+            if (!root.has("rows") || !root.get("rows").isJsonArray())
+            {
+                return Map.of();
+            }
+
+            for (JsonElement element : root.getAsJsonArray("rows"))
+            {
+                if (!element.isJsonObject())
+                {
+                    continue;
+                }
+                JsonObject object = element.getAsJsonObject();
+                String username = stringValue(object, "username").trim();
+                if (!isMinecraftUsername(username))
+                {
+                    continue;
+                }
+                long totalBlocks = Math.max(0L, object.has("blocksMined")
+                        ? longValue(object, "blocksMined")
+                        : longValue(object, "totalDigs"));
+                int color = UiFormat.getBlocksMinedMilestoneColor(totalBlocks) & 0x00FFFFFF;
+                tags.put(normalize(username), new PlayerTagData(username, totalBlocks, color));
+            }
+        }
+        catch (Exception ignored)
+        {
+            return Map.of();
+        }
+        return Map.copyOf(tags);
+    }
+
+    public static boolean isTagPayload(String body)
+    {
+        return hasArray(body, "tags");
+    }
+
+    public static boolean isLeaderboardPayload(String body)
+    {
+        return hasArray(body, "rows");
     }
 
     public static String findKnownUsername(String displayedText, Collection<String> usernames)
@@ -130,6 +178,19 @@ public final class PlayerTagPayload
     private static boolean isMinecraftUsername(String username)
     {
         return username != null && username.matches("[A-Za-z0-9_]{1,16}");
+    }
+
+    private static boolean hasArray(String body, String key)
+    {
+        try
+        {
+            JsonObject root = JsonParser.parseString(body).getAsJsonObject();
+            return root.has(key) && root.get(key).isJsonArray();
+        }
+        catch (Exception ignored)
+        {
+            return false;
+        }
     }
 
     private static int parseRgb(String value)
