@@ -7,6 +7,7 @@ import com.mmm.config.Configs;
 import com.mmm.gui.GuiConfigs;
 import com.mmm.hud.SessionHistoryScreen;
 import com.mmm.hud.SummaryScreen;
+import com.mmm.scoreboard.ScoreboardScreen;
 import com.mmm.tracker.MiningStats;
 
 import net.minecraft.client.MinecraftClient;
@@ -381,6 +382,7 @@ public final class MmmUi
             case WEBSITE_LINK -> client.setScreen(new WebsiteLinkScreen(routeParent));
             case HISTORY -> client.setScreen(new SessionHistoryScreen(routeParent));
             case SUMMARY -> client.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), routeParent));
+            case SCOREBOARD -> client.setScreen(new ScoreboardScreen(routeParent));
         }
     }
 
@@ -411,7 +413,8 @@ public final class MmmUi
         PROFILE("PROFILE", "Profile", "Profile"),
         WEBSITE_LINK("WEBSITE_LINK", "Website Link", "Link"),
         HISTORY("HISTORY", "History", "History"),
-        SUMMARY("SUMMARY", "Summary", "Summary");
+        SUMMARY("SUMMARY", "Summary", "Summary"),
+        SCOREBOARD("SCOREBOARD", "Scoreboard", "Scores");
 
         private final String id;
         private final String label;

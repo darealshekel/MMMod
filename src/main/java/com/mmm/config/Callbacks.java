@@ -10,6 +10,10 @@ import com.mmm.tweak.BlockEspRenderer;
 import com.mmm.tweak.PerimeterWallDigHelper;
 import com.mmm.tweak.TranslucentLavaRenderer;
 import com.mmm.ui.MmmSettingsScreen;
+import com.mmm.scoreboard.ScoreboardEditScreen;
+import com.mmm.scoreboard.ScoreboardRecordsScreen;
+import com.mmm.scoreboard.ScoreboardScreen;
+import com.mmm.scoreboard.ScoreboardService;
 
 import fi.dy.masa.malilib.config.IConfigBoolean;
 import fi.dy.masa.malilib.gui.GuiBase;
@@ -159,6 +163,62 @@ public final class Callbacks
                 {
                     InfoUtils.showGuiOrInGameMessage(fi.dy.masa.malilib.gui.Message.MessageType.ERROR, "Failed to export mining history");
                 }
+                return true;
+            }
+            if (key == Hotkeys.SCOREBOARD_PAGE_UP.getKeybind())
+            {
+                InfoUtils.printActionbarMessage(ScoreboardService.pageUp() ? "Previous scoreboard page" : "Already on the first scoreboard page");
+                return true;
+            }
+            if (key == Hotkeys.SCOREBOARD_PAGE_DOWN.getKeybind())
+            {
+                InfoUtils.printActionbarMessage(ScoreboardService.pageDown() ? "Next scoreboard page" : "Already on the last scoreboard page");
+                return true;
+            }
+            if (key == Hotkeys.TOGGLE_SCOREBOARD.getKeybind())
+            {
+                Configs.Generic.SCOREBOARD_VISIBLE.setBooleanValue(!Configs.Generic.SCOREBOARD_VISIBLE.getBooleanValue());
+                Configs.saveToFile();
+                InfoUtils.printActionbarMessage(Configs.Generic.SCOREBOARD_VISIBLE.getBooleanValue() ? "Scoreboard shown" : "Scoreboard hidden");
+                return true;
+            }
+            if (key == Hotkeys.OPEN_SCOREBOARD.getKeybind())
+            {
+                client.setScreen(new ScoreboardScreen(client.currentScreen));
+                return true;
+            }
+            if (key == Hotkeys.EXPORT_SCOREBOARD.getKeybind())
+            {
+                client.setScreen(new ScoreboardRecordsScreen(client.currentScreen));
+                return true;
+            }
+            if (key == Hotkeys.EDIT_SCOREBOARD.getKeybind())
+            {
+                ScoreboardService.getSidebarObjective(client).ifPresentOrElse(
+                        objective -> client.setScreen(new ScoreboardEditScreen(client.currentScreen, objective)),
+                        () -> InfoUtils.printActionbarMessage("No scoreboard is available to edit"));
+                return true;
+            }
+            if (key == Hotkeys.TOGGLE_SCORE_COMMAS.getKeybind())
+            {
+                Configs.Generic.SCOREBOARD_SCORE_COMMAS.setBooleanValue(!Configs.Generic.SCOREBOARD_SCORE_COMMAS.getBooleanValue());
+                Configs.saveToFile();
+                InfoUtils.printActionbarMessage(Configs.Generic.SCOREBOARD_SCORE_COMMAS.getBooleanValue() ? "Score commas enabled" : "Score commas disabled");
+                return true;
+            }
+            if (key == Hotkeys.TOGGLE_SCORE_ABBREVIATION.getKeybind())
+            {
+                Configs.Generic.SCOREBOARD_SCORE_ABBREVIATED.setBooleanValue(!Configs.Generic.SCOREBOARD_SCORE_ABBREVIATED.getBooleanValue());
+                Configs.saveToFile();
+                InfoUtils.printActionbarMessage(Configs.Generic.SCOREBOARD_SCORE_ABBREVIATED.getBooleanValue() ? "Short scores enabled" : "Short scores disabled");
+                return true;
+            }
+            if (key == Hotkeys.TOGGLE_NO_SWINGING_ANIMATION.getKeybind())
+            {
+                Configs.Generic.NO_SWINGING_ANIMATION.setBooleanValue(!Configs.Generic.NO_SWINGING_ANIMATION.getBooleanValue());
+                Configs.saveToFile();
+                InfoUtils.printActionbarMessage(Configs.Generic.NO_SWINGING_ANIMATION.getBooleanValue()
+                        ? "No Swing Animation enabled" : "No Swing Animation disabled");
                 return true;
             }
             return false;

@@ -1,6 +1,7 @@
 package com.mmm.timer;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
@@ -9,6 +10,9 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import com.mmm.config.Configs;
+import com.mmm.scoreboard.ScoreboardService;
+import com.mmm.scoreboard.ScoreboardState;
 
 public final class MmmClientCommands
 {
@@ -18,9 +22,45 @@ public final class MmmClientCommands
 
     public static void register()
     {
-        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> dispatcher.register(
-                ClientCommandManager.literal("mmm")
-                        .then(buildTimerCommand())));
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
+            dispatcher.register(ClientCommandManager.literal("mmm")
+                    .then(buildTimerCommand())
+                    .then(buildScoreboardCommand()));
+            dispatcher.register(ClientCommandManager.literal("sbhelper")
+                    .then(ClientCommandManager.literal("maxDisplayCount")
+                            .then(ClientCommandManager.argument("count", IntegerArgumentType.integer(0, 100))
+                                    .executes(context -> setScoreboardRows(context,
+                                            IntegerArgumentType.getInteger(context, "count"))))));
+        });
+    }
+
+    private static LiteralArgumentBuilder<FabricClientCommandSource> buildScoreboardCommand()
+    {
+        return ClientCommandManager.literal("scoreboard")
+                .then(ClientCommandManager.literal("max")
+                        .then(ClientCommandManager.argument("count", IntegerArgumentType.integer(0, 100))
+                                .executes(context -> setScoreboardRows(context, IntegerArgumentType.getInteger(context, "count")))))
+                .then(ClientCommandManager.literal("pageUp")
+                        .executes(context -> {
+                            feedback(context, Formatting.YELLOW,
+                                    ScoreboardService.pageUp() ? "Showing the previous scoreboard page." : "Already on the first page.");
+                            return 1;
+                        }))
+                .then(ClientCommandManager.literal("pageDown")
+                        .executes(context -> {
+                            feedback(context, Formatting.YELLOW,
+                                    ScoreboardService.pageDown() ? "Showing the next scoreboard page." : "Already on the last page.");
+                            return 1;
+                        }));
+    }
+
+    private static int setScoreboardRows(CommandContext<FabricClientCommandSource> context, int count)
+    {
+        Configs.Generic.SCOREBOARD_MAX_ENTRIES.setIntegerValue(count);
+        ScoreboardState.resetPage();
+        Configs.saveToFile();
+        feedback(context, Formatting.GREEN, "Scoreboard rows per page set to " + count + ".");
+        return count;
     }
 
     private static LiteralArgumentBuilder<FabricClientCommandSource> buildTimerCommand()
