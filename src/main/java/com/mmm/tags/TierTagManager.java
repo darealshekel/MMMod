@@ -24,6 +24,7 @@ import net.minecraft.text.Text;
 public final class TierTagManager
 {
     private static final String TAG_API = "https://www.mmmaniacs.com/api/mod-player-tags?names=";
+    private static final String LEADERBOARD_FALLBACK_API = "https://www.mmmaniacs.com/api/leaderboard?friendsOnly=1&page=1&pageSize=100&friendNames=";
     private static final long REFRESH_INTERVAL_MS = 60_000L;
     private static final long RETRY_INTERVAL_MS = 15_000L;
     private static final int MAX_NAMES_PER_REQUEST = 80;
@@ -133,22 +134,7 @@ public final class TierTagManager
         for (int start = 0; start < names.size(); start += MAX_NAMES_PER_REQUEST)
         {
             List<String> batch = List.copyOf(names.subList(start, Math.min(names.size(), start + MAX_NAMES_PER_REQUEST)));
-            String encodedNames = URLEncoder.encode(String.join(",", batch), StandardCharsets.UTF_8);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(TAG_API + encodedNames))
-                    .timeout(Duration.ofSeconds(10L))
-                    .header("Accept", "application/json")
-                    .header("User-Agent", "MMMod/" + Reference.MOD_VERSION)
-                    .GET()
-                    .build();
-            requests.add(HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                    .handle((response, throwable) -> {
-                        if (throwable != null || response == null || response.statusCode() < 200 || response.statusCode() >= 300)
-                        {
-                            return new BatchResult(batch, Map.of(), false);
-                        }
-                        return new BatchResult(batch, PlayerTagPayload.parse(response.body()), true);
-                    }));
+            requests.add(requestBatch(batch));
         }
 
         CompletableFuture.allOf(requests.toArray(CompletableFuture[]::new)).whenComplete((ignored, throwable) -> {
@@ -200,6 +186,51 @@ public final class TierTagManager
                 REFRESH_IN_FLIGHT.set(false);
             }
         });
+    }
+
+    private static CompletableFuture<BatchResult> requestBatch(List<String> batch)
+    {
+        String encodedNames = URLEncoder.encode(String.join(",", batch), StandardCharsets.UTF_8);
+        HttpRequest request = buildRequest(TAG_API + encodedNames);
+        return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .handle((response, throwable) -> {
+                    if (isSuccessful(response, throwable) && PlayerTagPayload.isTagPayload(response.body()))
+                    {
+                        return CompletableFuture.completedFuture(
+                                new BatchResult(batch, PlayerTagPayload.parse(response.body()), true));
+                    }
+                    return requestLeaderboardFallback(batch, encodedNames);
+                })
+                .thenCompose(result -> result);
+    }
+
+    private static CompletableFuture<BatchResult> requestLeaderboardFallback(List<String> batch, String encodedNames)
+    {
+        HttpRequest request = buildRequest(LEADERBOARD_FALLBACK_API + encodedNames);
+        return HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .handle((response, throwable) -> {
+                    if (!isSuccessful(response, throwable) || !PlayerTagPayload.isLeaderboardPayload(response.body()))
+                    {
+                        return new BatchResult(batch, Map.of(), false);
+                    }
+                    return new BatchResult(batch, PlayerTagPayload.parseLeaderboard(response.body()), true);
+                });
+    }
+
+    private static HttpRequest buildRequest(String url)
+    {
+        return HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofSeconds(12L))
+                .header("Accept", "application/json")
+                .header("User-Agent", "MMMod/" + Reference.MOD_VERSION)
+                .GET()
+                .build();
+    }
+
+    private static boolean isSuccessful(HttpResponse<String> response, Throwable throwable)
+    {
+        return throwable == null && response != null && response.statusCode() >= 200 && response.statusCode() < 300;
     }
 
     private static void clear()
