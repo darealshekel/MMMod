@@ -66,15 +66,13 @@ public final class TierTagManager
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .forEach(name -> currentNames.putIfAbsent(PlayerTagPayload.normalize(name), name));
 
-        onlineNames = Map.copyOf(currentNames);
         String signature = String.join(",", currentNames.keySet());
-        observedSignature = signature;
         if (signature.isBlank())
         {
-            tags = Map.of();
-            requestedSignature = "";
             return;
         }
+        onlineNames = Map.copyOf(currentNames);
+        observedSignature = signature;
         if (!Configs.Generic.TIER_NAME_TAGS.getBooleanValue())
         {
             return;
@@ -166,11 +164,8 @@ public final class TierTagManager
                         continue;
                     }
                     anySuccess = true;
-                    for (String name : result.names())
-                    {
-                        next.remove(PlayerTagPayload.normalize(name));
-                    }
-                    next.putAll(result.tags());
+                    result.tags().forEach((username, incoming) ->
+                            next.merge(username, incoming, TierTagManager::preferHigherTotal));
                 }
 
                 if (anySuccess)
@@ -198,11 +193,11 @@ public final class TierTagManager
                     if (!isSuccessful(response, throwable) || !PlayerTagPayload.isLeaderboardPayload(response.body()))
                     {
                         logResult("failed", batch.size(), 0, response, throwable);
-                        return new BatchResult(batch, Map.of(), false);
+                        return new BatchResult(Map.of(), false);
                     }
                     Map<String, PlayerTagData> loadedTags = PlayerTagPayload.parseLeaderboard(response.body());
                     logResult("leaderboard", batch.size(), loadedTags.size(), response, null);
-                    return new BatchResult(batch, loadedTags, true);
+                    return new BatchResult(loadedTags, true);
                 });
     }
 
@@ -220,6 +215,11 @@ public final class TierTagManager
     private static boolean isSuccessful(HttpResponse<String> response, Throwable throwable)
     {
         return throwable == null && response != null && response.statusCode() >= 200 && response.statusCode() < 300;
+    }
+
+    static PlayerTagData preferHigherTotal(PlayerTagData current, PlayerTagData incoming)
+    {
+        return incoming.totalBlocks() >= current.totalBlocks() ? incoming : current;
     }
 
     private static void logResult(String source, int requested, int matched, HttpResponse<String> response, Throwable throwable)
@@ -257,7 +257,7 @@ public final class TierTagManager
         nextRefreshAtMs = 0L;
     }
 
-    private record BatchResult(List<String> names, Map<String, PlayerTagData> tags, boolean success)
+    private record BatchResult(Map<String, PlayerTagData> tags, boolean success)
     {
     }
 }

@@ -35,6 +35,17 @@ class PlayerTagPayloadTest
     }
 
     @Test
+    void staleRefreshCannotReplaceAHigherCachedTotal()
+    {
+        PlayerTagData current = new PlayerTagData("5hekel", 18_500_000L, 0x55FF55);
+        PlayerTagData stale = new PlayerTagData("5hekel", 13_000_000L, 0xFFFF55);
+        PlayerTagData newer = new PlayerTagData("5hekel", 18_700_000L, 0x55FF55);
+
+        assertEquals(current, TierTagManager.preferHigherTotal(current, stale));
+        assertEquals(newer, TierTagManager.preferHigherTotal(current, newer));
+    }
+
+    @Test
     void parsesCanonicalLeaderboardFallbackPayload()
     {
         Map<String, PlayerTagData> tags = PlayerTagPayload.parseLeaderboard("""
