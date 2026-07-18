@@ -915,6 +915,7 @@ public final class CloudSyncManager
         totals.addProperty("world_key", worldStats.worldId);
         totals.addProperty("display_name", worldStats.displayName);
         totals.addProperty("kind", normaliseWorldKind(worldStats.kind));
+        totals.addProperty("source_type", worldInfo.sourceType());
         totals.addProperty("host", (String) null);
         totals.addProperty("total_blocks", worldStats.totalBlocks);
         totals.addProperty("last_seen_at", toIso(Math.max(worldStats.lastSeenAt, System.currentTimeMillis())));
@@ -1048,6 +1049,7 @@ public final class CloudSyncManager
         world.addProperty("key", worldInfo.id());
         world.addProperty("display_name", worldInfo.displayName());
         world.addProperty("kind", normaliseWorldKind(worldInfo.kind()));
+        world.addProperty("source_type", worldInfo.sourceType());
         world.addProperty("host", (String) null);
         world.addProperty("source_key", ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo));
         world.addProperty("source_name", ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo));
@@ -1067,7 +1069,9 @@ public final class CloudSyncManager
         JsonObject world = new JsonObject();
         world.addProperty("key", resolvedWorldId);
         world.addProperty("display_name", resolvedDisplayName);
-        world.addProperty("kind", normaliseWorldKind(worldStats == null ? "unknown" : worldStats.kind));
+        String kind = normaliseWorldKind(worldStats == null ? "unknown" : worldStats.kind);
+        world.addProperty("kind", kind);
+        world.addProperty("source_type", "singleplayer".equals(kind) ? "ssp" : "server");
         world.addProperty("host", (String) null);
         world.addProperty("source_key", resolvedWorldId);
         world.addProperty("source_name", resolvedDisplayName);

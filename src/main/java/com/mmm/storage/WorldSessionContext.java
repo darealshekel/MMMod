@@ -12,6 +12,7 @@ public final class WorldSessionContext
     private static String currentWorldId = "default";
     private static String currentWorldName = "Unknown";
     private static String currentWorldKind = "unknown";
+    private static String currentWorldSourceType = "server";
     private static String currentWorldHost = "";
     private static String lastDebugFingerprint = "";
 
@@ -26,6 +27,7 @@ public final class WorldSessionContext
         currentWorldId = info.id();
         currentWorldName = info.displayName();
         currentWorldKind = info.kind();
+        currentWorldSourceType = info.sourceType();
         currentWorldHost = info.host();
     }
 
@@ -44,17 +46,17 @@ public final class WorldSessionContext
             // World ID stays IP-based for stable local stat tracking.
             // Display name is always the player's custom server-list name — never the raw IP.
             String resolvedId = sanitise(host);
-            return new WorldInfo(resolvedId, displayName.trim(), "multiplayer", host);
+            return new WorldInfo(resolvedId, displayName.trim(), "multiplayer", host, "server");
         }
 
         if (client.getServer() != null)
         {
             String levelName = client.getServer().getSaveProperties().getLevelName();
             String worldKey = resolveSingleplayerWorldKey(client, levelName);
-            return new WorldInfo(worldKey, levelName, "singleplayer", "");
+            return new WorldInfo(worldKey, levelName, "singleplayer", "", resolveSingleplayerSourceType(client));
         }
 
-        return new WorldInfo(currentWorldId, currentWorldName, currentWorldKind, currentWorldHost);
+        return new WorldInfo(currentWorldId, currentWorldName, currentWorldKind, currentWorldHost, currentWorldSourceType);
     }
 
     public static String getCurrentWorldId()
@@ -69,7 +71,22 @@ public final class WorldSessionContext
 
     public static WorldInfo getCurrentWorldInfo()
     {
-        return new WorldInfo(currentWorldId, currentWorldName, currentWorldKind, currentWorldHost);
+        return new WorldInfo(currentWorldId, currentWorldName, currentWorldKind, currentWorldHost, currentWorldSourceType);
+    }
+
+    private static String resolveSingleplayerSourceType(MinecraftClient client)
+    {
+        try
+        {
+            return client.getServer() != null && client.getServer().getSaveProperties().isHardcore()
+                    ? "hsp"
+                    : "ssp";
+        }
+        catch (RuntimeException exception)
+        {
+            MMM.LOGGER.debug("[MMM] Could not read hardcore world state: {}", exception.getMessage());
+            return "ssp";
+        }
     }
 
     private static String sanitise(String value)
@@ -128,5 +145,16 @@ public final class WorldSessionContext
         return sanitise(levelName);
     }
 
-    public record WorldInfo(String id, String displayName, String kind, String host) {}
+    public record WorldInfo(String id, String displayName, String kind, String host, String sourceType)
+    {
+        public WorldInfo(String id, String displayName, String kind, String host)
+        {
+            this(id, displayName, kind, host, sourceTypeForKind(kind));
+        }
+
+        private static String sourceTypeForKind(String kind)
+        {
+            return "singleplayer".equals(kind) ? "ssp" : "server";
+        }
+    }
 }
