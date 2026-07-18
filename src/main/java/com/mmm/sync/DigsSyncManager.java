@@ -261,6 +261,7 @@ public final class DigsSyncManager
         world.addProperty("key", worldInfo.id());
         world.addProperty("display_name", worldInfo.displayName());
         world.addProperty("kind", normaliseWorldKind(worldInfo.kind()));
+        world.addProperty("source_type", worldInfo.sourceType());
         world.addProperty("host", (String) null);
         world.addProperty("source_key", ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo));
         world.addProperty("source_name", ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo));
@@ -432,6 +433,7 @@ public final class DigsSyncManager
         totals.addProperty("world_key", worldStats.worldId);
         totals.addProperty("display_name", worldStats.displayName);
         totals.addProperty("kind", normaliseWorldKind(worldStats.kind));
+        totals.addProperty("source_type", worldInfo.sourceType());
         totals.addProperty("host", (String) null);
         totals.addProperty("total_blocks", Math.max(Math.max(0L, authoritativeTotal), Math.max(0L, worldStats.totalBlocks)));
         totals.addProperty("total_origin", MiningStats.getCurrentSourcePendingLocalBlocks() > 0L
