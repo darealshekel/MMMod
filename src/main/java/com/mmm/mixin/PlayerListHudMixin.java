@@ -53,6 +53,11 @@ public abstract class PlayerListHudMixin
                     target = "Lnet/minecraft/scoreboard/ReadableScoreboardScore;getFormattedScore(Lnet/minecraft/scoreboard/ReadableScoreboardScore;Lnet/minecraft/scoreboard/number/NumberFormat;)Lnet/minecraft/text/MutableText;"))
     private MutableText mmm$formatTabListScore(ReadableScoreboardScore score, NumberFormat numberFormat)
     {
+        if (score == null)
+        {
+            return Text.empty();
+        }
+
         MutableText vanilla = ReadableScoreboardScore.getFormattedScore(score, numberFormat);
         if (!Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS.getBooleanValue()
                 || !vanilla.getString().equals(Integer.toString(score.getScore())))
