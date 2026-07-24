@@ -54,6 +54,7 @@ public final class SessionHistory
 
     public static synchronized void save(SessionData session)
     {
+        repairInflatedSession(session);
         if (isQualifyingSession(session) == false)
         {
             return;
@@ -117,6 +118,16 @@ public final class SessionHistory
     public static synchronized List<SessionData> getHistory()
     {
         return List.copyOf(HISTORY);
+    }
+
+    private static void repairInflatedSession(SessionData session)
+    {
+        if (session != null && session.repairInflatedTotalFromBreakdown())
+        {
+            MMM.LOGGER.warn(
+                    "[MMM] Repaired an inflated saved session total from its block breakdown: {} blocks",
+                    session.totalBlocks);
+        }
     }
 
     public static boolean isQualifyingSession(SessionData session)
@@ -250,6 +261,7 @@ public final class SessionHistory
                 continue;
             }
             SessionData session = SessionData.deserialise(line);
+            repairInflatedSession(session);
             if (isQualifyingSession(session))
             {
                 sessions.add(session);
