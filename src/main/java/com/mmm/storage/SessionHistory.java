@@ -1,8 +1,8 @@
 package com.mmm.storage;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,7 +37,7 @@ public final class SessionHistory
     {
     }
 
-    public static void loadForWorld(String worldId)
+    public static synchronized void loadForWorld(String worldId)
     {
         currentWorldId = normalizeWorldId(worldId);
         migrateLegacySessionsIfNeeded();
@@ -52,7 +52,7 @@ public final class SessionHistory
         }
     }
 
-    public static void save(SessionData session)
+    public static synchronized void save(SessionData session)
     {
         if (isQualifyingSession(session) == false)
         {
@@ -60,18 +60,21 @@ public final class SessionHistory
         }
 
         migrateLegacySessionsIfNeeded();
-        HISTORY.add(session);
-        updateBest(session);
-
         Path saveFile = getSaveFile();
         try
         {
-            Files.createDirectories(saveFile.getParent());
-            try (BufferedWriter writer = Files.newBufferedWriter(saveFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND))
-            {
-                writer.write(session.serialise());
-                writer.newLine();
-            }
+            List<SessionData> persisted = withSessionFileLock(saveFile, () -> {
+                List<SessionData> current = loadSessions(saveFile);
+                current.removeIf(existing -> existing.startTimeMs == session.startTimeMs);
+                current.add(session);
+                current.sort(Comparator.comparingLong(value -> value.startTimeMs));
+                writeSessions(saveFile, current);
+                return List.copyOf(current);
+            });
+
+            HISTORY.clear();
+            HISTORY.addAll(persisted);
+            best = findBest(HISTORY);
         }
         catch (IOException e)
         {
@@ -79,7 +82,7 @@ public final class SessionHistory
         }
     }
 
-    public static String exportStats()
+    public static synchronized String exportStats()
     {
         StringBuilder builder = new StringBuilder();
         builder.append("=== MMM Stats Export ===\n");
@@ -103,7 +106,7 @@ public final class SessionHistory
         return builder.toString();
     }
 
-    public static Path exportToFile() throws IOException
+    public static synchronized Path exportToFile() throws IOException
     {
         Path exportPath = getWorldDir().resolve("mmm-export.txt");
         Files.createDirectories(exportPath.getParent());
@@ -111,9 +114,9 @@ public final class SessionHistory
         return exportPath;
     }
 
-    public static List<SessionData> getHistory()
+    public static synchronized List<SessionData> getHistory()
     {
-        return HISTORY;
+        return List.copyOf(HISTORY);
     }
 
     public static boolean isQualifyingSession(SessionData session)
@@ -123,7 +126,7 @@ public final class SessionHistory
                 && session.totalBlocks >= MIN_SESSION_BLOCKS;
     }
 
-    public static List<WorldHistory> getWorldHistories()
+    public static synchronized List<WorldHistory> getWorldHistories()
     {
         migrateLegacySessionsIfNeeded();
         List<String> worldIds = new ArrayList<>();
@@ -168,12 +171,12 @@ public final class SessionHistory
         return histories;
     }
 
-    public static SessionData getBestSession()
+    public static synchronized SessionData getBestSession()
     {
         return best;
     }
 
-    public static String getCurrentWorldId()
+    public static synchronized String getCurrentWorldId()
     {
         return currentWorldId;
     }
@@ -201,34 +204,115 @@ public final class SessionHistory
 
     private static List<SessionData> loadSessions(Path saveFile)
     {
-        List<SessionData> sessions = new ArrayList<>();
-        if (Files.exists(saveFile) == false)
+        if (Files.exists(saveFile) == false && Files.exists(AtomicTextStorage.backupPath(saveFile)) == false)
         {
-            return sessions;
+            return new ArrayList<>();
         }
 
-        try (BufferedReader reader = Files.newBufferedReader(saveFile))
+        try
         {
-            String line;
-            while ((line = reader.readLine()) != null)
+            AtomicTextStorage.ReadResult result = AtomicTextStorage.readWithBackup(
+                    saveFile,
+                    SessionHistory::isValidSessionFile);
+            if (result.value() == null)
             {
-                line = line.trim();
-                if (line.isEmpty() || line.startsWith("#"))
-                {
-                    continue;
-                }
-                SessionData session = SessionData.deserialise(line);
-                if (isQualifyingSession(session))
-                {
-                    sessions.add(session);
-                }
+                return new ArrayList<>();
             }
+
+            List<SessionData> sessions = parseSessions(result.value());
+            if (result.recoveredFromBackup())
+            {
+                MMM.LOGGER.warn("[MMM] Recovered session history from backup: {}", saveFile);
+                writeSessions(saveFile, sessions);
+            }
+            return sessions;
         }
         catch (IOException e)
         {
             MMM.LOGGER.warn("[MMM] Failed to load session history from {}: {}", saveFile, e.getMessage());
+            return salvageSessions(saveFile);
+        }
+    }
+
+    private static List<SessionData> parseSessions(String contents)
+    {
+        List<SessionData> sessions = new ArrayList<>();
+        if (contents == null || contents.isBlank())
+        {
+            return sessions;
+        }
+
+        for (String rawLine : contents.lines().toList())
+        {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isEmpty() || line.startsWith("#"))
+            {
+                continue;
+            }
+            SessionData session = SessionData.deserialise(line);
+            if (isQualifyingSession(session))
+            {
+                sessions.add(session);
+            }
         }
         return sessions;
+    }
+
+    private static List<SessionData> salvageSessions(Path saveFile)
+    {
+        if (Files.isRegularFile(saveFile) == false)
+        {
+            return new ArrayList<>();
+        }
+        try
+        {
+            List<SessionData> sessions = parseSessions(Files.readString(saveFile));
+            if (sessions.isEmpty() == false)
+            {
+                MMM.LOGGER.warn("[MMM] Salvaged {} valid session record(s) from damaged history {}.", sessions.size(), saveFile);
+            }
+            return sessions;
+        }
+        catch (IOException ignored)
+        {
+            return new ArrayList<>();
+        }
+    }
+
+    private static boolean isValidSessionFile(String contents)
+    {
+        if (contents == null || contents.isBlank())
+        {
+            return false;
+        }
+        boolean foundSession = false;
+        for (String rawLine : contents.lines().toList())
+        {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isEmpty() || line.startsWith("#"))
+            {
+                continue;
+            }
+            if (SessionData.deserialise(line) == null)
+            {
+                return false;
+            }
+            foundSession = true;
+        }
+        return foundSession;
+    }
+
+    private static void writeSessions(Path saveFile, List<SessionData> sessions) throws IOException
+    {
+        StringBuilder contents = new StringBuilder();
+        for (SessionData session : sessions)
+        {
+            if (isQualifyingSession(session))
+            {
+                contents.append(session.serialise()).append(System.lineSeparator());
+            }
+        }
+        AtomicTextStorage.write(saveFile, contents.toString(), true, SessionHistory::isValidSessionFile);
     }
 
     private static String resolveDisplayName(String worldId)
@@ -472,27 +556,31 @@ public final class SessionHistory
 
         try
         {
-            Files.createDirectories(sharedFile.getParent());
-            Set<String> existing = new HashSet<>();
-            if (Files.exists(sharedFile))
-            {
-                existing.addAll(Files.readAllLines(sharedFile));
-            }
-
-            try (BufferedWriter writer = Files.newBufferedWriter(sharedFile, StandardOpenOption.CREATE, StandardOpenOption.APPEND))
-            {
-                for (String line : Files.readAllLines(legacyFile))
+            withSessionFileLock(sharedFile, () -> {
+                List<SessionData> merged = loadSessions(sharedFile);
+                Set<Long> existingStartTimes = new HashSet<>();
+                for (SessionData session : merged)
                 {
-                    String trimmed = line == null ? "" : line.trim();
-                    if (trimmed.isEmpty() || existing.contains(trimmed))
-                    {
-                        continue;
-                    }
-                    writer.write(trimmed);
-                    writer.newLine();
-                    existing.add(trimmed);
+                    existingStartTimes.add(session.startTimeMs);
                 }
-            }
+
+                boolean changed = false;
+                for (SessionData session : parseSessions(Files.readString(legacyFile)))
+                {
+                    if (existingStartTimes.add(session.startTimeMs))
+                    {
+                        merged.add(session);
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    merged.sort(Comparator.comparingLong(value -> value.startTimeMs));
+                    writeSessions(sharedFile, merged);
+                }
+                return null;
+            });
         }
         catch (IOException e)
         {
@@ -500,5 +588,25 @@ public final class SessionHistory
         }
     }
 
+    private static <T> T withSessionFileLock(Path saveFile, IoSupplier<T> action) throws IOException
+    {
+        Path lockFile = saveFile.resolveSibling(saveFile.getFileName() + ".lock");
+        Files.createDirectories(saveFile.getParent());
+        try (FileChannel channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+             FileLock sessionLock = channel.lock())
+        {
+            if (sessionLock.isValid() == false)
+            {
+                throw new IOException("Could not acquire the session history lock.");
+            }
+            return action.get();
+        }
+    }
+
+    @FunctionalInterface
+    private interface IoSupplier<T>
+    {
+        T get() throws IOException;
+    }
     public record WorldHistory(String worldId, String displayName, List<SessionData> sessions, SessionData bestSession) {}
 }

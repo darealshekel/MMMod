@@ -1,4 +1,4 @@
-package com.mmm.tweak;
+package com.mmm.feature;
 
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
@@ -70,7 +70,7 @@ public final class BlockEspRenderer
 
     public static boolean shouldReplaceVanillaOutline(MinecraftClient client)
     {
-        return FeatureToggle.TWEAK_BLOCK_ESP.getBooleanValue()
+        return FeatureToggle.MMM_BLOCK_ESP.getBooleanValue()
                 && Configs.getBlockEspOpacity() > 0.0F
                 && getTargetBlock(client) != null;
     }

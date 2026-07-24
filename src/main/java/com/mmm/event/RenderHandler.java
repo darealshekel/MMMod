@@ -5,7 +5,7 @@ import com.mmm.hud.MiningHudRenderer;
 import com.mmm.hud.SpeedGraphRenderer;
 import com.mmm.timer.TimerHudRenderer;
 import com.mmm.tracker.MiningSpeedTracker;
-import com.mmm.tweak.BlockEspRenderer;
+import com.mmm.feature.BlockEspRenderer;
 
 import fi.dy.masa.malilib.interfaces.IRenderer;
 import net.minecraft.client.MinecraftClient;
@@ -21,11 +21,11 @@ public class RenderHandler implements IRenderer
     public void onRenderGameOverlayPost(DrawContext drawContext)
     {
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue())
+        if (FeatureToggle.MMM_MINING_TRACKER.getBooleanValue())
         {
             MiningHudRenderer.render(drawContext, mc);
             TimerHudRenderer.render(drawContext, mc);
-            if (SPEED_GRAPH_AVAILABLE && FeatureToggle.TWEAK_HUD_SPEED_GRAPH.getBooleanValue() && MiningSpeedTracker.hasSessionData())
+            if (SPEED_GRAPH_AVAILABLE && FeatureToggle.MMM_HUD_SPEED_GRAPH.getBooleanValue() && MiningSpeedTracker.hasSessionData())
             {
                 SpeedGraphRenderer.render(drawContext, mc);
             }
@@ -40,7 +40,7 @@ public class RenderHandler implements IRenderer
     @Override
     public void onRenderWorldLast(Matrix4f posMatrix, Matrix4f projMatrix)
     {
-        if (FeatureToggle.TWEAK_BLOCK_ESP.getBooleanValue())
+        if (FeatureToggle.MMM_BLOCK_ESP.getBooleanValue())
         {
             BlockEspRenderer.render(MinecraftClient.getInstance(), posMatrix, projMatrix);
         }

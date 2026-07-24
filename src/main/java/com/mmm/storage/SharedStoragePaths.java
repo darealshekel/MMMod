@@ -9,7 +9,7 @@ import java.util.Set;
 
 import com.mmm.Reference;
 
-import fi.dy.masa.malilib.util.FileUtils;
+import net.fabricmc.loader.api.FabricLoader;
 
 public final class SharedStoragePaths
 {
@@ -34,7 +34,7 @@ public final class SharedStoragePaths
             return Paths.get(userHome).resolve(UNIX_HOME_DIR);
         }
 
-        return Paths.get(FileUtils.getConfigDirectory().getAbsolutePath()).resolve(Reference.STORAGE_ID);
+        return FabricLoader.getInstance().getConfigDir().resolve(Reference.STORAGE_ID);
     }
 
     public static Path sessionsDir()
@@ -65,7 +65,7 @@ public final class SharedStoragePaths
     public static Set<Path> legacyConfigDirs()
     {
         Set<Path> dirs = new LinkedHashSet<>();
-        Path currentConfigDir = FileUtils.getConfigDirectory().toPath().toAbsolutePath().normalize();
+        Path currentConfigDir = FabricLoader.getInstance().getConfigDir().toAbsolutePath().normalize();
         addIfDirectory(dirs, currentConfigDir);
         addSiblingInstanceConfigDirs(dirs, currentConfigDir);
 

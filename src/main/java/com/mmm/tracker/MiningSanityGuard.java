@@ -3,7 +3,7 @@ package com.mmm.tracker;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
 import java.util.ArrayDeque;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import net.minecraft.util.math.BlockPos;
@@ -13,7 +13,8 @@ public final class MiningSanityGuard
     private static final long RATE_WINDOW_MS = 60_000L;
     private static final long RATE_LIMIT_LOG_INTERVAL_MS = 30_000L;
     private static final int MAX_ACCEPTED_BREAKS_PER_COORDINATE = 3;
-    private static final Map<BlockCoordinate, Integer> COUNTED_BLOCK_COORDINATES = new HashMap<>();
+    private static final int MAX_TRACKED_COORDINATES = 250_000;
+    private static final Map<BlockCoordinate, Integer> COUNTED_BLOCK_COORDINATES = new LinkedHashMap<>();
     private static final ArrayDeque<Long> ACCEPTED_BLOCK_TIMES = new ArrayDeque<>();
 
     private static String countedCoordinateWorldId = "";
@@ -53,6 +54,7 @@ public final class MiningSanityGuard
                 return false;
             }
             COUNTED_BLOCK_COORDINATES.put(coordinate, previousBreaks + 1);
+            trimOldCoordinates();
         }
 
         pruneOldAcceptedBlocks(now);
@@ -77,6 +79,15 @@ public final class MiningSanityGuard
     public static long getMinuteCapRejects()
     {
         return minuteCapRejects;
+    }
+
+    private static void trimOldCoordinates()
+    {
+        while (COUNTED_BLOCK_COORDINATES.size() > MAX_TRACKED_COORDINATES)
+        {
+            BlockCoordinate oldest = COUNTED_BLOCK_COORDINATES.keySet().iterator().next();
+            COUNTED_BLOCK_COORDINATES.remove(oldest);
+        }
     }
 
     private static void pruneOldAcceptedBlocks(long now)

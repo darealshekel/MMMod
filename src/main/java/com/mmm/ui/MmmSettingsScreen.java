@@ -48,6 +48,7 @@ public class MmmSettingsScreen extends Screen
     private static final int RED_DARK = 0xFFC20000;
     private static final int GREEN = 0xFF43D483;
     private static final int ERROR = 0xFFFF5965;
+    private static final int WARNING = 0xFFFFB84D;
 
     private static final int TOP_HEIGHT = 42;
     private static final int GAP = 12;
@@ -59,6 +60,7 @@ public class MmmSettingsScreen extends Screen
     private static final int TWO_COLUMN_MIN_WIDTH = 680;
     private static final int CONTENT_HEADER_HEIGHT = 68;
     private static final boolean SPEED_GRAPH_AVAILABLE = false;
+    private static final long OPENING_HOTKEY_SUPPRESSION_TIMEOUT_MS = 750L;
 
     private final Screen parent;
     private final List<SettingsSection> sections = new ArrayList<>();
@@ -73,11 +75,20 @@ public class MmmSettingsScreen extends Screen
     private SliderTarget draggingSlider;
     private TextFieldWidget searchField;
     private String searchQuery = "";
+    private boolean suppressAutomaticSearchInput;
+    private final long openedAtMs;
 
     public MmmSettingsScreen(Screen parent)
     {
+        this(parent, false);
+    }
+
+    public MmmSettingsScreen(Screen parent, boolean openedFromHotkey)
+    {
         super(Text.literal("MMM Mod Settings"));
         this.parent = parent;
+        this.suppressAutomaticSearchInput = openedFromHotkey;
+        this.openedAtMs = System.currentTimeMillis();
         this.createSections();
     }
 
@@ -158,6 +169,11 @@ public class MmmSettingsScreen extends Screen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
+        if (button == 0 && this.searchField != null && this.searchField.isMouseOver(mouseX, mouseY))
+        {
+            this.suppressAutomaticSearchInput = false;
+        }
+
         if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
         {
             return true;
@@ -232,13 +248,72 @@ public class MmmSettingsScreen extends Screen
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers)
     {
+        if (this.suppressAutomaticSearchInput
+                && System.currentTimeMillis() - this.openedAtMs >= OPENING_HOTKEY_SUPPRESSION_TIMEOUT_MS)
+        {
+            this.suppressAutomaticSearchInput = false;
+        }
+
         if (keyCode == 256)
         {
+            if (this.searchField != null && this.searchField.isFocused() && this.searchField.getText().isBlank() == false)
+            {
+                this.searchField.setText("");
+                return true;
+            }
             this.close();
             return true;
         }
 
+        if (this.searchField != null
+                && this.searchField.isVisible()
+                && this.searchField.isFocused()
+                && this.searchField.keyPressed(keyCode, scanCode, modifiers))
+        {
+            return true;
+        }
+
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers)
+    {
+        this.suppressAutomaticSearchInput = false;
+        return super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char chr, int modifiers)
+    {
+        if (this.suppressAutomaticSearchInput)
+        {
+            if (System.currentTimeMillis() - this.openedAtMs < OPENING_HOTKEY_SUPPRESSION_TIMEOUT_MS)
+            {
+                return true;
+            }
+            this.suppressAutomaticSearchInput = false;
+        }
+
+        if (super.charTyped(chr, modifiers))
+        {
+            return true;
+        }
+        for (TextFieldWidget field : this.textFields.values())
+        {
+            if (field.isFocused())
+            {
+                return false;
+            }
+        }
+        if (this.searchField != null
+                && this.searchField.isVisible()
+                && (Character.isLetterOrDigit(chr) || Character.isWhitespace(chr)))
+        {
+            this.searchField.setFocused(true);
+            return this.searchField.charTyped(chr, modifiers);
+        }
+        return false;
     }
 
     @Override
@@ -291,10 +366,21 @@ public class MmmSettingsScreen extends Screen
 
         int searchY = y + 34;
         int searchWidth = Math.min(260, width);
+        boolean canClearSearch = this.searchQuery.isBlank() == false;
+        int clearWidth = canClearSearch ? 20 : 0;
         this.searchField.setX(x + 5);
         this.searchField.setY(searchY + 5);
-        this.searchField.setWidth(Math.max(40, searchWidth - 10));
+        this.searchField.setWidth(Math.max(40, searchWidth - 10 - clearWidth));
         MmmUi.fieldShell(context, x, searchY, searchWidth, FIELD_HEIGHT, this.searchField.isFocused());
+        if (canClearSearch)
+        {
+            int clearX = x + searchWidth - 19;
+            this.drawButtonShell(context, clearX, searchY, 18, FIELD_HEIGHT, "X", mouseX, mouseY, true);
+            this.clickTargets.add(new ClickTarget(clearX, searchY, 18, FIELD_HEIGHT, () -> {
+                this.searchField.setText("");
+                this.searchField.setFocused(true);
+            }));
+        }
 
         int gridY = y + CONTENT_HEADER_HEIGHT;
         if (this.visibleSections.isEmpty())
@@ -354,6 +440,11 @@ public class MmmSettingsScreen extends Screen
             MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x + 10, y + 12, width - 10, TEXT, false);
             return;
         }
+        if (row.kind() == ControlKind.STATUS)
+        {
+            this.drawSyncStatusRow(context, x, y, width);
+            return;
+        }
 
         int resetX = x + width - RESET_WIDTH;
         int controlWidth = Math.min(CONTROL_WIDTH, Math.max(48, width / 2));
@@ -369,7 +460,7 @@ public class MmmSettingsScreen extends Screen
             case TEXT, NUMBER, COLOR -> this.drawTextControl(context, row, controlX, controlY, controlWidth, mouseX, mouseY);
             case OPTION -> this.drawOptionControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
             case SLIDER -> this.drawSliderControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
-            case HEADING -> {}
+            case HEADING, STATUS -> {}
             case ACTION -> this.drawActionButton(context, controlX, controlY, controlWidth, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
                 if ("Move HUD".equals(row.label()))
                 {
@@ -919,48 +1010,23 @@ public class MmmSettingsScreen extends Screen
 
     private String syncStatusText()
     {
-        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
-        {
-            return "SYNC OFF";
-        }
-
-        String statusLabel = CloudSyncManager.getStatusLabel().toUpperCase(Locale.ROOT);
-        String nextSync = " | NEXT " + CloudSyncManager.getNextSyncLabel().toUpperCase(Locale.ROOT);
-        long lastSuccessfulSyncMs = CloudSyncManager.getLastSuccessfulSyncMs();
-        String lastOk = lastSuccessfulSyncMs > 0L
-                ? " | OK " + formatSyncAge((System.currentTimeMillis() - lastSuccessfulSyncMs) / 1000L)
-                : " | OK NEVER";
-
-        if ("QUEUED".equals(statusLabel) || "SYNCING".equals(statusLabel) || "RETRYING".equals(statusLabel))
-        {
-            return "SYNC " + statusLabel + nextSync + lastOk;
-        }
-
-        if (lastSuccessfulSyncMs <= 0L)
-        {
-            return "SYNC READY | NEXT NOW";
-        }
-
-        long ageSeconds = Math.max(0L, (System.currentTimeMillis() - lastSuccessfulSyncMs) / 1000L);
-        return "SYNC " + formatSyncAge(ageSeconds) + nextSync;
+        return CloudSyncManager.getStatusSummary().toUpperCase(Locale.ROOT);
     }
 
-    private String formatSyncAge(long ageSeconds)
+    private void drawSyncStatusRow(DrawContext context, int x, int y, int width)
     {
-        long safeAge = Math.max(0L, ageSeconds);
-        if (safeAge < 60L)
+        String label = CloudSyncManager.getStatusLabel();
+        int statusColor = switch (label)
         {
-            return safeAge + "S AGO";
-        }
-        if (safeAge < 3_600L)
-        {
-            return (safeAge / 60L) + "M AGO";
-        }
-        if (safeAge < 86_400L)
-        {
-            return (safeAge / 3_600L) + "H AGO";
-        }
-        return (safeAge / 86_400L) + "D AGO";
+            case "Synced", "Ready", "Cooldown", "Connected" -> GREEN;
+            case "Queued", "Retrying", "Link queued", "Link retrying" -> WARNING;
+            case "Error", "Unavailable", "Wrong account" -> ERROR;
+            default -> MUTED;
+        };
+        int labelWidth = Math.min(width / 2, this.textRenderer.getWidth(label));
+        MmmUi.drawTextWithin(context, this.textRenderer, "Current Status", x, y + 7, Math.max(0, width - labelWidth - 12), TEXT, false);
+        MmmUi.drawTextRightWithin(context, this.textRenderer, label, x + width, y + 7, Math.max(0, width / 2), statusColor, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, CloudSyncManager.getStatusDetail(), x, y + 18, width, MUTED, false);
     }
 
     private int parseHexColor(String value, int fallback)
@@ -1027,6 +1093,7 @@ public class MmmSettingsScreen extends Screen
     {
         this.sections.clear();
         this.sections.add(SettingsSection.sync(
+                new SettingRow("Sync Status", "", null, ControlKind.STATUS),
                 new SettingRow("Website Sync", "Send mining updates.", Configs.Generic.WEBSITE_SYNC_ENABLED, ControlKind.BOOLEAN),
                 new SettingRow("Total Digs Sync", "Include server totals.", Configs.Generic.TOTAL_DIGS_SYNC_ENABLED, ControlKind.BOOLEAN),
                 new SettingRow("Sync Debug", "Save detailed sync logs.", Configs.Generic.WEBSITE_SYNC_DEBUG, ControlKind.BOOLEAN),
@@ -1036,11 +1103,11 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Daily Goal", "Blocks to mine today.", Configs.Generic.DAILY_GOAL, ControlKind.NUMBER),
                 new SettingRow("Decimal Percent", "Show decimals in goal progress.", Configs.Generic.GOAL_PERCENT_DECIMALS, ControlKind.BOOLEAN),
                 new SettingRow("Decimal Places", "Choose 1, 2, or 3 decimal places.", Configs.Generic.GOAL_PERCENT_DECIMAL_PLACES, ControlKind.SLIDER),
-                new SettingRow("Goal Tracking", "Track today's goal.", FeatureToggle.TWEAK_DAILY_GOAL, ControlKind.BOOLEAN),
-                new SettingRow("Milestone Messages", "Post progress alerts in chat.", FeatureToggle.TWEAK_NOTIFICATIONS, ControlKind.BOOLEAN),
+                new SettingRow("Goal Tracking", "Track today's goal.", FeatureToggle.MMM_DAILY_GOAL, ControlKind.BOOLEAN),
+                new SettingRow("Milestone Messages", "Post progress alerts in chat.", FeatureToggle.MMM_NOTIFICATIONS, ControlKind.BOOLEAN),
                 new SettingRow("Share Milestones", "Share progress with MMM players here.", Configs.Generic.SHARE_GOAL_MILESTONES, ControlKind.BOOLEAN),
                 new SettingRow("Receive Milestones", "Show progress from MMM players here.", Configs.Generic.RECEIVE_GOAL_MILESTONES, ControlKind.BOOLEAN),
-                new SettingRow("Sound Alerts", "Play milestone sounds.", FeatureToggle.TWEAK_SOUND_ALERTS, ControlKind.BOOLEAN),
+                new SettingRow("Sound Alerts", "Play milestone sounds.", FeatureToggle.MMM_SOUND_ALERTS, ControlKind.BOOLEAN),
                 new SettingRow("Custom Sounds", "Choose sounds for 25%, 50%, 75%, and 100%.", null, ControlKind.ACTION),
                 new SettingRow("Pickaxe Animation", "Show a pickaxe at each milestone.", Configs.Generic.GOAL_PICKAXE_ANIMATION, ControlKind.BOOLEAN)
         ));
@@ -1062,28 +1129,28 @@ public class MmmSettingsScreen extends Screen
         ));
         this.sections.add(SettingsSection.hudContent(
                 SettingRow.heading("MAIN HUD"),
-                new SettingRow("Main HUD", "Show the stats HUD.", FeatureToggle.TWEAK_HUD, ControlKind.BOOLEAN),
+                new SettingRow("Main HUD", "Show the stats HUD.", FeatureToggle.MMM_HUD, ControlKind.BOOLEAN),
                 new SettingRow("MMM Header", "Show MMM and sync status.", Configs.Generic.HUD_TITLE_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Project", "Show your active project.", FeatureToggle.TWEAK_HUD_PROJECT, ControlKind.BOOLEAN),
-                new SettingRow("Mining Totals", "Enable mining total rows.", FeatureToggle.TWEAK_HUD_TOTAL_MINED, ControlKind.BOOLEAN),
+                new SettingRow("Project", "Show your active project.", FeatureToggle.MMM_HUD_PROJECT, ControlKind.BOOLEAN),
+                new SettingRow("Mining Totals", "Enable mining total rows.", FeatureToggle.MMM_HUD_TOTAL_MINED, ControlKind.BOOLEAN),
                 new SettingRow("Global Total", "Show your website total.", Configs.Generic.HUD_GLOBAL_TOTAL_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("World Total", "Show this world's total.", Configs.Generic.HUD_WORLD_TOTAL_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Session Total", "Show this session's total.", Configs.Generic.HUD_SESSION_TOTAL_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Today / Week", "Show today and this week.", Configs.Generic.HUD_DAILY_WEEK_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Personal Records", "Show day and week bests.", Configs.Generic.HUD_RECORDS_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Fastest 100k", "Show your fastest 100k time.", Configs.Generic.HUD_FASTEST_100K_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Mining Speed", "Show Blocks/hr and Blocks/sec.", FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR, ControlKind.BOOLEAN),
+                new SettingRow("Mining Speed", "Show Blocks/hr and Blocks/sec.", FeatureToggle.MMM_HUD_BLOCKS_PER_HOUR, ControlKind.BOOLEAN),
                 new SettingRow("Blocks/min", "Also show Blocks/min.", Configs.Generic.BLOCKS_PER_MINUTE_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Hour / Best Hour", "Show current and best hour.", Configs.Generic.HOURLY_STATS_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Timer Status", "Show timer status.", Configs.Generic.HUD_TIMER_STATUS_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Session Time", "Show session duration.", Configs.Generic.HUD_SESSION_TIME_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Daily Reset", "Show time until UTC reset.", Configs.Generic.HUD_DAILY_RESET_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Goal ETA", "Show time left to goal.", FeatureToggle.TWEAK_HUD_ETA, ControlKind.BOOLEAN),
+                new SettingRow("Goal ETA", "Show time left to goal.", FeatureToggle.MMM_HUD_ETA, ControlKind.BOOLEAN),
                 new SettingRow("Daily Goal Bar", "Show goal progress and % in the HUD.", Configs.Generic.HUD_DAILY_GOAL_BAR_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Override XP Bar", "Use goal progress in XP bar.", FeatureToggle.TWEAK_HUD_GOAL_PROGRESS, ControlKind.BOOLEAN),
+                new SettingRow("Override XP Bar", "Use goal progress in XP bar.", FeatureToggle.MMM_HUD_GOAL_PROGRESS, ControlKind.BOOLEAN),
                 new SettingRow("Always Override XP Bar", "Always replace vanilla XP.", Configs.Generic.ALWAYS_OVERRIDE_XP_BAR, ControlKind.BOOLEAN),
                 new SettingRow("Show Goal %", "Show goal % as XP level.", Configs.Generic.SHOW_GOAL_PERCENT, ControlKind.BOOLEAN),
-                new SettingRow("Main Background", "Show one HUD background.", FeatureToggle.TWEAK_HUD_BOUNDING_BOX, ControlKind.BOOLEAN),
+                new SettingRow("Main Background", "Show one HUD background.", FeatureToggle.MMM_HUD_BOUNDING_BOX, ControlKind.BOOLEAN),
                 new SettingRow("Text Background", "Show backgrounds per line.", Configs.Generic.HUD_TEXT_BACKGROUND, ControlKind.BOOLEAN),
                 SettingRow.heading("BLOCK TIMER"),
                 new SettingRow("Timer HUD", "Show the challenge timer.", Configs.Generic.TIMER_HUD_VISIBLE, ControlKind.BOOLEAN),
@@ -1111,7 +1178,7 @@ public class MmmSettingsScreen extends Screen
         if (SPEED_GRAPH_AVAILABLE)
         {
             this.sections.add(SettingsSection.speedGraph(
-                    new SettingRow("Speed Graph", "Show the live speed graph.", FeatureToggle.TWEAK_HUD_SPEED_GRAPH, ControlKind.BOOLEAN),
+                    new SettingRow("Speed Graph", "Show the live speed graph.", FeatureToggle.MMM_HUD_SPEED_GRAPH, ControlKind.BOOLEAN),
                     new SettingRow("Background Opacity", "Change background strength.", Configs.Generic.GRAPH_BG_OPACITY, ControlKind.NUMBER),
                     new SettingRow("Line Color", "Set the graph line color.", Configs.Generic.GRAPH_LINE_HEX_COLOR, ControlKind.COLOR),
                     new SettingRow("Fill Color", "Set the graph fill color.", Configs.Generic.GRAPH_FILL_HEX_COLOR, ControlKind.COLOR),
@@ -1173,6 +1240,7 @@ public class MmmSettingsScreen extends Screen
         COLOR,
         SLIDER,
         HEADING,
+        STATUS,
         ACTION;
 
         private boolean usesTextField()

@@ -5,7 +5,7 @@ import com.mmm.sound.MmmSounds;
 import com.mmm.sync.SyncQueueManager;
 import com.mmm.timer.MmmTimerState;
 import com.mmm.tracker.MiningStats;
-import com.mmm.tweak.TranslucentLavaRenderer;
+import com.mmm.feature.TranslucentLavaRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

@@ -36,7 +36,7 @@ public abstract class InGameHudMixin
     )
     private boolean mmm$keepPlayerListOpen(KeyBinding keyBinding)
     {
-        return keyBinding.isPressed() || FeatureToggle.TWEAK_TOGGLE_TAB.getBooleanValue();
+        return keyBinding.isPressed() || FeatureToggle.MMM_TOGGLE_TAB.getBooleanValue();
     }
 
     @Inject(method = "renderExperienceBar", at = @At("HEAD"), cancellable = true)
@@ -123,9 +123,9 @@ public abstract class InGameHudMixin
     private static MiningStats.GoalProgress mmm$getVisibleGoalProgress()
     {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (!FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue()
-                || !FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()
-                || !FeatureToggle.TWEAK_HUD_GOAL_PROGRESS.getBooleanValue()
+        if (!FeatureToggle.MMM_MINING_TRACKER.getBooleanValue()
+                || !FeatureToggle.MMM_DAILY_GOAL.getBooleanValue()
+                || !FeatureToggle.MMM_HUD_GOAL_PROGRESS.getBooleanValue()
                 || client == null
                 || client.options == null
                 || (!Configs.Generic.ALWAYS_OVERRIDE_XP_BAR.getBooleanValue() && !client.options.playerListKey.isPressed()))

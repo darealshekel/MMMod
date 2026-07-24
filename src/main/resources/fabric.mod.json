@@ -3,7 +3,7 @@
   "id": "mmm",
   "version": "${version}",
   "name": "MMM",
-  "description": "A Tweakeroo-style companion addon that adds mining tracking, HUD stats, projects, goals, notifications, and session summaries.",
+  "description": "The Manual Mining Maniacs companion mod for mining stats, goals, sessions, HUD tools, and website sync.",
   "authors": [
     "Shekel"
   ],

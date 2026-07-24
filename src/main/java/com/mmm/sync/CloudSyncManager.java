@@ -16,6 +16,7 @@ import com.mmm.storage.MiningCalendarStore;
 import com.mmm.storage.WorldIdentity;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
+import com.mmm.tracker.SourceTotalPolicy;
 import com.mmm.util.MmmDebugLogger;
 import com.mmm.util.PeriodKeys;
 import com.mmm.util.UiFormat;
@@ -23,6 +24,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import net.minecraft.client.MinecraftClient;
 
@@ -44,6 +46,8 @@ public final class CloudSyncManager
     private static volatile String syncStatusDetail = "";
     private static volatile long lastHealthySignalMs;
     private static volatile long lastFailureSignalMs;
+    private static volatile long scheduledRetryAtMs;
+    private static volatile String lastRetryDetail = "";
     private static SourceLeaderboardSnapshot latestLeaderboardSnapshot;
     private static String lastQueuedLiveFingerprint;
     private static String lastSuccessfulLiveFingerprint;
@@ -89,6 +93,11 @@ public final class CloudSyncManager
 
     public static void syncHeartbeat()
     {
+        requestScheduledSync("24-hour heartbeat");
+    }
+
+    public static void requestScheduledSync(String reason)
+    {
         if (canSync() == false || hasLiveContext() == false)
         {
             return;
@@ -97,6 +106,7 @@ public final class CloudSyncManager
         long now = System.currentTimeMillis();
         if (isSyncCadenceDue(now) == false)
         {
+            syncStatusDetail = "Next sync in " + getNextSyncLabel();
             return;
         }
 
@@ -106,7 +116,6 @@ public final class CloudSyncManager
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
         queueLivePayload(buildPayload(liveSession, liveSession == null ? null : getCurrentSessionStatus()), true);
     }
-
     public static void syncNow(String reason)
     {
         if (canSync() == false || hasLiveContext() == false)
@@ -149,14 +158,11 @@ public final class CloudSyncManager
     {
         MinecraftClient client = MinecraftClient.getInstance();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        String sourceKey = ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo);
         String sourceName = ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo);
         boolean autoSyncEnabled = Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue();
         boolean hasEndpoint = Configs.cloudSyncEndpoint != null && Configs.cloudSyncEndpoint.isBlank() == false;
         boolean hasContext = client != null && client.player != null && client.world != null;
         boolean loggedIn = hasContext && client.getSession() != null && client.getSession().getUsername().isBlank() == false;
-        String playerUuid = hasContext ? client.player.getUuidAsString() : "";
-        String playerName = hasContext ? resolveUsername(client) : "";
         long totalMined = MiningStats.getTotalMined();
         long sessionMined = MiningStats.getSessionBlocksMined();
         boolean hasSyncSecret = Configs.cloudSyncSecret != null && Configs.cloudSyncSecret.isBlank() == false;
@@ -166,7 +172,7 @@ public final class CloudSyncManager
         if (MmmDebugLogger.shouldLog("cloud-sync-check", 5_000L))
         {
             MMM.LOGGER.info(
-                    "{} sync-check autoSyncEnabled={} loggedIn={} hasWorldContext={} hasEndpoint={} hasSyncSecret={} hasLinkedIdentity={} hasSessionToken={} playerUuid={} playerName={} sourceSlug={} sourceName={} totalMined={} sessionMined={} targetUrl={}",
+                    "{} sync-check autoSyncEnabled={} loggedIn={} hasWorldContext={} hasEndpoint={} hasSyncSecret={} hasLinkedIdentity={} hasSessionToken={} sourceName={} totalMined={} sessionMined={}",
                     LOG_PREFIX,
                     autoSyncEnabled,
                     loggedIn,
@@ -175,13 +181,9 @@ public final class CloudSyncManager
                     hasSyncSecret,
                     hasLinkedIdentity,
                     hasSessionToken,
-                    playerUuid,
-                    playerName,
-                    sourceKey,
                     sourceName,
                     totalMined,
-                    sessionMined,
-                    Configs.cloudSyncEndpoint
+                    sessionMined
             );
         }
 
@@ -202,6 +204,8 @@ public final class CloudSyncManager
 
         syncStatus = SyncStatus.QUEUED;
         syncStatusDetail = type == SyncItemType.CLOUD_FINISHED_SESSION ? "Session queued for sync." : "Live sync queued.";
+        scheduledRetryAtMs = 0L;
+        lastRetryDetail = "";
 
         if (type == SyncItemType.CLOUD_LIVE_STATE)
         {
@@ -209,6 +213,33 @@ public final class CloudSyncManager
         }
     }
 
+    static void onQueuePreparing(SyncItemType type)
+    {
+        if (type == SyncItemType.CLOUD_LIVE_STATE || type == SyncItemType.CLOUD_FINISHED_SESSION)
+        {
+            syncStatus = SyncStatus.SYNCING;
+            syncStatusDetail = "Preparing the saved sync payload.";
+            scheduledRetryAtMs = 0L;
+        }
+    }
+
+    static void onQueueUploading(SyncItemType type)
+    {
+        if (type == SyncItemType.CLOUD_LIVE_STATE || type == SyncItemType.CLOUD_FINISHED_SESSION)
+        {
+            syncStatus = SyncStatus.SYNCING;
+            syncStatusDetail = "Uploading to MMM.";
+        }
+    }
+
+    static void onQueueWaitingForResponse(SyncItemType type)
+    {
+        if (type == SyncItemType.CLOUD_LIVE_STATE || type == SyncItemType.CLOUD_FINISHED_SESSION)
+        {
+            syncStatus = SyncStatus.SYNCING;
+            syncStatusDetail = "Waiting for the MMM website response.";
+        }
+    }
     static void onQueueSuccess(SyncItemType type, JsonObject payload, String responseBody)
     {
         if (type != SyncItemType.CLOUD_LIVE_STATE && type != SyncItemType.CLOUD_FINISHED_SESSION)
@@ -219,6 +250,8 @@ public final class CloudSyncManager
         boolean skippedByCadence = responseBoolean(responseBody, "sync_skipped");
         boolean sourceSyncAccepted = responseBoolean(responseBody, "source_sync_accepted");
         syncStatus = skippedByCadence ? SyncStatus.CONNECTED : SyncStatus.SYNCED;
+        scheduledRetryAtMs = 0L;
+        lastRetryDetail = "";
         syncStatusDetail = skippedByCadence
                 ? "Source sync is on its 24-hour cooldown."
                 : type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
@@ -231,7 +264,7 @@ public final class CloudSyncManager
                 MiningCalendarStore.markPayloadSynced(payload);
             }
         }
-        applySuccessfulSyncResponse(responseBody);
+        applySuccessfulSyncResponse(payload, responseBody);
 
         if (type == SyncItemType.CLOUD_LIVE_STATE && skippedByCadence == false)
         {
@@ -276,8 +309,9 @@ public final class CloudSyncManager
 
         syncStatus = SyncStatus.FAILED;
         lastFailureSignalMs = System.currentTimeMillis();
-        syncStatusDetail = "Retry scheduled for " + PendingSyncQueue.formatInstant(nextRetryAtMs)
-                + (detail == null || detail.isBlank() ? "" : " (" + detail + ")");
+        scheduledRetryAtMs = Math.max(0L, nextRetryAtMs);
+        lastRetryDetail = detail == null ? "" : detail.trim();
+        syncStatusDetail = buildRetryDetail(System.currentTimeMillis());
     }
 
     static void onQueueDropped(SyncItemType type, String detail)
@@ -289,14 +323,18 @@ public final class CloudSyncManager
 
         syncStatus = SyncStatus.FAILED;
         lastFailureSignalMs = System.currentTimeMillis();
-        syncStatusDetail = detail == null || detail.isBlank() ? "Sync item dropped." : detail;
+        scheduledRetryAtMs = 0L;
+        lastRetryDetail = detail == null ? "" : detail.trim();
+        syncStatusDetail = friendlyFailureReason(lastRetryDetail);
     }
 
     public static boolean isHudHealthy(long now)
     {
         if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false
                 || Configs.cloudSyncEndpoint == null
-                || Configs.cloudSyncEndpoint.isBlank())
+                || Configs.cloudSyncEndpoint.isBlank()
+                || WebsiteLinkManager.hasPersistedLink() == false
+                || isCurrentPlayerMismatch())
         {
             return false;
         }
@@ -330,21 +368,41 @@ public final class CloudSyncManager
 
         return recentHealthyMs > 0L && now - recentHealthyMs <= HUD_HEALTH_STALE_MS;
     }
-
     public static String getStatusLabel()
     {
         PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
         long now = System.currentTimeMillis();
-        int pending = snapshot.countFor(SyncItemType.CLOUD_LIVE_STATE)
-                + snapshot.countFor(SyncItemType.CLOUD_FINISHED_SESSION)
-                + snapshot.countFor(SyncItemType.PLAYER_TOTAL_DIGS)
-                + snapshot.countFor(SyncItemType.WEBSITE_LINK_CLAIM);
+        int pendingLinkClaims = snapshot.countFor(SyncItemType.WEBSITE_LINK_CLAIM);
+        int pending = pendingSyncCount(snapshot);
 
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            return "Disabled";
+        }
+        if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
+        {
+            return "Unavailable";
+        }
+        if (pendingLinkClaims > 0)
+        {
+            if (snapshot.flushActive())
+            {
+                return "Linking";
+            }
+            return snapshot.nextAttemptAtMs() > now ? "Link retrying" : "Link queued";
+        }
+        if (WebsiteLinkManager.hasPersistedLink() == false)
+        {
+            return "Not authenticated";
+        }
+        if (isCurrentPlayerMismatch())
+        {
+            return "Wrong account";
+        }
         if (snapshot.flushActive() && pending > 0)
         {
             return "Syncing";
         }
-
         if (pending > 0)
         {
             if (syncStatus == SyncStatus.FAILED || snapshot.nextAttemptAtMs() > now)
@@ -353,47 +411,246 @@ public final class CloudSyncManager
             }
             return "Queued";
         }
-
-        return switch (syncStatus)
+        if (hasLiveContext() == false)
         {
-            case SYNCED -> "Synced";
-            case FAILED -> "Retrying";
-            default -> "Connected";
-        };
+            return "Waiting";
+        }
+        if (syncStatus == SyncStatus.FAILED)
+        {
+            return "Error";
+        }
+
+        long remainingMs = getNextSyncRemainingMs(now);
+        if (remainingMs > 0L)
+        {
+            return "Cooldown";
+        }
+        return "Ready";
     }
 
     public static String getStatusDetail()
     {
+        PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
+        long now = System.currentTimeMillis();
+        String readable = getReadableStatusDetail(snapshot, now);
+
         if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
         {
-            return syncStatusDetail;
+            return readable;
         }
 
-        PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
         List<String> parts = new ArrayList<>();
+        parts.add(readable);
         parts.add("Q:" + snapshot.queueSize());
         parts.add(snapshot.flushActive() ? "flush=active" : "flush=idle");
 
         if (snapshot.lastSuccessfulSyncAtMs() > 0L)
         {
-            long ageSeconds = Math.max(0L, (System.currentTimeMillis() - snapshot.lastSuccessfulSyncAtMs()) / 1000L);
+            long ageSeconds = Math.max(0L, (now - snapshot.lastSuccessfulSyncAtMs()) / 1000L);
             parts.add("lastOk=" + UiFormat.formatDuration(ageSeconds));
         }
-
         if (snapshot.nextAttemptAtMs() > 0L)
         {
-            long waitSeconds = Math.max(0L, (snapshot.nextAttemptAtMs() - System.currentTimeMillis() + 999L) / 1000L);
+            long waitSeconds = Math.max(0L, (snapshot.nextAttemptAtMs() - now + 999L) / 1000L);
             parts.add(waitSeconds <= 0L ? "next=now" : "next=" + UiFormat.formatDuration(waitSeconds));
-        }
-
-        if (syncStatusDetail != null && syncStatusDetail.isBlank() == false)
-        {
-            parts.add(syncStatusDetail);
         }
 
         return String.join(" | ", parts);
     }
 
+    public static String getStatusSummary()
+    {
+        String label = getStatusLabel();
+        return switch (label)
+        {
+            case "Disabled" -> "Sync off";
+            case "Unavailable" -> "Sync unavailable - endpoint missing";
+            case "Not authenticated" -> "Website link required";
+            case "Wrong account" -> "Wrong linked Minecraft account";
+            case "Waiting" -> "Join a world or server to sync";
+            case "Linking" -> "Linking website account";
+            case "Link queued" -> "Website link queued";
+            case "Link retrying" -> "Website link retry in " + retryCountdownLabel();
+            case "Syncing" -> "Syncing - " + compactStageDetail();
+            case "Queued" -> "Sync queued - waiting to send";
+            case "Retrying" -> "Retry in " + retryCountdownLabel() + " - " + trimTerminalPeriod(friendlyFailureReason(lastRetryDetail));
+            case "Cooldown" -> "Cooldown - " + getNextSyncLabel() + " left";
+            case "Error" -> "Sync error - " + trimTerminalPeriod(friendlyFailureReason(lastRetryDetail));
+            default -> "Sync ready";
+        };
+    }
+
+    private static String getReadableStatusDetail(PendingSyncQueue.Snapshot snapshot, long now)
+    {
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            return "Website sync is turned off.";
+        }
+        if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
+        {
+            return "The website sync endpoint is not configured.";
+        }
+        if (snapshot.countFor(SyncItemType.WEBSITE_LINK_CLAIM) > 0)
+        {
+            String detail = WebsiteLinkManager.getState().detail();
+            return detail == null || detail.isBlank() ? "Claiming the website link code..." : detail;
+        }
+        if (WebsiteLinkManager.hasPersistedLink() == false)
+        {
+            return "Website link required. Generate a mod link code, then enter it in Website Link.";
+        }
+        if (isCurrentPlayerMismatch())
+        {
+            return "This Minecraft account does not match the account linked to MMM.";
+        }
+
+        int pending = pendingSyncCount(snapshot);
+        if (snapshot.flushActive() && pending > 0)
+        {
+            return syncStatusDetail == null || syncStatusDetail.isBlank()
+                    ? "Sending the current source to the MMM website."
+                    : syncStatusDetail;
+        }
+        if (pending > 0)
+        {
+            long retryAtMs = Math.max(snapshot.nextAttemptAtMs(), scheduledRetryAtMs);
+            if (retryAtMs > now || syncStatus == SyncStatus.FAILED)
+            {
+                return buildRetryDetail(now);
+            }
+            return "Sync queued. Waiting for the sender to start.";
+        }
+        if (hasLiveContext() == false)
+        {
+            return "Join a world or server before syncing.";
+        }
+        if (syncStatus == SyncStatus.FAILED)
+        {
+            return friendlyFailureReason(lastRetryDetail);
+        }
+
+        long remainingMs = getNextSyncRemainingMs(now);
+        if (remainingMs > 0L)
+        {
+            String source = currentSourceDisplayName();
+            String suffix = source.isBlank() ? "" : " for " + source;
+            return "Cooldown: " + UiFormat.formatDuration(Math.max(1L, (remainingMs + 999L) / 1000L)) + " remaining" + suffix + ".";
+        }
+        if (lastSuccessfulSyncMs() <= 0L)
+        {
+            return "Ready to send this source for the first time.";
+        }
+        return "Ready to send this source again.";
+    }
+
+    private static int pendingSyncCount(PendingSyncQueue.Snapshot snapshot)
+    {
+        return snapshot.countFor(SyncItemType.CLOUD_LIVE_STATE)
+                + snapshot.countFor(SyncItemType.CLOUD_FINISHED_SESSION)
+                + snapshot.countFor(SyncItemType.PLAYER_TOTAL_DIGS)
+                + snapshot.countFor(SyncItemType.WEBSITE_LINK_CLAIM);
+    }
+
+    private static String buildRetryDetail(long now)
+    {
+        long retryAtMs = Math.max(scheduledRetryAtMs, SyncQueueManager.getSnapshot().nextAttemptAtMs());
+        String reason = friendlyFailureReason(lastRetryDetail);
+        if (retryAtMs <= now)
+        {
+            return "Retry is ready. " + reason;
+        }
+        long waitSeconds = Math.max(1L, (retryAtMs - now + 999L) / 1000L);
+        return "Retrying in " + UiFormat.formatDuration(waitSeconds) + ". " + reason;
+    }
+
+    private static String retryCountdownLabel()
+    {
+        long now = System.currentTimeMillis();
+        long retryAtMs = Math.max(scheduledRetryAtMs, SyncQueueManager.getSnapshot().nextAttemptAtMs());
+        if (retryAtMs <= now)
+        {
+            return "now";
+        }
+        return UiFormat.formatDuration(Math.max(1L, (retryAtMs - now + 999L) / 1000L));
+    }
+
+    private static String compactStageDetail()
+    {
+        String detail = syncStatusDetail == null ? "" : syncStatusDetail.trim();
+        if (detail.equals("Preparing the saved sync payload."))
+        {
+            return "preparing data";
+        }
+        if (detail.equals("Uploading to MMM."))
+        {
+            return "uploading";
+        }
+        if (detail.equals("Waiting for the MMM website response."))
+        {
+            return "waiting for website";
+        }
+        return detail.isBlank() ? "sending" : trimTerminalPeriod(detail);
+    }
+
+    static String friendlyFailureReason(String detail)
+    {
+        String safe = detail == null ? "" : detail.replace('\n', ' ').replace('\r', ' ').trim();
+        String lower = safe.toLowerCase(Locale.ROOT);
+        if (safe.isBlank())
+        {
+            return "The website did not accept the sync.";
+        }
+        if (lower.contains("disabled by config"))
+        {
+            return "Website sync is turned off.";
+        }
+        if (lower.contains("no sync endpoint") || lower.contains("endpoint") && lower.contains("not configured"))
+        {
+            return "The website sync endpoint is missing.";
+        }
+        if (lower.contains("link mmmod") || lower.contains("website link") && (lower.contains("expired") || lower.contains("rejected") || lower.contains("required"))
+                || lower.contains("unauthorized") || lower.contains("invalid token"))
+        {
+            return "Website link required. Generate a new mod link code.";
+        }
+        if (lower.contains("temporarily disabled") || lower.contains("maintenance") || lower.contains("service unavailable") || lower.equals("http 503"))
+        {
+            return "The MMM sync service is temporarily unavailable.";
+        }
+        if (lower.contains("too many requests") || lower.contains("rate limit") || lower.equals("http 429"))
+        {
+            return "The website asked MMM to wait before trying again.";
+        }
+        if (lower.contains("timed out") || lower.contains("timeout"))
+        {
+            return "The website did not respond in time.";
+        }
+        if (lower.contains("connection refused") || lower.contains("connectexception"))
+        {
+            return "The website sync service refused the connection.";
+        }
+        if (lower.contains("unknownhost") || lower.contains("name or service not known") || lower.contains("could not resolve"))
+        {
+            return "MMM could not find the website sync server.";
+        }
+        return safe.endsWith(".") ? safe : safe + ".";
+    }
+
+    private static String currentSourceDisplayName()
+    {
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        if (worldInfo != null && worldInfo.displayName() != null && worldInfo.displayName().isBlank() == false)
+        {
+            return worldInfo.displayName().trim();
+        }
+        return lastPayloadSourceName == null ? "" : lastPayloadSourceName.trim();
+    }
+
+    private static String trimTerminalPeriod(String value)
+    {
+        String safe = value == null ? "" : value.trim();
+        return safe.endsWith(".") ? safe.substring(0, safe.length() - 1) : safe;
+    }
     public static void resetForDisconnect()
     {
         latestLeaderboardSnapshot = null;
@@ -406,6 +663,8 @@ public final class CloudSyncManager
         lastSuccessfulLiveFingerprint = null;
         lastSuccessfulLeaderboardFingerprint = null;
         lastFailureSignalMs = 0L;
+        scheduledRetryAtMs = 0L;
+        lastRetryDetail = "";
         lastPayloadSourceKey = "";
         lastPayloadSourceName = "";
         currentContextPayloadPrepared = false;
@@ -433,7 +692,9 @@ public final class CloudSyncManager
 
     public static long getNextSyncRemainingMs(long now)
     {
-        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false
+                || WebsiteLinkManager.hasPersistedLink() == false
+                || isCurrentPlayerMismatch())
         {
             return -1L;
         }
@@ -446,18 +707,47 @@ public final class CloudSyncManager
 
         return Math.max(0L, lastSyncMs + getSyncIntervalMs() - now);
     }
-
     public static String getNextSyncLabel()
     {
         PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            return "off";
+        }
+        if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
+        {
+            return "unavailable";
+        }
+        int pendingLinkClaims = snapshot.countFor(SyncItemType.WEBSITE_LINK_CLAIM);
+        if (pendingLinkClaims > 0)
+        {
+            if (snapshot.flushActive())
+            {
+                return "linking";
+            }
+            long nextAttemptAtMs = snapshot.nextAttemptAtMs();
+            long now = System.currentTimeMillis();
+            if (nextAttemptAtMs <= 0L || nextAttemptAtMs <= now)
+            {
+                return "link now";
+            }
+            return "link " + UiFormat.formatDuration(Math.max(1L, (nextAttemptAtMs - now + 999L) / 1000L));
+        }
+        if (WebsiteLinkManager.hasPersistedLink() == false)
+        {
+            return "link required";
+        }
+        if (isCurrentPlayerMismatch())
+        {
+            return "wrong account";
+        }
         if (snapshot.flushActive())
         {
             return "syncing";
         }
         int pending = snapshot.countFor(SyncItemType.CLOUD_LIVE_STATE)
                 + snapshot.countFor(SyncItemType.CLOUD_FINISHED_SESSION)
-                + snapshot.countFor(SyncItemType.PLAYER_TOTAL_DIGS)
-                + snapshot.countFor(SyncItemType.WEBSITE_LINK_CLAIM);
+                + snapshot.countFor(SyncItemType.PLAYER_TOTAL_DIGS);
         if (pending > 0)
         {
             long nextAttemptAtMs = snapshot.nextAttemptAtMs();
@@ -480,7 +770,6 @@ public final class CloudSyncManager
         }
         return UiFormat.formatDuration(Math.max(1L, (remainingMs + 999L) / 1000L));
     }
-
     public static String getSyncTier()
     {
         return Configs.normalizeWebsiteSyncTier(Configs.websiteSyncTier);
@@ -520,7 +809,10 @@ public final class CloudSyncManager
 
     private static long lastSuccessfulSyncMs()
     {
-        return Math.max(0L, Configs.websiteLastSuccessfulSyncMs);
+        String sourceKey = currentSourceKey();
+        return sourceKey.isBlank()
+                ? Math.max(0L, Configs.websiteLastSuccessfulSyncMs)
+                : Configs.getSourceLastSuccessfulSyncMs(sourceKey);
     }
 
     public static long getLastSuccessfulSyncMs()
@@ -528,6 +820,15 @@ public final class CloudSyncManager
         return lastSuccessfulSyncMs();
     }
 
+    private static String currentSourceKey()
+    {
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        if (worldInfo == null || worldInfo.id() == null || worldInfo.id().isBlank())
+        {
+            return "";
+        }
+        return ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo);
+    }
     private static void queueCurrentLivePayloadIfDue(long now)
     {
         if (isSyncCadenceDue(now) == false)
@@ -571,18 +872,33 @@ public final class CloudSyncManager
         SyncQueueManager.enqueueCloudLiveState(payload);
     }
 
-    static void applySuccessfulSyncResponse(String responseBody)
+    static void applySuccessfulSyncResponse(JsonObject payload, String responseBody)
     {
         applySyncResponse(responseBody);
         WebsiteProfileTotals.refresh(true);
         long cadenceAnchorMs = sourceSyncCadenceAnchor(responseBody);
-        if (cadenceAnchorMs > 0L)
+        String sourceKey = payloadSourceKey(payload);
+        if (cadenceAnchorMs > 0L && sourceKey.isBlank() == false)
         {
-            Configs.websiteLastSuccessfulSyncMs = cadenceAnchorMs;
+            Configs.recordSourceSuccessfulSync(sourceKey, cadenceAnchorMs);
             Configs.saveToFile();
         }
     }
 
+    private static String payloadSourceKey(JsonObject payload)
+    {
+        JsonObject world = getObject(payload, "world");
+        String sourceKey = getString(world, "source_key", "");
+        if (sourceKey.isBlank())
+        {
+            sourceKey = getString(world, "key", "");
+        }
+        if (sourceKey.isBlank())
+        {
+            sourceKey = getString(getObject(payload, "current_world_totals"), "world_key", "");
+        }
+        return sourceKey.trim().toLowerCase(Locale.ROOT);
+    }
     private static long sourceSyncCadenceAnchor(String responseBody)
     {
         if (responseBody == null || responseBody.isBlank())
@@ -737,12 +1053,19 @@ public final class CloudSyncManager
         if (WebsiteLinkManager.hasPersistedLink() == false)
         {
             logSyncUnavailable("website_link_required");
+            syncStatusDetail = "Generate a new mod link code on the website, then enter it in Website Link.";
+            return false;
+        }
+
+        if (isCurrentPlayerMismatch())
+        {
+            logSyncUnavailable("linked_account_mismatch");
+            syncStatusDetail = "The current Minecraft account does not match the linked account.";
             return false;
         }
 
         return true;
     }
-
     private static void logSyncUnavailable(String reason)
     {
         long now = System.currentTimeMillis();
@@ -755,10 +1078,10 @@ public final class CloudSyncManager
 
         lastSyncUnavailableReason = reason;
         lastSyncUnavailableLogMs = now;
-        MMM.LOGGER.warn("{} cloud-sync-disabled reason={} endpoint={}",
+        MMM.LOGGER.warn("{} cloud-sync-disabled reason={} endpointConfigured={}",
                 LOG_PREFIX,
                 reason,
-                Configs.cloudSyncEndpoint == null ? "" : Configs.cloudSyncEndpoint);
+                Configs.cloudSyncEndpoint != null && Configs.cloudSyncEndpoint.isBlank() == false);
     }
 
     private static boolean hasLiveContext()
@@ -767,6 +1090,13 @@ public final class CloudSyncManager
         return client != null && client.player != null && client.world != null;
     }
 
+    private static boolean isCurrentPlayerMismatch()
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return client != null
+                && client.player != null
+                && WebsiteLinkManager.isCurrentPlayerLinked() == false;
+    }
     private static String getCurrentSessionStatus()
     {
         if (MiningStats.isSessionActive() == false)
@@ -961,7 +1291,12 @@ public final class CloudSyncManager
                 worldInfo.displayName(),
                 worldInfo.kind(),
                 worldInfo.host());
-        long totalBlocks = Math.max(Math.max(0L, authoritativePlayerTotal), Math.max(0L, worldStats.totalBlocks));
+        boolean freshScoreboardArgument = authoritativePlayerTotal > 0L;
+        long totalBlocks = SourceTotalPolicy.preferAuthoritative(
+                MiningStats.getCurrentSourceTotalMined(),
+                authoritativePlayerTotal,
+                freshScoreboardArgument);
+        boolean scoreboardBacked = freshScoreboardArgument || MiningStats.hasAuthoritativeCurrentSourceScoreboardTotal();
 
         JsonObject totals = new JsonObject();
         totals.addProperty("world_key", worldStats.worldId);
@@ -970,11 +1305,7 @@ public final class CloudSyncManager
         totals.addProperty("source_type", worldInfo.sourceType());
         totals.addProperty("host", (String) null);
         totals.addProperty("total_blocks", totalBlocks);
-        totals.addProperty("total_origin", authoritativePlayerTotal > 0L
-                ? MiningStats.getCurrentSourcePendingLocalBlocks() > 0L
-                    ? "scoreboard_plus_client_valid_blocks"
-                    : "scoreboard"
-                : "client_valid_blocks");
+        totals.addProperty("total_origin", scoreboardBacked ? "scoreboard" : "client_valid_blocks");
         totals.addProperty("last_seen_at", toIso(Math.max(worldStats.lastSeenAt, System.currentTimeMillis())));
         return totals;
     }
@@ -1169,7 +1500,12 @@ public final class CloudSyncManager
                                                    SourceEvidence sourceEvidence)
     {
         long scoreboardTotal = sourceEvidence == null ? 0L : Math.max(0L, sourceEvidence.playerTotalDigs());
-        long effectivePlayerTotal = Math.max(scoreboardTotal, MiningStats.getCurrentSourceTotalMined());
+        boolean freshScoreboardArgument = scoreboardTotal > 0L;
+        long effectivePlayerTotal = SourceTotalPolicy.preferAuthoritative(
+                MiningStats.getCurrentSourceTotalMined(),
+                scoreboardTotal,
+                freshScoreboardArgument);
+        boolean scoreboardBacked = freshScoreboardArgument || MiningStats.hasAuthoritativeCurrentSourceScoreboardTotal();
         if (effectivePlayerTotal <= 0L)
         {
             return null;
@@ -1193,11 +1529,7 @@ public final class CloudSyncManager
         digs.addProperty("server", serverName);
         digs.addProperty("timestamp", toIso(System.currentTimeMillis()));
         digs.addProperty("objective_title", objectiveTitle);
-        digs.addProperty("total_origin", scoreboardTotal > 0L
-                ? MiningStats.getCurrentSourcePendingLocalBlocks() > 0L
-                    ? "scoreboard_plus_client_valid_blocks"
-                    : "scoreboard"
-                : "client_valid_blocks");
+        digs.addProperty("total_origin", scoreboardBacked ? "scoreboard" : "client_valid_blocks");
         return digs;
     }
 
@@ -1549,7 +1881,12 @@ public final class CloudSyncManager
             return;
         }
 
-        MiningStats.bootstrapSourceTotalFromScoreboard(localPlayerDigs, latestLeaderboardSnapshot.serverName(), now);
+        MiningStats.bootstrapSourceTotalFromScoreboard(
+                localPlayerDigs,
+                latestLeaderboardSnapshot.serverName(),
+                latestLeaderboardSnapshot.objectiveTitle(),
+                false,
+                now);
     }
 
     private static String toIso(long timeMs)
@@ -1719,11 +2056,9 @@ public final class CloudSyncManager
         }
 
         MMM.LOGGER.info(
-                "[MMM_DEBUG] sync-payload-created worldKey={} worldName={} sourceKey={} sourceName={} sessionActive={}",
-                worldInfo.id(),
-                worldInfo.displayName(),
-                sourceKey,
+                "[MMM_DEBUG] sync-payload-created sourceName={} sourceType={} sessionActive={}",
                 sourceName,
+                worldInfo == null ? "unknown" : worldInfo.sourceType(),
                 MiningStats.isSessionActive()
         );
     }

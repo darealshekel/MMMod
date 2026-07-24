@@ -70,8 +70,8 @@ public abstract class PlayerListHudMixin
     @Inject(method = "render", at = @At("HEAD"))
     private void mmm$addDailyGoalToPlayerList(DrawContext context, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)
     {
-        if (!FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue()
-                || !FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue())
+        if (!FeatureToggle.MMM_MINING_TRACKER.getBooleanValue()
+                || !FeatureToggle.MMM_DAILY_GOAL.getBooleanValue())
         {
             return;
         }

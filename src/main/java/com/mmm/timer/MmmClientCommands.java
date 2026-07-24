@@ -88,6 +88,16 @@ public final class MmmClientCommands
 
         return timer
                 .then(startCommand)
+                .then(ClientCommandManager.literal("pause")
+                        .executes(context -> {
+                            if (MmmTimerState.pause())
+                            {
+                                feedback(context, Formatting.YELLOW, "Timer paused. Time and run stats are frozen.");
+                                return 1;
+                            }
+                            feedback(context, Formatting.RED, "Timer is not running.");
+                            return 0;
+                        }))
                 .then(ClientCommandManager.literal("stop")
                         .executes(context -> {
                             MmmTimerState.stop();
@@ -103,7 +113,9 @@ public final class MmmClientCommands
                 .then(setCommand)
                 .then(ClientCommandManager.literal("status")
                         .executes(context -> {
-                            String state = MmmTimerState.isRunning() ? "running" : MmmTimerState.isExpired() ? "expired" : "paused";
+                            String state = MmmTimerState.isRunning()
+                                    ? "running"
+                                    : MmmTimerState.isPaused() ? "paused" : MmmTimerState.isExpired() ? "expired" : "stopped";
                             feedback(context, Formatting.YELLOW,
                                     "Timer " + state
                                             + " | " + MmmTimerState.formatTime(MmmTimerState.getRemainingMs())
@@ -117,8 +129,11 @@ public final class MmmClientCommands
         try
         {
             Long duration = durationText == null ? null : MmmTimerState.parseDurationMs(durationText);
+            boolean resuming = duration == null && MmmTimerState.isPaused();
             MmmTimerState.start(duration);
-            feedback(context, Formatting.GREEN, "Timer started: " + MmmTimerState.formatTime(MmmTimerState.getRemainingMs()) + ".");
+            feedback(context, Formatting.GREEN,
+                    (resuming ? "Timer resumed: " : "Timer started: ")
+                            + MmmTimerState.formatTime(MmmTimerState.getRemainingMs()) + ".");
             return 1;
         }
         catch (RuntimeException exception)
