@@ -149,7 +149,6 @@ public final class DigsSyncManager
     public static boolean isHudHealthy(long now)
     {
         if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false
-                || Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false
                 || Configs.cloudSyncEndpoint == null
                 || Configs.cloudSyncEndpoint.isBlank()
                 || WebsiteLinkManager.hasPersistedLink() == false
@@ -559,11 +558,6 @@ public final class DigsSyncManager
             return false;
         }
 
-        if (Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false)
-        {
-            logSyncUnavailable("totalDigsSyncEnabled_false");
-            return false;
-        }
 
         if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
         {
@@ -775,8 +769,7 @@ public final class DigsSyncManager
     public static String getStatusLabel()
     {
         PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
-        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false
-                || Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false)
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
         {
             return "Disabled";
         }
