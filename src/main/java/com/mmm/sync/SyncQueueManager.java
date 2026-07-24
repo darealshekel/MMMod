@@ -387,8 +387,7 @@ public final class SyncQueueManager
             return false;
         }
 
-        return type != SyncItemType.PLAYER_TOTAL_DIGS
-                || Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue();
+        return true;
     }
 
     private static boolean isMiningItem(SyncItemType type)

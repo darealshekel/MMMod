@@ -1095,7 +1095,6 @@ public class MmmSettingsScreen extends Screen
         this.sections.add(SettingsSection.sync(
                 new SettingRow("Sync Status", "", null, ControlKind.STATUS),
                 new SettingRow("Website Sync", "Send mining updates.", Configs.Generic.WEBSITE_SYNC_ENABLED, ControlKind.BOOLEAN),
-                new SettingRow("Total Digs Sync", "Include server totals.", Configs.Generic.TOTAL_DIGS_SYNC_ENABLED, ControlKind.BOOLEAN),
                 new SettingRow("Sync Debug", "Save detailed sync logs.", Configs.Generic.WEBSITE_SYNC_DEBUG, ControlKind.BOOLEAN),
                 new SettingRow("Abbreviated Numbers", "Show 12k instead of 12,000.", Configs.Generic.ABBREVIATED_NUMBERS, ControlKind.BOOLEAN)
         ));
