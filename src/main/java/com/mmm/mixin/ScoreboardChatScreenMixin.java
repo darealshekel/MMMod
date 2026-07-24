@@ -9,12 +9,14 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-@Mixin(ChatScreen.class)
+// Let the standalone Scoreboard Helper own its equivalent redirect when both mods are installed.
+@Mixin(value = ChatScreen.class, priority = 900)
 public abstract class ScoreboardChatScreenMixin
 {
     @Redirect(
             method = "sendMessage",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendChatMessage(Ljava/lang/String;)V"))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendChatMessage(Ljava/lang/String;)V"),
+            require = 0)
     private void mmm$routeDefaultTeamChat(ClientPlayNetworkHandler networkHandler, String message)
     {
         if (!Configs.Generic.SCOREBOARD_DEFAULT_TEAM_CHAT.getBooleanValue())
