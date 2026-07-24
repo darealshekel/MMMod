@@ -7,12 +7,13 @@ import java.util.Set;
 
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
-import com.mmm.sound.GoalSoundLibrary;
 import com.mmm.social.MilestoneSocialRelay;
+import com.mmm.sound.GoalSoundLibrary;
 import com.mmm.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -21,7 +22,7 @@ import net.minecraft.text.Text;
 public final class GoalNotificationManager
 {
     private static final Set<Integer> TRIGGERED_THRESHOLDS = new HashSet<>();
-    private static final List<Integer> PICKAXE_MILESTONES = List.of(25, 50, 75, 100);
+    private static final List<Integer> BASE_MILESTONES = List.of(25, 50, 75, 100);
     private static final Set<Integer> TRIGGERED_PICKAXE_MILESTONES = new HashSet<>();
     private static final Set<Integer> TRIGGERED_SOUND_MILESTONES = new HashSet<>();
     private static long lastObservedProgress;
@@ -43,26 +44,22 @@ public final class GoalNotificationManager
             clear();
         }
 
-        int oldPercent = (int) Math.min(100, (oldProgress * 100) / progress.target());
-        int newPercent = progress.getPercent();
+        int oldPercent = GoalMilestonePolicy.percent(oldProgress, progress.target());
+        int newPercent = GoalMilestonePolicy.percent(progress.current(), progress.target());
+        int crossedMilestone = GoalMilestonePolicy.highestCrossed(oldPercent, newPercent);
 
-        triggerPickaxeMilestone(oldPercent, newPercent);
+        triggerPickaxeMilestone(crossedMilestone);
         triggerMilestoneSound(oldPercent, newPercent);
 
         lastObservedProgress = progress.current();
         lastObservedTarget = progress.target();
 
-        for (Integer threshold : Configs.getNotificationThresholds())
+        if (crossedMilestone > 0 && TRIGGERED_THRESHOLDS.add(crossedMilestone))
         {
-            if (!TRIGGERED_THRESHOLDS.contains(threshold) && oldPercent < threshold && newPercent >= threshold)
+            MilestoneSocialRelay.publishMilestone(crossedMilestone, progress);
+            if (FeatureToggle.MMM_NOTIFICATIONS.getBooleanValue())
             {
-                TRIGGERED_THRESHOLDS.add(threshold);
-                MilestoneSocialRelay.publishMilestone(threshold, progress);
-                if (FeatureToggle.TWEAK_NOTIFICATIONS.getBooleanValue())
-                {
-                    showThresholdAnnouncement(threshold, progress);
-                }
-                return;
+                showThresholdAnnouncement(crossedMilestone, progress);
             }
         }
     }
@@ -82,13 +79,13 @@ public final class GoalNotificationManager
 
     private static void triggerMilestoneSound(int oldPercent, int newPercent)
     {
-        if (!FeatureToggle.TWEAK_SOUND_ALERTS.getBooleanValue())
+        if (!FeatureToggle.MMM_SOUND_ALERTS.getBooleanValue())
         {
             return;
         }
 
         int highestCrossed = 0;
-        for (int milestone : PICKAXE_MILESTONES)
+        for (int milestone : BASE_MILESTONES)
         {
             if (oldPercent < milestone && newPercent >= milestone && TRIGGERED_SOUND_MILESTONES.add(milestone))
             {
@@ -96,36 +93,23 @@ public final class GoalNotificationManager
             }
         }
 
-        if (highestCrossed <= 0)
+        if (highestCrossed > 0)
         {
-            return;
+            GoalSoundLibrary.play(highestCrossed);
         }
-        GoalSoundLibrary.play(highestCrossed);
     }
 
-    private static void triggerPickaxeMilestone(int oldPercent, int newPercent)
+    private static void triggerPickaxeMilestone(int milestone)
     {
-        int highestCrossed = 0;
-        for (int milestone : PICKAXE_MILESTONES)
-        {
-            if (newPercent >= milestone)
-            {
-                boolean firstCrossing = TRIGGERED_PICKAXE_MILESTONES.add(milestone);
-                if (firstCrossing && oldPercent < milestone)
-                {
-                    highestCrossed = milestone;
-                }
-            }
-        }
-
-        if (highestCrossed <= 0
+        if (milestone <= 0
+                || TRIGGERED_PICKAXE_MILESTONES.add(milestone) == false
                 || Configs.Generic.GOAL_PICKAXE_ANIMATION.getBooleanValue() == false
-                || FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue() == false)
+                || FeatureToggle.MMM_DAILY_GOAL.getBooleanValue() == false)
         {
             return;
         }
 
-        Item pickaxe = switch (highestCrossed)
+        Item pickaxe = switch (milestone)
         {
             case 25 -> Items.STONE_PICKAXE;
             case 50 -> Items.IRON_PICKAXE;
@@ -136,6 +120,10 @@ public final class GoalNotificationManager
         if (client != null && client.player != null)
         {
             ItemStack stack = new ItemStack(pickaxe);
+            if (milestone > 100)
+            {
+                stack.set(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
+            }
             client.execute(() -> client.gameRenderer.showFloatingItem(stack));
         }
     }
@@ -161,11 +149,11 @@ public final class GoalNotificationManager
     {
         return switch (threshold)
         {
-            case 25 -> "Nice start - 25% done today";
-            case 50 -> "Halfway there - 50% done today";
-            case 75 -> "Almost there - 75% done today";
-            default -> "Daily goal complete - 100% done";
+            case 25 -> "Daily goal started - 25% reached";
+            case 50 -> "Halfway through today's goal - 50% reached";
+            case 75 -> "Final stretch - 75% reached";
+            case 100 -> "Daily goal complete - 100% reached";
+            default -> "Daily goal exceeded - " + threshold + "% reached";
         };
     }
-
 }

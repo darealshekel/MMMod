@@ -1,6 +1,6 @@
 package com.mmm.mixin;
 
-import com.mmm.tweak.BlockEspRenderer;
+import com.mmm.feature.BlockEspRenderer;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.client.MinecraftClient;

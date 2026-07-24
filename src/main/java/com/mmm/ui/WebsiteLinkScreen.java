@@ -403,6 +403,7 @@ public class WebsiteLinkScreen extends Screen
         Configs.websiteGlobalTotalBlocks = 0L;
         Configs.websiteGlobalTotalUpdatedAtMs = 0L;
         Configs.websiteLastSuccessfulSyncMs = 0L;
+        Configs.clearSourceSyncCooldowns();
         Configs.saveToFile();
         WebsiteLinkManager.reset();
         refreshState();

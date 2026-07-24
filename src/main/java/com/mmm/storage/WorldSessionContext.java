@@ -113,10 +113,10 @@ public final class WorldSessionContext
 
         lastDebugFingerprint = fingerprint;
         MMM.LOGGER.info(
-                "[MMM_DEBUG] world-context-resolved worldId={} displayName={} kind={} host=redacted",
-                info.id(),
+                "[MMM_DEBUG] world-context-resolved displayName={} kind={} sourceType={}",
                 info.displayName(),
-                info.kind()
+                info.kind(),
+                info.sourceType()
         );
     }
 

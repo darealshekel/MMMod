@@ -277,6 +277,9 @@ public final class ScoreboardService
 
     private static final class CsvWriteException extends RuntimeException
     {
+        @java.io.Serial
+        private static final long serialVersionUID = 1L;
+
         private final IOException ioException;
 
         private CsvWriteException(IOException ioException)

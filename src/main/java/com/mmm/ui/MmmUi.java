@@ -375,7 +375,7 @@ public final class MmmUi
         switch (route)
         {
             case SETTINGS -> client.setScreen(new MmmSettingsScreen(routeParent));
-            case TOGGLES -> client.setScreen(GuiConfigs.createForTab("TWEAKS", routeParent));
+            case TOGGLES -> client.setScreen(GuiConfigs.createForTab("FEATURES", routeParent));
             case HOTKEYS -> client.setScreen(GuiConfigs.createForTab("HOTKEYS", routeParent));
             case PROJECTS -> client.setScreen(new ProjectManagerScreen(routeParent));
             case PROFILE -> client.setScreen(new PlayerProfileScreen(routeParent));

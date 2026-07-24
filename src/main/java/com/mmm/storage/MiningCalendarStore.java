@@ -1,16 +1,13 @@
 package com.mmm.storage;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.mmm.MMM;
 import com.mmm.util.PeriodKeys;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.ResolverStyle;
@@ -25,7 +22,6 @@ import net.minecraft.client.MinecraftClient;
 /** Cross-version, UUID-scoped local history of accepted valid block breaks. */
 public final class MiningCalendarStore
 {
-    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create();
     private static final DateTimeFormatter DAY_FORMAT = DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT);
     private static final int MAX_DAYS = 400;
@@ -71,6 +67,49 @@ public final class MiningCalendarStore
             result.add(entry);
         });
         return result;
+    }
+
+    public static synchronized long currentDailyBlocks(long now)
+    {
+        activateCurrentPlayer();
+        LocalDate currentDay = LocalDate.ofInstant(Instant.ofEpochMilli(now), PeriodKeys.UTC);
+        return sumDaysWithin(DAYS, currentDay, currentDay);
+    }
+
+    public static synchronized long currentWeeklyBlocks(long now)
+    {
+        activateCurrentPlayer();
+        LocalDate currentDay = LocalDate.ofInstant(Instant.ofEpochMilli(now), PeriodKeys.UTC);
+        LocalDate weekStart = LocalDate.ofInstant(
+                Instant.ofEpochMilli(PeriodKeys.currentWeeklyStartMs(now)),
+                PeriodKeys.UTC);
+        return sumDaysWithin(DAYS, weekStart, currentDay);
+    }
+
+    static long sumDaysWithin(Map<String, Long> days, LocalDate startInclusive, LocalDate endInclusive)
+    {
+        if (days == null || startInclusive == null || endInclusive == null || endInclusive.isBefore(startInclusive))
+        {
+            return 0L;
+        }
+
+        long total = 0L;
+        for (Map.Entry<String, Long> entry : days.entrySet())
+        {
+            LocalDate day = parseDay(entry.getKey());
+            if (day == null || day.isBefore(startInclusive) || day.isAfter(endInclusive))
+            {
+                continue;
+            }
+
+            long blocks = Math.max(0L, entry.getValue() == null ? 0L : entry.getValue());
+            if (Long.MAX_VALUE - total < blocks)
+            {
+                return Long.MAX_VALUE;
+            }
+            total += blocks;
+        }
+        return total;
     }
 
     public static synchronized void markPayloadSynced(JsonObject payload)
@@ -176,11 +215,21 @@ public final class MiningCalendarStore
 
         try
         {
-            JsonObject root = JsonParser.parseString(Files.readString(path)).getAsJsonObject();
+            AtomicJsonStorage.ReadResult result = AtomicJsonStorage.readObjectWithBackup(path);
+            if (result.value() == null)
+            {
+                return;
+            }
+            JsonObject root = result.value();
             readDayMap(root.getAsJsonObject("days"), DAYS);
             readDayMap(root.getAsJsonObject("synced_days"), SYNCED_DAYS);
             trimOldDays();
-            dirty = false;
+            dirty = result.recoveredFromBackup();
+            if (result.recoveredFromBackup())
+            {
+                MMM.LOGGER.warn("[MMM] Recovered mining calendar state from backup.");
+                save();
+            }
         }
         catch (Exception e)
         {
@@ -276,21 +325,11 @@ public final class MiningCalendarStore
         Path path = SharedStoragePaths.miningCalendarFile(activePlayerKey);
         try
         {
-            Files.createDirectories(path.getParent());
             JsonObject root = new JsonObject();
             root.addProperty("version", 1);
             root.add("days", mapJson(DAYS));
             root.add("synced_days", mapJson(SYNCED_DAYS));
-            Path temporary = path.resolveSibling(path.getFileName() + ".tmp");
-            Files.writeString(temporary, GSON.toJson(root));
-            try
-            {
-                Files.move(temporary, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            }
-            catch (Exception ignored)
-            {
-                Files.move(temporary, path, StandardCopyOption.REPLACE_EXISTING);
-            }
+            AtomicJsonStorage.write(path, root, true);
             lastSaveAtMs = System.currentTimeMillis();
             dirty = false;
         }

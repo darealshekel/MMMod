@@ -1,4 +1,4 @@
-package com.mmm.tweak;
+package com.mmm.feature;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +24,7 @@ public final class PerimeterWallDigHelper
 
     public static boolean isPositionDisallowed(BlockPos pos)
     {
-        if (!FeatureToggle.TWEAK_PERIMETER_WALL_DIG_HELPER.getBooleanValue())
+        if (!FeatureToggle.MMM_PERIMETER_WALL_DIG_HELPER.getBooleanValue())
         {
             return false;
         }

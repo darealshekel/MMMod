@@ -1,4 +1,4 @@
-package com.mmm.tweak;
+package com.mmm.feature;
 
 import com.mmm.config.Configs;
 import com.mmm.util.BlockBreakdownCatalog;

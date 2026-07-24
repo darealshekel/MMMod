@@ -6,9 +6,9 @@ MMMod is the official client-side companion for [Manual Mining Maniacs](https://
 
 | Minecraft | Release asset | Required Fabric API |
 | --- | --- | --- |
-| 1.21 | `mmm-1.0.15+1.21.jar` | `0.102.0+1.21` or newer compatible build |
-| 1.21.1 | `mmm-1.0.15+1.21.1.jar` | `0.116.12+1.21.1` or newer compatible build |
-| 1.21.4 | `mmm-1.0.15+1.21.4.jar` | `0.119.4+1.21.4` or newer compatible build |
+| 1.21 | `mmm-1.0.16+1.21.jar` | `0.102.0+1.21` or newer compatible build |
+| 1.21.1 | `mmm-1.0.16+1.21.1.jar` | `0.116.12+1.21.1` or newer compatible build |
+| 1.21.4 | `mmm-1.0.16+1.21.4.jar` | `0.119.4+1.21.4` or newer compatible build |
 
 MMMod also requires:
 
@@ -77,6 +77,7 @@ Commands:
 
 ```text
 /mmm timer start [duration]
+/mmm timer pause
 /mmm timer stop
 /mmm timer reset
 /mmm timer set <duration>

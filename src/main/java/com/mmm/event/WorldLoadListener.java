@@ -8,7 +8,7 @@ import com.mmm.sync.CloudSyncManager;
 import com.mmm.sync.DigsSyncManager;
 import com.mmm.sync.SyncQueueManager;
 import com.mmm.timer.MmmBlockBreakDetector;
-import com.mmm.tweak.PerimeterWallDigHelper;
+import com.mmm.feature.PerimeterWallDigHelper;
 import com.mmm.tracker.BlockBreakdownTracker;
 import com.mmm.tracker.GoalNotificationManager;
 import com.mmm.tracker.MiningStats;
@@ -36,9 +36,10 @@ public class WorldLoadListener implements IWorldLoadListener
         if (worldBefore != null && worldAfter == null)
         {
             SessionData finished = MiningStats.finaliseSession();
-            CloudSyncManager.syncNow("world exit");
-            SyncQueueManager.forceFlush("world exit");
-            if (FeatureToggle.TWEAK_SUMMARY_ON_EXIT.getBooleanValue() && finished.totalBlocks > 0)
+            CloudSyncManager.requestScheduledSync("world exit");
+            DigsSyncManager.requestScheduledSync("world exit");
+            SyncQueueManager.requestFlush("world exit");
+            if (FeatureToggle.MMM_SUMMARY_ON_EXIT.getBooleanValue() && finished.totalBlocks > 0)
             {
                 pendingSummary = finished;
                 pendingSummaryName = WorldSessionContext.getCurrentWorldName();
@@ -65,7 +66,7 @@ public class WorldLoadListener implements IWorldLoadListener
                 MiningStats.startWorldSession(nextWorldId);
                 BlockBreakdownTracker.requestStatsOnWorldJoin();
             }
-            SyncQueueManager.forceFlush("world join");
+            SyncQueueManager.requestFlush("world join");
         }
         else if (worldAfter == null)
         {
@@ -83,10 +84,10 @@ public class WorldLoadListener implements IWorldLoadListener
         MmmDebugLogger.info(
                 "world-switch",
                 WORLD_SWITCH_LOG_INTERVAL_MS,
-                "[MMM_DEBUG] world-switch previousWorldId={} nextWorldId={} displayName={} host=redacted",
-                previousWorldId,
-                nextWorldId,
-                info.displayName()
+                "[MMM_DEBUG] world-switch changed={} displayName={} sourceType={}",
+                previousWorldId.equals(nextWorldId) == false,
+                info.displayName(),
+                info.sourceType()
         );
     }
 

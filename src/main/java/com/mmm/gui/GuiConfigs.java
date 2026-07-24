@@ -41,9 +41,9 @@ import net.minecraft.text.Text;
 
 public class GuiConfigs extends GuiConfigsBase
 {
-    public static ImmutableList<FeatureToggle> TWEAK_LIST = buildFeatureToggleList();
+    public static ImmutableList<FeatureToggle> MMM_LIST = buildFeatureToggleList();
     private static final int LIST_Y = MmmUi.TOP_BAR_HEIGHT + 12;
-    private static ConfigGuiTab tab = ConfigGuiTab.TWEAKS;
+    private static ConfigGuiTab tab = ConfigGuiTab.FEATURES;
 
     public GuiConfigs()
     {
@@ -81,7 +81,7 @@ public class GuiConfigs extends GuiConfigsBase
         int sidebarWidth = MmmUi.sidebarWidth(this.width);
         this.createSettingsButton(y, rowHeight, sidebarWidth);
         y += rowStep;
-        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.TWEAKS);
+        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.FEATURES);
         y += rowStep;
         this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.HOTKEYS);
         y += rowStep;
@@ -145,7 +145,7 @@ public class GuiConfigs extends GuiConfigsBase
     @Override
     protected boolean useKeybindSearch()
     {
-        return tab == ConfigGuiTab.TWEAKS || tab == ConfigGuiTab.HOTKEYS;
+        return tab == ConfigGuiTab.FEATURES || tab == ConfigGuiTab.HOTKEYS;
     }
 
     @Override
@@ -157,13 +157,13 @@ public class GuiConfigs extends GuiConfigsBase
         {
             configs = Configs.Generic.OPTIONS;
         }
-        else if (tab == ConfigGuiTab.TWEAKS)
+        else if (tab == ConfigGuiTab.FEATURES)
         {
             List<ConfigOptionWrapper> wrappers = new ArrayList<>();
-            for (FeatureToggle toggle : TWEAK_LIST)
+            for (FeatureToggle toggle : MMM_LIST)
             {
                 wrappers.addAll(ConfigOptionWrapper.createFor(List.of(wrapConfig(toggle))));
-                if (toggle == FeatureToggle.TWEAK_PERIMETER_WALL_DIG_HELPER)
+                if (toggle == FeatureToggle.MMM_PERIMETER_WALL_DIG_HELPER)
                 {
                     wrappers.addAll(ConfigOptionWrapper.createFor(List.of(Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST)));
                 }
@@ -211,17 +211,17 @@ public class GuiConfigs extends GuiConfigsBase
     {
         return switch (toggle)
         {
-            case TWEAK_HUD,
-                 TWEAK_DAILY_GOAL,
-                 TWEAK_NOTIFICATIONS,
-                 TWEAK_SOUND_ALERTS,
-                 TWEAK_HUD_PROJECT,
-                 TWEAK_HUD_TOTAL_MINED,
-                 TWEAK_HUD_GOAL_PROGRESS,
-                 TWEAK_HUD_BLOCKS_PER_HOUR,
-                 TWEAK_HUD_ETA,
-                 TWEAK_HUD_BOUNDING_BOX,
-                 TWEAK_HUD_SPEED_GRAPH -> true;
+            case MMM_HUD,
+                 MMM_DAILY_GOAL,
+                 MMM_NOTIFICATIONS,
+                 MMM_SOUND_ALERTS,
+                 MMM_HUD_PROJECT,
+                 MMM_HUD_TOTAL_MINED,
+                 MMM_HUD_GOAL_PROGRESS,
+                 MMM_HUD_BLOCKS_PER_HOUR,
+                 MMM_HUD_ETA,
+                 MMM_HUD_BOUNDING_BOX,
+                 MMM_HUD_SPEED_GRAPH -> true;
             default -> false;
         };
     }
@@ -231,7 +231,7 @@ public class GuiConfigs extends GuiConfigsBase
         int sidePad = sidebarWidth < 120 ? 8 : 12;
         String label = sidebarWidth < 120 ? configTab.getCompactDisplayName() : configTab.getDisplayName();
         ButtonGeneric button = new MmmSidebarButton(sidePad, y, sidebarWidth - sidePad * 2, height, label, tab == configTab);
-        button.setEnabled(tab != configTab || configTab != ConfigGuiTab.TWEAKS && configTab != ConfigGuiTab.HOTKEYS);
+        button.setEnabled(tab != configTab || configTab != ConfigGuiTab.FEATURES && configTab != ConfigGuiTab.HOTKEYS);
         this.addButton(button, new TabButtonListener(configTab, this));
     }
 
@@ -474,7 +474,7 @@ public class GuiConfigs extends GuiConfigsBase
     private enum ConfigGuiTab
     {
         GENERIC("Generic", "Generic"),
-        TWEAKS("Feature Toggles", "Toggles"),
+        FEATURES("Feature Toggles", "Toggles"),
         HOTKEYS("Hotkeys", "Hotkeys"),
         PROJECTS("Projects", "Projects"),
         PROFILE("Profile", "Profile"),

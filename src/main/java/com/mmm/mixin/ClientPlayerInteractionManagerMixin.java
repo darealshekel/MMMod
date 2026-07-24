@@ -1,7 +1,7 @@
 package com.mmm.mixin;
 
-import com.mmm.tweak.FlatDigger;
-import com.mmm.tweak.PerimeterWallDigHelper;
+import com.mmm.feature.FlatDigger;
+import com.mmm.feature.PerimeterWallDigHelper;
 import com.mmm.timer.MmmBlockBreakDetector;
 
 import net.minecraft.client.network.ClientPlayerInteractionManager;

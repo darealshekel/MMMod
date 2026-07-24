@@ -16,7 +16,7 @@ import com.mmm.util.MmmDebugLogger;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.scoreboard.ScoreboardEntry;
 
-final class ScoreboardParser
+public final class ScoreboardParser
 {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d[\\d,._ ]*(?:\\.\\d+)?)(?:\\s*([kKmMbBtT]))?");
     private static final Pattern DECLARED_RANK_PATTERN = Pattern.compile("^(?:\\[)?#?(\\d{1,3})(?:\\]|[.):-])?\\s+");
@@ -472,6 +472,20 @@ final class ScoreboardParser
             return 50;
         }
         return 0;
+    }
+
+    /**
+     * Generic scoreboard objectives must never be treated as mining totals.
+     */
+    public static boolean isMiningEvidence(String value)
+    {
+        return objectivePriority(value) > 0 || hasMiningLabel(value);
+    }
+
+    public static boolean hasMiningLabel(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        return lower.matches(".*(?<![a-z0-9])(?:dig|digs|dug|dugs|duggaed|blocks? mined|mined blocks|pick(?:axe)? uses?|pick(?:axe)?uses|axe uses?|axeuses|shovel uses?|shoveluses|hoe uses?|hoeuses|shears uses?|shearsuses)(?![a-z0-9]).*");
     }
 
     static boolean isPickUsesObjective(String value)
