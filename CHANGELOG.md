@@ -7,6 +7,8 @@
 - Added `/mmm timer pause` to pause the timer and its run stats.
 - Added Red Sand, Moss Block, Mud, and Coarse Dirt to block breakdowns.
 - Added clearer sync messages for linking, cooldowns, uploads, and retries.
+- Added daily-goal chat messages and pickaxe animations at every 25% milestone beyond 100%.
+- Typing anywhere in MMMod Settings now starts a search automatically.
 
 ### Changed
 
