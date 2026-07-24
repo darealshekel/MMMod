@@ -1,8 +1,8 @@
 package com.mmm.timer;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -15,6 +15,7 @@ import java.util.Properties;
 
 import com.mmm.MMM;
 import com.mmm.config.Configs;
+import com.mmm.storage.AtomicTextStorage;
 import com.mmm.storage.SharedStoragePaths;
 import com.mmm.tracker.MiningStats;
 import com.mmm.util.BlockBreakdownCatalog;
@@ -35,6 +36,8 @@ public final class MmmTimerState
     private static long remainingPausedMs = DEFAULT_DURATION_MS;
     private static long startedAtMs;
     private static boolean running;
+    private static boolean paused;
+    private static long pausedAtMs;
     private static boolean expired;
     private static boolean creditsPending;
     private static long lastSaveMs;
@@ -63,10 +66,17 @@ public final class MmmTimerState
             return;
         }
 
-        Properties properties = new Properties();
-        try (InputStream input = Files.newInputStream(file))
+        Properties properties;
+        boolean recoveredFromBackup;
+        try
         {
-            properties.load(input);
+            AtomicTextStorage.ReadResult result = AtomicTextStorage.readWithBackup(file, MmmTimerState::isValidStateFile);
+            if (result.value() == null)
+            {
+                return;
+            }
+            properties = parseProperties(result.value());
+            recoveredFromBackup = result.recoveredFromBackup();
         }
         catch (IOException exception)
         {
@@ -78,6 +88,8 @@ public final class MmmTimerState
         remainingPausedMs = clampDuration(readLong(properties, "remainingPausedMs", durationMs));
         startedAtMs = Math.max(0L, readLong(properties, "startedAtMs", 0L));
         running = Boolean.parseBoolean(properties.getProperty("running", "false"));
+        paused = Boolean.parseBoolean(properties.getProperty("paused", "false"));
+        pausedAtMs = Math.max(0L, readLong(properties, "pausedAtMs", 0L));
         expired = Boolean.parseBoolean(properties.getProperty("expired", "false"));
         runStartedAtMs = Math.max(0L, readLong(properties, "runStartedAtMs", 0L));
         hourStartTimeMs = Math.max(0L, readLong(properties, "hourStartTimeMs", readLong(properties, "hourStartTime", runStartedAtMs)));
@@ -108,6 +120,8 @@ public final class MmmTimerState
 
         if (running)
         {
+            paused = false;
+            pausedAtMs = 0L;
             long remaining = getRemainingMs(System.currentTimeMillis());
             if (remaining <= 0L)
             {
@@ -115,6 +129,16 @@ public final class MmmTimerState
                 expired = true;
                 remainingPausedMs = 0L;
             }
+        }
+        else if (paused && pausedAtMs <= 0L)
+        {
+            pausedAtMs = System.currentTimeMillis();
+        }
+
+        if (recoveredFromBackup)
+        {
+            MMM.LOGGER.warn("[MMM] Recovered timer state from backup.");
+            save();
         }
     }
 
@@ -137,6 +161,8 @@ public final class MmmTimerState
         properties.setProperty("remainingPausedMs", String.valueOf(running ? getRemainingMs(now) : remainingPausedMs));
         properties.setProperty("startedAtMs", String.valueOf(startedAtMs));
         properties.setProperty("running", String.valueOf(running));
+        properties.setProperty("paused", String.valueOf(paused));
+        properties.setProperty("pausedAtMs", String.valueOf(pausedAtMs));
         properties.setProperty("expired", String.valueOf(expired));
         properties.setProperty("runStartedAtMs", String.valueOf(runStartedAtMs));
         properties.setProperty("hourStartTimeMs", String.valueOf(hourStartTimeMs));
@@ -156,9 +182,11 @@ public final class MmmTimerState
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> properties.setProperty("block." + entry.getKey(), String.valueOf(entry.getValue())));
 
-        try (OutputStream output = Files.newOutputStream(file))
+        try
         {
+            StringWriter output = new StringWriter();
             properties.store(output, "MMM timer state");
+            AtomicTextStorage.write(file, output.toString(), true, MmmTimerState::isValidStateFile);
             lastSaveMs = now;
         }
         catch (IOException exception)
@@ -167,27 +195,61 @@ public final class MmmTimerState
         }
     }
 
+    private static Properties parseProperties(String contents) throws IOException
+    {
+        Properties properties = new Properties();
+        properties.load(new StringReader(contents == null ? "" : contents));
+        return properties;
+    }
+
+    private static boolean isValidStateFile(String contents)
+    {
+        try
+        {
+            Properties properties = parseProperties(contents);
+            if (properties.containsKey("durationMs") == false)
+            {
+                return false;
+            }
+            Long.parseLong(properties.getProperty("durationMs"));
+            if (properties.containsKey("remainingPausedMs"))
+            {
+                Long.parseLong(properties.getProperty("remainingPausedMs"));
+            }
+            return true;
+        }
+        catch (Exception ignored)
+        {
+            return false;
+        }
+    }
+
     public static void start(Long requestedDurationMs)
     {
         Configs.Generic.TIMER_HUD_VISIBLE.setBooleanValue(true);
+        boolean resumePausedRun = requestedDurationMs == null && paused && expired == false && remainingPausedMs > 0L;
         if (requestedDurationMs != null)
         {
             setDuration(requestedDurationMs);
             resetRunStats();
         }
-        else if (expired || remainingPausedMs <= 0L)
+        else if (resumePausedRun == false)
         {
             resetRunStats();
         }
 
         long now = System.currentTimeMillis();
         long remaining = Math.max(MIN_DURATION_MS, Math.min(durationMs, remainingPausedMs > 0L ? remainingPausedMs : durationMs));
-        resetRunStats();
+        if (resumePausedRun)
+        {
+            shiftRunClocks(Math.max(0L, now - pausedAtMs));
+        }
         startedAtMs = now - (durationMs - remaining);
         running = true;
+        paused = false;
+        pausedAtMs = 0L;
         expired = false;
         creditsPending = false;
-        runStartedAtMs = now;
 
         if (MiningStats.isSessionActive() == false)
         {
@@ -202,6 +264,28 @@ public final class MmmTimerState
         save();
     }
 
+    public static boolean pause()
+    {
+        if (running == false)
+        {
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        remainingPausedMs = getRemainingMs(now);
+        running = false;
+        paused = true;
+        pausedAtMs = now;
+        if (MiningStats.isSessionActive() && MiningStats.isSessionPaused() == false)
+        {
+            MiningStats.togglePauseSession();
+        }
+        Configs.Generic.TIMER_HUD_VISIBLE.setBooleanValue(true);
+        Configs.saveToFile();
+        save();
+        return true;
+    }
+
     public static void stop()
     {
         if (running)
@@ -209,6 +293,8 @@ public final class MmmTimerState
             remainingPausedMs = getRemainingMs(System.currentTimeMillis());
             running = false;
         }
+        paused = false;
+        pausedAtMs = 0L;
         if (MiningStats.isSessionActive() && MiningStats.isSessionPaused() == false)
         {
             MiningStats.togglePauseSession();
@@ -221,6 +307,8 @@ public final class MmmTimerState
     public static void reset()
     {
         running = false;
+        paused = false;
+        pausedAtMs = 0L;
         expired = false;
         remainingPausedMs = durationMs;
         startedAtMs = 0L;
@@ -234,6 +322,8 @@ public final class MmmTimerState
     {
         durationMs = clampDuration(requestedDurationMs);
         running = false;
+        paused = false;
+        pausedAtMs = 0L;
         expired = false;
         remainingPausedMs = durationMs;
         startedAtMs = 0L;
@@ -257,6 +347,8 @@ public final class MmmTimerState
             if (remaining <= 0L)
             {
                 running = false;
+                paused = false;
+                pausedAtMs = 0L;
                 expired = true;
                 remainingPausedMs = 0L;
                 lastHourBlocks = currentHourBlocks;
@@ -269,7 +361,7 @@ public final class MmmTimerState
                 save();
             }
         }
-        else if (MiningStats.isSessionActive() && MiningStats.isSessionPaused() == false)
+        else if (paused == false && MiningStats.isSessionActive() && MiningStats.isSessionPaused() == false)
         {
             updateHourBoundaries(now);
         }
@@ -309,6 +401,10 @@ public final class MmmTimerState
 
     public static void onSessionStarted()
     {
+        if (paused)
+        {
+            return;
+        }
         if (running == false)
         {
             if (expired || remainingPausedMs <= 0L)
@@ -357,6 +453,11 @@ public final class MmmTimerState
         return running;
     }
 
+    public static boolean isPaused()
+    {
+        return paused;
+    }
+
     public static boolean isExpired()
     {
         return expired;
@@ -365,12 +466,12 @@ public final class MmmTimerState
     public static boolean isTimerDisplayActive()
     {
         return Configs.Generic.TIMER_HUD_VISIBLE.getBooleanValue()
-                && (running || expired || Math.max(0L, remainingPausedMs) < Math.max(1L, durationMs));
+                && (running || paused || expired || Math.max(0L, remainingPausedMs) < Math.max(1L, durationMs));
     }
 
     public static boolean isTimerBlockStatsMode()
     {
-        return running;
+        return running || paused;
     }
 
     public static long getBlocksBroken()
@@ -399,7 +500,8 @@ public final class MmmTimerState
         {
             return 0D;
         }
-        long elapsedMs = System.currentTimeMillis() - hourStartTimeMs;
+        long now = paused && pausedAtMs > 0L ? pausedAtMs : System.currentTimeMillis();
+        long elapsedMs = now - hourStartTimeMs;
         if (elapsedMs <= 0L)
         {
             return 0D;
@@ -499,6 +601,10 @@ public final class MmmTimerState
         {
             return Math.max(0L, Math.min(durationMs, now - startedAtMs));
         }
+        if (paused)
+        {
+            return Math.max(0L, durationMs - Math.max(0L, remainingPausedMs));
+        }
         if (MiningStats.isSessionActive())
         {
             return Math.max(0L, now - runStartedAtMs);
@@ -553,6 +659,8 @@ public final class MmmTimerState
 
     private static void clearExpiredTimerForSessionStats()
     {
+        paused = false;
+        pausedAtMs = 0L;
         expired = false;
         remainingPausedMs = durationMs;
         startedAtMs = 0L;
@@ -561,7 +669,7 @@ public final class MmmTimerState
 
     private static boolean shouldCountBlockStats()
     {
-        if (expired)
+        if (expired || paused)
         {
             return false;
         }
@@ -570,6 +678,22 @@ public final class MmmTimerState
             return true;
         }
         return MiningStats.isSessionActive() && MiningStats.isSessionPaused() == false;
+    }
+
+    private static void shiftRunClocks(long pausedDurationMs)
+    {
+        if (pausedDurationMs <= 0L)
+        {
+            return;
+        }
+        if (runStartedAtMs > 0L)
+        {
+            runStartedAtMs += pausedDurationMs;
+        }
+        if (hourStartTimeMs > 0L)
+        {
+            hourStartTimeMs += pausedDurationMs;
+        }
     }
 
     private static long clampDuration(long value)

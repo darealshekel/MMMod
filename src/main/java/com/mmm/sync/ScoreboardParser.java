@@ -16,10 +16,9 @@ import com.mmm.util.MmmDebugLogger;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.scoreboard.ScoreboardEntry;
 
-final class ScoreboardParser
+public final class ScoreboardParser
 {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d[\\d,._ ]*(?:\\.\\d+)?)(?:\\s*([kKmMbBtT]))?");
-    private static final Pattern USERNAME_PATTERN = Pattern.compile("(?i)(?:^|\\s|[#>\\[(])([A-Za-z0-9_]{3,16})(?:$|\\s|[\\])<:,.-])");
     private static final Pattern DECLARED_RANK_PATTERN = Pattern.compile("^(?:\\[)?#?(\\d{1,3})(?:\\]|[.):-])?\\s+");
     private static final long PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static final List<String> PERSONAL_MARKERS = List.of("your", "you", "player", "personal", "my", "me", "self");
@@ -109,7 +108,7 @@ final class ScoreboardParser
         }
 
         List<SourceLeaderboardEntry> leaderboardEntries = parseEntries(rawLines);
-        if (leaderboardEntries.size() < 3)
+        if (leaderboardEntries.isEmpty())
         {
             return null;
         }
@@ -354,7 +353,7 @@ final class ScoreboardParser
             {
                 continue;
             }
-            if (PERSONAL_MARKERS.stream().anyMatch(line.lower()::contains))
+            if (ScoreboardTextRules.containsAnyStandaloneMarker(line.lower(), PERSONAL_MARKERS))
             {
                 continue;
             }
@@ -384,7 +383,7 @@ final class ScoreboardParser
         String lower = line.lower();
         boolean objectiveIsDigsBoard = objectivePriority(objectiveLower) >= 70;
 
-        boolean lineLooksLikeTotal = SERVER_TOTAL_MARKERS.stream().anyMatch(lower::contains)
+        boolean lineLooksLikeTotal = ScoreboardTextRules.containsAnyStandaloneMarker(lower, SERVER_TOTAL_MARKERS)
                 && ((lower.contains("total") && (lower.contains("dig") || lower.contains("dug")))
                 || lower.contains("server")
                 || lower.contains("global")
@@ -473,6 +472,20 @@ final class ScoreboardParser
             return 50;
         }
         return 0;
+    }
+
+    /**
+     * Generic scoreboard objectives must never be treated as mining totals.
+     */
+    public static boolean isMiningEvidence(String value)
+    {
+        return objectivePriority(value) > 0 || hasMiningLabel(value);
+    }
+
+    public static boolean hasMiningLabel(String value)
+    {
+        String lower = normalizedObjectiveText(value);
+        return lower.matches(".*(?<![a-z0-9])(?:dig|digs|dug|dugs|duggaed|blocks? mined|mined blocks|pick(?:axe)? uses?|pick(?:axe)?uses|axe uses?|axeuses|shovel uses?|shoveluses|hoe uses?|hoeuses|shears uses?|shearsuses)(?![a-z0-9]).*");
     }
 
     static boolean isPickUsesObjective(String value)
@@ -673,41 +686,7 @@ final class ScoreboardParser
 
     private static String extractUsername(String owner, String cleaned)
     {
-        Matcher matcher = USERNAME_PATTERN.matcher(cleaned);
-        while (matcher.find())
-        {
-            String candidate = matcher.group(1);
-            if (isMinecraftUsername(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        if (isMinecraftUsername(owner))
-        {
-            return owner;
-        }
-
-        return null;
-    }
-
-    private static boolean isMinecraftUsername(String value)
-    {
-        if (value == null || value.length() < 3 || value.length() > 16 || value.matches("[A-Za-z0-9_]+") == false)
-        {
-            return false;
-        }
-
-        String lower = value.toLowerCase(Locale.ROOT);
-        return lower.equals("total") == false
-                && lower.equals("player") == false
-                && lower.equals("you") == false
-                && lower.equals("your") == false
-                && lower.equals("me") == false
-                && lower.equals("self") == false
-                && lower.equals("digs") == false
-                && lower.equals("dug") == false
-                && lower.equals("rank") == false;
+        return ScoreboardTextRules.extractUsername(owner, cleaned);
     }
 
     private static int extractDeclaredRank(String cleaned)
@@ -738,12 +717,13 @@ final class ScoreboardParser
     {
         String lower = line.lower();
 
-        if (PERSONAL_MARKERS.stream().anyMatch(lower::contains))
+        if (ScoreboardTextRules.containsAnyStandaloneMarker(lower, PERSONAL_MARKERS))
         {
             return false;
         }
 
-        if (SERVER_TOTAL_MARKERS.stream().anyMatch(lower::contains) && lower.contains("total"))
+        if (ScoreboardTextRules.containsAnyStandaloneMarker(lower, SERVER_TOTAL_MARKERS)
+                && ScoreboardTextRules.containsStandaloneMarker(lower, "total"))
         {
             return false;
         }

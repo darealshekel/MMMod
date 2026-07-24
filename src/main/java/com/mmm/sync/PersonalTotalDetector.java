@@ -175,7 +175,9 @@ final class PersonalTotalDetector
         long rawScore = readDirectScore(scoreboard, objective, client.player.getGameProfile(), username);
         String objectiveTitle = clean(objective.getDisplayName().getString());
         String rendered = findRenderedSidebarLineForUser(client, usernameLower);
-        long parsedRendered = parseNumber(rendered);
+        long parsedRendered = ScoreboardParser.isMiningEvidence(objectiveTitle) || ScoreboardParser.hasMiningLabel(rendered)
+                ? parseNumber(rendered)
+                : 0L;
         long acceptedRawScore = sanitizeDirectScore(rawScore, rendered, objectiveTitle, usernameLower, "sidebar");
         long total = Math.max(rawScore, parsedRendered);
         total = Math.max(acceptedRawScore, parsedRendered);
@@ -208,7 +210,8 @@ final class PersonalTotalDetector
         Collection<PlayerListEntry> playerList = client.getNetworkHandler().getPlayerList();
         if (playerList == null || playerList.isEmpty())
         {
-            return new TabResult(rawScore, objectiveTitle, username, rawScore, "empty-tab-list");
+            long acceptedRawScore = sanitizeDirectScore(rawScore, "", objectiveTitle, usernameLower, "tab");
+            return new TabResult(acceptedRawScore, objectiveTitle, username, acceptedRawScore, "empty-tab-list");
         }
 
         String rendered = "";
@@ -230,7 +233,9 @@ final class PersonalTotalDetector
             if (profileName.toLowerCase(Locale.ROOT).equals(usernameLower))
             {
                 rendered = clean(display);
-                parsedRendered = parseNumber(rendered);
+                parsedRendered = ScoreboardParser.isMiningEvidence(objectiveTitle) || ScoreboardParser.hasMiningLabel(rendered)
+                        ? parseNumber(rendered)
+                        : 0L;
                 break;
             }
         }
@@ -356,6 +361,12 @@ final class PersonalTotalDetector
                 {
                     continue;
                 }
+                if (ScoreboardParser.isMiningEvidence(objectiveTitle) == false
+                        && ScoreboardParser.hasMiningLabel(line.cleaned()) == false)
+                {
+                    continue;
+                }
+
                 long parsed = parseNumber(line.cleaned());
                 boolean accepted = false;
                 String reason = "inline-number";
@@ -400,9 +411,11 @@ final class PersonalTotalDetector
             return 0L;
         }
 
-        long parsedRendered = parseNumber(rendered);
+        long parsedRendered = ScoreboardParser.isMiningEvidence(objectiveTitle) || ScoreboardParser.hasMiningLabel(rendered)
+                ? parseNumber(rendered)
+                : 0L;
         boolean hasDigitsInRendered = parsedRendered > 0L;
-        boolean hasDigContext = hasDigMarkers(rendered) || hasDigMarkers(objectiveTitle);
+        boolean hasDigContext = ScoreboardParser.isMiningEvidence(objectiveTitle) || ScoreboardParser.hasMiningLabel(rendered);
         boolean rankLike = isLikelyRankOnlyLine(rendered, usernameLower, rawScore);
         boolean accepted = false;
         String reason = "rejected-ambiguous-direct-score";
@@ -412,7 +425,7 @@ final class PersonalTotalDetector
             accepted = false;
             reason = "rejected-rank-like-line";
         }
-        else if (hasDigitsInRendered)
+        else if (hasDigitsInRendered && (ScoreboardParser.isMiningEvidence(objectiveTitle) || ScoreboardParser.hasMiningLabel(rendered)))
         {
             accepted = true;
             reason = "accepted-rendered-number";

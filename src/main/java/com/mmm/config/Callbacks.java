@@ -6,9 +6,9 @@ import java.nio.file.Path;
 import com.mmm.hud.SessionHistoryScreen;
 import com.mmm.hud.SummaryScreen;
 import com.mmm.tracker.MiningStats;
-import com.mmm.tweak.BlockEspRenderer;
-import com.mmm.tweak.PerimeterWallDigHelper;
-import com.mmm.tweak.TranslucentLavaRenderer;
+import com.mmm.feature.BlockEspRenderer;
+import com.mmm.feature.PerimeterWallDigHelper;
+import com.mmm.feature.TranslucentLavaRenderer;
 import com.mmm.ui.MmmSettingsScreen;
 import com.mmm.scoreboard.ScoreboardEditScreen;
 import com.mmm.scoreboard.ScoreboardRecordsScreen;
@@ -121,7 +121,7 @@ public final class Callbacks
 
             if (key == Hotkeys.OPEN_CONFIG_GUI.getKeybind())
             {
-                client.setScreen(new MmmSettingsScreen(client.currentScreen));
+                client.setScreen(new MmmSettingsScreen(client.currentScreen, true));
                 return true;
             }
             if (key == Hotkeys.OPEN_SUMMARY.getKeybind())

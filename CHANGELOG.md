@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.0.16 - 2026-07-24
+
+### Added
+
+- Added `/mmm timer pause` to pause the timer and its run stats.
+- Added Red Sand, Moss Block, Mud, and Coarse Dirt to block breakdowns.
+- Added clearer sync messages for linking, cooldowns, uploads, and retries.
+
+### Changed
+
+- The 24-hour sync cooldown now applies separately to each source.
+- World Total and website sync now use the validated mining scoreboard exactly, with supported tool-use totals as the fallback.
+- Settings, sessions, calendars, and queued syncs now recover more safely after interrupted or malformed saves.
+
+### Fixed
+
+- Fixed unrelated scoreboards, such as sprint distance, replacing mining totals.
+- Fixed World Total drifting after local mining and refusing corrected lower scoreboard values.
+- Fixed the settings hotkey typing into search and made search properly editable.
+- Fixed expired website links getting stuck in queued or retrying states.
+- Fixed stale daily and weekly progress while keeping lifetime personal records.
+- Fixed existing 1.0.15 settings not carrying over correctly.
+
 ## 1.0.15 - 2026-07-15
 
 ### Added
@@ -30,7 +53,7 @@
 
 - Added a search bar to settings.
 - Added an optional Daily Goal bar to the main HUD. It is off by default.
-- Added `tweakToggleTab` and a hotkey for keeping the player list open.
+- Added `mmmToggleTab` and a hotkey for keeping the player list open.
 - Added translucent lava with adjustable opacity.
 
 ### Changed

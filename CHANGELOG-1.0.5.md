@@ -21,7 +21,7 @@ Changes since 1.0.4:
 
 - Reworked the Website Link screen to match the website's dark red, charcoal, and warm gold visual system.
 - Applied the same website-aligned visual style to Summary, Session History, and Projects screens.
-- Restyled the tweak mining HUD bounding box to use the website visual language.
+- Restyled the MMM mining HUD bounding box to use the website visual language.
 - Improved the Project Manager screen styling and layout.
 - Added hover detection on the Session Pace chart to inspect blocks mined per hour at each point.
 

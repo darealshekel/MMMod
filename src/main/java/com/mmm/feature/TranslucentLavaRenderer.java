@@ -1,4 +1,4 @@
-package com.mmm.tweak;
+package com.mmm.feature;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;

@@ -37,8 +37,8 @@ public final class MiningHudRenderer
 
     public static void render(DrawContext context, MinecraftClient client)
     {
-        if (FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue() == false ||
-            FeatureToggle.TWEAK_HUD.getBooleanValue() == false ||
+        if (FeatureToggle.MMM_MINING_TRACKER.getBooleanValue() == false ||
+            FeatureToggle.MMM_HUD.getBooleanValue() == false ||
             client.player == null ||
             client.options.hudHidden)
         {
@@ -73,7 +73,7 @@ public final class MiningHudRenderer
         context.getMatrices().translate(x, y, 0.0F);
         context.getMatrices().scale(scale, scale, 1.0F);
 
-        if (FeatureToggle.TWEAK_HUD_BOUNDING_BOX.getBooleanValue())
+        if (FeatureToggle.MMM_HUD_BOUNDING_BOX.getBooleanValue())
         {
             int bboxX = -padding;
             int bboxY = -2;
@@ -130,12 +130,12 @@ public final class MiningHudRenderer
         }
 
         boolean sessionInactive = MiningStats.isSessionActive() == false || sessionPaused;
-        if (FeatureToggle.TWEAK_HUD_PROJECT.getBooleanValue())
+        if (FeatureToggle.MMM_HUD_PROJECT.getBooleanValue())
         {
             MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
             lines.add(HudLine.blocksMined("Project: " + UiFormat.truncate(project.name(), 18) + " | ", project.blocksMined()));
         }
-        if (FeatureToggle.TWEAK_HUD_TOTAL_MINED.getBooleanValue())
+        if (FeatureToggle.MMM_HUD_TOTAL_MINED.getBooleanValue())
         {
             if (Configs.Generic.HUD_GLOBAL_TOTAL_VISIBLE.getBooleanValue())
             {
@@ -163,7 +163,7 @@ public final class MiningHudRenderer
                 lines.add(HudLine.text("Fastest 100k: " + fastest100k, inactiveTextColor(fastest100k, false)));
             }
         }
-        if (FeatureToggle.TWEAK_HUD_BLOCKS_PER_HOUR.getBooleanValue())
+        if (FeatureToggle.MMM_HUD_BLOCKS_PER_HOUR.getBooleanValue())
         {
             lines.add(HudLine.speedStats(MiningStats.getDisplayedBlocksPerHour(), MiningStats.getDisplayedBlocksPerSecond(), MmmTimerState.getBlocksPerMinute(), false));
         }
@@ -180,11 +180,11 @@ public final class MiningHudRenderer
             String sessionClock = MiningStats.getSessionDurationClock();
             lines.add(HudLine.text("Session Time: " + sessionClock, inactiveTextColor(sessionClock, sessionPaused)));
         }
-        if (Configs.Generic.HUD_DAILY_RESET_VISIBLE.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue())
+        if (Configs.Generic.HUD_DAILY_RESET_VISIBLE.getBooleanValue() && FeatureToggle.MMM_DAILY_GOAL.getBooleanValue())
         {
             lines.add(HudLine.text("Daily Reset In: " + MiningStats.getDailyResetCountdownClock(), hudTextColor()));
         }
-        if (FeatureToggle.TWEAK_HUD_ETA.getBooleanValue() && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue())
+        if (FeatureToggle.MMM_HUD_ETA.getBooleanValue() && FeatureToggle.MMM_DAILY_GOAL.getBooleanValue())
         {
             String eta = MiningStats.getEstimatedTimeToDailyGoal();
             lines.add(HudLine.text("ETA To Goal: " + eta, inactiveTextColor(eta, sessionPaused)));
@@ -345,7 +345,7 @@ public final class MiningHudRenderer
     private static boolean shouldShowDailyGoalBar(MiningStats.GoalProgress progress)
     {
         return Configs.Generic.HUD_DAILY_GOAL_BAR_VISIBLE.getBooleanValue()
-                && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()
+                && FeatureToggle.MMM_DAILY_GOAL.getBooleanValue()
                 && progress != null
                 && progress.enabled();
     }

@@ -17,24 +17,24 @@ import fi.dy.masa.malilib.util.StringUtils;
 
 public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfigBoolean>
 {
-    TWEAK_MINING_TRACKER("tweakMiningTracker", true, "", "Turns all MMM mining tracking on or off."),
-    TWEAK_DAILY_GOAL("tweakDailyGoal", true, "", "Tracks your daily mining goal."),
-    TWEAK_BLOCK_ESP("tweakBlockEsp", false, "", "Highlights the block under your crosshair."),
-    TWEAK_FLAT_DIGGER("tweakFlatDigger", false, "", "Stops you from digging below your feet."),
-    TWEAK_PERIMETER_WALL_DIG_HELPER("tweakPerimeterWallDigHelper", false, "", "Protects the configured perimeter floor blocks."),
-    TWEAK_NOTIFICATIONS("tweakGoalNotifications", true, "", "Shows a message when you reach a goal milestone."),
-    TWEAK_SOUND_ALERTS("tweakGoalSoundAlerts", true, "", "Plays a sound at your chosen milestone."),
-    TWEAK_SUMMARY_ON_EXIT("tweakSummaryOnExit", true, "", "Opens your session summary when you leave."),
-    TWEAK_CARRY_GOAL_PROGRESS("tweakCarryGoalProgress", true, "", "Keeps today's progress between sessions."),
-    TWEAK_HUD("tweakMiningHud", true, "", "Shows the main mining HUD."),
-    TWEAK_HUD_PROJECT("tweakMiningHudProject", true, "", "Shows your active project."),
-    TWEAK_HUD_TOTAL_MINED("tweakMiningHudTotalMined", true, "", "Enables the mining total lines."),
-    TWEAK_HUD_GOAL_PROGRESS("tweakMiningHudGoalProgress", true, "", "Replaces the XP bar with daily-goal progress while Tab is held."),
-    TWEAK_HUD_BLOCKS_PER_HOUR("tweakMiningHudBlocksPerHour", true, "", "Shows Blocks/hr and Blocks/sec."),
-    TWEAK_HUD_ETA("tweakMiningHudEta", true, "", "Shows the estimated time to your goal."),
-    TWEAK_HUD_BOUNDING_BOX("tweakMiningHudBoundingBox", false, "", "Adds one background behind the main HUD."),
-    TWEAK_HUD_SPEED_GRAPH("tweakMiningHudSpeedGraph", true, "", "Shows your live mining-speed graph."),
-    TWEAK_TOGGLE_TAB("tweakToggleTab", false, "", "Keeps the player list open without holding Tab.");
+    MMM_MINING_TRACKER("mmmMiningTracker", true, "", "Turns all MMM mining tracking on or off."),
+    MMM_DAILY_GOAL("mmmDailyGoal", true, "", "Tracks your daily mining goal."),
+    MMM_BLOCK_ESP("mmmBlockEsp", false, "", "Highlights the block under your crosshair."),
+    MMM_FLAT_DIGGER("mmmFlatDigger", false, "", "Stops you from digging below your feet."),
+    MMM_PERIMETER_WALL_DIG_HELPER("mmmPerimeterWallDigHelper", false, "", "Protects the configured perimeter floor blocks."),
+    MMM_NOTIFICATIONS("mmmGoalNotifications", true, "", "Shows a message when you reach a goal milestone."),
+    MMM_SOUND_ALERTS("mmmGoalSoundAlerts", true, "", "Plays a sound at your chosen milestone."),
+    MMM_SUMMARY_ON_EXIT("mmmSummaryOnExit", true, "", "Opens your session summary when you leave."),
+    MMM_CARRY_GOAL_PROGRESS("mmmCarryGoalProgress", true, "", "Keeps today's progress between sessions."),
+    MMM_HUD("mmmMiningHud", true, "", "Shows the main mining HUD."),
+    MMM_HUD_PROJECT("mmmMiningHudProject", true, "", "Shows your active project."),
+    MMM_HUD_TOTAL_MINED("mmmMiningHudTotalMined", true, "", "Enables the mining total lines."),
+    MMM_HUD_GOAL_PROGRESS("mmmMiningHudGoalProgress", true, "", "Replaces the XP bar with daily-goal progress while Tab is held."),
+    MMM_HUD_BLOCKS_PER_HOUR("mmmMiningHudBlocksPerHour", true, "", "Shows Blocks/hr and Blocks/sec."),
+    MMM_HUD_ETA("mmmMiningHudEta", true, "", "Shows the estimated time to your goal."),
+    MMM_HUD_BOUNDING_BOX("mmmMiningHudBoundingBox", false, "", "Adds one background behind the main HUD."),
+    MMM_HUD_SPEED_GRAPH("mmmMiningHudSpeedGraph", true, "", "Shows your live mining-speed graph."),
+    MMM_TOGGLE_TAB("mmmToggleTab", false, "", "Keeps the player list open without holding Tab.");
 
     public static final ImmutableList<FeatureToggle> VALUES = ImmutableList.copyOf(values());
 
@@ -70,7 +70,12 @@ public enum FeatureToggle implements IHotkeyTogglable, IConfigNotifiable<IConfig
     @Override
     public String getPrettyName()
     {
-        return StringUtils.splitCamelCase(this.name.substring(5));
+        return StringUtils.splitCamelCase(this.name.substring(3));
+    }
+
+    String getLegacyConfigName()
+    {
+        return "tweak" + this.name.substring(3);
     }
 
     @Override

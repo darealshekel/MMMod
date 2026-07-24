@@ -5,11 +5,14 @@ import com.google.gson.JsonParser;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
 import com.mmm.sync.WebsiteLinkManager;
+import com.mmm.tracker.GoalMilestonePolicy;
 import com.mmm.tracker.MiningStats;
 import com.mmm.util.UiFormat;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -89,6 +92,7 @@ public final class MilestoneSocialRelay
         {
             return;
         }
+
         connect(client, roomId);
     }
 
@@ -100,7 +104,7 @@ public final class MilestoneSocialRelay
                 || progress == null
                 || Configs.Generic.SHARE_GOAL_MILESTONES.getBooleanValue() == false
                 || WebsiteLinkManager.isCurrentPlayerLinked() == false
-                || (threshold != 25 && threshold != 50 && threshold != 75 && threshold != 100))
+                || GoalMilestonePolicy.isMilestoneThreshold(threshold) == false)
         {
             return;
         }
@@ -203,6 +207,7 @@ public final class MilestoneSocialRelay
                     .header("x-mmm-client-sync-token", token)
                     .GET()
                     .build();
+
             HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream())
                     .whenComplete((response, error) -> handleConnectionResponse(connectionGeneration, response, error));
         }
@@ -305,7 +310,7 @@ public final class MilestoneSocialRelay
             long target = event.get("target").getAsLong();
             if (eventId.isBlank()
                     || username.matches("[A-Za-z0-9_]{1,16}") == false
-                    || (threshold != 25 && threshold != 50 && threshold != 75 && threshold != 100)
+                    || GoalMilestonePolicy.isMilestoneThreshold(threshold) == false
                     || current < 0L
                     || target <= 0L
                     || markSeen(eventId) == false)
@@ -323,10 +328,11 @@ public final class MilestoneSocialRelay
                 int color = UiFormat.getGoalProgressColor(progress) & 0x00FFFFFF;
                 String milestoneMessage = switch (threshold)
                 {
-                    case 25 -> " is off to a good start";
+                    case 25 -> " reached the first daily milestone";
                     case 50 -> " is halfway through today's goal";
-                    case 75 -> " is in the final stretch";
-                    default -> " finished today's goal";
+                    case 75 -> " reached the final stretch";
+                    case 100 -> " completed today's goal";
+                    default -> " kept mining past today's goal";
                 };
                 MutableText message = Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
                         .append(Text.literal(username).formatted(Formatting.WHITE))
@@ -374,8 +380,37 @@ public final class MilestoneSocialRelay
         {
             return "";
         }
+        String resolvedAddress = resolvedServerAddress(client);
+        if (resolvedAddress.isBlank() == false)
+        {
+            return ServerRoomHasher.hash(resolvedAddress);
+        }
         ServerInfo server = client.getCurrentServerEntry();
         return server == null ? "" : ServerRoomHasher.hash(server.address);
+    }
+
+    private static String resolvedServerAddress(MinecraftClient client)
+    {
+        try
+        {
+            if (client.getNetworkHandler() == null)
+            {
+                return "";
+            }
+            SocketAddress address = client.getNetworkHandler().getConnection().getAddress();
+            if (address instanceof InetSocketAddress internetAddress)
+            {
+                String host = internetAddress.getAddress() == null
+                        ? internetAddress.getHostString()
+                        : internetAddress.getAddress().getHostAddress();
+                return host + ":" + internetAddress.getPort();
+            }
+            return address == null ? "" : address.toString();
+        }
+        catch (Exception ignored)
+        {
+            return "";
+        }
     }
 
     private static String stringValue(JsonObject object, String key)

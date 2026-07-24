@@ -1,6 +1,6 @@
 package com.mmm.mixin;
 
-import com.mmm.tweak.SmallDigItemRenderer;
+import com.mmm.feature.SmallDigItemRenderer;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 

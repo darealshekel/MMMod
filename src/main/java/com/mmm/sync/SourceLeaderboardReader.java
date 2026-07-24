@@ -171,7 +171,7 @@ public final class SourceLeaderboardReader
         {
             addPartialEntries(combined, partial);
         }
-        if (combined.size() < 3)
+        if (combined.isEmpty())
         {
             return null;
         }

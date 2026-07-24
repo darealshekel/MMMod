@@ -1,4 +1,4 @@
-package com.mmm.tweak;
+package com.mmm.feature;
 
 import com.mmm.config.FeatureToggle;
 
@@ -13,7 +13,7 @@ public final class FlatDigger
 
     public static boolean shouldBlock(BlockPos pos)
     {
-        if (!FeatureToggle.TWEAK_FLAT_DIGGER.getBooleanValue())
+        if (!FeatureToggle.MMM_FLAT_DIGGER.getBooleanValue())
         {
             return false;
         }

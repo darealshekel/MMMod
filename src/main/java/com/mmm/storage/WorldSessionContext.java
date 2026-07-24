@@ -43,9 +43,8 @@ public final class WorldSessionContext
             }
 
             String host = address == null ? "" : address.trim();
-            // World ID stays IP-based for stable local stat tracking.
-            // Display name is always the player's custom server-list name — never the raw IP.
-            String resolvedId = sanitise(host);
+            // Keep local history stable without leaking raw server IPs/domains into paths or exports.
+            String resolvedId = host.isBlank() ? sanitise(displayName) : WorldIdentity.multiplayerWorldId(host);
             return new WorldInfo(resolvedId, displayName.trim(), "multiplayer", host, "server");
         }
 
@@ -106,7 +105,7 @@ public final class WorldSessionContext
             return;
         }
 
-        String fingerprint = info.id() + "|" + info.displayName() + "|" + info.kind() + "|" + info.host();
+        String fingerprint = info.id() + "|" + info.displayName() + "|" + info.kind();
         if (fingerprint.equals(lastDebugFingerprint))
         {
             return;
@@ -114,11 +113,10 @@ public final class WorldSessionContext
 
         lastDebugFingerprint = fingerprint;
         MMM.LOGGER.info(
-                "[MMM_DEBUG] world-context-resolved worldId={} displayName={} kind={} host={}",
-                info.id(),
+                "[MMM_DEBUG] world-context-resolved displayName={} kind={} sourceType={}",
                 info.displayName(),
                 info.kind(),
-                info.host()
+                info.sourceType()
         );
     }
 
