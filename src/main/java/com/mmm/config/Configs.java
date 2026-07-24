@@ -93,8 +93,7 @@ public class Configs implements IConfigHandler
         public static final String DEFAULT_GRAPH_FILL_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_GRAPH_GRID_HEX_COLOR = "#FFC8C8C8";
 
-        public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", false, "Enable MMM website sync.");
-        public static final ConfigBoolean TOTAL_DIGS_SYNC_ENABLED = new ConfigBoolean("totalDigsSyncEnabled", false, "Sync Total Digs to Website.");
+        public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", false, "Sync your player stats, source scoreboard, and source total together.");
         public static final ConfigBoolean WEBSITE_SYNC_DEBUG = new ConfigBoolean("websiteSyncDebug", false, "Enable verbose website sync debug logging.");
         public static final ConfigInteger MAX_BLOCKS_PER_MINUTE = new ConfigInteger("maxBlocksPerMinute", 1200, 1, 1200, "Maximum accepted local valid block breaks per minute. Excess local counts are logged and ignored.");
         public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", false, "Show shortened large numbers such as 10M instead of 10,000,000.");
@@ -186,7 +185,6 @@ public class Configs implements IConfigHandler
 
         public static final ImmutableList<IConfigBase> OPTIONS = ImmutableList.of(
                 WEBSITE_SYNC_ENABLED,
-                TOTAL_DIGS_SYNC_ENABLED,
                 WEBSITE_SYNC_DEBUG,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
@@ -280,7 +278,6 @@ public class Configs implements IConfigHandler
 
         public static final ImmutableList<IConfigBase> PERSISTED_OPTIONS = ImmutableList.of(
                 WEBSITE_SYNC_ENABLED,
-                TOTAL_DIGS_SYNC_ENABLED,
                 WEBSITE_SYNC_DEBUG,
                 MAX_BLOCKS_PER_MINUTE,
                 ABBREVIATED_NUMBERS,
@@ -914,7 +911,6 @@ public class Configs implements IConfigHandler
             fastest100kFinishedAtMs = readLong(state, "fastest100kFinishedAtMs", fastest100kFinishedAtMs, "config State");
             activeProjectId = readString(state, "activeProjectId", activeProjectId, "config State");
             Generic.WEBSITE_SYNC_ENABLED.setBooleanValue(readBoolean(state, "cloudSyncEnabled", Generic.WEBSITE_SYNC_ENABLED.getBooleanValue(), "config State"));
-            Generic.TOTAL_DIGS_SYNC_ENABLED.setBooleanValue(readBoolean(state, "totalDigsSyncEnabled", Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue(), "config State"));
             cloudSyncEndpoint = readString(state, "cloudSyncEndpoint", cloudSyncEndpoint, "config State");
             cloudSyncSecret = readString(state, "cloudSyncSecret", cloudSyncSecret, "config State");
             cloudClientId = readString(state, "cloudClientId", cloudClientId, "config State");
@@ -1245,7 +1241,6 @@ public class Configs implements IConfigHandler
         state.addProperty("fastest100kFinishedAtMs", fastest100kFinishedAtMs);
         state.addProperty("activeProjectId", activeProjectId == null ? "" : activeProjectId);
         state.addProperty("cloudSyncEnabled", Generic.WEBSITE_SYNC_ENABLED.getBooleanValue());
-        state.addProperty("totalDigsSyncEnabled", Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue());
         state.addProperty("cloudSyncEndpoint", cloudSyncEndpoint == null ? DEFAULT_CLOUD_SYNC_ENDPOINT : cloudSyncEndpoint);
         state.addProperty("cloudSyncSecret", cloudSyncSecret == null ? "" : cloudSyncSecret);
         state.addProperty("cloudClientId", cloudClientId == null ? "" : cloudClientId);
