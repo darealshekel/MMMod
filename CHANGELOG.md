@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added a Minecraft 1.21.6 build with the complete 1.0.16 feature set.
 - Added `/mmm timer pause` to pause the timer and its run stats.
 - Added Red Sand, Moss Block, Mud, and Coarse Dirt to block breakdowns.
 - Added clearer sync messages for linking, cooldowns, uploads, and retries.

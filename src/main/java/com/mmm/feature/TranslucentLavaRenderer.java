@@ -14,10 +14,10 @@ import javax.imageio.ImageIO;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
 
-import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.fabricmc.fabric.api.client.rendering.v1.BlockRenderLayerMap;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.BlockRenderLayer;
 import net.minecraft.fluid.Fluids;
 import net.minecraft.resource.ResourcePackManager;
 
@@ -43,7 +43,7 @@ public final class TranslucentLavaRenderer
 
     public static void initialize()
     {
-        BlockRenderLayerMap.INSTANCE.putFluids(RenderLayer.getTranslucent(), Fluids.LAVA, Fluids.FLOWING_LAVA);
+        BlockRenderLayerMap.putFluids(BlockRenderLayer.TRANSLUCENT, Fluids.LAVA, Fluids.FLOWING_LAVA);
         pendingReloadTicks = STARTUP_DELAY_TICKS;
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (reloadInFlight)

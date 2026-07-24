@@ -7,7 +7,7 @@ import net.minecraft.block.Block;
 import net.minecraft.client.render.model.json.Transformation;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.ModelTransformationMode;
+import net.minecraft.item.ItemDisplayContext;
 
 import org.joml.Vector3f;
 
@@ -19,7 +19,7 @@ public final class SmallDigItemRenderer
     {
     }
 
-    public static float getScale(ItemStack stack, ModelTransformationMode displayContext)
+    public static float getScale(ItemStack stack, ItemDisplayContext displayContext)
     {
         if (!Configs.Generic.SMALL_DIG_ITEMS.getBooleanValue() || stack == null || stack.isEmpty())
         {
@@ -39,10 +39,10 @@ public final class SmallDigItemRenderer
 
         float handScale = (float) Configs.Generic.SMALL_DIG_ITEM_SCALE.getDoubleValue();
         float groundScale = Math.max(0.05F, handScale * 0.5F);
-        return displayContext == ModelTransformationMode.GROUND ? groundScale : handScale;
+        return displayContext == ItemDisplayContext.GROUND ? groundScale : handScale;
     }
 
-    public static void begin(ItemStack stack, ModelTransformationMode displayContext)
+    public static void begin(ItemStack stack, ItemDisplayContext displayContext)
     {
         begin(getScale(stack, displayContext));
     }
@@ -71,15 +71,15 @@ public final class SmallDigItemRenderer
         }
 
         Vector3f scaled = new Vector3f(scale, scale, scale);
-        return new Transformation(transform.rotation, transform.translation, scaled);
+        return new Transformation(transform.rotation(), transform.translation(), scaled);
     }
 
-    private static boolean isScaledContext(ModelTransformationMode displayContext)
+    private static boolean isScaledContext(ItemDisplayContext displayContext)
     {
-        return displayContext == ModelTransformationMode.GROUND ||
-                displayContext == ModelTransformationMode.FIRST_PERSON_LEFT_HAND ||
-                displayContext == ModelTransformationMode.FIRST_PERSON_RIGHT_HAND ||
-                displayContext == ModelTransformationMode.THIRD_PERSON_LEFT_HAND ||
-                displayContext == ModelTransformationMode.THIRD_PERSON_RIGHT_HAND;
+        return displayContext == ItemDisplayContext.GROUND ||
+                displayContext == ItemDisplayContext.FIRST_PERSON_LEFT_HAND ||
+                displayContext == ItemDisplayContext.FIRST_PERSON_RIGHT_HAND ||
+                displayContext == ItemDisplayContext.THIRD_PERSON_LEFT_HAND ||
+                displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
     }
 }

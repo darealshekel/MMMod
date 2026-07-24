@@ -80,9 +80,9 @@ public abstract class ScoreboardInGameHudMixin
         int textColor = withAlpha(0xFFFFFF, Configs.Generic.SCOREBOARD_TEXT_OPACITY.getDoubleValue());
         int titleColor = withAlpha(0xFFFFFF, Configs.Generic.SCOREBOARD_TITLE_TEXT_OPACITY.getDoubleValue());
 
-        context.getMatrices().push();
-        context.getMatrices().translate(x, y, 0.0F);
-        context.getMatrices().scale(scale, scale, 1.0F);
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(x, y);
+        context.getMatrices().scale(scale, scale);
         context.fill(0, 0, panelWidth, titleHeight, titleBackground);
         context.fill(0, titleHeight, panelWidth, panelHeight, bodyBackground);
         context.drawText(renderer, title, (panelWidth - renderer.getWidth(title)) / 2, 1, titleColor, false);
@@ -97,7 +97,7 @@ public abstract class ScoreboardInGameHudMixin
                 context.drawText(renderer, entry.score(), panelWidth - scoreWidth - 2, rowY, textColor, false);
             }
         }
-        context.getMatrices().pop();
+        context.getMatrices().popMatrix();
     }
 
     private static int withAlpha(int rgb, double opacity)
