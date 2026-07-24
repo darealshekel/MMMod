@@ -58,6 +58,19 @@ class ActiveSessionCheckpointTest
         assertEquals(100L, restored.session().totalBlocks);
     }
 
+    @Test
+    void inflatedSessionTotalCanBeRepairedFromAcceptedBlockBreakdown()
+    {
+        SessionData session = session(1_000L, 61_000L, 12_345L);
+        session.totalBlocks = 20_000_000L;
+        session.recordMinedAmount(5_000L, 500_000L);
+
+        assertTrue(session.repairInflatedTotalFromBreakdown());
+        assertEquals(12_345L, session.totalBlocks);
+        assertTrue(session.miningRateBuckets.isEmpty());
+        assertEquals(0, session.getPeakBlocksPerHour());
+    }
+
     private static ActiveSessionCheckpoint.State state(long blocks)
     {
         return new ActiveSessionCheckpoint.State(

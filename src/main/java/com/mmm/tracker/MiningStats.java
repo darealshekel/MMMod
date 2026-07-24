@@ -541,23 +541,10 @@ public final class MiningStats
             // objective correction. Persist and sync that correction too.
             CloudSyncManager.onBlockMined(now);
         }
-        if (sessionActive)
-        {
-            long scoreboardOnlyDelta = Math.max(0L, scoreboardIncrease - consumedPendingBlocks);
-            if (sessionPaused && scoreboardOnlyDelta > 0L)
-            {
-                pausedSessionMinedOffset += scoreboardOnlyDelta;
-            }
-            else if (sessionPaused == false && scoreboardOnlyDelta > 0L)
-            {
-                long activeElapsedMs = getActiveElapsedMs(now);
-                currentSession.totalBlocks += scoreboardOnlyDelta;
-                currentSession.endTimeMs = now;
-                currentSession.recordMinedAmountOverInterval(lastScoreboardSessionUpdateActiveElapsedMs, activeElapsedMs, scoreboardOnlyDelta);
-                recordFastest100kIfReached(now);
-                lastScoreboardSessionUpdateActiveElapsedMs = activeElapsedMs;
-            }
-        }
+        // Scoreboard snapshots reconcile source and lifetime totals only. They may
+        // arrive in batches or briefly switch objectives, so treating their delta
+        // as live mining can add the same blocks to a session more than once.
+        // Session progress is sourced exclusively from accepted local harvests.
 
         debugAttribution("authoritative-update", previousSourceTotal, worldStats.totalBlocks, Math.max(0L, effectiveDelta));
 
@@ -1443,6 +1430,12 @@ public final class MiningStats
         }
 
         currentSession = checkpoint.session();
+        if (currentSession.repairInflatedTotalFromBreakdown())
+        {
+            MMM.LOGGER.warn(
+                    "[MMM] Repaired an inflated active session total from its block breakdown: {} blocks",
+                    currentSession.totalBlocks);
+        }
         long savedAtMs = checkpoint.savedAtMs() > 0L && checkpoint.savedAtMs() <= now
                 ? checkpoint.savedAtMs()
                 : now;
