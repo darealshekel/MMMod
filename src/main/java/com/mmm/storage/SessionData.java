@@ -79,6 +79,33 @@ public class SessionData
         recordMinedAmount(activeElapsedMs, 1L);
     }
 
+    public boolean repairInflatedTotalFromBreakdown()
+    {
+        if (this.blockBreakdown == null || this.blockBreakdown.isEmpty())
+        {
+            return false;
+        }
+
+        long breakdownTotal = 0L;
+        for (long amount : this.blockBreakdown.values())
+        {
+            long safeAmount = Math.max(0L, amount);
+            breakdownTotal = Long.MAX_VALUE - breakdownTotal < safeAmount
+                    ? Long.MAX_VALUE
+                    : breakdownTotal + safeAmount;
+        }
+
+        if (this.totalBlocks <= breakdownTotal)
+        {
+            return false;
+        }
+
+        this.totalBlocks = breakdownTotal;
+        this.miningRateBuckets.clear();
+        this.peakBlocksPerHour = 0;
+        return true;
+    }
+
     public void recordMinedAmount(long activeElapsedMs, long amount)
     {
         if (amount <= 0L)
