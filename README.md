@@ -47,7 +47,6 @@ Do not install both MMMod version jars in the same instance.
 - Global, source, session, daily, weekly, personal-record, reset, project, and timer lines.
 - Configurable HUD position, anchor, scale, background, visibility, and colors.
 - Movable timer, block-stat, hourly-stat, and notification modules.
-- Live speed graph with configurable colors, opacity, grid, and scale.
 - Optional abbreviated numbers using lowercase `k` and uppercase `M`, `B`, and `T`.
 
 ### Daily goals and milestones
@@ -104,14 +103,16 @@ Durations accept values such as `90s`, `30m`, and `2h`.
 - No Swinging Animation mode that keeps the first-person tool visible and static.
 - Toggle Tab keeps the player list open and can be assigned its own hotkey.
 - Optional translucent animated lava with an automatically managed resource pack and adjustable opacity.
+- Optional colored breaking indicators replace the vanilla crack overlay with live breaking progress.
 
 ### Scoreboard tools
 
 - Dedicated **Scoreboard** screen below Summary in the MMM sidebar.
 - Hide the sidebar or its scores, add commas, or abbreviate large values.
+- Make the Tab player-list background transparent.
 - Optional Tier / Name Tags show each ranked player's website total before their name in chat, Tab, scoreboards, and world nametags.
 - Sort by score or name in either direction and page through up to 100 rows at a time.
-- Move, scale, and adjust the background/title/text opacity of the vanilla sidebar.
+- Freely move and scale the sidebar, then adjust its background, title, and text opacity.
 - Export the current objective directly to CSV or record, reorder, remove, and combine several snapshots.
 - Add, edit, and remove scoreboard rows when the server grants operator permission level 2.
 - Optional team chat by default, with `#` used to send a normal public message.
@@ -121,6 +122,7 @@ Durations accept values such as `90s`, `30m`, and `2h`.
 
 - Website synchronization is **off by default**.
 - In-game website-link flow associates MMMod with a claimed Minecraft account.
+- Per-source scoreboard selector chooses the total-mined objective used for website synchronization.
 - Reads visible scoreboard evidence, player/source totals, source identity, block breakdowns, and sessions.
 - Delta-based queued synchronization avoids repeatedly sending unchanged local data.
 - Failed requests remain queued for later delivery.
@@ -143,7 +145,7 @@ The website/API remains responsible for validating data before publishing it. MM
 | Open scoreboard exports | `Backslash` |
 | Edit current scoreboard | `C` |
 
-Every hotkey can be changed in the MMMod Hotkeys screen.
+Every hotkey can be changed in the searchable MMMod Hotkeys screen. Hotkeys support single keys or ordered two-key chords, and `Escape` clears an assignment.
 
 ## Local Data
 

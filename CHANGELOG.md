@@ -1,34 +1,42 @@
 # Changelog
 
-## 1.0.17 - 2026-07-26
+## 1.0.17 - 2026-07-28
 
 ### Added
 
-- Fabric API is bundled into the MMMod jar, so testers only need Fabric Loader.
-- Added focused tests for the new rolling mining-speed buffer.
+- Bundled Fabric API, so MMMod now only requires Fabric Loader.
+- Added colored breaking indicators that replace the vanilla crack overlay.
+- Added Move Scoreboard, Transparent Tab, Tab-list commas, and scoreboard appearance controls.
+- Added a per-source sync scoreboard selector.
+- Added a searchable hotkey screen with two-key chords and `Escape` to unbind.
+- Added a configurable Perimeter Wall Helper block list.
+- Added tests for config storage, sync scoreboard selection, timers, and rolling mining speed.
 
 ### Changed
 
-- Moved periodic session, timer, calendar, config, and sync-queue saves away from Minecraft's render thread.
-- Replaced per-tick mining metric objects and repeated hour-long scans with a fixed-size rolling buffer.
-- Scoreboard evidence scans now run twice per second instead of every game tick.
-- World Total readers now share one live scoreboard snapshot per scan instead of rebuilding it repeatedly.
-- Only visible scoreboard rows are formatted, with no render caching or delayed values.
-- Block statistics are resorted only after their counts change.
-- Disabled hidden speed-graph sampling while the graph remains unavailable.
-- Scoreboard rendering reuses its prepared rows briefly instead of sorting and formatting them every frame.
-- Source identity refreshes once per second instead of allocating new context values every tick.
+- Replaced the old config and hotkey libraries with MMMod-owned settings, color picker, hotkeys, and render helpers.
+- Moved mining helpers into Settings and Visuals, and removed the separate Feature Toggles screen.
+- Updated the Scoreboard screen with MMM-styled toggles, sliders, paging, movement, and editing tools.
+- Moved periodic session, timer, calendar, config, and sync-queue saves off Minecraft's render thread.
+- Replaced repeated mining-metric scans with a fixed-size rolling buffer.
+- Reduced scoreboard evidence scans and source-identity refreshes without delaying visible values.
+- Disabled hidden Speed Graph sampling while the feature remains unavailable.
 
 ### Removed
 
-- Removed the old external configuration and utility dependencies. MMMod now owns its settings, hotkeys, color picker, lifecycle hooks, and render helpers.
+- Removed MaLiLib and Tweakeroo dependencies.
+- Removed the duplicate Feature Toggles screen.
 
 ### Fixed
 
-- Reduced recurring frame-time spikes and freeze frames caused by disk writes, scoreboard scans, and metric recalculation.
-- Fixed World Total switching between different scoreboard readers.
-- Fixed website Tier / Name Tag decorations being mistaken for server mining scores.
-- Removed scoreboard render caching so server rows always show the current value immediately.
+- Reduced stutters and freeze frames caused by disk writes, scoreboard scans, and metric recalculation.
+- Fixed World Total switching between unrelated objectives or drifting from the selected source total.
+- Fixed scoreboard changes inflating active session totals.
+- Fixed website sync selecting project or non-mining scoreboards.
+- Fixed Tier / Name Tag decorations being mistaken for server scores.
+- Fixed `X + V` and other ordered two-key hotkeys.
+- Fixed breaking indicators for normal and instant-mined blocks.
+- Fixed settings, colors, and hotkeys not persisting correctly.
 
 ## 1.0.16 - 2026-07-24
 
