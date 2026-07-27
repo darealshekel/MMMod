@@ -34,11 +34,13 @@ public final class ActiveSessionCheckpoint
 
         try
         {
-            save(stateFile(worldId), state);
+            Path target = stateFile(worldId);
+            JsonObject snapshot = serialize(state);
+            AsyncPersistence.submit(persistenceKey(target), () -> writeSnapshot(target, snapshot));
         }
         catch (Exception exception)
         {
-            MMM.LOGGER.warn("[MMM] Failed to save active session checkpoint: {}", exception.getMessage());
+            MMM.LOGGER.warn("[MMM] Failed to queue active session checkpoint: {}", exception.getMessage());
         }
     }
 
@@ -58,6 +60,8 @@ public final class ActiveSessionCheckpoint
     public static void clear(String worldId)
     {
         Path target = stateFile(worldId);
+        AsyncPersistence.cancel(persistenceKey(target));
+        AsyncPersistence.flush(java.time.Duration.ofSeconds(1L));
         try
         {
             Files.deleteIfExists(target);
@@ -70,6 +74,23 @@ public final class ActiveSessionCheckpoint
     }
 
     static void save(Path target, State state) throws Exception
+    {
+        AtomicJsonStorage.write(target, serialize(state), true);
+    }
+
+    private static void writeSnapshot(Path target, JsonObject snapshot)
+    {
+        try
+        {
+            AtomicJsonStorage.write(target, snapshot, true);
+        }
+        catch (Exception exception)
+        {
+            throw new IllegalStateException("Could not write active session checkpoint", exception);
+        }
+    }
+
+    private static JsonObject serialize(State state)
     {
         JsonObject root = new JsonObject();
         root.addProperty("session", state.session().serialise());
@@ -84,7 +105,7 @@ public final class ActiveSessionCheckpoint
                 Math.max(0L, state.lastScoreboardSessionUpdateActiveElapsedMs()));
         root.addProperty("session100kRecorded", state.session100kRecorded());
         root.addProperty("savedAtMs", Math.max(0L, state.savedAtMs()));
-        AtomicJsonStorage.write(target, root, true);
+        return root;
     }
 
     static State load(Path target) throws Exception
@@ -130,6 +151,11 @@ public final class ActiveSessionCheckpoint
             safeWorldId = "default";
         }
         return SharedStoragePaths.root().resolve("active-sessions").resolve(safeWorldId + ".json");
+    }
+
+    private static String persistenceKey(Path target)
+    {
+        return "active-session:" + target.toAbsolutePath().normalize();
     }
 
     private static String stringValue(JsonObject root, String key)

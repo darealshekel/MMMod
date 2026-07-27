@@ -2,7 +2,6 @@ package com.mmm.tracker;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -60,7 +59,7 @@ public final class MiningStats
 
     private static final Deque<Long> MINE_EVENTS = new ArrayDeque<>();
     private static final Deque<Long> FASTEST_100K_EVENT_TIMES = new ArrayDeque<>();
-    private static final Deque<TickBlockCount> METRIC_TICK_COUNTS = new ArrayDeque<>();
+    private static final RollingMiningMetrics METRIC_TICK_COUNTS = new RollingMiningMetrics(BPH_WINDOW_TICKS);
     private static SessionData currentSession = new SessionData(System.currentTimeMillis());
     private static String currentWorldId = "default";
     private static boolean currentSourceScoreboardAuthoritative;
@@ -92,6 +91,7 @@ public final class MiningStats
     private static long streakStartMs;
     private static long lastMineMs;
     private static long lastDailyResetCheckMs;
+    private static long lastWorldContextRefreshMs;
 
     private MiningStats()
     {
@@ -247,7 +247,7 @@ public final class MiningStats
 
         if (now - lastPersistedTotalMinedMs >= TOTAL_MINED_PERSIST_INTERVAL_MS)
         {
-            Configs.saveToFile();
+            Configs.requestSave();
             lastPersistedTotalMinedMs = now;
         }
 
@@ -369,12 +369,13 @@ public final class MiningStats
     {
         MinecraftClient client = MinecraftClient.getInstance();
         boolean hasMiningContext = client != null && client.world != null && client.player != null;
-        if (hasMiningContext)
+        long now = System.currentTimeMillis();
+        if (hasMiningContext && now - lastWorldContextRefreshMs >= 1_000L)
         {
+            lastWorldContextRefreshMs = now;
             WorldSessionContext.update(client);
         }
 
-        long now = System.currentTimeMillis();
         if (now - lastDailyResetCheckMs >= 1_000L)
         {
             lastDailyResetCheckMs = now;
@@ -550,7 +551,7 @@ public final class MiningStats
 
         if (now - lastPersistedTotalMinedMs >= TOTAL_MINED_PERSIST_INTERVAL_MS)
         {
-            Configs.saveToFile();
+            Configs.requestSave();
             lastPersistedTotalMinedMs = now;
         }
     }
@@ -1088,7 +1089,7 @@ public final class MiningStats
         }
 
         metricTickIndex++;
-        METRIC_TICK_COUNTS.addLast(new TickBlockCount(metricTickIndex, currentTickBpsBlocks, currentTickBphBlocks));
+        METRIC_TICK_COUNTS.addTick(Math.max(currentTickBpsBlocks, currentTickBphBlocks));
         currentTickBpsBlocks = 0;
         currentTickBphBlocks = 0;
         trimMetricWindow();
@@ -1135,10 +1136,7 @@ public final class MiningStats
 
     private static void trimMetricWindow()
     {
-        while (METRIC_TICK_COUNTS.size() > BPH_WINDOW_TICKS)
-        {
-            METRIC_TICK_COUNTS.pollFirst();
-        }
+        // RollingMiningMetrics is permanently capped to the largest metric window.
     }
 
     private static void freezeRollingMetrics()
@@ -1157,15 +1155,8 @@ public final class MiningStats
         int preferredTicks = Math.max(1, Math.min(maxTicks, mode.getPreferredMinimumTicks()));
         int availableTicks = METRIC_TICK_COUNTS.size();
         int targetTicks = availableTicks < preferredTicks ? availableTicks : Math.min(maxTicks, availableTicks);
-        int ticksUsed = 0;
-        int validBlocks = 0;
-        Iterator<TickBlockCount> iterator = METRIC_TICK_COUNTS.descendingIterator();
-        while (iterator.hasNext() && ticksUsed < targetTicks)
-        {
-            TickBlockCount tick = iterator.next();
-            validBlocks += Math.max(0, tick.bpsBlocks());
-            ticksUsed++;
-        }
+        int ticksUsed = targetTicks;
+        long validBlocks = METRIC_TICK_COUNTS.sumLatest(targetTicks);
 
         if (ticksUsed <= 0 || validBlocks <= 0)
         {
@@ -1183,15 +1174,8 @@ public final class MiningStats
 
     private static double calculateRollingBph()
     {
-        int ticksUsed = 0;
-        int validBlocks = 0;
-        Iterator<TickBlockCount> iterator = METRIC_TICK_COUNTS.descendingIterator();
-        while (iterator.hasNext() && ticksUsed < BPH_WINDOW_TICKS)
-        {
-            TickBlockCount tick = iterator.next();
-            validBlocks += Math.max(0, tick.bphBlocks());
-            ticksUsed++;
-        }
+        int ticksUsed = METRIC_TICK_COUNTS.size();
+        long validBlocks = METRIC_TICK_COUNTS.total();
 
         if (ticksUsed <= 0 || validBlocks <= 0)
         {
@@ -1495,6 +1479,5 @@ public final class MiningStats
 
     public record ProjectProgress(String name, long blocksMined) {}
 
-    private record TickBlockCount(long tickIndex, int bpsBlocks, int bphBlocks) {}
 }
 

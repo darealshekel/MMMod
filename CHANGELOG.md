@@ -1,9 +1,40 @@
 # Changelog
 
+## 1.0.17 - 2026-07-26
+
+### Added
+
+- Fabric API is bundled into the MMMod jar, so testers only need Fabric Loader.
+- Added focused tests for the new rolling mining-speed buffer.
+
+### Changed
+
+- Moved periodic session, timer, calendar, config, and sync-queue saves away from Minecraft's render thread.
+- Replaced per-tick mining metric objects and repeated hour-long scans with a fixed-size rolling buffer.
+- Scoreboard evidence scans now run twice per second instead of every game tick.
+- World Total readers now share one live scoreboard snapshot per scan instead of rebuilding it repeatedly.
+- Only visible scoreboard rows are formatted, with no render caching or delayed values.
+- Block statistics are resorted only after their counts change.
+- Disabled hidden speed-graph sampling while the graph remains unavailable.
+- Scoreboard rendering reuses its prepared rows briefly instead of sorting and formatting them every frame.
+- Source identity refreshes once per second instead of allocating new context values every tick.
+
+### Removed
+
+- Removed the old external configuration and utility dependencies. MMMod now owns its settings, hotkeys, color picker, lifecycle hooks, and render helpers.
+
+### Fixed
+
+- Reduced recurring frame-time spikes and freeze frames caused by disk writes, scoreboard scans, and metric recalculation.
+- Fixed World Total switching between different scoreboard readers.
+- Fixed website Tier / Name Tag decorations being mistaken for server mining scores.
+- Removed scoreboard render caching so server rows always show the current value immediately.
+
 ## 1.0.16 - 2026-07-24
 
 ### Added
 
+- Added a Minecraft 1.21.6 build with the complete 1.0.16 feature set.
 - Added `/mmm timer pause` to pause the timer and its run stats.
 - Added Red Sand, Moss Block, Mud, and Coarse Dirt to block breakdowns.
 - Added clearer sync messages for linking, cooldowns, uploads, and retries.

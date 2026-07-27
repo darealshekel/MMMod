@@ -4,27 +4,26 @@ MMMod is the official client-side companion for [Manual Mining Maniacs](https://
 
 ## Supported Versions
 
-| Minecraft | Release asset | Required Fabric API |
-| --- | --- | --- |
-| 1.21 | `mmm-1.0.16+1.21.jar` | `0.102.0+1.21` or newer compatible build |
-| 1.21.1 | `mmm-1.0.16+1.21.1.jar` | `0.116.12+1.21.1` or newer compatible build |
-| 1.21.4 | `mmm-1.0.16+1.21.4.jar` | `0.119.4+1.21.4` or newer compatible build |
+| Minecraft | Release asset |
+| --- | --- |
+| 1.21 | `mmm-1.0.17+1.21.jar` |
+| 1.21.1 | `mmm-1.0.17+1.21.1.jar` |
+| 1.21.4 | `mmm-1.0.17+1.21.4.jar` |
+| 1.21.6 | `mmm-1.0.17+1.21.6.jar` |
 
-MMMod also requires:
+MMMod 1.0.17 packages its matching Fabric API inside the release jar. You only need:
 
 - Fabric Loader 0.16.14 or newer
-- MaLiLib
-- Tweakeroo
 - Mod Menu is recommended for opening the settings screen
 
-Use dependency versions made for your exact Minecraft version.
+No external configuration or utility mod is required. Mod Menu remains optional because the settings screen can also be opened with `X + V`.
 
 ## Installation
 
 1. Install Fabric Loader for your Minecraft version.
-2. Install Fabric API, MaLiLib, Tweakeroo, and optionally Mod Menu.
-3. Place the matching MMMod jar in the instance's `mods` folder.
-4. Start Minecraft and open **Mods > MMM > Configure**, or press `X + V`.
+2. Place the matching MMMod jar in the instance's `mods` folder.
+3. Optionally install Mod Menu.
+4. Start Minecraft and press `X + V`, or use **Mods > MMM > Configure** when Mod Menu is installed.
 
 Do not install both MMMod version jars in the same instance.
 
@@ -172,7 +171,7 @@ The remapped release jar is written to `build/libs`.
 - **BlockTimer project (MIT)** - reference for timer and hourly-stat behavior
 - **I-See-Lava by AzureDoom / jlstout1998 (MIT)** - reference for translucent lava behavior
 - **ScoreboardHelper by 小猪之最 (MIT)** - scoreboard rendering, export, editing, and team-chat feature reference
-- **Fabric API**, **Mod Menu**, **MaLiLib**, and **Tweakeroo** - modding platform and integrations
+- **Fabric API** and **Mod Menu** - modding platform and optional settings integration
 - Minecraft is a trademark of Microsoft. MMMod is an independent community project and is not affiliated with Mojang Studios or Microsoft.
 
 ## License

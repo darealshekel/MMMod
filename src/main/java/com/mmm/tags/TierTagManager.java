@@ -3,6 +3,7 @@ package com.mmm.tags;
 import com.mmm.MMM;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
+import com.mmm.scoreboard.ScoreboardService;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.text.MutableText;
@@ -30,12 +32,13 @@ public final class TierTagManager
     private static final long PROFILE_FALLBACK_REFRESH_INTERVAL_MS = 300_000L;
     private static final long RETRY_INTERVAL_MS = 15_000L;
     private static final int MAX_NAMES_PER_REQUEST = 80;
+    private static final Pattern MINECRAFT_USERNAME = Pattern.compile("[A-Za-z0-9_]{1,16}");
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(8L))
             .build();
     private static final AtomicBoolean REFRESH_IN_FLIGHT = new AtomicBoolean(false);
     private static volatile Map<String, PlayerTagData> tags = Map.of();
-    private static volatile Map<String, String> onlineNames = Map.of();
+    private static volatile Map<String, String> knownNames = Map.of();
     private static volatile String observedSignature = "";
     private static volatile String requestedSignature = "";
     private static volatile String lastResultLog = "";
@@ -60,21 +63,28 @@ public final class TierTagManager
             return;
         }
 
+        LinkedHashMap<String, String> discoveredNames = new LinkedHashMap<>();
+        for (PlayerListEntry entry : client.getNetworkHandler().getPlayerList())
+        {
+            addValidName(discoveredNames, entry.getProfile().getName());
+        }
+        ScoreboardService.getSidebarObjective(client).ifPresent(objective ->
+                ScoreboardService.getSortedEntries(objective)
+                        .forEach(entry -> addValidName(discoveredNames, entry.owner())));
+
         LinkedHashMap<String, String> currentNames = new LinkedHashMap<>();
-        client.getNetworkHandler().getPlayerList().stream()
-                .map(PlayerListEntry::getProfile)
-                .map(profile -> profile.getName())
-                .filter(name -> name != null && name.matches("[A-Za-z0-9_]{1,16}"))
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .forEach(name -> currentNames.putIfAbsent(PlayerTagPayload.normalize(name), name));
+        discoveredNames.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> currentNames.put(entry.getKey(), entry.getValue()));
 
         String signature = String.join(",", currentNames.keySet());
+        knownNames = Map.copyOf(currentNames);
+        observedSignature = signature;
         if (signature.isBlank())
         {
+            tags = Map.of();
             return;
         }
-        onlineNames = Map.copyOf(currentNames);
-        observedSignature = signature;
         if (!Configs.Generic.TIER_NAME_TAGS.getBooleanValue())
         {
             return;
@@ -101,7 +111,7 @@ public final class TierTagManager
             return null;
         }
 
-        String displayName = onlineNames.getOrDefault(normalized, username);
+        String displayName = knownNames.getOrDefault(normalized, username);
         MutableText decorated = Text.empty().setStyle(original.getStyle());
         decorated.append(Text.literal(PlayerTagPayload.formatBlocks(tag.totalBlocks()))
                 .styled(style -> style.withColor(tag.colorRgb())));
@@ -117,9 +127,17 @@ public final class TierTagManager
         {
             return null;
         }
-        Collection<String> names = onlineNames.values();
+        Collection<String> names = knownNames.values();
         String username = PlayerTagPayload.findKnownUsername(original.getString(), names);
         return username.isBlank() ? null : decorateName(username, original);
+    }
+
+    private static void addValidName(Map<String, String> names, String name)
+    {
+        if (name != null && MINECRAFT_USERNAME.matcher(name).matches())
+        {
+            names.putIfAbsent(PlayerTagPayload.normalize(name), name);
+        }
     }
 
     private static void refresh(List<String> names, String signature, long now)
@@ -288,7 +306,7 @@ public final class TierTagManager
             return;
         }
         tags = Map.of();
-        onlineNames = Map.of();
+        knownNames = Map.of();
         observedSignature = "";
         requestedSignature = "";
         lastResultLog = "";

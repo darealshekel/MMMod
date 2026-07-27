@@ -1,505 +1,400 @@
 package com.mmm.gui;
 
-import java.util.Collections;
-import java.util.ArrayList;
-import java.util.List;
-
-import com.google.common.collect.ImmutableList;
-import com.mmm.Reference;
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.config.Hotkeys;
-import com.mmm.hud.SessionHistoryScreen;
-import com.mmm.hud.SummaryScreen;
-import com.mmm.tracker.MiningStats;
-import com.mmm.scoreboard.ScoreboardScreen;
+import com.mmm.hotkey.HotkeyChordCapture;
+import com.mmm.hotkey.MmmHotkey;
 import com.mmm.ui.MmmUi;
-import com.mmm.ui.MmmSettingsScreen;
-import com.mmm.ui.PlayerProfileScreen;
-import com.mmm.ui.ProjectManagerScreen;
-import com.mmm.ui.WebsiteLinkScreen;
-
-import fi.dy.masa.malilib.config.IConfigBase;
-import fi.dy.masa.malilib.config.IConfigResettable;
-import fi.dy.masa.malilib.config.options.BooleanHotkeyGuiWrapper;
-import fi.dy.masa.malilib.gui.GuiConfigsBase;
-import fi.dy.masa.malilib.gui.button.ButtonBase;
-import fi.dy.masa.malilib.gui.button.ConfigButtonKeybind;
-import fi.dy.masa.malilib.gui.button.ButtonGeneric;
-import fi.dy.masa.malilib.gui.button.IButtonActionListener;
-import fi.dy.masa.malilib.gui.widgets.WidgetBase;
-import fi.dy.masa.malilib.gui.widgets.WidgetConfigOption;
-import fi.dy.masa.malilib.gui.widgets.WidgetListConfigOptions;
-import fi.dy.masa.malilib.gui.widgets.WidgetListConfigOptionsBase;
-import fi.dy.masa.malilib.gui.GuiTextFieldGeneric;
-import fi.dy.masa.malilib.hotkeys.IKeybind;
-import fi.dy.masa.malilib.util.StringUtils;
-import net.minecraft.client.MinecraftClient;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
 
-public class GuiConfigs extends GuiConfigsBase
+public final class GuiConfigs extends Screen
 {
-    public static ImmutableList<FeatureToggle> MMM_LIST = buildFeatureToggleList();
-    private static final int LIST_Y = MmmUi.TOP_BAR_HEIGHT + 12;
-    private static ConfigGuiTab tab = ConfigGuiTab.FEATURES;
+    private static final int ROW_HEIGHT = 32;
+    private static final int ROW_GAP = 4;
+    private static final int HOTKEY_WIDTH = 84;
+    private static final int MAX_LIST_WIDTH = 560;
+    private static final int SEARCH_HEIGHT = 20;
+    private static final int SEARCH_WIDTH = 260;
+    private final Screen parent;
+    private final List<RowTarget> rowTargets = new ArrayList<>();
+    private final HotkeyChordCapture chordCapture = new HotkeyChordCapture();
+    private final Set<Integer> heldCaptureKeys = new HashSet<>();
+    private int scrollOffset;
+    private int listTop;
+    private int listBottom;
+    private MmmHotkey capturing;
+    private TextFieldWidget searchField;
+    private String searchQuery = "";
 
     public GuiConfigs()
     {
-        super(MmmUi.contentLeft(), LIST_Y, Reference.MOD_ID, null, Reference.MOD_NAME + " %s", String.format("%s", Reference.MOD_VERSION));
+        this(null);
     }
 
-    public static GuiConfigs createForTab(String tabName, Screen parent)
+    public GuiConfigs(Screen parent)
     {
-        if (tabName != null)
+        super(Text.literal("Hotkeys"));
+        this.parent = parent;
+    }
+
+    public static GuiConfigs createForTab(String ignoredTabName, Screen parent)
+    {
+        return new GuiConfigs(parent);
+    }
+
+    @Override
+    protected void init()
+    {
+        MmmUi.ensureCursorVisible();
+        this.clearChildren();
+        this.searchField = new TextFieldWidget(this.textRenderer, 0, 0, SEARCH_WIDTH - 10, SEARCH_HEIGHT, Text.literal("Search hotkeys"));
+        this.searchField.setDrawsBackground(false);
+        this.searchField.setEditableColor(MmmUi.TEXT);
+        this.searchField.setUneditableColor(MmmUi.MUTED);
+        this.searchField.setMaxLength(64);
+        this.searchField.setPlaceholder(Text.literal("Search hotkeys..."));
+        this.searchField.setText(this.searchQuery);
+        this.searchField.setChangedListener(value -> {
+            this.searchQuery = value;
+            this.scrollOffset = 0;
+        });
+        this.addDrawableChild(this.searchField);
+
+        this.listTop = MmmUi.TOP_BAR_HEIGHT + 62;
+        this.listBottom = this.height - 10;
+    }
+
+    @Override
+    public boolean shouldPause()
+    {
+        return MmmUi.shouldPauseGame();
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    {
+        // MMM draws its own opaque background; suppress Minecraft's menu blur.
+    }
+
+    @Override
+    public void close()
+    {
+        Configs.saveToFile();
+        if (this.client != null)
         {
-            for (ConfigGuiTab configTab : ConfigGuiTab.values())
-            {
-                if (configTab.name().equalsIgnoreCase(tabName))
-                {
-                    tab = configTab;
-                    break;
-                }
-            }
+            this.client.setScreen(this.parent);
         }
-
-        GuiConfigs gui = new GuiConfigs();
-        gui.setParent(parent);
-        return gui;
     }
 
     @Override
-    public void initGui()
-    {
-        super.initGui();
-        this.clearOptions();
-
-        int y = MmmUi.sidebarStartY(this.height);
-        int rowHeight = MmmUi.sidebarRowHeight(this.height);
-        int rowStep = rowHeight + MmmUi.sidebarRowGap(this.height);
-        int sidebarWidth = MmmUi.sidebarWidth(this.width);
-        this.createSettingsButton(y, rowHeight, sidebarWidth);
-        y += rowStep;
-        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.FEATURES);
-        y += rowStep;
-        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.HOTKEYS);
-        y += rowStep;
-        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.PROJECTS);
-        y += rowStep;
-        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.PROFILE);
-        y += rowStep;
-        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.WEBSITE_LINK);
-        y += rowStep;
-        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.HISTORY);
-        y += rowStep;
-        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.SUMMARY);
-        y += rowStep;
-        this.createSidebarButton(y, rowHeight, sidebarWidth, ConfigGuiTab.SCOREBOARD);
-    }
-
-    @Override
-    protected WidgetListConfigOptions createListWidget(int listX, int listY)
-    {
-        int responsiveX = MmmUi.contentLeft(this.width);
-        int responsiveWidth = Math.max(1, this.width - responsiveX - MmmUi.pagePad(this.width));
-        return new MmmConfigListWidget(responsiveX, listY, responsiveWidth, this.getBrowserHeight(), Math.min(this.getConfigWidth(), Math.max(120, responsiveWidth - 36)), 0.0F, this.useKeybindSearch(), this);
-    }
-
-    @Override
-    protected void drawScreenBackground(DrawContext context, int mouseX, int mouseY)
+    public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
-        int sidebarWidth = MmmUi.sidebarWidth(this.width);
-        int sidePad = sidebarWidth < 120 ? 8 : 12;
-        context.fill(0, MmmUi.TOP_BAR_HEIGHT, sidebarWidth, this.height, 0xE9080808);
-        context.drawBorder(0, MmmUi.TOP_BAR_HEIGHT, sidebarWidth, Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT), MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "MMM SCREENS", sidePad, MmmUi.TOP_BAR_HEIGHT + (this.height < 360 ? 8 : 16), sidebarWidth - sidePad * 2);
-        if (MmmUi.sidebarFooterVisible(this.height))
+        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "HOTKEYS");
+        int left = MmmUi.contentLeft(this.width);
+        int contentWidth = MmmUi.contentWidth(this.width);
+        int listWidth = Math.max(1, Math.min(contentWidth, MAX_LIST_WIDTH));
+        context.drawText(this.textRenderer, Text.literal("HOTKEYS"), left + 8, MmmUi.TOP_BAR_HEIGHT + 10, MmmUi.accent(), false);
+
+        this.rowTargets.clear();
+        int searchX = left + 8;
+        int searchY = MmmUi.TOP_BAR_HEIGHT + 30;
+        int searchWidth = Math.max(80, Math.min(SEARCH_WIDTH, listWidth - 16));
+        boolean canClearSearch = !this.searchQuery.isBlank();
+        int clearWidth = canClearSearch ? 20 : 0;
+        this.searchField.setX(searchX + 5);
+        this.searchField.setY(searchY + 5);
+        this.searchField.setWidth(Math.max(40, searchWidth - 10 - clearWidth));
+        MmmUi.fieldShell(context, searchX, searchY, searchWidth, SEARCH_HEIGHT, this.searchField.isFocused());
+        if (canClearSearch)
         {
-            int bottomY = this.height - 42;
-            context.drawBorder(sidePad, bottomY, sidebarWidth - sidePad * 2, 28, MmmUi.BORDER_SOFT);
-            MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD", sidePad + 8, bottomY + 7, sidebarWidth - sidePad * 2 - 16, MmmUi.TEXT, false);
-            MmmUi.drawTextWithin(context, this.textRenderer, Reference.MOD_VERSION, sidePad + 8, bottomY + 18, sidebarWidth - sidePad * 2 - 16, MmmUi.MUTED, false);
+            int clearX = searchX + searchWidth - 19;
+            boolean clearHovered = inside(mouseX, mouseY, clearX, searchY, 18, SEARCH_HEIGHT);
+            MmmUi.card(context, clearX, searchY, 18, SEARCH_HEIGHT, clearHovered ? MmmUi.accentHover() : MmmUi.INSET,
+                    clearHovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+            MmmUi.drawTextWithin(context, this.textRenderer, "X", clearX + 6, searchY + 6, 8, MmmUi.TEXT, false);
+            this.rowTargets.add(new RowTarget(clearX, searchY, 18, SEARCH_HEIGHT, () -> {
+                this.searchField.setText("");
+                this.searchField.setFocused(true);
+            }));
         }
-    }
 
-    @Override
-    protected void drawTitle(DrawContext context, int mouseX, int mouseY, float partialTicks)
-    {
-    }
-
-    @Override
-    public void drawContents(DrawContext context, int mouseX, int mouseY, float partialTicks)
-    {
-        super.drawContents(context, mouseX, mouseY, partialTicks);
-    }
-
-    @Override
-    protected int getConfigWidth()
-    {
-        return tab == ConfigGuiTab.GENERIC ? 180 : 260;
-    }
-
-    @Override
-    protected boolean useKeybindSearch()
-    {
-        return tab == ConfigGuiTab.FEATURES || tab == ConfigGuiTab.HOTKEYS;
-    }
-
-    @Override
-    public List<ConfigOptionWrapper> getConfigs()
-    {
-        List<? extends IConfigBase> configs;
-
-        if (tab == ConfigGuiTab.GENERIC)
+        List<Row> rows = filteredRows();
+        int top = MmmUi.TOP_BAR_HEIGHT + 62;
+        int bottom = this.height - 10;
+        this.listTop = top;
+        this.listBottom = bottom;
+        int maxVisibleHeight = Math.max(1, bottom - top);
+        int maxScroll = Math.max(0, rows.size() * (ROW_HEIGHT + ROW_GAP) - maxVisibleHeight);
+        this.scrollOffset = Math.max(0, Math.min(maxScroll, this.scrollOffset));
+        int y = top - this.scrollOffset;
+        context.enableScissor(left, top, left + listWidth, bottom);
+        for (Row row : rows)
         {
-            configs = Configs.Generic.OPTIONS;
-        }
-        else if (tab == ConfigGuiTab.FEATURES)
-        {
-            List<ConfigOptionWrapper> wrappers = new ArrayList<>();
-            for (FeatureToggle toggle : MMM_LIST)
+            if (y + ROW_HEIGHT >= top && y < bottom)
             {
-                wrappers.addAll(ConfigOptionWrapper.createFor(List.of(wrapConfig(toggle))));
-                if (toggle == FeatureToggle.MMM_PERIMETER_WALL_DIG_HELPER)
+                drawRow(context, row, left + 8, y, listWidth - 16, mouseX, mouseY);
+            }
+            y += ROW_HEIGHT + ROW_GAP;
+        }
+        context.disableScissor();
+
+        if (rows.isEmpty())
+        {
+            MmmUi.drawTextWithin(context, this.textRenderer, "No hotkeys match your search.", left + 16, top + 12,
+                    listWidth - 32, MmmUi.MUTED, false);
+        }
+
+        if (maxScroll > 0)
+        {
+            int trackX = left + listWidth - 4;
+            int trackHeight = maxVisibleHeight;
+            int thumbHeight = Math.max(20, trackHeight * trackHeight / (trackHeight + maxScroll));
+            int thumbY = top + (int) ((trackHeight - thumbHeight) * (this.scrollOffset / (double) maxScroll));
+            context.fill(trackX, top, trackX + 2, bottom, MmmUi.SCROLLBAR_TRACK);
+            context.fill(trackX, thumbY, trackX + 2, thumbY + thumbHeight, MmmUi.scrollbarThumb());
+        }
+        super.render(context, mouseX, mouseY, delta);
+    }
+
+    private void drawRow(DrawContext context, Row row, int x, int y, int width, int mouseX, int mouseY)
+    {
+        MmmUi.card(context, x, y, width, ROW_HEIGHT, MmmUi.CARD, MmmUi.BORDER_SOFT);
+        int hotkeyWidth = Math.min(HOTKEY_WIDTH, Math.max(60, width / 5));
+        int hotkeyX = x + width - hotkeyWidth - 10;
+        int labelWidth = Math.max(40, hotkeyX - x - 20);
+        MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x + 9, y + 5, labelWidth, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x + 9, y + 17, labelWidth, MmmUi.MUTED, false);
+
+        String hotkeyStorage = this.capturing == row.hotkey()
+                ? (this.chordCapture.isEmpty()
+                    ? "PRESS KEYS"
+                    : this.chordCapture.storageString())
+                : row.hotkey().getStorageString();
+        String hotkeyLabel = displayHotkey(hotkeyStorage);
+        if (hotkeyLabel.isBlank())
+        {
+            hotkeyLabel = "UNBOUND";
+        }
+        boolean hotkeyHovered = inside(mouseX, mouseY, hotkeyX, y + 7, hotkeyWidth, 18);
+        MmmUi.card(context, hotkeyX, y + 7, hotkeyWidth, 18, MmmUi.INSET,
+                hotkeyHovered || this.capturing == row.hotkey() ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        MmmUi.drawTextWithin(context, this.textRenderer, hotkeyLabel, hotkeyX + 5, y + 12, hotkeyWidth - 10, MmmUi.TEXT, false);
+        this.rowTargets.add(new RowTarget(hotkeyX, y + 7, hotkeyWidth, 18, () -> beginCapture(row.hotkey())));
+    }
+
+    private void beginCapture(MmmHotkey hotkey)
+    {
+        this.capturing = hotkey;
+        this.chordCapture.clear();
+        this.heldCaptureKeys.clear();
+    }
+
+    private void finishCapture()
+    {
+        if (this.capturing != null && !this.chordCapture.isEmpty())
+        {
+            this.capturing.setStorageString(this.chordCapture.storageString());
+            Configs.saveToFile();
+        }
+        this.capturing = null;
+        this.chordCapture.clear();
+        this.heldCaptureKeys.clear();
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button)
+    {
+        if (MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "HOTKEYS"))
+        {
+            this.capturing = null;
+            this.chordCapture.clear();
+            return true;
+        }
+
+        if (this.capturing != null)
+        {
+            this.chordCapture.press("MOUSE_" + (button + 1));
+            finishCapture();
+            return true;
+        }
+
+        if (button == 0)
+        {
+            for (RowTarget target : this.rowTargets)
+            {
+                if (inside(mouseX, mouseY, target.x(), target.y(), target.width(), target.height()))
                 {
-                    wrappers.addAll(ConfigOptionWrapper.createFor(List.of(Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST)));
+                    target.action().run();
+                    return true;
                 }
             }
-            return wrappers;
         }
-        else if (tab == ConfigGuiTab.HOTKEYS)
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    {
+        this.scrollOffset = Math.max(0, this.scrollOffset - (int) Math.signum(verticalAmount) * 32);
+        return true;
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers)
+    {
+        if (this.capturing != null)
         {
-            configs = Hotkeys.HOTKEY_LIST;
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE)
+            {
+                this.capturing.setStorageString("");
+                this.capturing = null;
+                this.chordCapture.clear();
+                this.heldCaptureKeys.clear();
+                Configs.saveToFile();
+                return true;
+            }
+            if ((keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE) && this.chordCapture.isEmpty())
+            {
+                this.capturing.setStorageString("");
+                this.capturing = null;
+                Configs.saveToFile();
+                return true;
+            }
+
+            this.heldCaptureKeys.add(keyCode);
+            this.chordCapture.press(keyName(keyCode, scanCode));
+            return true;
         }
-        else
+
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE)
         {
-            return Collections.emptyList();
+            if (this.searchField != null && !this.searchField.getText().isBlank())
+            {
+                this.searchField.setText("");
+                return true;
+            }
+            this.close();
+            return true;
         }
 
-        return ConfigOptionWrapper.createFor(configs);
+        if (this.searchField != null && this.searchField.isFocused()
+                && this.searchField.keyPressed(keyCode, scanCode, modifiers))
+        {
+            return true;
+        }
+
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    protected BooleanHotkeyGuiWrapper wrapConfig(FeatureToggle config)
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers)
     {
-        return new BooleanHotkeyGuiWrapper(config.getName(), config, config.getKeybind());
+        if (this.capturing != null && !this.chordCapture.isEmpty())
+        {
+            this.heldCaptureKeys.remove(keyCode);
+            if (this.heldCaptureKeys.isEmpty())
+            {
+                finishCapture();
+            }
+            return true;
+        }
+        return super.keyReleased(keyCode, scanCode, modifiers);
     }
 
-    private void createSettingsButton(int y, int height, int sidebarWidth)
+    @Override
+    public boolean charTyped(char chr, int modifiers)
     {
-        int sidePad = sidebarWidth < 120 ? 8 : 12;
-        ButtonGeneric button = new MmmSidebarButton(sidePad, y, sidebarWidth - sidePad * 2, height, "Settings", false);
-        this.addButton(button, new SettingsButtonListener(this));
+        if (this.capturing != null)
+        {
+            return true;
+        }
+        if (super.charTyped(chr, modifiers))
+        {
+            return true;
+        }
+        if (this.searchField != null
+                && (Character.isLetterOrDigit(chr) || Character.isWhitespace(chr)))
+        {
+            this.searchField.setFocused(true);
+            return this.searchField.charTyped(chr, modifiers);
+        }
+        return false;
     }
 
-    private static ImmutableList<FeatureToggle> buildFeatureToggleList()
+    private List<Row> rows()
     {
-        ImmutableList.Builder<FeatureToggle> builder = ImmutableList.builder();
+        List<Row> rows = new ArrayList<>();
+        for (MmmHotkey hotkey : Hotkeys.HOTKEY_LIST)
+        {
+            rows.add(new Row(hotkey.getPrettyName(), hotkey.getComment(), hotkey));
+        }
         for (FeatureToggle toggle : FeatureToggle.VALUES)
         {
-            if (!isHudContentToggle(toggle))
-            {
-                builder.add(toggle);
-            }
+            rows.add(new Row(toggle.getPrettyName(), toggle.getComment(), toggle.getHotkey()));
         }
-        return builder.build();
+        return rows;
     }
 
-    private static boolean isHudContentToggle(FeatureToggle toggle)
+    private List<Row> filteredRows()
     {
-        return switch (toggle)
+        String query = this.searchQuery.trim().toLowerCase(Locale.ROOT);
+        if (query.isBlank())
         {
-            case MMM_HUD,
-                 MMM_DAILY_GOAL,
-                 MMM_NOTIFICATIONS,
-                 MMM_SOUND_ALERTS,
-                 MMM_HUD_PROJECT,
-                 MMM_HUD_TOTAL_MINED,
-                 MMM_HUD_GOAL_PROGRESS,
-                 MMM_HUD_BLOCKS_PER_HOUR,
-                 MMM_HUD_ETA,
-                 MMM_HUD_BOUNDING_BOX,
-                 MMM_HUD_SPEED_GRAPH -> true;
-            default -> false;
-        };
+            return rows();
+        }
+
+        List<Row> filtered = new ArrayList<>();
+        for (Row row : rows())
+        {
+            String searchable = String.join(" ",
+                    row.label(),
+                    row.description(),
+                    row.hotkey().getStorageString(),
+                    displayHotkey(row.hotkey().getStorageString())).toLowerCase(Locale.ROOT);
+            if (searchable.contains(query))
+            {
+                filtered.add(row);
+            }
+        }
+        return filtered;
     }
 
-    private void createSidebarButton(int y, int height, int sidebarWidth, ConfigGuiTab configTab)
+    private static String displayHotkey(String storage)
     {
-        int sidePad = sidebarWidth < 120 ? 8 : 12;
-        String label = sidebarWidth < 120 ? configTab.getCompactDisplayName() : configTab.getDisplayName();
-        ButtonGeneric button = new MmmSidebarButton(sidePad, y, sidebarWidth - sidePad * 2, height, label, tab == configTab);
-        button.setEnabled(tab != configTab || configTab != ConfigGuiTab.FEATURES && configTab != ConfigGuiTab.HOTKEYS);
-        this.addButton(button, new TabButtonListener(configTab, this));
+        if (storage == null)
+        {
+            return "";
+        }
+        return storage.replace(',', '+');
     }
 
-    private static class MmmConfigListWidget extends WidgetListConfigOptions
+    private static String keyName(int keyCode, int scanCode)
     {
-        private MmmConfigListWidget(int x, int y, int width, int height, int configWidth, float zLevel, boolean useKeybindSearch, GuiConfigsBase parent)
+        String key = InputUtil.fromKeyCode(keyCode, scanCode).getTranslationKey();
+        if (key.startsWith("key.keyboard."))
         {
-            super(x, y, width, height, configWidth, zLevel, useKeybindSearch, parent);
+            key = key.substring("key.keyboard.".length());
         }
-
-        @Override
-        public void drawContents(DrawContext context, int mouseX, int mouseY, float partialTicks)
-        {
-            if (this.widgetSearchBar != null)
-            {
-                MmmUi.fieldShell(context, this.widgetSearchBar.getX() - 2, this.widgetSearchBar.getY() - 2, this.widgetSearchBar.getWidth() + 4, this.widgetSearchBar.getHeight() + 4, this.widgetSearchBar.hasFilter());
-            }
-
-            super.drawContents(context, mouseX, mouseY, partialTicks);
-        }
-
-        @Override
-        protected WidgetConfigOption createListEntryWidget(int x, int y, int listIndex, boolean isOdd, ConfigOptionWrapper entry)
-        {
-            return new MmmConfigOptionWidget(x, y, this.browserEntryWidth, this.browserEntryHeight, this.maxLabelWidth, this.configWidth, entry, listIndex, this.parent, this);
-        }
+        return key.toUpperCase(Locale.ROOT).replace('.', '_');
     }
 
-    private static class MmmConfigOptionWidget extends WidgetConfigOption
+    private static boolean inside(double x, double y, int left, int top, int width, int height)
     {
-        private MmmConfigOptionWidget(int x, int y, int width, int height, int maxNameLength, int configWidth, ConfigOptionWrapper wrapper, int listIndex, GuiConfigsBase host, WidgetListConfigOptionsBase<?, ?> parent)
-        {
-            super(x, y, width, height, maxNameLength, configWidth, wrapper, listIndex, host, parent);
-            this.styleGeneratedButtons();
-        }
-
-        @Override
-        protected void addConfigButtonEntry(int x, int y, IConfigResettable config, ButtonBase button)
-        {
-            this.styleButton(button);
-            super.addConfigButtonEntry(x, y, config, button);
-        }
-
-        @Override
-        protected void addKeybindResetButton(int x, int y, IKeybind keybind, ConfigButtonKeybind button)
-        {
-            this.styleButton(button);
-            super.addKeybindResetButton(x, y, keybind, button);
-        }
-
-        @Override
-        public void render(int mouseX, int mouseY, boolean selected, DrawContext context)
-        {
-            RowBounds bounds = this.getContentBounds();
-            MmmUi.card(context, bounds.x(), this.y + 1, bounds.width(), Math.max(1, this.height - 3), MmmUi.CARD, MmmUi.BORDER_SOFT);
-            this.drawStyledButtonShells(context, mouseX, mouseY);
-            super.render(mouseX, mouseY, selected, context);
-        }
-
-        @Override
-        protected GuiTextFieldGeneric createTextField(int x, int y, int width, int height)
-        {
-            GuiTextFieldGeneric field = super.createTextField(x + 5, y + 1, Math.max(32, width - 10), Math.max(12, height - 2));
-
-            field.setDrawsBackground(false);
-            return field;
-        }
-
-        private void styleGeneratedButtons()
-        {
-            for (WidgetBase widget : this.subWidgets)
-            {
-                if (widget instanceof ButtonBase button)
-                {
-                    this.styleButton(button);
-                }
-            }
-        }
-
-        private void styleButton(ButtonBase button)
-        {
-            if (button instanceof ButtonGeneric generic)
-            {
-                generic.setRenderDefaultBackground(false);
-                generic.setTextCentered(true);
-            }
-        }
-
-        private void drawStyledButtonShells(DrawContext context, int mouseX, int mouseY)
-        {
-            for (WidgetBase widget : this.subWidgets)
-            {
-                if (widget instanceof ButtonBase button && button.getWidth() > 0 && button.getHeight() > 0)
-                {
-                    boolean hovered = button.isMouseOver(mouseX, mouseY);
-                    MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), hovered ? MmmUi.CARD : MmmUi.INSET, hovered ? MmmUi.accent() : MmmUi.BORDER);
-                }
-            }
-
-            if (this.textField != null && this.textField.getTextField() != null)
-            {
-                GuiTextFieldGeneric field = this.textField.getTextField();
-                int x = field.getX();
-                int y = field.getY();
-                int width = field.getWidth();
-                MmmUi.card(context, x - 5, y - 2, width + 10, 18, MmmUi.INSET, field.isFocusedWrapper() ? MmmUi.accent() : MmmUi.BORDER);
-            }
-        }
-
-        private RowBounds getContentBounds()
-        {
-            int minX = this.x;
-            int maxX = this.x;
-
-            for (WidgetBase widget : this.subWidgets)
-            {
-                minX = Math.min(minX, widget.getX());
-                maxX = Math.max(maxX, widget.getX() + widget.getWidth());
-            }
-
-            if (this.textField != null && this.textField.getTextField() != null)
-            {
-                GuiTextFieldGeneric field = this.textField.getTextField();
-                minX = Math.min(minX, field.getX());
-                maxX = Math.max(maxX, field.getX() + field.getWidth());
-            }
-
-            int rowX = Math.max(this.x - 8, minX - 8);
-            int rowRight = Math.min(this.x + this.width, Math.max(rowX + 96, maxX + 8));
-            return new RowBounds(rowX, Math.max(1, rowRight - rowX));
-        }
-
-        private record RowBounds(int x, int width)
-        {
-        }
+        return x >= left && x < left + width && y >= top && y < top + height;
     }
 
-    private static class MmmSidebarButton extends ButtonGeneric
-    {
-        private final boolean selected;
-
-        private MmmSidebarButton(int x, int y, int width, int height, String label, boolean selected)
-        {
-            super(x, y, width, height, label);
-            this.selected = selected;
-            this.setRenderDefaultBackground(false);
-            this.setTextCentered(false);
-        }
-
-        @Override
-        public void render(int mouseX, int mouseY, boolean selected, DrawContext context)
-        {
-            if (!this.visible)
-            {
-                return;
-            }
-
-            boolean hovered = this.enabled && this.isMouseOver(mouseX, mouseY);
-            int fill = this.selected ? MmmUi.accentSoft() : hovered ? MmmUi.accentHover() : MmmUi.INSET;
-            int border = this.selected || hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT;
-            MmmUi.card(context, this.x, this.y, this.width, this.height, fill, border);
-            int textY = this.y + Math.max(2, (this.height - 8) / 2);
-            MmmUi.drawTextWithin(context, this.textRenderer, this.displayString, this.x + 8, textY, this.width - 16, this.selected ? MmmUi.TEXT : MmmUi.MUTED, false);
-        }
-    }
-
-    private static class SettingsButtonListener implements IButtonActionListener
-    {
-        private final GuiConfigs parent;
-
-        private SettingsButtonListener(GuiConfigs parent)
-        {
-            this.parent = parent;
-        }
-
-        @Override
-        public void actionPerformedWithButton(ButtonBase button, int mouseButton)
-        {
-            MinecraftClient.getInstance().setScreen(new MmmSettingsScreen(this.parent));
-        }
-    }
-
-    private static class TabButtonListener implements IButtonActionListener
-    {
-        private final ConfigGuiTab tab;
-        private final GuiConfigs parent;
-
-        private TabButtonListener(ConfigGuiTab tab, GuiConfigs parent)
-        {
-            this.tab = tab;
-            this.parent = parent;
-        }
-
-        @Override
-        public void actionPerformedWithButton(ButtonBase button, int mouseButton)
-        {
-            if (this.tab == ConfigGuiTab.PROJECTS)
-            {
-                MinecraftClient.getInstance().setScreen(new ProjectManagerScreen(this.parent));
-                return;
-            }
-
-            if (this.tab == ConfigGuiTab.PROFILE)
-            {
-                MinecraftClient.getInstance().setScreen(new PlayerProfileScreen(this.parent));
-                return;
-            }
-
-            if (this.tab == ConfigGuiTab.WEBSITE_LINK)
-            {
-                MinecraftClient.getInstance().setScreen(new WebsiteLinkScreen(this.parent));
-                return;
-            }
-
-            if (this.tab == ConfigGuiTab.SUMMARY)
-            {
-                MinecraftClient.getInstance().setScreen(new SummaryScreen(MiningStats.getCurrentSession(), this.parent));
-                return;
-            }
-
-            if (this.tab == ConfigGuiTab.SCOREBOARD)
-            {
-                MinecraftClient.getInstance().setScreen(new ScoreboardScreen(this.parent));
-                return;
-            }
-
-            if (this.tab == ConfigGuiTab.HISTORY)
-            {
-                MinecraftClient.getInstance().setScreen(new SessionHistoryScreen(this.parent));
-                return;
-            }
-
-            GuiConfigs.tab = this.tab;
-            this.parent.reCreateListWidget();
-            this.parent.getListWidget().resetScrollbarPosition();
-            this.parent.initGui();
-        }
-    }
-
-    private enum ConfigGuiTab
-    {
-        GENERIC("Generic", "Generic"),
-        FEATURES("Feature Toggles", "Toggles"),
-        HOTKEYS("Hotkeys", "Hotkeys"),
-        PROJECTS("Projects", "Projects"),
-        PROFILE("Profile", "Profile"),
-        WEBSITE_LINK("Website Link", "Link"),
-        SUMMARY("Summary", "Summary"),
-        SCOREBOARD("Scoreboard", "Scores"),
-        HISTORY("History", "History");
-
-        private final String displayName;
-        private final String compactDisplayName;
-
-        ConfigGuiTab(String displayName, String compactDisplayName)
-        {
-            this.displayName = displayName;
-            this.compactDisplayName = compactDisplayName;
-        }
-
-        public String getDisplayName()
-        {
-            return StringUtils.translate(this.displayName);
-        }
-
-        public String getCompactDisplayName()
-        {
-            return StringUtils.translate(this.compactDisplayName);
-        }
-    }
+    private record Row(String label, String description, MmmHotkey hotkey) {}
+    private record RowTarget(int x, int y, int width, int height, Runnable action) {}
 }

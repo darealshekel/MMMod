@@ -40,6 +40,7 @@ public final class CloudSyncManager
     private static final int MAX_SAVED_SESSIONS_PER_PAYLOAD = 25;
 
     private static long lastHeartbeatMs;
+    private static long nextTickCheckMs;
     private static long lastLiveBlockSyncMs;
     private static long lastSourceScoreboardScanMs;
     private static volatile SyncStatus syncStatus = SyncStatus.CONNECTED;
@@ -64,6 +65,12 @@ public final class CloudSyncManager
 
     public static void onClientTick(long now)
     {
+        if (now < nextTickCheckMs)
+        {
+            return;
+        }
+        nextTickCheckMs = now + 1_000L;
+
         if (canSync() == false || hasLiveContext() == false)
         {
             return;
@@ -83,12 +90,6 @@ public final class CloudSyncManager
             touchHealthy();
         }
 
-        String currentLeaderboardFingerprint = leaderboardFingerprint(latestLeaderboardSnapshot);
-        if (latestLeaderboardSnapshot != null
-                && currentLeaderboardFingerprint.equals(lastSuccessfulLeaderboardFingerprint) == false)
-        {
-            queueCurrentLivePayloadIfDue(now);
-        }
     }
 
     public static void syncHeartbeat()
@@ -156,6 +157,11 @@ public final class CloudSyncManager
 
     public static void onBlockMined(long now)
     {
+        if (canSync() == false || isSyncCadenceDue(now) == false)
+        {
+            return;
+        }
+
         MinecraftClient client = MinecraftClient.getInstance();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         String sourceName = ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo);
@@ -187,7 +193,7 @@ public final class CloudSyncManager
             );
         }
 
-        if (canSync() == false || hasLiveContext() == false)
+        if (hasLiveContext() == false)
         {
             return;
         }
@@ -249,12 +255,13 @@ public final class CloudSyncManager
 
         boolean skippedByCadence = responseBoolean(responseBody, "sync_skipped");
         boolean sourceSyncAccepted = responseBoolean(responseBody, "source_sync_accepted");
-        syncStatus = skippedByCadence ? SyncStatus.CONNECTED : SyncStatus.SYNCED;
+        syncStatus = skippedByCadence || sourceSyncAccepted == false
+                ? SyncStatus.CONNECTED
+                : SyncStatus.SYNCED;
         scheduledRetryAtMs = 0L;
         lastRetryDetail = "";
-        syncStatusDetail = skippedByCadence
-                ? "Source sync is on its 24-hour cooldown."
-                : type == SyncItemType.CLOUD_FINISHED_SESSION ? "Finished session delivered." : "Latest sync delivered.";
+        syncStatusDetail = sourceSyncResponseDetail(responseBody, skippedByCadence, sourceSyncAccepted,
+                type == SyncItemType.CLOUD_FINISHED_SESSION);
         touchHealthy();
         if (skippedByCadence == false)
         {
@@ -300,6 +307,119 @@ public final class CloudSyncManager
         }
     }
 
+    static String sourceSyncResponseDetail(String responseBody, boolean skippedByCadence,
+                                           boolean sourceSyncAccepted, boolean finishedSession)
+    {
+        JsonObject root = responseObject(responseBody);
+        String reason = responseString(root, "reason");
+        String message = responseString(root, "message");
+        if (skippedByCadence && reason.equals("24_hour_cooldown"))
+        {
+            long nextSyncAtMs = responseTimestamp(root, "next_sync_at");
+            String wait = nextSyncAtMs > System.currentTimeMillis()
+                    ? UiFormat.formatDuration(Math.max(1L, (nextSyncAtMs - System.currentTimeMillis() + 999L) / 1000L))
+                    : "a moment";
+            return "This source already synced. Its next full sync is available in " + wait + ".";
+        }
+        if (sourceSyncAccepted)
+        {
+            JsonObject sourceSync = root == null || root.has("source_sync") == false || root.get("source_sync").isJsonObject() == false
+                    ? null : root.getAsJsonObject("source_sync");
+            String objective = responseString(sourceSync, "objective_title");
+            long players = responseLong(sourceSync, "player_count");
+            long total = responseLong(sourceSync, "total_blocks");
+            if (objective.isBlank() == false)
+            {
+                String counts = players > 0L
+                        ? " with " + players + " players" + (total > 0L ? " / " + UiFormat.formatCompact(total) + " blocks" : "")
+                        : total > 0L ? " with " + UiFormat.formatCompact(total) + " blocks" : "";
+                return "Accepted scoreboard " + objective + counts + ". Next sync in 24 hours.";
+            }
+            return finishedSession ? "Finished session delivered." : "Latest source scoreboard accepted. Next sync in 24 hours.";
+        }
+        if (reason.equals("no_mining_scoreboard_evidence"))
+        {
+            return "No valid mining scoreboard was sent. Choose one with Sync Scoreboard.";
+        }
+        if (reason.equals("validation_review_required"))
+        {
+            return "Personal data was saved. The source update is waiting for owner review.";
+        }
+        if (reason.equals("source_write_not_allowed"))
+        {
+            return "Personal data was saved, but this source scoreboard was not accepted.";
+        }
+        if (message.isBlank() == false)
+        {
+            return message.endsWith(".") ? message : message + ".";
+        }
+        return "Personal data was saved, but no source scoreboard was accepted.";
+    }
+
+    private static JsonObject responseObject(String responseBody)
+    {
+        if (responseBody == null || responseBody.isBlank())
+        {
+            return null;
+        }
+        try
+        {
+            return JsonParser.parseString(responseBody).getAsJsonObject();
+        }
+        catch (Exception ignored)
+        {
+            return null;
+        }
+    }
+
+    private static String responseString(JsonObject root, String key)
+    {
+        if (root == null || key == null || root.has(key) == false || root.get(key).isJsonPrimitive() == false)
+        {
+            return "";
+        }
+        try
+        {
+            return root.get(key).getAsString().trim();
+        }
+        catch (Exception ignored)
+        {
+            return "";
+        }
+    }
+
+    private static long responseLong(JsonObject root, String key)
+    {
+        if (root == null || key == null || root.has(key) == false || root.get(key).isJsonPrimitive() == false)
+        {
+            return 0L;
+        }
+        try
+        {
+            return Math.max(0L, root.get(key).getAsLong());
+        }
+        catch (Exception ignored)
+        {
+            return 0L;
+        }
+    }
+
+    private static long responseTimestamp(JsonObject root, String key)
+    {
+        String value = responseString(root, key);
+        if (value.isBlank())
+        {
+            return 0L;
+        }
+        try
+        {
+            return Instant.parse(value).toEpochMilli();
+        }
+        catch (Exception ignored)
+        {
+            return 0L;
+        }
+    }
     static void onQueueRetry(SyncItemType type, String detail, long nextRetryAtMs)
     {
         if (type != SyncItemType.CLOUD_LIVE_STATE && type != SyncItemType.CLOUD_FINISHED_SESSION)
@@ -534,7 +654,9 @@ public final class CloudSyncManager
         {
             String source = currentSourceDisplayName();
             String suffix = source.isBlank() ? "" : " for " + source;
-            return "Cooldown: " + UiFormat.formatDuration(Math.max(1L, (remainingMs + 999L) / 1000L)) + " remaining" + suffix + ".";
+            String selected = SyncScoreboardSelector.selectedObjectiveName();
+            String scoreboard = selected.isBlank() ? "" : " Selected scoreboard: " + selected + ".";
+            return "Cooldown: " + UiFormat.formatDuration(Math.max(1L, (remainingMs + 999L) / 1000L)) + " remaining" + suffix + "." + scoreboard;
         }
         if (lastSuccessfulSyncMs() <= 0L)
         {
@@ -804,7 +926,6 @@ public final class CloudSyncManager
 
         lastSourceScoreboardScanMs = now;
         latestLeaderboardSnapshot = SourceLeaderboardReader.read(client);
-        maybeBootstrapFromLeaderboardSnapshot(client, now);
     }
 
     private static long lastSuccessfulSyncMs()
@@ -899,7 +1020,7 @@ public final class CloudSyncManager
         }
         return sourceKey.trim().toLowerCase(Locale.ROOT);
     }
-    private static long sourceSyncCadenceAnchor(String responseBody)
+    static long sourceSyncCadenceAnchor(String responseBody)
     {
         if (responseBody == null || responseBody.isBlank())
         {
@@ -915,11 +1036,17 @@ public final class CloudSyncManager
             {
                 return System.currentTimeMillis();
             }
-
-            if (root.has("next_sync_at") && root.get("next_sync_at").isJsonPrimitive())
+            if (responseBoolean(responseBody, "sync_skipped")
+                    && responseString(root, "reason").equals("24_hour_cooldown"))
             {
-                long nextSyncMs = Instant.parse(root.get("next_sync_at").getAsString()).toEpochMilli();
-                return Math.max(1L, nextSyncMs - getSyncIntervalMs());
+                long nextSyncAtMs = responseTimestamp(root, "next_sync_at");
+                JsonObject syncPolicy = root.has("sync_policy") && root.get("sync_policy").isJsonObject()
+                        ? root.getAsJsonObject("sync_policy") : null;
+                long intervalMs = responseLong(syncPolicy, "interval_ms");
+                if (nextSyncAtMs > 0L && intervalMs > 0L)
+                {
+                    return Math.max(1L, Math.min(System.currentTimeMillis(), nextSyncAtMs - intervalMs));
+                }
             }
         }
         catch (Exception ignored)
@@ -1861,32 +1988,6 @@ public final class CloudSyncManager
         {
             return false;
         }
-    }
-
-    private static void maybeBootstrapFromLeaderboardSnapshot(MinecraftClient client, long now)
-    {
-        if (latestLeaderboardSnapshot == null || latestLeaderboardSnapshot.isValid() == false || client == null || client.player == null)
-        {
-            return;
-        }
-
-        String username = client.player.getGameProfile().getName();
-        long localPlayerDigs = latestLeaderboardSnapshot.entries().stream()
-                .filter(entry -> entry.username().equalsIgnoreCase(username))
-                .mapToLong(SourceLeaderboardEntry::digs)
-                .max()
-                .orElse(0L);
-        if (localPlayerDigs <= 0L)
-        {
-            return;
-        }
-
-        MiningStats.bootstrapSourceTotalFromScoreboard(
-                localPlayerDigs,
-                latestLeaderboardSnapshot.serverName(),
-                latestLeaderboardSnapshot.objectiveTitle(),
-                false,
-                now);
     }
 
     private static String toIso(long timeMs)

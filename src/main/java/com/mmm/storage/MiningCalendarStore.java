@@ -323,20 +323,31 @@ public final class MiningCalendarStore
         }
 
         Path path = SharedStoragePaths.miningCalendarFile(activePlayerKey);
+        JsonObject root = new JsonObject();
+        root.addProperty("version", 1);
+        root.add("days", mapJson(DAYS));
+        root.add("synced_days", mapJson(SYNCED_DAYS));
+        lastSaveAtMs = System.currentTimeMillis();
+        dirty = false;
+        AsyncPersistence.submit("mining-calendar:" + path.toAbsolutePath().normalize(), () -> writeSnapshot(path, root));
+    }
+
+    private static void writeSnapshot(Path path, JsonObject root)
+    {
         try
         {
-            JsonObject root = new JsonObject();
-            root.addProperty("version", 1);
-            root.add("days", mapJson(DAYS));
-            root.add("synced_days", mapJson(SYNCED_DAYS));
             AtomicJsonStorage.write(path, root, true);
-            lastSaveAtMs = System.currentTimeMillis();
-            dirty = false;
         }
-        catch (Exception e)
+        catch (Exception exception)
         {
-            MMM.LOGGER.warn("[MMM] Could not save mining calendar state: {}", e.getMessage());
+            markSaveFailed();
+            throw new IllegalStateException("Could not save mining calendar state", exception);
         }
+    }
+
+    private static synchronized void markSaveFailed()
+    {
+        dirty = true;
     }
 
     private static JsonObject mapJson(Map<String, Long> values)

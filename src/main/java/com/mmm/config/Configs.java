@@ -24,6 +24,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mmm.MMM;
 import com.mmm.Reference;
+import com.mmm.storage.AsyncPersistence;
 import com.mmm.storage.AtomicJsonStorage;
 import com.mmm.storage.SharedStoragePaths;
 import com.mmm.storage.WorldIdentity;
@@ -32,23 +33,21 @@ import com.mmm.util.BlockBreakdownCatalog;
 import com.mmm.util.PeriodKeys;
 import com.mmm.util.WeeklyProgressPolicy;
 
-import fi.dy.masa.malilib.config.ConfigUtils;
-import fi.dy.masa.malilib.config.IConfigBase;
-import fi.dy.masa.malilib.config.IConfigHandler;
-import fi.dy.masa.malilib.config.IConfigOptionListEntry;
-import fi.dy.masa.malilib.config.options.BooleanHotkeyGuiWrapper;
-import fi.dy.masa.malilib.config.options.ConfigBoolean;
-import fi.dy.masa.malilib.config.options.ConfigColor;
-import fi.dy.masa.malilib.config.options.ConfigDouble;
-import fi.dy.masa.malilib.config.options.ConfigInteger;
-import fi.dy.masa.malilib.config.options.ConfigOptionList;
-import fi.dy.masa.malilib.config.options.ConfigStringList;
+import com.mmm.config.value.IConfigBase;
+import com.mmm.config.value.IConfigOptionListEntry;
+import com.mmm.config.value.ConfigBoolean;
+import com.mmm.config.value.ConfigColor;
+import com.mmm.config.value.ConfigDouble;
+import com.mmm.config.value.ConfigInteger;
+import com.mmm.config.value.ConfigOptionList;
+import com.mmm.config.value.ConfigStringList;
 import net.fabricmc.loader.api.FabricLoader;
 
-public class Configs implements IConfigHandler
+public class Configs
 {
     private static final String CONFIG_FILE_NAME = Reference.STORAGE_ID + ".json";
-    private static final long CURRENT_SETTINGS_MIGRATION_VERSION = 2L;
+    private static final long CURRENT_SETTINGS_MIGRATION_VERSION = 3L;
+    private static final long SOURCE_SYNC_ACCEPTANCE_RECEIPT_MIGRATION_VERSION = 3L;
     private static final Set<String> MIGRATION_CONFIG_FILE_NAMES = Set.of(
             Reference.STORAGE_ID + ".json",
             Reference.LEGACY_STORAGE_ID + ".json",
@@ -87,8 +86,11 @@ public class Configs implements IConfigHandler
         public static final String DEFAULT_HUD_TEXT_HEX_COLOR = "#FFF6F3EF";
         public static final String DEFAULT_HUD_NUMBER_HEX_COLOR = "#FFFFFFFF";
         public static final String DEFAULT_HUD_INACTIVE_HEX_COLOR = "#FF949494";
+        public static final String DEFAULT_HUD_BACKGROUND_HEX_COLOR = "#FF050505";
         public static final String DEFAULT_MENU_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_BLOCK_ESP_HEX_COLOR = "#FF55FF55";
+        public static final String DEFAULT_BREAKING_INDICATOR_START_HEX_COLOR = "#FF19FC19";
+        public static final String DEFAULT_BREAKING_INDICATOR_END_HEX_COLOR = "#FFFF1919";
         public static final String DEFAULT_GRAPH_LINE_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_GRAPH_FILL_HEX_COLOR = "#FFE00000";
         public static final String DEFAULT_GRAPH_GRID_HEX_COLOR = "#FFC8C8C8";
@@ -106,6 +108,7 @@ public class Configs implements IConfigHandler
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
         public static final ConfigDouble HUD_SCALE = new ConfigDouble("hudScale", 1.0D, 0.25D, 1.75D, "Mining HUD scale.");
         public static final ConfigBoolean HUD_TEXT_BACKGROUND = new ConfigBoolean("hudTextBackground", false, "Draw small background boxes behind individual MMM HUD text lines.");
+        public static final ConfigBoolean HUD_TEXT_SHADOW = new ConfigBoolean("hudTextShadow", true, "Add a dark pixel shadow behind HUD text.");
         public static final ConfigBoolean HUD_TITLE_VISIBLE = new ConfigBoolean("hudTitleVisible", true, "Show the MMM title and sync status.");
         public static final ConfigBoolean HUD_GLOBAL_TOTAL_VISIBLE = new ConfigBoolean("hudGlobalTotalVisible", true, "Show your combined website total.");
         public static final ConfigBoolean HUD_WORLD_TOTAL_VISIBLE = new ConfigBoolean("hudWorldTotalVisible", true, "Show the current source total.");
@@ -146,23 +149,30 @@ public class Configs implements IConfigHandler
         public static final ConfigColor HUD_TEXT_HEX_COLOR = new ConfigColor("hudTextHexColor", DEFAULT_HUD_TEXT_HEX_COLOR, "Label/text color used by the MMM HUD.");
         public static final ConfigColor HUD_NUMBER_HEX_COLOR = new ConfigColor("hudNumberHexColor", DEFAULT_HUD_NUMBER_HEX_COLOR, "Number color used by MMM HUD and UI numeric values.");
         public static final ConfigColor HUD_INACTIVE_HEX_COLOR = new ConfigColor("hudInactiveHexColor", DEFAULT_HUD_INACTIVE_HEX_COLOR, "Inactive/paused text color used by the MMM HUD.");
+        public static final ConfigColor HUD_BACKGROUND_HEX_COLOR = new ConfigColor("hudBackgroundHexColor", DEFAULT_HUD_BACKGROUND_HEX_COLOR, "Background color used by MMM HUD panels and text boxes.");
         public static final ConfigColor MENU_HEX_COLOR = new ConfigColor("menuHexColor", DEFAULT_MENU_HEX_COLOR, "Accent color used by MMM menu screens.");
         public static final ConfigOptionList BPS_SMOOTHING = new ConfigOptionList("bpsSmoothing", BpsSmoothing.FAST, "Blocks/sec Smoothing");
         public static final ConfigBoolean SMALL_DIG_ITEMS = new ConfigBoolean("smallDigItems", false, "Render MMM breakdown block items smaller, like the Smoll Dig Items resource pack.");
         public static final ConfigDouble SMALL_DIG_ITEM_SCALE = new ConfigDouble("smallDigItemScale", 0.2D, 0.1D, 1.0D, "Size of tracked mining block items while Small Dig Items is enabled.");
         public static final ConfigBoolean NO_SWINGING_ANIMATION = new ConfigBoolean("noSwingingAnimation", false, "Disable the local first-person hand swing animation while mining.");
+        public static final ConfigBoolean BREAKING_INDICATORS = new ConfigBoolean("breakingIndicators", false, "Show block-breaking progress as a growing box.");
+        public static final ConfigColor BREAKING_INDICATOR_START_HEX_COLOR = new ConfigColor("breakingIndicatorStartHexColor", DEFAULT_BREAKING_INDICATOR_START_HEX_COLOR, "Breaking indicator color at the start of a break.");
+        public static final ConfigColor BREAKING_INDICATOR_END_HEX_COLOR = new ConfigColor("breakingIndicatorEndHexColor", DEFAULT_BREAKING_INDICATOR_END_HEX_COLOR, "Breaking indicator color when a block is almost broken.");
         public static final ConfigBoolean TRANSLUCENT_LAVA = new ConfigBoolean("translucentLava", false, "Make lava transparent enough to see through.");
         public static final ConfigInteger LAVA_OPACITY = new ConfigInteger("lavaOpacity", 45, 10, 100, "How visible lava is while Translucent Lava is enabled.");
         public static final ConfigBoolean SCOREBOARD_VISIBLE = new ConfigBoolean("scoreboardVisible", true, "Show the sidebar scoreboard.");
         public static final ConfigBoolean SCOREBOARD_SCORES_VISIBLE = new ConfigBoolean("scoreboardScoresVisible", true, "Show score values beside player names.");
         public static final ConfigBoolean SCOREBOARD_SCORE_COMMAS = new ConfigBoolean("scoreboardScoreCommas", true, "Format scores with thousands separators.");
         public static final ConfigBoolean SCOREBOARD_TAB_LIST_COMMAS = new ConfigBoolean("scoreboardTabListCommas", true, "Format player-list scores with thousands separators.");
+        public static final ConfigBoolean TRANSPARENT_TAB = new ConfigBoolean("transparentTab", false, "Hide the background behind the player list.");
         public static final ConfigBoolean TIER_NAME_TAGS = new ConfigBoolean("tierNameTags", true, "Show website totals before player names in chat, Tab, scoreboards, and nametags.");
         public static final ConfigBoolean SCOREBOARD_SCORE_ABBREVIATED = new ConfigBoolean("scoreboardScoreAbbreviated", false, "Shorten large scores with k, M, and B.");
         public static final ConfigOptionList SCOREBOARD_SORTING = new ConfigOptionList("scoreboardSorting", ScoreboardSorting.SCORE_DESCENDING, "Choose how sidebar rows are sorted.");
         public static final ConfigInteger SCOREBOARD_MAX_ENTRIES = new ConfigInteger("scoreboardMaxEntries", 15, 0, 100, "Maximum rows shown on one scoreboard page.");
         public static final ConfigOptionList SCOREBOARD_POSITION = new ConfigOptionList("scoreboardPosition", ScoreboardPosition.RIGHT, "Choose the sidebar anchor on screen.");
         public static final ConfigInteger SCOREBOARD_Y_OFFSET = new ConfigInteger("scoreboardYOffset", 0, -100, 100, "Move the scoreboard up or down.");
+        public static final ConfigInteger SCOREBOARD_X = new ConfigInteger("scoreboardX", -1, -1, 820, "Saved horizontal position from Move Scoreboard.");
+        public static final ConfigInteger SCOREBOARD_Y = new ConfigInteger("scoreboardY", -1, -1, 460, "Saved vertical position from Move Scoreboard.");
         public static final ConfigDouble SCOREBOARD_SCALE = new ConfigDouble("scoreboardScale", 1.0D, 0.5D, 2.0D, "Resize the complete scoreboard sidebar.");
         public static final ConfigDouble SCOREBOARD_BODY_OPACITY = new ConfigDouble("scoreboardBodyOpacity", 0.3D, 0.0D, 1.0D, "Change the row background opacity.");
         public static final ConfigDouble SCOREBOARD_TITLE_OPACITY = new ConfigDouble("scoreboardTitleOpacity", 0.4D, 0.0D, 1.0D, "Change the title background opacity.");
@@ -196,6 +206,7 @@ public class Configs implements IConfigHandler
                 HUD_ALIGNMENT,
                 HUD_SCALE,
                 HUD_TEXT_BACKGROUND,
+                HUD_TEXT_SHADOW,
                 HUD_TITLE_VISIBLE,
                 HUD_GLOBAL_TOTAL_VISIBLE,
                 HUD_WORLD_TOTAL_VISIBLE,
@@ -236,11 +247,15 @@ public class Configs implements IConfigHandler
                 HUD_TEXT_HEX_COLOR,
                 HUD_NUMBER_HEX_COLOR,
                 HUD_INACTIVE_HEX_COLOR,
+                HUD_BACKGROUND_HEX_COLOR,
                 MENU_HEX_COLOR,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
                 SMALL_DIG_ITEM_SCALE,
                 NO_SWINGING_ANIMATION,
+                BREAKING_INDICATORS,
+                BREAKING_INDICATOR_START_HEX_COLOR,
+                BREAKING_INDICATOR_END_HEX_COLOR,
                 TRANSLUCENT_LAVA,
                 LAVA_OPACITY,
                 BLOCK_ESP_COLOR_MODE,
@@ -262,12 +277,15 @@ public class Configs implements IConfigHandler
                 SCOREBOARD_SCORES_VISIBLE,
                 SCOREBOARD_SCORE_COMMAS,
                 SCOREBOARD_TAB_LIST_COMMAS,
+                TRANSPARENT_TAB,
                 TIER_NAME_TAGS,
                 SCOREBOARD_SCORE_ABBREVIATED,
                 SCOREBOARD_SORTING,
                 SCOREBOARD_MAX_ENTRIES,
                 SCOREBOARD_POSITION,
                 SCOREBOARD_Y_OFFSET,
+                SCOREBOARD_X,
+                SCOREBOARD_Y,
                 SCOREBOARD_SCALE,
                 SCOREBOARD_BODY_OPACITY,
                 SCOREBOARD_TITLE_OPACITY,
@@ -290,6 +308,7 @@ public class Configs implements IConfigHandler
                 HUD_ALIGNMENT,
                 HUD_SCALE,
                 HUD_TEXT_BACKGROUND,
+                HUD_TEXT_SHADOW,
                 HUD_TITLE_VISIBLE,
                 HUD_GLOBAL_TOTAL_VISIBLE,
                 HUD_WORLD_TOTAL_VISIBLE,
@@ -330,23 +349,30 @@ public class Configs implements IConfigHandler
                 HUD_TEXT_HEX_COLOR,
                 HUD_NUMBER_HEX_COLOR,
                 HUD_INACTIVE_HEX_COLOR,
+                HUD_BACKGROUND_HEX_COLOR,
                 MENU_HEX_COLOR,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
                 SMALL_DIG_ITEM_SCALE,
                 NO_SWINGING_ANIMATION,
+                BREAKING_INDICATORS,
+                BREAKING_INDICATOR_START_HEX_COLOR,
+                BREAKING_INDICATOR_END_HEX_COLOR,
                 TRANSLUCENT_LAVA,
                 LAVA_OPACITY,
                 SCOREBOARD_VISIBLE,
                 SCOREBOARD_SCORES_VISIBLE,
                 SCOREBOARD_SCORE_COMMAS,
                 SCOREBOARD_TAB_LIST_COMMAS,
+                TRANSPARENT_TAB,
                 TIER_NAME_TAGS,
                 SCOREBOARD_SCORE_ABBREVIATED,
                 SCOREBOARD_SORTING,
                 SCOREBOARD_MAX_ENTRIES,
                 SCOREBOARD_POSITION,
                 SCOREBOARD_Y_OFFSET,
+                SCOREBOARD_X,
+                SCOREBOARD_Y,
                 SCOREBOARD_SCALE,
                 SCOREBOARD_BODY_OPACITY,
                 SCOREBOARD_TITLE_OPACITY,
@@ -401,6 +427,7 @@ public class Configs implements IConfigHandler
     public static long websiteGlobalTotalUpdatedAtMs = 0L;
     public static long websiteLastSuccessfulSyncMs = 0L;
     private static final Map<String, Long> SOURCE_LAST_SUCCESSFUL_SYNC_MS = new LinkedHashMap<>();
+    private static final Map<String, String> SOURCE_SYNC_OBJECTIVES = new LinkedHashMap<>();
     public static long totalBlocksMined = 0L;
     public static final List<ProjectEntry> PROJECTS = new ArrayList<>();
     public static final List<WorldStatsEntry> WORLD_STATS = new ArrayList<>();
@@ -514,10 +541,13 @@ public class Configs implements IConfigHandler
         PerimeterWallDigHelper.refreshFromConfig();
 
         Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(normalizeBlockEspHexColor(Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
+        Generic.BREAKING_INDICATOR_START_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.BREAKING_INDICATOR_START_HEX_COLOR.getStringValue(), Generic.DEFAULT_BREAKING_INDICATOR_START_HEX_COLOR));
+        Generic.BREAKING_INDICATOR_END_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.BREAKING_INDICATOR_END_HEX_COLOR.getStringValue(), Generic.DEFAULT_BREAKING_INDICATOR_END_HEX_COLOR));
         Generic.HUD_TITLE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TITLE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TITLE_HEX_COLOR));
         Generic.HUD_TEXT_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_TEXT_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_TEXT_HEX_COLOR));
         Generic.HUD_NUMBER_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_NUMBER_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_NUMBER_HEX_COLOR));
         Generic.HUD_INACTIVE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_INACTIVE_HEX_COLOR));
+        Generic.HUD_BACKGROUND_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.HUD_BACKGROUND_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_BACKGROUND_HEX_COLOR));
         Generic.MENU_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.MENU_HEX_COLOR.getStringValue(), Generic.DEFAULT_MENU_HEX_COLOR));
         Generic.BLOCK_ESP_OPACITY.setIntegerValue(Math.max(0, Math.min(100, Generic.BLOCK_ESP_OPACITY.getIntegerValue())));
         Generic.GRAPH_LINE_HEX_COLOR.setValueFromString(normalizeHexColor(Generic.GRAPH_LINE_HEX_COLOR.getStringValue(), Generic.DEFAULT_GRAPH_LINE_HEX_COLOR));
@@ -581,6 +611,12 @@ public class Configs implements IConfigHandler
         boolean sharedStateExists = hasReadableCrossVersionState();
         boolean importedLegacySharedState = sharedStateExists == false && importLegacyCrossVersionStateCandidates();
         boolean sharedStateLoaded = readCrossVersionState();
+        if (storedMigrationVersion < SOURCE_SYNC_ACCEPTANCE_RECEIPT_MIGRATION_VERSION)
+        {
+            // Older clients could persist an API retry timestamp as a successful
+            // source receipt even when the source snapshot was not accepted.
+            clearSourceSyncCooldowns();
+        }
         onConfigLoaded();
 
         if (sharedStateLoaded == false || importedLegacySharedState)
@@ -601,9 +637,9 @@ public class Configs implements IConfigHandler
         }
 
         MmmConfigMigration.migrateLegacyFeatureToggleSections(root);
-        ConfigUtils.readConfigBase(root, "Generic", Generic.PERSISTED_OPTIONS);
-        ConfigUtils.readHotkeys(root, "GenericHotkeys", Hotkeys.HOTKEY_LIST);
-        ConfigUtils.readHotkeyToggleOptions(root, MmmConfigMigration.HOTKEYS_SECTION, MmmConfigMigration.TOGGLES_SECTION, FeatureToggle.VALUES);
+        MmmConfigIO.readConfigBase(root, "Generic", Generic.PERSISTED_OPTIONS);
+        MmmConfigIO.readHotkeys(root, "GenericHotkeys", Hotkeys.HOTKEY_LIST);
+        MmmConfigIO.readHotkeyToggleOptions(root, MmmConfigMigration.HOTKEYS_SECTION, MmmConfigMigration.TOGGLES_SECTION, FeatureToggle.VALUES);
         return true;
     }
 
@@ -723,9 +759,9 @@ public class Configs implements IConfigHandler
     public static synchronized void saveToFile()
     {
         JsonObject root = new JsonObject();
-        ConfigUtils.writeConfigBase(root, "Generic", Generic.PERSISTED_OPTIONS);
-        ConfigUtils.writeHotkeys(root, "GenericHotkeys", Hotkeys.HOTKEY_LIST);
-        ConfigUtils.writeHotkeyToggleOptions(root, MmmConfigMigration.HOTKEYS_SECTION, MmmConfigMigration.TOGGLES_SECTION, FeatureToggle.VALUES);
+        MmmConfigIO.writeConfigBase(root, "Generic", Generic.PERSISTED_OPTIONS);
+        MmmConfigIO.writeHotkeys(root, "GenericHotkeys", Hotkeys.HOTKEY_LIST);
+        MmmConfigIO.writeHotkeyToggleOptions(root, MmmConfigMigration.HOTKEYS_SECTION, MmmConfigMigration.TOGGLES_SECTION, FeatureToggle.VALUES);
         writeCustomState(root);
 
         try
@@ -740,10 +776,11 @@ public class Configs implements IConfigHandler
         writeCrossVersionState();
     }
 
-    public static List<BooleanHotkeyGuiWrapper> getWrappedToggles()
+    public static void requestSave()
     {
-        return FeatureToggle.VALUES.stream().map(toggle -> new BooleanHotkeyGuiWrapper(toggle.getName(), toggle, toggle.getKeybind())).toList();
+        AsyncPersistence.submit("config", Configs::saveToFile);
     }
+
 
     public static List<Integer> getNotificationThresholds()
     {
@@ -854,6 +891,17 @@ public class Configs implements IConfigHandler
         return parseOpaqueHexColor(Generic.HUD_INACTIVE_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_INACTIVE_HEX_COLOR);
     }
 
+    public static int getHudBackgroundColor()
+    {
+        int rgb = parseOpaqueHexColor(Generic.HUD_BACKGROUND_HEX_COLOR.getStringValue(), Generic.DEFAULT_HUD_BACKGROUND_HEX_COLOR);
+        return 0xE9000000 | (rgb & 0x00FFFFFF);
+    }
+
+    public static boolean useHudTextShadow()
+    {
+        return Generic.HUD_TEXT_SHADOW.getBooleanValue();
+    }
+
     public static int getMenuColor()
     {
         return parseOpaqueHexColor(Generic.MENU_HEX_COLOR.getStringValue(), Generic.DEFAULT_MENU_HEX_COLOR);
@@ -879,13 +927,11 @@ public class Configs implements IConfigHandler
         return (BpsSmoothing) Generic.BPS_SMOOTHING.getOptionListValue();
     }
 
-    @Override
     public void load()
     {
         loadFromFile();
     }
 
-    @Override
     public void save()
     {
         saveToFile();
@@ -924,6 +970,7 @@ public class Configs implements IConfigHandler
             websiteGlobalTotalUpdatedAtMs = readLong(state, "websiteGlobalTotalUpdatedAtMs", websiteGlobalTotalUpdatedAtMs, "config State");
             websiteLastSuccessfulSyncMs = readLong(state, "websiteLastSuccessfulSyncMs", websiteLastSuccessfulSyncMs, "config State");
             readSourceSyncTimestamps(state);
+            readSourceSyncObjectives(state);
             totalBlocksMined = readLong(state, "totalBlocksMined", totalBlocksMined, "config State");
             PROJECTS.clear();
             WORLD_STATS.clear();
@@ -1256,6 +1303,9 @@ public class Configs implements IConfigHandler
         JsonObject sourceSyncTimestamps = new JsonObject();
         SOURCE_LAST_SUCCESSFUL_SYNC_MS.forEach(sourceSyncTimestamps::addProperty);
         state.add("sourceLastSuccessfulSyncMs", sourceSyncTimestamps);
+        JsonObject sourceSyncObjectives = new JsonObject();
+        SOURCE_SYNC_OBJECTIVES.forEach(sourceSyncObjectives::addProperty);
+        state.add("sourceSyncObjectives", sourceSyncObjectives);
         state.addProperty("totalBlocksMined", totalBlocksMined);
 
         JsonArray projects = new JsonArray();
@@ -1586,6 +1636,31 @@ public class Configs implements IConfigHandler
         SOURCE_LAST_SUCCESSFUL_SYNC_MS.clear();
     }
 
+    public static synchronized String getSourceSyncObjective(String sourceKey)
+    {
+        String normalized = normalizeSourceSyncKey(sourceKey);
+        return normalized.isBlank() ? "" : SOURCE_SYNC_OBJECTIVES.getOrDefault(normalized, "");
+    }
+
+    public static synchronized void setSourceSyncObjective(String sourceKey, String objectiveName)
+    {
+        String normalized = normalizeSourceSyncKey(sourceKey);
+        if (normalized.isBlank())
+        {
+            return;
+        }
+
+        String objective = objectiveName == null ? "" : objectiveName.trim();
+        if (objective.isBlank())
+        {
+            SOURCE_SYNC_OBJECTIVES.remove(normalized);
+        }
+        else
+        {
+            SOURCE_SYNC_OBJECTIVES.put(normalized, objective);
+        }
+    }
+
     private static void readSourceSyncTimestamps(JsonObject state)
     {
         SOURCE_LAST_SUCCESSFUL_SYNC_MS.clear();
@@ -1604,6 +1679,32 @@ public class Configs implements IConfigHandler
                 if (sourceKey.isBlank() == false && timestampMs > 0L)
                 {
                     SOURCE_LAST_SUCCESSFUL_SYNC_MS.put(sourceKey, timestampMs);
+                }
+            }
+            catch (RuntimeException ignored)
+            {
+            }
+        }
+    }
+
+    private static void readSourceSyncObjectives(JsonObject state)
+    {
+        SOURCE_SYNC_OBJECTIVES.clear();
+        if (state.has("sourceSyncObjectives") == false || state.get("sourceSyncObjectives").isJsonObject() == false)
+        {
+            return;
+        }
+
+        JsonObject objectives = state.getAsJsonObject("sourceSyncObjectives");
+        for (Map.Entry<String, JsonElement> entry : objectives.entrySet())
+        {
+            String sourceKey = normalizeSourceSyncKey(entry.getKey());
+            try
+            {
+                String objectiveName = entry.getValue().getAsString().trim();
+                if (sourceKey.isBlank() == false && objectiveName.isBlank() == false)
+                {
+                    SOURCE_SYNC_OBJECTIVES.put(sourceKey, objectiveName);
                 }
             }
             catch (RuntimeException ignored)

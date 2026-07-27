@@ -15,18 +15,16 @@ import com.mmm.hud.SummaryScreen;
 import com.mmm.sync.CloudSyncManager;
 import com.mmm.tracker.MiningStats;
 
-import fi.dy.masa.malilib.config.IConfigBase;
-import fi.dy.masa.malilib.config.IConfigBoolean;
-import fi.dy.masa.malilib.config.IConfigDouble;
-import fi.dy.masa.malilib.config.IConfigInteger;
-import fi.dy.masa.malilib.config.IConfigOptionListEntry;
-import fi.dy.masa.malilib.config.IConfigResettable;
-import fi.dy.masa.malilib.config.IStringRepresentable;
-import fi.dy.masa.malilib.config.options.ConfigColor;
-import fi.dy.masa.malilib.config.options.ConfigOptionList;
-import fi.dy.masa.malilib.gui.GuiBase;
-import fi.dy.masa.malilib.gui.GuiColorEditorHSV;
-import fi.dy.masa.malilib.util.InfoUtils;
+import com.mmm.config.value.IConfigBase;
+import com.mmm.config.value.IConfigBoolean;
+import com.mmm.config.value.IConfigDouble;
+import com.mmm.config.value.IConfigInteger;
+import com.mmm.config.value.IConfigOptionListEntry;
+import com.mmm.config.value.IConfigResettable;
+import com.mmm.config.value.IStringRepresentable;
+import com.mmm.config.value.ConfigColor;
+import com.mmm.config.value.ConfigOptionList;
+import com.mmm.util.MmmMessages;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -325,7 +323,7 @@ public class MmmSettingsScreen extends Screen
     @Override
     public boolean shouldPause()
     {
-        return false;
+        return MmmUi.shouldPauseGame();
     }
 
     @Override
@@ -470,9 +468,17 @@ public class MmmSettingsScreen extends Screen
                 {
                     MinecraftClient.getInstance().setScreen(new GoalSoundSettingsScreen(this));
                 }
+                else if ("Perimeter Block List".equals(row.label()))
+                {
+                    MinecraftClient.getInstance().setScreen(new PerimeterBlockListScreen(this));
+                }
+                else if ("Sync Scoreboard".equals(row.label()))
+                {
+                    MinecraftClient.getInstance().setScreen(new SyncScoreboardScreen(this));
+                }
                 else if ("Generate Dev Run".equals(row.label()))
                 {
-                    InfoUtils.printActionbarMessage("Generated preview mining run");
+                    MmmMessages.actionbar("Generated preview mining run");
                     MinecraftClient.getInstance().setScreen(new SummaryScreen(MiningStats.simulateDevFinishedSession(), this));
                 }
             });
@@ -634,34 +640,8 @@ public class MmmSettingsScreen extends Screen
             return;
         }
 
-        GuiColorEditorHSV editor = new GuiColorEditorHSV(colorConfig, null, this)
-        {
-            @Override
-            public boolean mouseClicked(double mouseX, double mouseY, int button)
-            {
-                if (button == 0
-                        && (mouseX < this.dialogLeft
-                        || mouseX >= this.dialogLeft + this.dialogWidth
-                        || mouseY < this.dialogTop
-                        || mouseY >= this.dialogTop + this.dialogHeight))
-                {
-                    MinecraftClient.getInstance().setScreen(MmmSettingsScreen.this);
-                    return true;
-                }
-                return super.mouseClicked(mouseX, mouseY, button);
-            }
-
-            @Override
-            public void removed()
-            {
-                super.removed();
-                Configs.saveToFile();
-                MmmSettingsScreen.this.syncField(config);
-            }
-        };
-        GuiBase.openGui(editor);
+        MinecraftClient.getInstance().setScreen(new MmmColorEditorScreen(this, colorConfig, () -> this.syncField(config)));
     }
-
     private void drawActionButton(DrawContext context, int x, int y, int width, int height, String label, int mouseX, int mouseY, Runnable action)
     {
         this.drawButtonShell(context, x, y, width, height, label, mouseX, mouseY, false);
@@ -1070,7 +1050,7 @@ public class MmmSettingsScreen extends Screen
     {
         if (config instanceof ConfigColor color)
         {
-            return this.ensureOpaqueColor(color.getIntegerValue());
+            return this.parseHexColor(color.getStringValue(), fallback);
         }
         if (config instanceof IConfigInteger integer)
         {
@@ -1092,9 +1072,16 @@ public class MmmSettingsScreen extends Screen
     private void createSections()
     {
         this.sections.clear();
+        this.sections.add(SettingsSection.helpers(
+                new SettingRow("Flat Digger", "Stop digging below your feet.", FeatureToggle.MMM_FLAT_DIGGER, ControlKind.BOOLEAN),
+                new SettingRow("Perimeter Wall Helper", "Protect the configured perimeter floor.", FeatureToggle.MMM_PERIMETER_WALL_DIG_HELPER, ControlKind.BOOLEAN),
+                new SettingRow("Perimeter Block List", "Choose which floor blocks are protected.", null, ControlKind.ACTION),
+                new SettingRow("Toggle Tab", "Keep the player list open.", FeatureToggle.MMM_TOGGLE_TAB, ControlKind.BOOLEAN)
+        ));
         this.sections.add(SettingsSection.sync(
                 new SettingRow("Sync Status", "", null, ControlKind.STATUS),
                 new SettingRow("Website Sync", "Send mining updates.", Configs.Generic.WEBSITE_SYNC_ENABLED, ControlKind.BOOLEAN),
+                new SettingRow("Sync Scoreboard", "Choose the total-mined scoreboard for this source.", null, ControlKind.ACTION),
                 new SettingRow("Sync Debug", "Save detailed sync logs.", Configs.Generic.WEBSITE_SYNC_DEBUG, ControlKind.BOOLEAN),
                 new SettingRow("Abbreviated Numbers", "Show 12k instead of 12,000.", Configs.Generic.ABBREVIATED_NUMBERS, ControlKind.BOOLEAN)
         ));
@@ -1127,6 +1114,10 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Block Stats Scale", "Change block-stats size.", Configs.Generic.BLOCK_STATS_SCALE, ControlKind.NUMBER)
         ));
         this.sections.add(SettingsSection.hudContent(
+                SettingRow.heading("TRACKING & SESSION"),
+                new SettingRow("Mining Tracker", "Track mined blocks and sessions.", FeatureToggle.MMM_MINING_TRACKER, ControlKind.BOOLEAN),
+                new SettingRow("Summary on Exit", "Open the summary when leaving.", FeatureToggle.MMM_SUMMARY_ON_EXIT, ControlKind.BOOLEAN),
+                new SettingRow("Carry Goal Progress", "Keep today's progress between sessions.", FeatureToggle.MMM_CARRY_GOAL_PROGRESS, ControlKind.BOOLEAN),
                 SettingRow.heading("MAIN HUD"),
                 new SettingRow("Main HUD", "Show the stats HUD.", FeatureToggle.MMM_HUD, ControlKind.BOOLEAN),
                 new SettingRow("MMM Header", "Show MMM and sync status.", Configs.Generic.HUD_TITLE_VISIBLE, ControlKind.BOOLEAN),
@@ -1165,9 +1156,12 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("HUD Title", "Set the title color.", Configs.Generic.HUD_TITLE_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("HUD Text", "Set the label color.", Configs.Generic.HUD_TEXT_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("HUD Numbers", "Set the number color.", Configs.Generic.HUD_NUMBER_HEX_COLOR, ControlKind.COLOR),
-                new SettingRow("Inactive Text", "Set the paused color.", Configs.Generic.HUD_INACTIVE_HEX_COLOR, ControlKind.COLOR)
+                new SettingRow("Inactive Text", "Set the paused color.", Configs.Generic.HUD_INACTIVE_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("HUD Background", "Set the panel color.", Configs.Generic.HUD_BACKGROUND_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Text Shadow", "Add a dark pixel shadow.", Configs.Generic.HUD_TEXT_SHADOW, ControlKind.BOOLEAN)
         ));
         this.sections.add(SettingsSection.blockEsp(
+                new SettingRow("Block ESP", "Highlight the block you look at.", FeatureToggle.MMM_BLOCK_ESP, ControlKind.BOOLEAN),
                 new SettingRow("Color Mode", "Use one color or rainbow.", Configs.Generic.BLOCK_ESP_COLOR_MODE, ControlKind.OPTION),
                 new SettingRow("Custom Color", "Set the highlight color.", Configs.Generic.BLOCK_ESP_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("Render Mode", "Choose the highlight shape.", Configs.Generic.BLOCK_ESP_RENDER_MODE, ControlKind.OPTION),
@@ -1187,13 +1181,16 @@ public class MmmSettingsScreen extends Screen
                     new SettingRow("Scale Step", "Set Blocks/hr grid gaps.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
             ));
         }
-        this.sections.add(SettingsSection.performance(
+        this.sections.add(SettingsSection.visuals(
                 new SettingRow("Blocks/sec Smoothing", "Change speed response.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION),
                 new SettingRow("Small Dig Items", "Shrink tracked block items.", Configs.Generic.SMALL_DIG_ITEMS, ControlKind.BOOLEAN),
                 new SettingRow("Item Size", "Choose the smaller size.", Configs.Generic.SMALL_DIG_ITEM_SCALE, ControlKind.SLIDER),
-                new SettingRow("No Swinging Animation", "Keep your tool still.", Configs.Generic.NO_SWINGING_ANIMATION, ControlKind.BOOLEAN)
-        ));
-        this.sections.add(SettingsSection.translucentLava(
+                new SettingRow("No Swinging Animation", "Keep your tool still.", Configs.Generic.NO_SWINGING_ANIMATION, ControlKind.BOOLEAN),
+                SettingRow.heading("BREAKING INDICATORS"),
+                new SettingRow("Breaking Indicators", "Show live block-breaking progress.", Configs.Generic.BREAKING_INDICATORS, ControlKind.BOOLEAN),
+                new SettingRow("Start Color", "Color when breaking begins.", Configs.Generic.BREAKING_INDICATOR_START_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("End Color", "Color when the block is nearly broken.", Configs.Generic.BREAKING_INDICATOR_END_HEX_COLOR, ControlKind.COLOR),
+                SettingRow.heading("TRANSLUCENT LAVA"),
                 new SettingRow("Translucent Lava", "See through lava.", Configs.Generic.TRANSLUCENT_LAVA, ControlKind.BOOLEAN),
                 new SettingRow("Lava Opacity", "Choose how visible lava looks.", Configs.Generic.LAVA_OPACITY, ControlKind.SLIDER)
         ));
@@ -1212,7 +1209,7 @@ public class MmmSettingsScreen extends Screen
         NOTIFICATIONS("Notifications"),
         HUD("HUD"),
         COLORS("Colors"),
-        PERFORMANCE("Performance"),
+        VISUALS("Visuals"),
         SPEED_GRAPH("Speed Graph"),
         BLOCK_ESP("Block ESP"),
         ABOUT("About");
@@ -1310,6 +1307,11 @@ public class MmmSettingsScreen extends Screen
             this.rows = rows;
         }
 
+        private static SettingsSection helpers(SettingRow... rows)
+        {
+            return new SettingsSection(SidebarItem.GENERAL, "MINING HELPERS", "Configure optional mining helpers.", List.of(rows));
+        }
+
         private static SettingsSection sync(SettingRow... rows)
         {
             return new SettingsSection(SidebarItem.SYNC, "SYNC", "Choose what MMM sends to the website.", List.of(rows));
@@ -1345,15 +1347,11 @@ public class MmmSettingsScreen extends Screen
             return new SettingsSection(SidebarItem.COLORS, "HUD COLORS", "Choose colors for menus and HUD text.", List.of(rows));
         }
 
-        private static SettingsSection performance(SettingRow... rows)
+        private static SettingsSection visuals(SettingRow... rows)
         {
-            return new SettingsSection(SidebarItem.PERFORMANCE, "PERFORMANCE", "Tune speed readings and mining visuals.", List.of(rows));
+            return new SettingsSection(SidebarItem.VISUALS, "VISUALS", "Tune mining visuals and speed readings.", List.of(rows));
         }
 
-        private static SettingsSection translucentLava(SettingRow... rows)
-        {
-            return new SettingsSection(SidebarItem.PERFORMANCE, "TRANSLUCENT LAVA", "See through animated lava safely.", List.of(rows));
-        }
 
         private static SettingsSection speedGraph(SettingRow... rows)
         {
