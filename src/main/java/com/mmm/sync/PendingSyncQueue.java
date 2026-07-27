@@ -504,11 +504,25 @@ public final class PendingSyncQueue
     }
     private void persistLocked()
     {
+        List<QueuedSyncItem> itemSnapshot = this.items.stream().map(QueuedSyncItem::copy).toList();
+        long successfulSyncSnapshot = this.lastSuccessfulSyncAtMs;
         try
         {
-            this.store.save(this.items, this.lastSuccessfulSyncAtMs);
+            this.flushExecutor.execute(() -> {
+                try
+                {
+                    this.store.save(itemSnapshot, successfulSyncSnapshot);
+                }
+                catch (Exception exception)
+                {
+                    String detail = exception.getMessage() == null
+                            ? exception.getClass().getSimpleName()
+                            : exception.getMessage();
+                    notifyListenerSafely("persistence-failed", () -> this.listener.onPersistenceFailed(detail, snapshot()));
+                }
+            });
         }
-        catch (Exception exception)
+        catch (RuntimeException exception)
         {
             String detail = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
             notifyListenerSafely("persistence-failed", () -> this.listener.onPersistenceFailed(detail, snapshotLocked()));

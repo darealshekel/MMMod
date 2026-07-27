@@ -70,6 +70,12 @@ public final class MmmUi
         }
     }
 
+    public static boolean shouldPauseGame()
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return client != null && client.isInSingleplayer();
+    }
+
     public static int accent()
     {
         return Configs.getMenuColor();
@@ -375,8 +381,7 @@ public final class MmmUi
         switch (route)
         {
             case SETTINGS -> client.setScreen(new MmmSettingsScreen(routeParent));
-            case TOGGLES -> client.setScreen(GuiConfigs.createForTab("FEATURES", routeParent));
-            case HOTKEYS -> client.setScreen(GuiConfigs.createForTab("HOTKEYS", routeParent));
+            case HOTKEYS -> client.setScreen(new GuiConfigs(routeParent));
             case PROJECTS -> client.setScreen(new ProjectManagerScreen(routeParent));
             case PROFILE -> client.setScreen(new PlayerProfileScreen(routeParent));
             case WEBSITE_LINK -> client.setScreen(new WebsiteLinkScreen(routeParent));
@@ -407,7 +412,6 @@ public final class MmmUi
     private enum SidebarRoute
     {
         SETTINGS("SETTINGS", "Settings", "Settings"),
-        TOGGLES("TOGGLES", "Feature Toggles", "Toggles"),
         HOTKEYS("HOTKEYS", "Hotkeys", "Hotkeys"),
         PROJECTS("PROJECTS", "Projects", "Projects"),
         PROFILE("PROFILE", "Profile", "Profile"),

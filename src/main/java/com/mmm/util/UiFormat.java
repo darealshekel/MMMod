@@ -16,6 +16,7 @@ public final class UiFormat
     private static final DecimalFormat COMPACT_FORMAT_LARGE = new DecimalFormat("0", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat WHOLE_NUMBER_FORMAT = new DecimalFormat("#,###", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat BLOCKS_PER_SECOND_FORMAT = new DecimalFormat("0.0", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat BLOCKS_PER_MINUTE_FORMAT = new DecimalFormat("0.0", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat GOAL_PERCENT_FORMAT_WHOLE = new DecimalFormat("0", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat GOAL_PERCENT_FORMAT_1 = new DecimalFormat("0.0", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat GOAL_PERCENT_FORMAT_2 = new DecimalFormat("0.00", DecimalFormatSymbols.getInstance(Locale.US));
@@ -77,6 +78,11 @@ public final class UiFormat
     {
         double safeValue = Math.max(0D, Math.min(20D, value));
         return BLOCKS_PER_SECOND_FORMAT.format(safeValue);
+    }
+
+    public static String formatBlocksPerMinute(double value)
+    {
+        return BLOCKS_PER_MINUTE_FORMAT.format(Math.max(0D, value));
     }
 
     public static String formatDuration(long totalSeconds)

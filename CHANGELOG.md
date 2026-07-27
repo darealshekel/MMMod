@@ -1,9 +1,48 @@
 # Changelog
 
+## 1.0.17 - 2026-07-28
+
+### Added
+
+- Bundled Fabric API, so MMMod now only requires Fabric Loader.
+- Added colored breaking indicators that replace the vanilla crack overlay.
+- Added Move Scoreboard, Transparent Tab, Tab-list commas, and scoreboard appearance controls.
+- Added a per-source sync scoreboard selector.
+- Added a searchable hotkey screen with two-key chords and `Escape` to unbind.
+- Added a configurable Perimeter Wall Helper block list.
+- Added tests for config storage, sync scoreboard selection, timers, and rolling mining speed.
+
+### Changed
+
+- Replaced the old config and hotkey libraries with MMMod-owned settings, color picker, hotkeys, and render helpers.
+- Moved mining helpers into Settings and Visuals, and removed the separate Feature Toggles screen.
+- Updated the Scoreboard screen with MMM-styled toggles, sliders, paging, movement, and editing tools.
+- Moved periodic session, timer, calendar, config, and sync-queue saves off Minecraft's render thread.
+- Replaced repeated mining-metric scans with a fixed-size rolling buffer.
+- Reduced scoreboard evidence scans and source-identity refreshes without delaying visible values.
+- Disabled hidden Speed Graph sampling while the feature remains unavailable.
+
+### Removed
+
+- Removed MaLiLib and Tweakeroo dependencies.
+- Removed the duplicate Feature Toggles screen.
+
+### Fixed
+
+- Reduced stutters and freeze frames caused by disk writes, scoreboard scans, and metric recalculation.
+- Fixed World Total switching between unrelated objectives or drifting from the selected source total.
+- Fixed scoreboard changes inflating active session totals.
+- Fixed website sync selecting project or non-mining scoreboards.
+- Fixed Tier / Name Tag decorations being mistaken for server scores.
+- Fixed `X + V` and other ordered two-key hotkeys.
+- Fixed breaking indicators for normal and instant-mined blocks.
+- Fixed settings, colors, and hotkeys not persisting correctly.
+
 ## 1.0.16 - 2026-07-24
 
 ### Added
 
+- Added a Minecraft 1.21.6 build with the complete 1.0.16 feature set.
 - Added `/mmm timer pause` to pause the timer and its run stats.
 - Added Red Sand, Moss Block, Mud, and Coarse Dirt to block breakdowns.
 - Added clearer sync messages for linking, cooldowns, uploads, and retries.

@@ -8,7 +8,7 @@ import java.util.Map;
 
 import com.mmm.ui.MmmUi;
 
-import fi.dy.masa.malilib.util.InfoUtils;
+import com.mmm.util.MmmMessages;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -280,7 +280,7 @@ public final class ScoreboardEditScreen extends Screen
             }
         }
         ScoreboardState.resetPage();
-        InfoUtils.printActionbarMessage(changes == 0 ? "No scoreboard changes to save" : "Sent %d scoreboard changes", changes);
+        MmmMessages.actionbar(changes == 0 ? "No scoreboard changes to save" : "Sent %d scoreboard changes", changes);
         this.close();
     }
 
@@ -330,7 +330,7 @@ public final class ScoreboardEditScreen extends Screen
     @Override
     public boolean shouldPause()
     {
-        return false;
+        return MmmUi.shouldPauseGame();
     }
 
     @Override

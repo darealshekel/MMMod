@@ -9,7 +9,7 @@ import java.util.List;
 
 import com.mmm.ui.MmmUi;
 
-import fi.dy.masa.malilib.util.InfoUtils;
+import com.mmm.util.MmmMessages;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -140,7 +140,7 @@ public final class ScoreboardRecordsScreen extends Screen
         }
         catch (IOException exception)
         {
-            InfoUtils.printActionbarMessage("No scoreboard is available to record");
+            MmmMessages.actionbar("No scoreboard is available to record");
         }
     }
 
@@ -148,11 +148,11 @@ public final class ScoreboardRecordsScreen extends Screen
     {
         try
         {
-            InfoUtils.printActionbarMessage("Exported records to %s", ScoreboardService.exportRecorded().getFileName().toString());
+            MmmMessages.actionbar("Exported records to %s", ScoreboardService.exportRecorded().getFileName().toString());
         }
         catch (IOException exception)
         {
-            InfoUtils.printActionbarMessage("Record at least one scoreboard before exporting");
+            MmmMessages.actionbar("Record at least one scoreboard before exporting");
         }
     }
 
@@ -200,7 +200,7 @@ public final class ScoreboardRecordsScreen extends Screen
     @Override
     public boolean shouldPause()
     {
-        return false;
+        return MmmUi.shouldPauseGame();
     }
 
     @Override

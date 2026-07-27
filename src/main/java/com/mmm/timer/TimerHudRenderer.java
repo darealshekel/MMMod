@@ -9,8 +9,8 @@ import com.mmm.hud.HudModuleId;
 import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
 
-import fi.dy.masa.malilib.config.IConfigDouble;
-import fi.dy.masa.malilib.config.IConfigInteger;
+import com.mmm.config.value.IConfigDouble;
+import com.mmm.config.value.IConfigInteger;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
@@ -25,7 +25,6 @@ import net.minecraft.util.Identifier;
 
 public final class TimerHudRenderer
 {
-    private static final int CARD_BG = 0xE9050505;
     private static final int CARD_BORDER = 0xFF1F1F1F;
     private static final int WIDTH_TIMER = 150;
     private static final int HEIGHT_TIMER = 16;
@@ -225,7 +224,7 @@ public final class TimerHudRenderer
         drawMetric(context, renderer, "Estimated Blocks/hr", MmmTimerState.getEstimatedBlocksPerHour(), 34);
         drawMetric(context, renderer, "Best Hour", MmmTimerState.getBestHourBlocks(), 46);
         drawText(context, renderer, "Blocks/min", 12, 58, Configs.getHudTextColor());
-        drawTextRight(context, renderer, String.format(java.util.Locale.ROOT, "%.1f", MmmTimerState.getBlocksPerMinute()), WIDTH_HOURLY - 12, 58, Configs.getHudNumberColor());
+        drawTextRight(context, renderer, UiFormat.formatBlocksPerMinute(MmmTimerState.getBlocksPerMinute()), WIDTH_HOURLY - 12, 58, Configs.getHudNumberColor());
     }
 
     private static void drawBlockStats(DrawContext context, MinecraftClient client, boolean preview)
@@ -321,7 +320,7 @@ public final class TimerHudRenderer
         long blocks = MmmTimerState.getNotificationBlocks();
         double bpm = MmmTimerState.getNotificationBlocksPerMinute();
         drawText(context, client.textRenderer, UiFormat.formatCompact(blocks) + " blocks", 12, 23, Configs.getHudNumberColor());
-        drawTextRight(context, client.textRenderer, String.format(java.util.Locale.ROOT, "%.1f/min", bpm), WIDTH_NOTIFICATION - 12, 23, Configs.getHudTextColor());
+        drawTextRight(context, client.textRenderer, UiFormat.formatBlocksPerMinute(bpm) + "/min", WIDTH_NOTIFICATION - 12, 23, Configs.getHudTextColor());
     }
 
     private static void drawMetric(DrawContext context, TextRenderer renderer, String label, long value, int y)
@@ -332,7 +331,7 @@ public final class TimerHudRenderer
 
     private static void drawCard(DrawContext context, int width, int height, String title)
     {
-        context.fill(0, 0, width, height, CARD_BG);
+        context.fill(0, 0, width, height, Configs.getHudBackgroundColor());
         context.drawBorder(0, 0, width, height, CARD_BORDER);
         context.fill(8, 8, 11, 18, MmmUi.RED);
         drawText(context, MinecraftClient.getInstance().textRenderer, title, 17, 8, Configs.getHudTitleColor());
@@ -352,17 +351,17 @@ public final class TimerHudRenderer
 
     private static void drawText(DrawContext context, TextRenderer renderer, String text, int x, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), x, y, color, false);
+        context.drawText(renderer, Text.literal(text), x, y, color, Configs.useHudTextShadow());
     }
 
     private static void drawTextShadow(DrawContext context, TextRenderer renderer, String text, int x, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), x, y, color, true);
+        context.drawText(renderer, Text.literal(text), x, y, color, Configs.useHudTextShadow());
     }
 
     private static void drawTextRight(DrawContext context, TextRenderer renderer, String text, int rightX, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), rightX - renderer.getWidth(text), y, color, false);
+        context.drawText(renderer, Text.literal(text), rightX - renderer.getWidth(text), y, color, Configs.useHudTextShadow());
     }
 
     private static int rawWidth(HudModuleId module)

@@ -15,6 +15,7 @@ import java.util.Properties;
 
 import com.mmm.MMM;
 import com.mmm.config.Configs;
+import com.mmm.storage.AsyncPersistence;
 import com.mmm.storage.AtomicTextStorage;
 import com.mmm.storage.SharedStoragePaths;
 import com.mmm.tracker.MiningStats;
@@ -53,6 +54,8 @@ public final class MmmTimerState
     private static double notificationBlocksPerMinute;
     private static int notificationHour;
     private static final Map<String, Long> blockTypeCounts = new LinkedHashMap<>();
+    private static List<BlockCount> cachedTopBlocks = List.of();
+    private static boolean topBlocksDirty = true;
 
     private MmmTimerState()
     {
@@ -117,6 +120,7 @@ public final class MmmTimerState
                 }
             }
         }
+        topBlocksDirty = true;
 
         if (running)
         {
@@ -145,16 +149,6 @@ public final class MmmTimerState
     public static void save()
     {
         Path file = stateFile();
-        try
-        {
-            Files.createDirectories(file.getParent());
-        }
-        catch (IOException exception)
-        {
-            MMM.LOGGER.warn("[MMM] Failed to create timer state directory {}: {}", file.getParent(), exception.getMessage());
-            return;
-        }
-
         Properties properties = new Properties();
         long now = System.currentTimeMillis();
         properties.setProperty("durationMs", String.valueOf(durationMs));
@@ -186,12 +180,26 @@ public final class MmmTimerState
         {
             StringWriter output = new StringWriter();
             properties.store(output, "MMM timer state");
-            AtomicTextStorage.write(file, output.toString(), true, MmmTimerState::isValidStateFile);
             lastSaveMs = now;
+            String snapshot = output.toString();
+            AsyncPersistence.submit("timer-state:" + file.toAbsolutePath().normalize(), () -> writeSnapshot(file, snapshot));
         }
         catch (IOException exception)
         {
-            MMM.LOGGER.warn("[MMM] Failed to save timer state to {}: {}", file, exception.getMessage());
+            MMM.LOGGER.warn("[MMM] Failed to serialize timer state: {}", exception.getMessage());
+        }
+    }
+
+    private static void writeSnapshot(Path file, String snapshot)
+    {
+        try
+        {
+            Files.createDirectories(file.getParent());
+            AtomicTextStorage.write(file, snapshot, true, MmmTimerState::isValidStateFile);
+        }
+        catch (IOException exception)
+        {
+            throw new IllegalStateException("Could not save timer state", exception);
         }
     }
 
@@ -366,7 +374,8 @@ public final class MmmTimerState
             updateHourBoundaries(now);
         }
 
-        if (now - lastSaveMs >= SAVE_INTERVAL_MS)
+        boolean activeState = running || paused || MiningStats.isSessionActive();
+        if (activeState && now - lastSaveMs >= SAVE_INTERVAL_MS)
         {
             save();
         }
@@ -397,6 +406,7 @@ public final class MmmTimerState
         currentHourBlocks++;
         bestHourBlocks = Math.max(bestHourBlocks, currentHourBlocks);
         blockTypeCounts.merge(BlockBreakdownCatalog.blockId(block), 1L, Long::sum);
+        topBlocksDirty = true;
     }
 
     public static void onSessionStarted()
@@ -536,6 +546,11 @@ public final class MmmTimerState
 
     public static List<BlockCount> getTopBlocks()
     {
+        if (topBlocksDirty == false)
+        {
+            return cachedTopBlocks;
+        }
+
         List<BlockCount> entries = new ArrayList<>();
         blockTypeCounts.forEach((id, count) -> {
             if (count != null && count > 0L && BlockBreakdownCatalog.isValid(id))
@@ -544,7 +559,9 @@ public final class MmmTimerState
             }
         });
         entries.sort(Comparator.comparingLong(BlockCount::count).reversed().thenComparing(BlockCount::id));
-        return entries;
+        cachedTopBlocks = List.copyOf(entries);
+        topBlocksDirty = false;
+        return cachedTopBlocks;
     }
 
     public static String formatTime(long ms)
@@ -553,7 +570,12 @@ public final class MmmTimerState
         long hours = totalSeconds / 3600L;
         long minutes = (totalSeconds % 3600L) / 60L;
         long seconds = totalSeconds % 60L;
-        return String.format(Locale.ROOT, "%02d:%02d:%02d", hours, minutes, seconds);
+        return twoDigits(hours) + ":" + twoDigits(minutes) + ":" + twoDigits(seconds);
+    }
+
+    private static String twoDigits(long value)
+    {
+        return value < 10L ? "0" + value : Long.toString(value);
     }
 
     public static long parseDurationMs(String input)
@@ -654,6 +676,8 @@ public final class MmmTimerState
         notificationBlocksPerMinute = 0D;
         notificationHour = 0;
         blockTypeCounts.clear();
+        cachedTopBlocks = List.of();
+        topBlocksDirty = false;
         creditsPending = false;
     }
 

@@ -9,6 +9,7 @@
     "DecorationParameterMixin",
     "HeldItemRendererMixin",
     "InGameHudMixin",
+    "KeyboardMixin",
     "MmmPressableWidgetMixin",
     "SmallDigItemRendererMixin",
     "PlayerListHudMixin",
@@ -17,6 +18,7 @@
     "SoundManagerAccessor",
     "SoundSystemAccessor",
     "TeamMixin",
+    "WorldRendererAccessor",
     "WorldRendererMixin"
   ],
   "injectors": {

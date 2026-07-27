@@ -67,6 +67,18 @@ public abstract class PlayerListHudMixin
         return Text.literal(String.format(Locale.US, "%,d", score.getScore())).setStyle(vanilla.getStyle());
     }
 
+    @Redirect(
+            method = "render",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/gui/DrawContext;fill(IIIII)V"))
+    private void mmm$renderTransparentTabBackground(DrawContext context, int x1, int y1, int x2, int y2, int color)
+    {
+        if (!Configs.Generic.TRANSPARENT_TAB.getBooleanValue())
+        {
+            context.fill(x1, y1, x2, y2, color);
+        }
+    }
     @Inject(method = "render", at = @At("HEAD"))
     private void mmm$addDailyGoalToPlayerList(DrawContext context, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)
     {
