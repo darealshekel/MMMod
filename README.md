@@ -4,27 +4,26 @@ MMMod is the official client-side companion for [Manual Mining Maniacs](https://
 
 ## Supported Versions
 
-| Minecraft | Release asset | Required Fabric API |
-| --- | --- | --- |
-| 1.21 | `mmm-1.0.16+1.21.jar` | `0.102.0+1.21` or newer compatible build |
-| 1.21.1 | `mmm-1.0.16+1.21.1.jar` | `0.116.12+1.21.1` or newer compatible build |
-| 1.21.4 | `mmm-1.0.16+1.21.4.jar` | `0.119.4+1.21.4` or newer compatible build |
+| Minecraft | Release asset |
+| --- | --- |
+| 1.21 | `mmm-1.0.17+1.21.jar` |
+| 1.21.1 | `mmm-1.0.17+1.21.1.jar` |
+| 1.21.4 | `mmm-1.0.17+1.21.4.jar` |
+| 1.21.6 | `mmm-1.0.17+1.21.6.jar` |
 
-MMMod also requires:
+MMMod 1.0.17 packages its matching Fabric API inside the release jar. You only need:
 
 - Fabric Loader 0.16.14 or newer
-- MaLiLib
-- Tweakeroo
 - Mod Menu is recommended for opening the settings screen
 
-Use dependency versions made for your exact Minecraft version.
+No external configuration or utility mod is required. Mod Menu remains optional because the settings screen can also be opened with `X + V`.
 
 ## Installation
 
 1. Install Fabric Loader for your Minecraft version.
-2. Install Fabric API, MaLiLib, Tweakeroo, and optionally Mod Menu.
-3. Place the matching MMMod jar in the instance's `mods` folder.
-4. Start Minecraft and open **Mods > MMM > Configure**, or press `X + V`.
+2. Place the matching MMMod jar in the instance's `mods` folder.
+3. Optionally install Mod Menu.
+4. Start Minecraft and press `X + V`, or use **Mods > MMM > Configure** when Mod Menu is installed.
 
 Do not install both MMMod version jars in the same instance.
 
@@ -48,7 +47,6 @@ Do not install both MMMod version jars in the same instance.
 - Global, source, session, daily, weekly, personal-record, reset, project, and timer lines.
 - Configurable HUD position, anchor, scale, background, visibility, and colors.
 - Movable timer, block-stat, hourly-stat, and notification modules.
-- Live speed graph with configurable colors, opacity, grid, and scale.
 - Optional abbreviated numbers using lowercase `k` and uppercase `M`, `B`, and `T`.
 
 ### Daily goals and milestones
@@ -105,14 +103,16 @@ Durations accept values such as `90s`, `30m`, and `2h`.
 - No Swinging Animation mode that keeps the first-person tool visible and static.
 - Toggle Tab keeps the player list open and can be assigned its own hotkey.
 - Optional translucent animated lava with an automatically managed resource pack and adjustable opacity.
+- Optional colored breaking indicators replace the vanilla crack overlay with live breaking progress.
 
 ### Scoreboard tools
 
 - Dedicated **Scoreboard** screen below Summary in the MMM sidebar.
 - Hide the sidebar or its scores, add commas, or abbreviate large values.
+- Make the Tab player-list background transparent.
 - Optional Tier / Name Tags show each ranked player's website total before their name in chat, Tab, scoreboards, and world nametags.
 - Sort by score or name in either direction and page through up to 100 rows at a time.
-- Move, scale, and adjust the background/title/text opacity of the vanilla sidebar.
+- Freely move and scale the sidebar, then adjust its background, title, and text opacity.
 - Export the current objective directly to CSV or record, reorder, remove, and combine several snapshots.
 - Add, edit, and remove scoreboard rows when the server grants operator permission level 2.
 - Optional team chat by default, with `#` used to send a normal public message.
@@ -122,6 +122,7 @@ Durations accept values such as `90s`, `30m`, and `2h`.
 
 - Website synchronization is **off by default**.
 - In-game website-link flow associates MMMod with a claimed Minecraft account.
+- Per-source scoreboard selector chooses the total-mined objective used for website synchronization.
 - Reads visible scoreboard evidence, player/source totals, source identity, block breakdowns, and sessions.
 - Delta-based queued synchronization avoids repeatedly sending unchanged local data.
 - Failed requests remain queued for later delivery.
@@ -144,7 +145,7 @@ The website/API remains responsible for validating data before publishing it. MM
 | Open scoreboard exports | `Backslash` |
 | Edit current scoreboard | `C` |
 
-Every hotkey can be changed in the MMMod Hotkeys screen.
+Every hotkey can be changed in the searchable MMMod Hotkeys screen. Hotkeys support single keys or ordered two-key chords, and `Escape` clears an assignment.
 
 ## Local Data
 
@@ -172,7 +173,7 @@ The remapped release jar is written to `build/libs`.
 - **BlockTimer project (MIT)** - reference for timer and hourly-stat behavior
 - **I-See-Lava by AzureDoom / jlstout1998 (MIT)** - reference for translucent lava behavior
 - **ScoreboardHelper by 小猪之最 (MIT)** - scoreboard rendering, export, editing, and team-chat feature reference
-- **Fabric API**, **Mod Menu**, **MaLiLib**, and **Tweakeroo** - modding platform and integrations
+- **Fabric API** and **Mod Menu** - modding platform and optional settings integration
 - Minecraft is a trademark of Microsoft. MMMod is an independent community project and is not affiliated with Mojang Studios or Microsoft.
 
 ## License

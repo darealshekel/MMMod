@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import com.mmm.config.Configs;
 import com.mmm.config.Configs.ScoreboardSorting;
+import com.mmm.tags.TierTagManager;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
@@ -72,22 +73,45 @@ public final class ScoreboardService
         {
             return List.of();
         }
-        Comparator<ScoreboardEntry> comparator = comparator();
-        return objective.getScoreboard().getScoreboardEntries(objective).stream()
-                .filter(entry -> !entry.hidden())
-                .sorted(comparator)
-                .toList();
+
+        List<ScoreboardEntry> entries = new ArrayList<>(objective.getScoreboard().getScoreboardEntries(objective));
+        entries.removeIf(ScoreboardEntry::hidden);
+        entries.sort(comparator());
+        return entries;
     }
 
     public static List<RenderEntry> getRenderEntries(ScoreboardObjective objective)
     {
+        List<ScoreboardEntry> entries = getSortedEntries(objective);
+        return getRenderEntries(objective, entries, 0, entries.size());
+    }
+
+    public static List<RenderEntry> getRenderEntries(
+            ScoreboardObjective objective,
+            List<ScoreboardEntry> sortedEntries,
+            int fromIndex,
+            int toIndex)
+    {
+        if (objective == null || sortedEntries == null || sortedEntries.isEmpty())
+        {
+            return List.of();
+        }
+
+        int from = Math.max(0, Math.min(fromIndex, sortedEntries.size()));
+        int to = Math.max(from, Math.min(toIndex, sortedEntries.size()));
         Scoreboard scoreboard = objective.getScoreboard();
         NumberFormat numberFormat = objective.getNumberFormatOr(StyledNumberFormat.RED);
-        List<RenderEntry> rows = new ArrayList<>();
-        for (ScoreboardEntry entry : getSortedEntries(objective))
+        List<RenderEntry> rows = new ArrayList<>(to - from);
+        for (int index = from; index < to; index++)
         {
+            ScoreboardEntry entry = sortedEntries.get(index);
             Team team = scoreboard.getScoreHolderTeam(entry.owner());
             MutableText name = Team.decorateName(team, entry.name());
+            MutableText tierName = TierTagManager.decorateName(entry.owner(), name);
+            if (tierName != null)
+            {
+                name = tierName;
+            }
             Text score = formatScore(entry, numberFormat);
             rows.add(new RenderEntry(entry.owner(), name, score, entry.value()));
         }

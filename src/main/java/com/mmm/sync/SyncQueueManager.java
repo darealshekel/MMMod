@@ -479,9 +479,16 @@ public final class SyncQueueManager
         try
         {
             JsonObject object = JsonParser.parseString(body).getAsJsonObject();
-            if (object.has("error") && object.get("error").isJsonPrimitive())
+            for (String key : new String[] {"error", "message", "reason"})
             {
-                return object.get("error").getAsString();
+                if (object.has(key) && object.get(key).isJsonPrimitive())
+                {
+                    String detail = object.get(key).getAsString().trim();
+                    if (detail.isBlank() == false)
+                    {
+                        return detail;
+                    }
+                }
             }
         }
         catch (Exception e)
@@ -589,7 +596,7 @@ public final class SyncQueueManager
         {
             JsonObject source = JsonParser.parseString(body).getAsJsonObject();
             JsonObject safe = new JsonObject();
-            for (String key : new String[] {"ok", "status", "code", "synced", "daily_mining_synced", "error", "message"})
+            for (String key : new String[] {"ok", "status", "code", "synced", "daily_mining_synced", "accepted_public_totals", "source_sync_accepted", "sync_skipped", "reason", "next_sync_at", "error", "message"})
             {
                 if (source.has(key) && source.get(key).isJsonPrimitive())
                 {

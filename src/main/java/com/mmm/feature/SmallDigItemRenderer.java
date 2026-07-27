@@ -5,9 +5,11 @@ import com.mmm.util.BlockBreakdownCatalog;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.render.model.json.Transformation;
+import net.minecraft.item.ModelTransformationMode;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.ModelTransformationMode;
+import net.minecraft.item.MiningToolItem;
+import net.minecraft.item.ShearsItem;
 
 import org.joml.Vector3f;
 
@@ -22,6 +24,12 @@ public final class SmallDigItemRenderer
     public static float getScale(ItemStack stack, ModelTransformationMode displayContext)
     {
         if (!Configs.Generic.SMALL_DIG_ITEMS.getBooleanValue() || stack == null || stack.isEmpty())
+        {
+            return 1.0F;
+        }
+
+        // Keep tools on the vanilla transform so their glint remains resolution-independent.
+        if (stack.getItem() instanceof MiningToolItem || stack.getItem() instanceof ShearsItem)
         {
             return 1.0F;
         }

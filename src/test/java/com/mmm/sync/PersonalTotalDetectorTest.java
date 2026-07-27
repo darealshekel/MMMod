@@ -30,4 +30,11 @@ class PersonalTotalDetectorTest
                 "Combined Tool Uses: Pickaxe Uses",
                 PersonalTotalDetector.toolUsageObjectiveTitle(4_966_429L, 0L, 0L, 0L, 0L));
     }
+
+    @Test
+    void ignoresWebsiteTierTagNumbersInRenderedPlayerNames()
+    {
+        assertEquals(0L, PersonalTotalDetector.renderedMiningTotal("18.5M | 5hekel"));
+        assertEquals(1_234_567L, PersonalTotalDetector.renderedMiningTotal("Your digs: 1,234,567"));
+    }
 }

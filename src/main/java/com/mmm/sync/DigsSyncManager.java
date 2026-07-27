@@ -20,10 +20,13 @@ public final class DigsSyncManager
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long AUTHORITATIVE_MODEL_STALE_MS = 15_000L;
+    private static final long SCOREBOARD_DETECTION_INTERVAL_MS = 500L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
 
     private static PlayerDigsModel latestModel;
     private static boolean latestModelAuthoritative;
+    private static String latestModelSourceType = "none";
+    private static PersonalTotalDetector.FastTotalPlan latestFastTotalPlan = PersonalTotalDetector.FastTotalPlan.empty();
     private static String lastQueuedFingerprint;
     private static String lastSuccessfulFingerprint;
     private static long lastQueueAttemptMs;
@@ -45,6 +48,7 @@ public final class DigsSyncManager
     private static volatile long debugTabRawScore;
     private static volatile String debugSkipReason = "";
     private static volatile long lastSyncUnavailableLogMs;
+    private static long nextScoreboardDetectionAtMs;
     private static volatile String lastSyncUnavailableReason = "";
 
     private DigsSyncManager()
@@ -54,10 +58,20 @@ public final class DigsSyncManager
     public static void onClientTick(long now)
     {
         clearStaleModel(now);
-
         MinecraftClient client = MinecraftClient.getInstance();
-        PersonalTotalDetector.Detection detection = PersonalTotalDetector.detect(client);
-        PlayerDigsModel parserModel = PlayerDigsParser.parse(client);
+        refreshAuthoritativeTotalFast(client, now);
+        if (now < nextScoreboardDetectionAtMs)
+        {
+            return;
+        }
+        long detectionIntervalMs = latestFastTotalPlan.isUsable()
+                ? 2_000L
+                : SCOREBOARD_DETECTION_INTERVAL_MS;
+        nextScoreboardDetectionAtMs = now + detectionIntervalMs;
+
+        List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots = ScoreboardReader.readObjectives(client);
+        PersonalTotalDetector.Detection detection = PersonalTotalDetector.detect(client, objectiveSnapshots);
+        PlayerDigsModel parserModel = PlayerDigsParser.parse(client, objectiveSnapshots);
         TotalSelection selection = selectAuthoritativeTotal(client, detection, parserModel, now);
         applyDetectionDebug(detection, selection);
 
@@ -65,19 +79,23 @@ public final class DigsSyncManager
         {
             latestModel = selection.model();
             latestModelAuthoritative = selection.authoritative();
+            latestModelSourceType = selection.sourceType();
             if (latestModelAuthoritative)
             {
-                String objectiveTitle = resolveObjectiveTitle(parserModel, detection);
-                boolean parserValidated = parserModel != null
-                        && parserModel.isValid()
-                        && parserModel.totalDigs() == latestModel.totalDigs();
+                latestFastTotalPlan = PersonalTotalDetector.buildFastTotalPlan(
+                        client,
+                        selection.sourceType(),
+                        selection.objectiveTitle());
                 MiningStats.bootstrapSourceTotalFromScoreboard(
                         latestModel.totalDigs(),
                         latestModel.server(),
-                        objectiveTitle,
-                        parserValidated,
+                        selection.objectiveTitle(),
+                        true,
                         now);
-                MiningStats.applyScoreboardTotalMined(latestModel.totalDigs(), objectiveTitle, parserValidated, now);
+            }
+            else
+            {
+                latestFastTotalPlan = PersonalTotalDetector.FastTotalPlan.empty();
             }
             if (status != SyncStatus.SYNCED)
             {
@@ -88,6 +106,15 @@ public final class DigsSyncManager
 
         // CloudSyncManager owns transport so one complete payload claims the
         // server-enforced daily source-sync slot. This class only detects totals.
+    }
+
+    public static void onSyncScoreboardSelectionChanged()
+    {
+        latestModel = null;
+        latestModelAuthoritative = false;
+        latestModelSourceType = "none";
+        latestFastTotalPlan = PersonalTotalDetector.FastTotalPlan.empty();
+        nextScoreboardDetectionAtMs = 0L;
     }
 
     static void onQueued(JsonObject payload)
@@ -186,6 +213,25 @@ public final class DigsSyncManager
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         String sourceName = ScoreboardSourceResolver.displayName(worldInfo != null ? worldInfo.displayName() : "", worldInfo);
 
+        if (SyncScoreboardSelector.hasManualSelection())
+        {
+            net.minecraft.scoreboard.ScoreboardObjective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
+            long selectedTotal = SyncScoreboardSelector.readSelectedPlayerTotal(client);
+            if (selected == null || selectedTotal <= 0L)
+            {
+                return new TotalSelection(sourceName, null, "none", "", "selected-scoreboard-unavailable", false);
+            }
+
+            String objectiveTitle = selected.getDisplayName().getString();
+            PlayerDigsModel model = new PlayerDigsModel(
+                    resolveUsername(client, parserModel),
+                    selectedTotal,
+                    now,
+                    sourceName,
+                    objectiveTitle);
+            return new TotalSelection(sourceName, model, "parser", objectiveTitle, "selected-scoreboard", true);
+        }
+
         long tabTotal = Math.max(0L, detection.tabTotal());
         long sidebarTotal = Math.max(0L, detection.sidebarTotal());
         long parserTotal = parserModel != null && parserModel.isValid() ? Math.max(0L, parserModel.totalDigs()) : 0L;
@@ -210,15 +256,13 @@ public final class DigsSyncManager
         Candidate chosen = chooseBestCandidate(tabTotal, sidebarTotal, parserTotal, toolUsageTotal, cachedTotal);
         if (!chosen.valid())
         {
-            return new TotalSelection(sourceName, null, chosen.reason(), false);
+            return new TotalSelection(sourceName, null, "none", "", chosen.reason(), false);
         }
 
         String username = resolveUsername(client, parserModel);
-        String objectiveTitle = "tool-uses".equals(chosen.sourceType())
-                ? detection.toolUsageObjectiveTitle()
-                : resolveObjectiveTitle(parserModel, detection);
+        String objectiveTitle = resolveObjectiveTitle(chosen, parserModel, detection);
         PlayerDigsModel model = new PlayerDigsModel(username, chosen.total(), now, sourceName, objectiveTitle);
-        return new TotalSelection(sourceName, model, chosen.reason(), isAuthoritativeCandidate(chosen));
+        return new TotalSelection(sourceName, model, chosen.sourceType(), objectiveTitle, chosen.reason(), isAuthoritativeCandidate(chosen));
     }
 
     private static boolean isAuthoritativeCandidate(Candidate candidate)
@@ -245,7 +289,9 @@ public final class DigsSyncManager
         Candidate toolUsage = validate("tool-uses", toolUsageTotal, strongest);
         Candidate cached = validate("cached", cachedTotal, strongest);
 
-        Candidate dedicatedTotal = strongestValid(tab, sidebar, parser);
+        // Keep one deterministic authority order. Choosing the numerically largest
+        // objective made World Total alternate when servers exposed several mining scores.
+        Candidate dedicatedTotal = firstValid(tab, sidebar, parser);
         if (dedicatedTotal.valid()) return dedicatedTotal;
         if (toolUsage.valid()) return toolUsage;
         if (cached.valid()) return cached;
@@ -253,22 +299,16 @@ public final class DigsSyncManager
         return new Candidate("none", 0L, false, "no-valid-total");
     }
 
-    private static Candidate strongestValid(Candidate... candidates)
+    private static Candidate firstValid(Candidate... candidates)
     {
-        Candidate best = new Candidate("none", 0L, false, "no-valid-live-total");
         for (Candidate candidate : candidates)
         {
-            if (candidate.valid() == false)
+            if (candidate.valid())
             {
-                continue;
-            }
-
-            if (best.valid() == false || candidate.total() > best.total())
-            {
-                best = candidate;
+                return candidate;
             }
         }
-        return best;
+        return new Candidate("none", 0L, false, "no-valid-live-total");
     }
 
     private static Candidate validate(String source, long total, long strongest)
@@ -533,19 +573,22 @@ public final class DigsSyncManager
         return "Player";
     }
 
-    private static String resolveObjectiveTitle(PlayerDigsModel parsed, PersonalTotalDetector.Detection detection)
+    private static String resolveObjectiveTitle(Candidate chosen, PlayerDigsModel parsed, PersonalTotalDetector.Detection detection)
     {
-        if (parsed != null && parsed.objectiveTitle() != null && parsed.objectiveTitle().isBlank() == false)
+        if (chosen != null)
         {
-            return parsed.objectiveTitle();
-        }
-        if (detection.tabObjectiveTitle() != null && detection.tabObjectiveTitle().isBlank() == false)
-        {
-            return detection.tabObjectiveTitle();
-        }
-        if (detection.sidebarObjectiveTitle() != null && detection.sidebarObjectiveTitle().isBlank() == false)
-        {
-            return detection.sidebarObjectiveTitle();
+            String selected = switch (chosen.sourceType())
+            {
+                case "tab" -> detection.tabObjectiveTitle();
+                case "sidebar" -> detection.sidebarObjectiveTitle();
+                case "parser" -> parsed == null ? "" : parsed.objectiveTitle();
+                case "tool-uses" -> detection.toolUsageObjectiveTitle();
+                default -> "";
+            };
+            if (selected != null && selected.isBlank() == false)
+            {
+                return selected;
+            }
         }
         return "Scoreboard";
     }
@@ -735,6 +778,30 @@ public final class DigsSyncManager
         return MiningStats.getCurrentSourceTotalMined();
     }
 
+    private static void refreshAuthoritativeTotalFast(MinecraftClient client, long now)
+    {
+        PlayerDigsModel current = latestModel;
+        if (current == null || latestModelAuthoritative == false || "none".equals(latestModelSourceType))
+        {
+            return;
+        }
+
+        long total = PersonalTotalDetector.readValidatedTotal(client, latestFastTotalPlan);
+        if (total <= 0L || total == current.totalDigs())
+        {
+            return;
+        }
+
+        latestModel = new PlayerDigsModel(current.username(), total, now, current.server(), current.objectiveTitle());
+        debugChosenTotal = total;
+        MiningStats.bootstrapSourceTotalFromScoreboard(
+                total,
+                current.server(),
+                current.objectiveTitle(),
+                true,
+                now);
+    }
+
     private static void clearStaleModel(long now)
     {
         if (latestModel == null)
@@ -746,6 +813,8 @@ public final class DigsSyncManager
         {
             latestModel = null;
             latestModelAuthoritative = false;
+            latestModelSourceType = "none";
+            latestFastTotalPlan = PersonalTotalDetector.FastTotalPlan.empty();
         }
     }
 
@@ -754,7 +823,7 @@ public final class DigsSyncManager
         debugSidebarTotal = detection.sidebarTotal();
         debugTabTotal = detection.tabTotal();
         debugChosenTotal = selection.model() == null ? 0L : selection.model().totalDigs();
-        debugChosenSource = selection.model() == null ? "none" : selection.reason();
+        debugChosenSource = selection.model() == null ? "none" : selection.sourceType();
         debugSidebarObjective = detection.sidebarObjectiveTitle();
         debugTabObjective = detection.tabObjectiveTitle();
         debugSidebarMatchedUser = detection.sidebarMatchedUsername();
@@ -819,11 +888,14 @@ public final class DigsSyncManager
     {
         latestModel = null;
         latestModelAuthoritative = false;
+        latestModelSourceType = "none";
+        latestFastTotalPlan = PersonalTotalDetector.FastTotalPlan.empty();
         lastQueueAttemptMs = 0L;
         status = SyncStatus.CONNECTED;
         lastFailureSignalMs = 0L;
         lastQueuedFingerprint = null;
         lastSuccessfulFingerprint = null;
+        nextScoreboardDetectionAtMs = 0L;
         clearDebug();
     }
 
@@ -899,7 +971,7 @@ public final class DigsSyncManager
     {
     }
 
-    private record TotalSelection(String sourceName, PlayerDigsModel model, String reason, boolean authoritative)
+    private record TotalSelection(String sourceName, PlayerDigsModel model, String sourceType, String objectiveTitle, String reason, boolean authoritative)
     {
     }
 }
