@@ -25,14 +25,20 @@ public final class PlayerDigsParser
 
     public static PlayerDigsModel parse(MinecraftClient client)
     {
+        return parse(client, ScoreboardReader.readObjectives(client));
+    }
+
+    static PlayerDigsModel parse(MinecraftClient client, List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots)
+    {
         if (client == null || client.player == null)
         {
             return null;
         }
 
+        List<ScoreboardReader.ObjectiveSnapshot> snapshots = objectiveSnapshots == null ? List.of() : objectiveSnapshots;
         String currentUsername = client.player.getGameProfile().getName();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        Candidate best = ScoreboardReader.readObjectives(client).stream()
+        Candidate best = snapshots.stream()
                 .map(snapshot -> parseObjective(currentUsername, snapshot))
                 .filter(candidate -> candidate != null)
                 .max(Comparator.comparingInt(Candidate::confidence))

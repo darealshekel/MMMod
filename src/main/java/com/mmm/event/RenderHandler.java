@@ -5,44 +5,30 @@ import com.mmm.hud.MiningHudRenderer;
 import com.mmm.hud.SpeedGraphRenderer;
 import com.mmm.timer.TimerHudRenderer;
 import com.mmm.tracker.MiningSpeedTracker;
-import com.mmm.feature.BlockEspRenderer;
-
-import fi.dy.masa.malilib.interfaces.IRenderer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.item.ItemStack;
-import org.joml.Matrix4f;
 
-public class RenderHandler implements IRenderer
+public final class RenderHandler
 {
     private static final boolean SPEED_GRAPH_AVAILABLE = false;
 
-    @Override
-    public void onRenderGameOverlayPost(DrawContext drawContext)
+    private RenderHandler()
     {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (FeatureToggle.MMM_MINING_TRACKER.getBooleanValue())
+    }
+
+    public static void renderHud(DrawContext drawContext)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (!FeatureToggle.MMM_MINING_TRACKER.getBooleanValue())
         {
-            MiningHudRenderer.render(drawContext, mc);
-            TimerHudRenderer.render(drawContext, mc);
-            if (SPEED_GRAPH_AVAILABLE && FeatureToggle.MMM_HUD_SPEED_GRAPH.getBooleanValue() && MiningSpeedTracker.hasSessionData())
-            {
-                SpeedGraphRenderer.render(drawContext, mc);
-            }
+            return;
         }
-    }
 
-    @Override
-    public void onRenderTooltipLast(DrawContext drawContext, ItemStack stack, int x, int y)
-    {
-    }
-
-    @Override
-    public void onRenderWorldLast(Matrix4f posMatrix, Matrix4f projMatrix)
-    {
-        if (FeatureToggle.MMM_BLOCK_ESP.getBooleanValue())
+        MiningHudRenderer.render(drawContext, client);
+        TimerHudRenderer.render(drawContext, client);
+        if (SPEED_GRAPH_AVAILABLE && FeatureToggle.MMM_HUD_SPEED_GRAPH.getBooleanValue() && MiningSpeedTracker.hasSessionData())
         {
-            BlockEspRenderer.render(MinecraftClient.getInstance(), posMatrix, projMatrix);
+            SpeedGraphRenderer.render(drawContext, client);
         }
     }
 }

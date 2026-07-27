@@ -5,9 +5,9 @@ import com.mmm.util.BlockBreakdownCatalog;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.render.model.json.Transformation;
+import net.minecraft.item.ItemDisplayContext;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.ItemDisplayContext;
 
 import org.joml.Vector3f;
 
@@ -25,7 +25,6 @@ public final class SmallDigItemRenderer
         {
             return 1.0F;
         }
-
         if (!(stack.getItem() instanceof BlockItem blockItem) || !isScaledContext(displayContext))
         {
             return 1.0F;

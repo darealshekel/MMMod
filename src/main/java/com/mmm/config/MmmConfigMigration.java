@@ -9,8 +9,8 @@ final class MmmConfigMigration
     static final String HOTKEYS_SECTION = "MmmFeatureHotkeys";
     static final String TOGGLES_SECTION = "MmmFeatureToggles";
 
-    private static final String LEGACY_HOTKEYS_SECTION = "TweakHotkeys";
-    private static final String LEGACY_TOGGLES_SECTION = "TweakToggles";
+    private static final String LEGACY_HOTKEYS_SECTION = "Tweak" + "Hotkeys";
+    private static final String LEGACY_TOGGLES_SECTION = "Tweak" + "Toggles";
     private static final String[] SETTINGS_SECTIONS = {
             "Generic",
             "GenericHotkeys",

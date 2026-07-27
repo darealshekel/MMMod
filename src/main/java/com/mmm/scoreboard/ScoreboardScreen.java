@@ -8,14 +8,14 @@ import java.util.Locale;
 import com.mmm.config.Configs;
 import com.mmm.ui.MmmUi;
 
-import fi.dy.masa.malilib.config.IConfigBase;
-import fi.dy.masa.malilib.config.IConfigBoolean;
-import fi.dy.masa.malilib.config.IConfigDouble;
-import fi.dy.masa.malilib.config.IConfigInteger;
-import fi.dy.masa.malilib.config.IConfigOptionListEntry;
-import fi.dy.masa.malilib.config.IConfigResettable;
-import fi.dy.masa.malilib.config.options.ConfigOptionList;
-import fi.dy.masa.malilib.util.InfoUtils;
+import com.mmm.config.value.IConfigBase;
+import com.mmm.config.value.IConfigBoolean;
+import com.mmm.config.value.IConfigDouble;
+import com.mmm.config.value.IConfigInteger;
+import com.mmm.config.value.IConfigOptionListEntry;
+import com.mmm.config.value.IConfigResettable;
+import com.mmm.config.value.ConfigOptionList;
+import com.mmm.util.MmmMessages;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -58,10 +58,12 @@ public final class ScoreboardScreen extends Screen
                 this.toggle("Show Scores", "Show numbers beside each name.", Configs.Generic.SCOREBOARD_SCORES_VISIBLE),
                 this.toggle("Score Commas", "Display 100,000 instead of 100000.", Configs.Generic.SCOREBOARD_SCORE_COMMAS),
                 this.toggle("Tab List Commas", "Add commas to scores shown in the player list.", Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS),
+                this.toggle("Transparent Tab", "Remove the background behind the player list.", Configs.Generic.TRANSPARENT_TAB),
                 this.toggle("Tier / Name Tags", "Show website totals before player names.", Configs.Generic.TIER_NAME_TAGS),
                 this.toggle("Short Scores", "Display large values as 100k or 2.5M.", Configs.Generic.SCOREBOARD_SCORE_ABBREVIATED))));
 
         this.sections.add(new Section("LAYOUT", "Control row order, size, and position.", List.of(
+                this.action("Move Scoreboard", "Drag and resize the live sidebar.", () -> this.client.setScreen(new ScoreboardMoveScreen(this))),
                 this.option("Sort Rows", "Sort by score or player name.", Configs.Generic.SCOREBOARD_SORTING),
                 this.slider("Rows Per Page", "Maximum rows visible at once.", Configs.Generic.SCOREBOARD_MAX_ENTRIES, ValueStyle.INTEGER),
                 this.option("Position", "Anchor the sidebar to either side.", Configs.Generic.SCOREBOARD_POSITION),
@@ -315,6 +317,10 @@ public final class ScoreboardScreen extends Screen
 
     private void afterConfigChanged(IConfigBase config)
     {
+        if (config == Configs.Generic.SCOREBOARD_POSITION || config == Configs.Generic.SCOREBOARD_Y_OFFSET)
+        {
+            ScoreboardHudRenderer.resetPosition();
+        }
         if (config == Configs.Generic.SCOREBOARD_MAX_ENTRIES
                 || config == Configs.Generic.SCOREBOARD_SORTING
                 || config == Configs.Generic.SCOREBOARD_POSITION)
@@ -348,22 +354,22 @@ public final class ScoreboardScreen extends Screen
     {
         try
         {
-            InfoUtils.printActionbarMessage("Exported scoreboard to %s", ScoreboardService.exportCurrent().getFileName().toString());
+            MmmMessages.actionbar("Exported scoreboard to %s", ScoreboardService.exportCurrent().getFileName().toString());
         }
         catch (IOException exception)
         {
-            InfoUtils.printActionbarMessage("No scoreboard is available to export");
+            MmmMessages.actionbar("No scoreboard is available to export");
         }
     }
 
     private void previousPage()
     {
-        InfoUtils.printActionbarMessage(ScoreboardService.pageUp() ? "Previous scoreboard page" : "Already on the first scoreboard page");
+        MmmMessages.actionbar(ScoreboardService.pageUp() ? "Previous scoreboard page" : "Already on the first scoreboard page");
     }
 
     private void nextPage()
     {
-        InfoUtils.printActionbarMessage(ScoreboardService.pageDown() ? "Next scoreboard page" : "Already on the last scoreboard page");
+        MmmMessages.actionbar(ScoreboardService.pageDown() ? "Next scoreboard page" : "Already on the last scoreboard page");
     }
 
     private void recordCurrent()
@@ -371,11 +377,11 @@ public final class ScoreboardScreen extends Screen
         try
         {
             ScoreboardState.Snapshot snapshot = ScoreboardService.recordCurrent();
-            InfoUtils.printActionbarMessage("Recorded %s (%d rows)", snapshot.displayName(), snapshot.rows().size());
+            MmmMessages.actionbar("Recorded %s (%d rows)", snapshot.displayName(), snapshot.rows().size());
         }
         catch (IOException exception)
         {
-            InfoUtils.printActionbarMessage("No scoreboard is available to record");
+            MmmMessages.actionbar("No scoreboard is available to record");
         }
     }
 
@@ -383,7 +389,7 @@ public final class ScoreboardScreen extends Screen
     {
         ScoreboardService.getSidebarObjective(MinecraftClient.getInstance())
                 .ifPresentOrElse(objective -> this.client.setScreen(new ScoreboardEditScreen(this, objective)),
-                        () -> InfoUtils.printActionbarMessage("No scoreboard is available to edit"));
+                        () -> MmmMessages.actionbar("No scoreboard is available to edit"));
     }
 
     @Override
@@ -472,7 +478,7 @@ public final class ScoreboardScreen extends Screen
     @Override
     public boolean shouldPause()
     {
-        return false;
+        return MmmUi.shouldPauseGame();
     }
 
     @Override

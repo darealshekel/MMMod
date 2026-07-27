@@ -21,10 +21,8 @@ import net.minecraft.text.Text;
 
 public final class MiningHudRenderer
 {
-    private static final int LINE_BOX_COLOR = MmmUi.INSET;
     private static final int SYNC_OK_COLOR = MmmUi.SUCCESS;
     private static final int SYNC_FAIL_COLOR = MmmUi.ERROR;
-    private static final int BBOX_FILL_COLOR = MmmUi.PANEL;
     private static final int HUD_NEUTRAL_BORDER_COLOR = 0x66090909;
     private static final int GOAL_BAR_BG = MmmUi.INSET;
     private static final int GOAL_BAR_BORDER = HUD_NEUTRAL_BORDER_COLOR;
@@ -79,7 +77,7 @@ public final class MiningHudRenderer
             int bboxY = -2;
             int bboxW = width + padding * 2;
             int bboxH = lines.size() * lineHeight + extraHeight + 4;
-            context.fill(bboxX, bboxY, bboxX + bboxW, bboxY + bboxH, BBOX_FILL_COLOR);
+            context.fill(bboxX, bboxY, bboxX + bboxW, bboxY + bboxH, Configs.getHudBackgroundColor());
         }
 
         int drawY = 0;
@@ -97,7 +95,7 @@ public final class MiningHudRenderer
                 drawLineBox(context, 0, drawY, titleX + titleTextWidth);
             }
             drawSyncIndicator(context, 0, drawY, syncIndicatorSize, syncHealthy ? SYNC_OK_COLOR : SYNC_FAIL_COLOR);
-            context.drawText(client.textRenderer, Text.literal(title), titleX, drawY, hudTitleColor(), true);
+            context.drawText(client.textRenderer, Text.literal(title), titleX, drawY, hudTitleColor(), Configs.useHudTextShadow());
             drawY += lineHeight;
             firstContentLine = 1;
         }
@@ -108,7 +106,7 @@ public final class MiningHudRenderer
             {
                 drawLineBox(context, 0, drawY, line.width(client.textRenderer));
             }
-            line.draw(context, client.textRenderer, 0, drawY, false);
+            line.draw(context, client.textRenderer, 0, drawY, Configs.useHudTextShadow());
             drawY += lineHeight;
         }
 
@@ -258,7 +256,7 @@ public final class MiningHudRenderer
             if (Configs.Generic.BLOCKS_PER_MINUTE_VISIBLE.getBooleanValue())
             {
                 segments.add(new HudSegment(" / Blocks/min: ", labelColor));
-                segments.add(new HudSegment(String.format(java.util.Locale.ROOT, "%.1f", Math.max(0D, blocksPerMinute)), numberColor));
+                segments.add(new HudSegment(UiFormat.formatBlocksPerMinute(blocksPerMinute), numberColor));
             }
             return new HudLine(segments);
         }
@@ -331,7 +329,7 @@ public final class MiningHudRenderer
 
     private static void drawLineBox(DrawContext context, int x, int y, int textWidth)
     {
-        context.fill(x - 4, y - 2, x + textWidth + 5, y + 11, LINE_BOX_COLOR);
+        context.fill(x - 4, y - 2, x + textWidth + 5, y + 11, Configs.getHudBackgroundColor());
         context.fill(x - 3, y - 1, x + textWidth + 4, y, HUD_NEUTRAL_BORDER_COLOR);
         context.drawBorder(x - 4, y - 2, textWidth + 9, 13, HUD_NEUTRAL_BORDER_COLOR);
     }
@@ -372,11 +370,11 @@ public final class MiningHudRenderer
         String percentText = UiFormat.formatGoalPercent(progress);
         String progressText = UiFormat.formatProgress(progress.current(), progress.target());
 
-        context.drawText(client.textRenderer, Text.literal("Daily Goal"), x, y, hudTitleColor(), false);
+        context.drawText(client.textRenderer, Text.literal("Daily Goal"), x, y, hudTitleColor(), Configs.useHudTextShadow());
         int progressX = x + Math.max(0, (width - client.textRenderer.getWidth(progressText)) / 2);
-        context.drawText(client.textRenderer, Text.literal(progressText), progressX, y, hudTextColor(), false);
+        context.drawText(client.textRenderer, Text.literal(progressText), progressX, y, hudTextColor(), Configs.useHudTextShadow());
         int percentX = x + width - client.textRenderer.getWidth(percentText);
-        context.drawText(client.textRenderer, Text.literal(percentText), percentX, y, fillColor, false);
+        context.drawText(client.textRenderer, Text.literal(percentText), percentX, y, fillColor, Configs.useHudTextShadow());
 
         int barY = y + 11;
         context.fill(x, barY, x + width, barY + 6, GOAL_BAR_BG);

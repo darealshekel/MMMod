@@ -44,17 +44,49 @@ public final class SourceLeaderboardReader
                 worldInfo
         );
 
+        if (SyncScoreboardSelector.hasManualSelection())
+        {
+            ScoreboardObjective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
+            if (selected == null)
+            {
+                debug("Skipping source sync because the selected scoreboard is unavailable.");
+                return List.of();
+            }
+
+            ScoreboardParser.Candidate selectedCandidate = ScoreboardParser.parse(
+                    username,
+                    detectedServerName,
+                    selected,
+                    scoreboard.getScoreboardEntries(selected));
+            if (selectedCandidate == null || selectedCandidate.snapshot().isValid() == false)
+            {
+                debug("Skipping source sync because the selected scoreboard is not a valid mining leaderboard.");
+                return List.of();
+            }
+
+            SourceLeaderboardSnapshot snapshot = selectedCandidate.snapshot();
+            return List.of(new SourceLeaderboardSnapshot(
+                    detectedServerName,
+                    snapshot.objectiveTitle(),
+                    snapshot.capturedAtMs(),
+                    snapshot.totalDigs(),
+                    snapshot.entries()));
+        }
+
         List<ScoreboardParser.Candidate> candidates = new ArrayList<>();
         ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
-        addCandidate(candidates, ScoreboardParser.parse(
-                username,
-                detectedServerName,
-                sidebar,
-                sidebar == null ? List.of() : scoreboard.getScoreboardEntries(sidebar)));
+        if (SyncScoreboardSelector.isEligible(sidebar))
+        {
+            addCandidate(candidates, ScoreboardParser.parse(
+                    username,
+                    detectedServerName,
+                    sidebar,
+                    scoreboard.getScoreboardEntries(sidebar)));
+        }
 
         for (ScoreboardObjective objective : scoreboard.getObjectives())
         {
-            if (objective == sidebar)
+            if (objective == sidebar || SyncScoreboardSelector.isEligible(objective) == false)
             {
                 continue;
             }
