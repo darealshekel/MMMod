@@ -35,7 +35,7 @@ public abstract class WorldRendererMixin
     @Shadow @Final private Long2ObjectMap<SortedSet<BlockBreakingInfo>> blockBreakingProgressions;
 
     @Redirect(
-            method = "render",
+            method = "renderBlockDamage",
             at = @At(
                     value = "FIELD",
                     target = "Lnet/minecraft/client/render/WorldRenderer;blockBreakingProgressions:Lit/unimi/dsi/fastutil/longs/Long2ObjectMap;"
