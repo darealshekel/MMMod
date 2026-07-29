@@ -47,6 +47,7 @@ public final class MiningStats
     private static final long FASTEST_100K_TARGET = 100_000L;
     private static final long TOTAL_MINED_PERSIST_INTERVAL_MS = 5_000L;
     private static final long SESSION_CHECKPOINT_INTERVAL_MS = 5_000L;
+    private static final long PERIOD_STATS_CHECK_INTERVAL_MS = 1_000L;
     private static final long BLOCK_MINED_DEBUG_LOG_INTERVAL_MS = 5_000L;
     private static final long SESSION_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static final long SCOREBOARD_BOOTSTRAP_SKIPPED_LOG_INTERVAL_MS = 10_000L;
@@ -92,6 +93,7 @@ public final class MiningStats
     private static long lastMineMs;
     private static long lastDailyResetCheckMs;
     private static long lastWorldContextRefreshMs;
+    private static long lastPeriodStatsCheckMs;
 
     private MiningStats()
     {
@@ -193,6 +195,11 @@ public final class MiningStats
         // mining scoreboard is seen in this world, World Total and sync stay pinned
         // to that scoreboard instead of exposing this local prediction.
         Configs.totalBlocksMined++;
+        if (Configs.websiteGlobalTotalBlocks > 0L && Configs.websiteGlobalTotalBlocks < Long.MAX_VALUE)
+        {
+            Configs.websiteGlobalTotalBlocks++;
+            Configs.websiteGlobalTotalUpdatedAtMs = now;
+        }
         Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
         worldStats.totalBlocks++;
         if (worldStats.scoreboardTotalUpdatedAtMs > 0L)
@@ -879,6 +886,12 @@ public final class MiningStats
     }
     private static void resetPeriodStatsIfNeeded(long now)
     {
+        if (now >= lastPeriodStatsCheckMs && now - lastPeriodStatsCheckMs < PERIOD_STATS_CHECK_INTERVAL_MS)
+        {
+            return;
+        }
+        lastPeriodStatsCheckMs = now;
+
         boolean changed = false;
         boolean resetPeriod = false;
         DailyProgressPolicy.Result dailyResult = DailyProgressPolicy.evaluate(

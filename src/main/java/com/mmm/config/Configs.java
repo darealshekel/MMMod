@@ -917,9 +917,38 @@ public class Configs
 
     private static int parseOpaqueHexColor(String value, String fallback)
     {
-        String hex = normalizeHexColor(value, fallback);
-        long parsed = Long.parseLong(hex.substring(1), 16) & 0x00FFFFFFL;
-        return (int) (0xFF000000L | parsed);
+        int parsed = parseRgb(value);
+        if (parsed < 0)
+        {
+            parsed = parseRgb(fallback);
+        }
+        return 0xFF000000 | Math.max(0, parsed);
+    }
+
+    private static int parseRgb(String value)
+    {
+        if (value == null)
+        {
+            return -1;
+        }
+        String hex = value.trim();
+        int start = hex.startsWith("#") ? 1 : hex.startsWith("0x") || hex.startsWith("0X") ? 2 : 0;
+        if (hex.length() - start != 6)
+        {
+            return -1;
+        }
+
+        int rgb = 0;
+        for (int index = start; index < hex.length(); index++)
+        {
+            int digit = Character.digit(hex.charAt(index), 16);
+            if (digit < 0)
+            {
+                return -1;
+            }
+            rgb = (rgb << 4) | digit;
+        }
+        return rgb;
     }
 
     public static BpsSmoothing getBpsSmoothingMode()

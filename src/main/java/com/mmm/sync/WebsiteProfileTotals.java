@@ -13,12 +13,13 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.client.MinecraftClient;
 
 public final class WebsiteProfileTotals
 {
-    private static final String PROFILE_API = "https://www.mmmaniacs.com/api/player-detail?slug=%s&refreshCache=1&liveTs=%d";
+    private static final String PROFILE_API = "https://www.mmmaniacs.com/api/player-detail?slug=%s&view=total&refreshCache=1&liveTs=%d";
     private static final long MIN_REFRESH_INTERVAL_MS = 30_000L;
     private static final long REFRESH_LOG_INTERVAL_MS = 30_000L;
     private static final long JSON_PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
@@ -78,29 +79,20 @@ public final class WebsiteProfileTotals
                             return;
                         }
 
-                        long blocksNum = extractBlocksNum(response.body());
-                        if (blocksNum <= 0L)
+                        JsonObject profileTotal = parseProfileTotal(response.body());
+                        long blocksNum = extractBlocksNum(profileTotal);
+                        if (blocksNum < 0L || !isAuthoritative(profileTotal))
                         {
                             return;
                         }
 
                         long currentTotal = Math.max(0L, Configs.websiteGlobalTotalBlocks);
-                        if (currentTotal > 0L && blocksNum < currentTotal)
-                        {
-                            MmmDebugLogger.info(
-                                    "website-profile-total-refresh-stale",
-                                    REFRESH_LOG_INTERVAL_MS,
-                                    "[MMM_SYNC] profile-total-refresh-stale username={} blocksNum={} currentGlobalTotal={}",
-                                    username,
-                                    blocksNum,
-                                    currentTotal);
-                            return;
-                        }
-
-                        if (blocksNum != currentTotal)
+                        long profileUpdatedAtMs = extractUpdatedAtMs(profileTotal);
+                        boolean newerCorrection = profileUpdatedAtMs > Configs.websiteGlobalTotalUpdatedAtMs;
+                        if (blocksNum != currentTotal && (blocksNum >= currentTotal || currentTotal <= 0L || newerCorrection))
                         {
                             Configs.websiteGlobalTotalBlocks = blocksNum;
-                            Configs.websiteGlobalTotalUpdatedAtMs = System.currentTimeMillis();
+                            Configs.websiteGlobalTotalUpdatedAtMs = Math.max(System.currentTimeMillis(), profileUpdatedAtMs);
                             Configs.saveToFile();
                         }
                         MmmDebugLogger.info(
@@ -117,20 +109,48 @@ public final class WebsiteProfileTotals
                 });
     }
 
-    private static long extractBlocksNum(String body)
+    private static JsonObject parseProfileTotal(String body)
     {
         try
         {
-            JsonObject object = JsonParser.parseString(body).getAsJsonObject();
-            return getLong(object, "blocksNum", getLong(object, "blocksMined", 0L));
+            return JsonParser.parseString(body).getAsJsonObject();
         }
         catch (Exception e)
         {
             MMM.LOGGER.warn("[MMM_SYNC] failed to parse profile total response: {}", e.getMessage());
-            return 0L;
+            return new JsonObject();
         }
     }
 
+    private static long extractBlocksNum(JsonObject object)
+    {
+        return getLong(object, "blocksNum", getLong(object, "blocksMined", -1L));
+    }
+
+    private static boolean isAuthoritative(JsonObject object)
+    {
+        return object != null
+                && object.has("authoritative")
+                && object.get("authoritative").isJsonPrimitive()
+                && object.get("authoritative").getAsBoolean();
+    }
+
+    private static long extractUpdatedAtMs(JsonObject object)
+    {
+        try
+        {
+            String value = object.has("lastUpdated") && object.get("lastUpdated").isJsonPrimitive()
+                    ? object.get("lastUpdated").getAsString()
+                    : object.has("updatedAt") && object.get("updatedAt").isJsonPrimitive()
+                            ? object.get("updatedAt").getAsString()
+                            : "";
+            return value.isBlank() ? 0L : Instant.parse(value).toEpochMilli();
+        }
+        catch (Exception ignored)
+        {
+            return 0L;
+        }
+    }
     private static long getLong(JsonObject object, String key, long fallback)
     {
         if (object == null || !object.has(key))

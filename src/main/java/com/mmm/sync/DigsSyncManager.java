@@ -20,7 +20,7 @@ public final class DigsSyncManager
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long AUTHORITATIVE_MODEL_STALE_MS = 15_000L;
-    private static final long SCOREBOARD_DETECTION_INTERVAL_MS = 500L;
+    private static final long SCOREBOARD_DETECTION_INTERVAL_MS = 5_000L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
 
     private static PlayerDigsModel latestModel;

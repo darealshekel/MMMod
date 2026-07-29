@@ -3,6 +3,7 @@ package com.mmm.event;
 import com.mmm.hud.SummaryScreen;
 import com.mmm.social.MilestoneSocialRelay;
 import com.mmm.storage.SessionData;
+import com.mmm.sync.WebsiteProfileTotals;
 import com.mmm.tags.TierTagManager;
 import com.mmm.timer.MmmBlockBreakDetector;
 import com.mmm.timer.MmmTimerState;
@@ -26,6 +27,7 @@ public class ClientTickHandler
         MmmTimerState.onClientTick(mc);
         MilestoneSocialRelay.onClientTick(mc);
         TierTagManager.onClientTick(mc);
+        WebsiteProfileTotals.refresh(false);
 
         if (MmmTimerState.consumeCreditsPending() && mc.currentScreen == null)
         {

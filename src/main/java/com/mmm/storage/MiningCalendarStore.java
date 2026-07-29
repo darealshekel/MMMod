@@ -72,8 +72,7 @@ public final class MiningCalendarStore
     public static synchronized long currentDailyBlocks(long now)
     {
         activateCurrentPlayer();
-        LocalDate currentDay = LocalDate.ofInstant(Instant.ofEpochMilli(now), PeriodKeys.UTC);
-        return sumDaysWithin(DAYS, currentDay, currentDay);
+        return Math.max(0L, DAYS.getOrDefault(PeriodKeys.currentDailyKey(now), 0L));
     }
 
     public static synchronized long currentWeeklyBlocks(long now)
@@ -83,7 +82,17 @@ public final class MiningCalendarStore
         LocalDate weekStart = LocalDate.ofInstant(
                 Instant.ofEpochMilli(PeriodKeys.currentWeeklyStartMs(now)),
                 PeriodKeys.UTC);
-        return sumDaysWithin(DAYS, weekStart, currentDay);
+        long total = 0L;
+        for (LocalDate day = weekStart; !day.isAfter(currentDay); day = day.plusDays(1L))
+        {
+            long blocks = Math.max(0L, DAYS.getOrDefault(DAY_FORMAT.format(day), 0L));
+            if (Long.MAX_VALUE - total < blocks)
+            {
+                return Long.MAX_VALUE;
+            }
+            total += blocks;
+        }
+        return total;
     }
 
     static long sumDaysWithin(Map<String, Long> days, LocalDate startInclusive, LocalDate endInclusive)

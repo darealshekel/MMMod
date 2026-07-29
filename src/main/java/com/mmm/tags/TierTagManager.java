@@ -31,6 +31,7 @@ public final class TierTagManager
     private static final long REFRESH_INTERVAL_MS = 60_000L;
     private static final long PROFILE_FALLBACK_REFRESH_INTERVAL_MS = 300_000L;
     private static final long RETRY_INTERVAL_MS = 15_000L;
+    private static final int DISCOVERY_INTERVAL_TICKS = 100;
     private static final int MAX_NAMES_PER_REQUEST = 80;
     private static final Pattern MINECRAFT_USERNAME = Pattern.compile("[A-Za-z0-9_]{1,16}");
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
@@ -51,13 +52,18 @@ public final class TierTagManager
 
     public static void onClientTick(MinecraftClient client)
     {
-        if (++tickCounter < 20)
+        if (++tickCounter < DISCOVERY_INTERVAL_TICKS)
         {
             return;
         }
         tickCounter = 0;
 
         if (client == null || client.getNetworkHandler() == null)
+        {
+            clear();
+            return;
+        }
+        if (!Configs.Generic.TIER_NAME_TAGS.getBooleanValue())
         {
             clear();
             return;
@@ -85,11 +91,6 @@ public final class TierTagManager
             tags = Map.of();
             return;
         }
-        if (!Configs.Generic.TIER_NAME_TAGS.getBooleanValue())
-        {
-            return;
-        }
-
         long now = System.currentTimeMillis();
         if (signature.equals(requestedSignature) && now < nextRefreshAtMs)
         {

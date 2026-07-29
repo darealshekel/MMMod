@@ -1,5 +1,9 @@
 package com.mmm.feature;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
+
 import com.mmm.config.Configs;
 import com.mmm.util.BlockBreakdownCatalog;
 
@@ -13,7 +17,9 @@ import org.joml.Vector3f;
 
 public final class SmallDigItemRenderer
 {
-    private static final ThreadLocal<Float> ACTIVE_SCALE = ThreadLocal.withInitial(() -> 1.0F);
+    private static final ThreadLocal<float[]> ACTIVE_SCALE = ThreadLocal.withInitial(() -> new float[] { 1.0F });
+    private static final Map<Transformation, CachedTransformation> TRANSFORM_CACHE =
+            Collections.synchronizedMap(new WeakHashMap<>());
 
     private SmallDigItemRenderer()
     {
@@ -48,17 +54,17 @@ public final class SmallDigItemRenderer
 
     public static void begin(float scale)
     {
-        ACTIVE_SCALE.set(scale);
+        ACTIVE_SCALE.get()[0] = scale;
     }
 
     public static void end()
     {
-        ACTIVE_SCALE.set(1.0F);
+        ACTIVE_SCALE.get()[0] = 1.0F;
     }
 
     public static float getActiveScale()
     {
-        return ACTIVE_SCALE.get();
+        return ACTIVE_SCALE.get()[0];
     }
 
     public static Transformation applyActiveScale(Transformation transform)
@@ -69,8 +75,18 @@ public final class SmallDigItemRenderer
             return transform;
         }
 
-        Vector3f scaled = new Vector3f(scale, scale, scale);
-        return new Transformation(transform.rotation(), transform.translation(), scaled);
+        CachedTransformation cached = TRANSFORM_CACHE.get(transform);
+        if (cached != null && Float.compare(cached.scale(), scale) == 0)
+        {
+            return cached.transformation();
+        }
+
+        Transformation scaled = new Transformation(
+                transform.rotation(),
+                transform.translation(),
+                new Vector3f(scale, scale, scale));
+        TRANSFORM_CACHE.put(transform, new CachedTransformation(scale, scaled));
+        return scaled;
     }
 
     private static boolean isScaledContext(ItemDisplayContext displayContext)
@@ -81,4 +97,6 @@ public final class SmallDigItemRenderer
                 displayContext == ItemDisplayContext.THIRD_PERSON_LEFT_HAND ||
                 displayContext == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND;
     }
+
+    private record CachedTransformation(float scale, Transformation transformation) {}
 }
