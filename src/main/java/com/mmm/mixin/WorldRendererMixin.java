@@ -35,7 +35,7 @@ public abstract class WorldRendererMixin
     @Shadow @Final private Long2ObjectMap<SortedSet<BlockBreakingInfo>> blockBreakingProgressions;
 
     @Redirect(
-            method = "render",
+            method = "renderBlockDamage",
             at = @At(
                     value = "FIELD",
                     target = "Lnet/minecraft/client/render/WorldRenderer;blockBreakingProgressions:Lit/unimi/dsi/fastutil/longs/Long2ObjectMap;"
@@ -57,6 +57,7 @@ public abstract class WorldRendererMixin
                                                double cameraZ,
                                                BlockPos pos,
                                                BlockState state,
+                                               int vanillaColor,
                                                CallbackInfo ci)
     {
         if (!BlockEspRenderer.shouldReplaceVanillaOutline(this.client) || this.client.world == null || state.isAir())
