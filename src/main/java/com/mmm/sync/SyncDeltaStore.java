@@ -363,20 +363,6 @@ final class SyncDeltaStore
         return target;
     }
 
-    private static JsonArray buildItems(Map<String, Long> counts)
-    {
-        JsonArray items = new JsonArray();
-        counts.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry.comparingByKey()))
-                .forEach(entry -> {
-                    JsonObject item = new JsonObject();
-                    item.addProperty("block_id", entry.getKey());
-                    item.addProperty("count", entry.getValue());
-                    items.add(item);
-                });
-        return items;
-    }
-
     private static JsonArray buildDeltaItems(Map<String, Long> deltas, Map<String, Long> previous, Map<String, Long> current)
     {
         JsonArray items = new JsonArray();

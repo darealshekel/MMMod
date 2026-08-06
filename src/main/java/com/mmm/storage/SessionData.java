@@ -59,6 +59,27 @@ public class SessionData
                 : clampBlocksPerHour(this.peakBlocksPerHour);
     }
 
+    public int getBestHourBlocks()
+    {
+        if (this.miningRateBuckets.isEmpty())
+        {
+            return clampBlocksPerHour(this.peakBlocksPerHour);
+        }
+
+        long windowTotal = 0L;
+        long bestTotal = 0L;
+        for (int index = 0; index < this.miningRateBuckets.size(); index++)
+        {
+            windowTotal += Math.max(0, this.miningRateBuckets.get(index));
+            if (index >= 60)
+            {
+                windowTotal -= Math.max(0, this.miningRateBuckets.get(index - 60));
+            }
+            bestTotal = Math.max(bestTotal, windowTotal);
+        }
+        return clampBlocksPerHour(bestTotal);
+    }
+
     public void updatePeakBlocksPerHour(long value)
     {
         this.peakBlocksPerHour = Math.max(this.getPeakBlocksPerHour(), clampBlocksPerHour(value));

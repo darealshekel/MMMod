@@ -8,7 +8,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Serializes and coalesces periodic persistence away from Minecraft's render thread. */
 public final class AsyncPersistence
@@ -18,7 +19,7 @@ public final class AsyncPersistence
         thread.setDaemon(true);
         return thread;
     });
-    private static final ConcurrentHashMap<String, AtomicLong> GENERATIONS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, PendingOperation> PENDING = new ConcurrentHashMap<>();
 
     private AsyncPersistence() {}
 
@@ -26,24 +27,22 @@ public final class AsyncPersistence
     {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(operation, "operation");
-        long generation = GENERATIONS.computeIfAbsent(key, ignored -> new AtomicLong()).incrementAndGet();
-        EXECUTOR.execute(() -> {
-            AtomicLong current = GENERATIONS.get(key);
-            if (current == null || current.get() != generation) return;
-            try
-            {
-                operation.run();
-            }
-            catch (RuntimeException exception)
-            {
-                MMM.LOGGER.warn("[MMM] Background persistence failed for {}: {}", key, exception.getMessage());
-            }
-        });
+        PendingOperation pending = PENDING.computeIfAbsent(key, ignored -> new PendingOperation());
+        pending.latest.set(operation);
+        schedule(key, pending);
     }
 
     public static void cancel(String key)
     {
-        if (key != null) GENERATIONS.computeIfAbsent(key, ignored -> new AtomicLong()).incrementAndGet();
+        if (key == null)
+        {
+            return;
+        }
+        PendingOperation pending = PENDING.get(key);
+        if (pending != null)
+        {
+            pending.latest.set(null);
+        }
     }
 
     public static boolean flush(Duration timeout)
@@ -60,5 +59,46 @@ public final class AsyncPersistence
             MMM.LOGGER.warn("[MMM] Timed out while flushing background persistence: {}", exception.getMessage());
             return false;
         }
+    }
+
+    private static void schedule(String key, PendingOperation pending)
+    {
+        if (pending.scheduled.compareAndSet(false, true))
+        {
+            EXECUTOR.execute(() -> drain(key, pending));
+        }
+    }
+
+    private static void drain(String key, PendingOperation pending)
+    {
+        try
+        {
+            Runnable operation;
+            while ((operation = pending.latest.getAndSet(null)) != null)
+            {
+                try
+                {
+                    operation.run();
+                }
+                catch (RuntimeException exception)
+                {
+                    MMM.LOGGER.warn("[MMM] Background persistence failed for {}: {}", key, exception.getMessage());
+                }
+            }
+        }
+        finally
+        {
+            pending.scheduled.set(false);
+            if (pending.latest.get() != null)
+            {
+                schedule(key, pending);
+            }
+        }
+    }
+
+    private static final class PendingOperation
+    {
+        private final AtomicReference<Runnable> latest = new AtomicReference<>();
+        private final AtomicBoolean scheduled = new AtomicBoolean();
     }
 }

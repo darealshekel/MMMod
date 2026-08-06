@@ -7,12 +7,11 @@ import com.mmm.config.Configs;
 import com.mmm.sync.WebsiteLinkManager;
 import com.mmm.tracker.GoalMilestonePolicy;
 import com.mmm.tracker.MiningStats;
+import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -30,24 +29,26 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ServerInfo;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
-public final class MilestoneSocialRelay
+public final class PublicChatClient
 {
+    public static final String PUBLIC_ROOM_ID = "5e2f7e9aa53b975bfb92affe138a51df82306936f2fb71acda97e51aeaf02e48";
+    public static final int MAX_MESSAGE_LENGTH = 200;
+
     private static final String BASE_ENDPOINT = System.getProperty("mmm.socialEndpoint", "https://www.mmmaniacs.com/api/mod-social");
     private static final long RECONNECT_DELAY_MS = 5_000L;
     private static final long AUTH_RETRY_DELAY_MS = 60_000L;
-    private static final int MAX_SEEN_EVENTS = 128;
+    private static final int MAX_SEEN_EVENTS = 256;
     private static final AtomicInteger THREAD_IDS = new AtomicInteger();
     private static final ThreadFactory THREAD_FACTORY = runnable -> {
-        Thread thread = new Thread(runnable, "MMM milestone relay " + THREAD_IDS.incrementAndGet());
+        Thread thread = new Thread(runnable, "MMM social " + THREAD_IDS.incrementAndGet());
         thread.setDaemon(true);
         return thread;
     };
-    private static final ExecutorService IO_EXECUTOR = Executors.newCachedThreadPool(THREAD_FACTORY);
+    private static final ExecutorService IO_EXECUTOR = Executors.newFixedThreadPool(3, THREAD_FACTORY);
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10L))
             .executor(IO_EXECUTOR)
@@ -56,14 +57,14 @@ public final class MilestoneSocialRelay
     private static final Deque<String> SEEN_EVENT_ORDER = new ArrayDeque<>();
 
     private static volatile InputStream activeStream;
-    private static volatile String activeRoomId = "";
     private static volatile boolean connecting;
     private static volatile boolean connected;
+    private static volatile boolean sending;
     private static volatile long generation;
     private static volatile long nextConnectionAttemptMs;
     private static int tickCounter;
 
-    private MilestoneSocialRelay()
+    private PublicChatClient()
     {
     }
 
@@ -75,25 +76,77 @@ public final class MilestoneSocialRelay
         }
         tickCounter = 0;
 
-        String roomId = desiredRoomId(client);
-        if (roomId.isBlank()
-                || Configs.Generic.RECEIVE_GOAL_MILESTONES.getBooleanValue() == false
-                || WebsiteLinkManager.isCurrentPlayerLinked() == false)
+        if (client == null
+                || client.player == null
+                || WebsiteLinkManager.isCurrentPlayerLinked() == false
+                || (Configs.Generic.SHOW_MMM_CHAT_MESSAGES.getBooleanValue() == false
+                    && Configs.Generic.RECEIVE_GOAL_MILESTONES.getBooleanValue() == false))
         {
             disconnect();
             return;
         }
-
-        if (roomId.equals(activeRoomId) && (connecting || connected))
+        if (connected || connecting || System.currentTimeMillis() < nextConnectionAttemptMs)
         {
             return;
         }
-        if (System.currentTimeMillis() < nextConnectionAttemptMs)
+        connect(client);
+    }
+
+    public static void sendMessage(String rawMessage)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        String message = normalizeMessage(rawMessage);
+        if (client == null
+                || client.player == null
+                || WebsiteLinkManager.isCurrentPlayerLinked() == false)
+        {
+            showLocalError("Website link required.");
+            return;
+        }
+        if (message.isBlank() || message.length() > MAX_MESSAGE_LENGTH || sending)
         {
             return;
         }
 
-        connect(client, roomId);
+        JsonObject payload = new JsonObject();
+        payload.addProperty("minecraftUuid", client.player.getUuidAsString());
+        payload.addProperty("clientId", Configs.cloudClientId);
+        payload.addProperty("message", message);
+        sending = true;
+
+        try
+        {
+            HTTP_CLIENT.sendAsync(jsonRequest("/chat", payload), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                    .whenComplete((response, error) -> {
+                        sending = false;
+                        if (error != null || response == null)
+                        {
+                            showLocalError("Could not reach MMM Chat.");
+                            return;
+                        }
+                        if (response.statusCode() >= 400)
+                        {
+                            showLocalError(responseError(response.body(), response.statusCode()));
+                            return;
+                        }
+                        try
+                        {
+                            JsonObject body = JsonParser.parseString(response.body()).getAsJsonObject();
+                            if (body.has("event") && body.get("event").isJsonObject())
+                            {
+                                handleChatEvent(body.getAsJsonObject("event"));
+                            }
+                        }
+                        catch (Exception ignored)
+                        {
+                        }
+                    });
+        }
+        catch (Exception exception)
+        {
+            sending = false;
+            showLocalError("Could not send that message.");
+        }
     }
 
     public static void publishMilestone(int threshold, MiningStats.GoalProgress progress)
@@ -109,14 +162,8 @@ public final class MilestoneSocialRelay
             return;
         }
 
-        String roomId = desiredRoomId(client);
-        if (roomId.isBlank())
-        {
-            return;
-        }
-
         JsonObject payload = new JsonObject();
-        payload.addProperty("roomId", roomId);
+        payload.addProperty("roomId", PUBLIC_ROOM_ID);
         payload.addProperty("minecraftUuid", client.player.getUuidAsString());
         payload.addProperty("clientId", Configs.cloudClientId);
         payload.addProperty("threshold", threshold);
@@ -125,24 +172,17 @@ public final class MilestoneSocialRelay
 
         try
         {
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(BASE_ENDPOINT + "/milestone"))
-                    .timeout(Duration.ofSeconds(15L))
-                    .header("Content-Type", "application/json")
-                    .header("x-mmm-client-sync-token", Configs.websiteSyncToken)
-                    .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
-                    .build();
-            HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+            HTTP_CLIENT.sendAsync(jsonRequest("/milestone", payload), HttpResponse.BodyHandlers.discarding())
                     .thenAccept(response -> {
                         if (response.statusCode() >= 400 && Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
                         {
-                            MMM.LOGGER.warn("[MMM] Milestone relay publish returned HTTP {}", response.statusCode());
+                            MMM.LOGGER.warn("[MMM] Milestone publish returned HTTP {}", response.statusCode());
                         }
                     })
                     .exceptionally(error -> {
                         if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
                         {
-                            MMM.LOGGER.warn("[MMM] Milestone relay publish failed: {}", error.getMessage());
+                            MMM.LOGGER.warn("[MMM] Milestone publish failed: {}", error.getMessage());
                         }
                         return null;
                     });
@@ -151,19 +191,18 @@ public final class MilestoneSocialRelay
         {
             if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
             {
-                MMM.LOGGER.warn("[MMM] Could not prepare milestone relay request: {}", exception.getMessage());
+                MMM.LOGGER.warn("[MMM] Could not prepare milestone request: {}", exception.getMessage());
             }
         }
     }
 
     public static synchronized void disconnect()
     {
-        if (activeRoomId.isBlank() && connecting == false && connected == false)
+        if (connecting == false && connected == false && activeStream == null)
         {
             return;
         }
         generation += 1L;
-        activeRoomId = "";
         connecting = false;
         connected = false;
         InputStream stream = activeStream;
@@ -180,7 +219,7 @@ public final class MilestoneSocialRelay
         }
     }
 
-    private static synchronized void connect(MinecraftClient client, String roomId)
+    private static synchronized void connect(MinecraftClient client)
     {
         disconnect();
         if (client.player == null)
@@ -188,26 +227,20 @@ public final class MilestoneSocialRelay
             return;
         }
 
-        activeRoomId = roomId;
         connecting = true;
         long connectionGeneration = generation;
-        String uuid = client.player.getUuidAsString();
-        String clientId = Configs.cloudClientId;
-        String token = Configs.websiteSyncToken;
-
+        String endpoint = BASE_ENDPOINT + "/events?room=" + encode(PUBLIC_ROOM_ID)
+                + "&minecraftUuid=" + encode(client.player.getUuidAsString())
+                + "&clientId=" + encode(Configs.cloudClientId);
         try
         {
-            String endpoint = BASE_ENDPOINT + "/events?room=" + encode(roomId)
-                    + "&minecraftUuid=" + encode(uuid)
-                    + "&clientId=" + encode(clientId);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(endpoint))
                     .header("Accept", "text/event-stream")
                     .header("Cache-Control", "no-cache")
-                    .header("x-mmm-client-sync-token", token)
+                    .header("x-mmm-client-sync-token", Configs.websiteSyncToken)
                     .GET()
                     .build();
-
             HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream())
                     .whenComplete((response, error) -> handleConnectionResponse(connectionGeneration, response, error));
         }
@@ -237,7 +270,7 @@ public final class MilestoneSocialRelay
             return;
         }
 
-        synchronized (MilestoneSocialRelay.class)
+        synchronized (PublicChatClient.class)
         {
             if (connectionGeneration != generation)
             {
@@ -268,9 +301,17 @@ public final class MilestoneSocialRelay
             {
                 if (line.isEmpty())
                 {
-                    if ("milestone".equals(eventName) && data.isEmpty() == false)
+                    if (data.isEmpty() == false)
                     {
-                        handleMilestoneEvent(data.toString());
+                        JsonObject event = JsonParser.parseString(data.toString()).getAsJsonObject();
+                        if ("chat".equals(eventName))
+                        {
+                            handleChatEvent(event);
+                        }
+                        else if ("milestone".equals(eventName))
+                        {
+                            handleMilestoneEvent(event);
+                        }
                     }
                     eventName = "";
                     data.setLength(0);
@@ -298,11 +339,26 @@ public final class MilestoneSocialRelay
         }
     }
 
-    private static void handleMilestoneEvent(String rawJson)
+    private static void handleChatEvent(JsonObject event)
+    {
+        String eventId = stringValue(event, "eventId");
+        String username = stringValue(event, "username");
+        String message = normalizeMessage(stringValue(event, "message"));
+        if (eventId.isBlank()
+                || username.matches("[A-Za-z0-9_]{1,16}") == false
+                || message.isBlank()
+                || message.length() > MAX_MESSAGE_LENGTH
+                || markSeen(eventId) == false)
+        {
+            return;
+        }
+        showChatMessage(username, message);
+    }
+
+    private static void handleMilestoneEvent(JsonObject event)
     {
         try
         {
-            JsonObject event = JsonParser.parseString(rawJson).getAsJsonObject();
             String eventId = stringValue(event, "eventId");
             String username = stringValue(event, "username");
             int threshold = event.get("threshold").getAsInt();
@@ -317,35 +373,74 @@ public final class MilestoneSocialRelay
             {
                 return;
             }
-
-            MinecraftClient client = MinecraftClient.getInstance();
-            client.execute(() -> {
-                if (client.player == null || Configs.Generic.RECEIVE_GOAL_MILESTONES.getBooleanValue() == false)
-                {
-                    return;
-                }
-                MiningStats.GoalProgress progress = new MiningStats.GoalProgress("Daily Goal", true, current, target);
-                int color = UiFormat.getGoalProgressColor(progress) & 0x00FFFFFF;
-                String milestoneMessage = switch (threshold)
-                {
-                    case 25 -> " reached the first daily milestone";
-                    case 50 -> " is halfway through today's goal";
-                    case 75 -> " reached the final stretch";
-                    case 100 -> " completed today's goal";
-                    default -> " kept mining past today's goal";
-                };
-                MutableText message = Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
-                        .append(Text.literal(username).formatted(Formatting.WHITE))
-                        .append(Text.literal(milestoneMessage + " (").formatted(Formatting.GRAY))
-                        .append(Text.literal(threshold + "% - ").styled(style -> style.withColor(color)))
-                        .append(Text.literal(String.format(Locale.US, "%,d / %,d", current, target)).styled(style -> style.withColor(color)))
-                        .append(Text.literal(" blocks).").formatted(Formatting.GRAY));
-                client.player.sendMessage(message, false);
-            });
+            showMilestone(username, threshold, current, target);
         }
         catch (Exception ignored)
         {
         }
+    }
+
+    private static void showChatMessage(String username, String messageText)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        client.execute(() -> {
+            if (client.player == null || Configs.Generic.SHOW_MMM_CHAT_MESSAGES.getBooleanValue() == false)
+            {
+                return;
+            }
+            MutableText message = Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
+                    .append(Text.literal(username).styled(style -> style.withColor(MmmUi.accent() & 0x00FFFFFF)))
+                    .append(Text.literal(": " + messageText).formatted(Formatting.WHITE));
+            client.player.sendMessage(message, false);
+        });
+    }
+
+    private static void showMilestone(String username, int threshold, long current, long target)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        client.execute(() -> {
+            if (client.player == null
+                    || Configs.Generic.RECEIVE_GOAL_MILESTONES.getBooleanValue() == false
+                    || username.equalsIgnoreCase(client.player.getName().getString()))
+            {
+                return;
+            }
+
+            MiningStats.GoalProgress progress = new MiningStats.GoalProgress("Daily Goal", true, current, target);
+            int color = UiFormat.getGoalProgressColor(progress) & 0x00FFFFFF;
+            String milestoneMessage = switch (threshold)
+            {
+                case 25 -> " reached the first daily milestone";
+                case 50 -> " is halfway through today's goal";
+                case 75 -> " reached the final stretch";
+                case 100 -> " completed today's goal";
+                default -> " pushed today's goal further";
+            };
+            MutableText message = Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
+                    .append(Text.literal(username).formatted(Formatting.WHITE))
+                    .append(Text.literal(milestoneMessage + " (").formatted(Formatting.GRAY))
+                    .append(Text.literal(threshold + "% - ").styled(style -> style.withColor(color)))
+                    .append(Text.literal(String.format(Locale.US, "%,d / %,d", current, target))
+                            .styled(style -> style.withColor(color)))
+                    .append(Text.literal(" blocks).").formatted(Formatting.GRAY));
+            client.player.sendMessage(message, false);
+        });
+    }
+
+    private static void showLocalError(String detail)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null)
+        {
+            return;
+        }
+        client.execute(() -> {
+            if (client.player != null)
+            {
+                client.player.sendMessage(Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
+                        .append(Text.literal(detail).formatted(Formatting.RED)), false);
+            }
+        });
     }
 
     private static synchronized boolean markSeen(String eventId)
@@ -374,43 +469,37 @@ public final class MilestoneSocialRelay
         nextConnectionAttemptMs = System.currentTimeMillis() + retryDelayMs;
     }
 
-    private static String desiredRoomId(MinecraftClient client)
+    private static HttpRequest jsonRequest(String path, JsonObject payload)
     {
-        if (client == null || client.player == null || client.world == null || client.isInSingleplayer())
-        {
-            return "";
-        }
-        String resolvedAddress = resolvedServerAddress(client);
-        if (resolvedAddress.isBlank() == false)
-        {
-            return ServerRoomHasher.hash(resolvedAddress);
-        }
-        ServerInfo server = client.getCurrentServerEntry();
-        return server == null ? "" : ServerRoomHasher.hash(server.address);
+        return HttpRequest.newBuilder()
+                .uri(URI.create(BASE_ENDPOINT + path))
+                .timeout(Duration.ofSeconds(15L))
+                .header("Content-Type", "application/json")
+                .header("x-mmm-client-sync-token", Configs.websiteSyncToken)
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
+                .build();
     }
 
-    private static String resolvedServerAddress(MinecraftClient client)
+    private static String normalizeMessage(String value)
+    {
+        return value == null ? "" : value.replaceAll("[\\p{Cntrl}&&[^\\n\\t]]", "").replaceAll("\\s+", " ").trim();
+    }
+
+    private static String responseError(String rawBody, int statusCode)
     {
         try
         {
-            if (client.getNetworkHandler() == null)
+            JsonObject body = JsonParser.parseString(rawBody).getAsJsonObject();
+            String error = stringValue(body, "error");
+            if (error.isBlank() == false)
             {
-                return "";
+                return error;
             }
-            SocketAddress address = client.getNetworkHandler().getConnection().getAddress();
-            if (address instanceof InetSocketAddress internetAddress)
-            {
-                String host = internetAddress.getAddress() == null
-                        ? internetAddress.getHostString()
-                        : internetAddress.getAddress().getHostAddress();
-                return host + ":" + internetAddress.getPort();
-            }
-            return address == null ? "" : address.toString();
         }
         catch (Exception ignored)
         {
-            return "";
         }
+        return statusCode == 429 ? "You are sending messages too quickly." : "Could not send that message.";
     }
 
     private static String stringValue(JsonObject object, String key)

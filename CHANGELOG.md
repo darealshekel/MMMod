@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.0.18.1 - 2026-07-29
+
+### Added
+
+- Added Minecraft and MMM channel tabs directly above the normal chat input.
+- Added global MMM Chat for website-linked players without sending messages to the current server.
+- Added global daily-goal milestones from linked players across servers and singleplayer worlds.
+- Added separate settings for MMM Chat messages and milestone messages.
+- Added a saved 0-100% MMM menu background opacity slider.
+
+### Changed
+
+- Menu opacity now updates live without dimming text, controls, or borders.
+- In singleplayer, active sessions now pause while ESC is open or Minecraft is paused, then resume when play continues.
+
+## 1.0.18 - 2026-07-29
+
+### Changed
+
+- Reduced temporary allocations in mining history, HUD, scoreboard, and breaking-indicator updates.
+- Coalesced repeated background saves so slow storage cannot build an unbounded queue.
+- Changed the session hotkey to explicitly start or end and save a session.
+- Session summaries now show the best hour reached during that session.
+- Sessions with at least 10,000 blocks are saved without requiring a minimum duration.
+
+### Fixed
+
+- Reduced long-session memory use, garbage-collection stutters, and frame-time spikes.
+- Fixed qualifying short sessions being discarded when ended from the hotkey.
 ## 1.0.17 - 2026-07-28
 
 ### Added
