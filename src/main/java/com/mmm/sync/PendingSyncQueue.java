@@ -8,10 +8,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
@@ -29,6 +31,7 @@ public final class PendingSyncQueue
         default void onLoaded(Snapshot snapshot) {}
         default void onLoadFailed(String detail) {}
         default void onItemQueued(QueuedSyncItem item, boolean replaced, Snapshot snapshot) {}
+        default void onItemAttemptStarted(QueuedSyncItem item, Snapshot snapshot) {}
         default void onFlushStarted(String reason, Snapshot snapshot) {}
         default void onFlushFinished(String reason, Snapshot snapshot) {}
         default void onItemSucceeded(QueuedSyncItem item, SyncSendResult result, Snapshot snapshot) {}
@@ -37,7 +40,7 @@ public final class PendingSyncQueue
         default void onPersistenceFailed(String detail, Snapshot snapshot) {}
     }
 
-    public record Snapshot(int queueSize, long lastSuccessfulSyncAtMs, boolean flushActive, Map<SyncItemType, Integer> countsByType)
+    public record Snapshot(int queueSize, long lastSuccessfulSyncAtMs, long nextAttemptAtMs, boolean flushActive, Map<SyncItemType, Integer> countsByType)
     {
         public int countFor(SyncItemType type)
         {
@@ -101,20 +104,59 @@ public final class PendingSyncQueue
                 this.items.addAll(state.items);
                 this.lastSuccessfulSyncAtMs = state.lastSuccessfulSyncAtMs;
             }
-            this.listener.onLoaded(snapshot());
+            notifyListenerSafely("loaded", () -> this.listener.onLoaded(snapshot()));
         }
         catch (Exception exception)
         {
-            this.listener.onLoadFailed(exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage());
+            String detail = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
+            notifyListenerSafely("load-failed", () -> this.listener.onLoadFailed(detail));
         }
     }
 
     public void shutdown()
     {
-        this.flushExecutor.shutdownNow();
+        this.flushExecutor.shutdown();
+        try
+        {
+            if (this.flushExecutor.awaitTermination(2, TimeUnit.SECONDS) == false)
+            {
+                this.flushExecutor.shutdownNow();
+                this.flushExecutor.awaitTermination(1, TimeUnit.SECONDS);
+            }
+        }
+        catch (InterruptedException interruptedException)
+        {
+            this.flushExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    int removeMatching(Predicate<QueuedSyncItem> predicate)
+    {
+        if (predicate == null)
+        {
+            return 0;
+        }
+
+        synchronized (this.lock)
+        {
+            int previousSize = this.items.size();
+            this.items.removeIf(predicate);
+            int removed = previousSize - this.items.size();
+            if (removed > 0)
+            {
+                persistLocked();
+            }
+            return removed;
+        }
     }
 
     public void enqueue(SyncItemType type, String dedupeKey, JsonObject payload, boolean replaceExisting)
+    {
+        enqueue(type, dedupeKey, payload, replaceExisting, "unspecified");
+    }
+
+    public void enqueue(SyncItemType type, String dedupeKey, JsonObject payload, boolean replaceExisting, String triggerReason)
     {
         QueuedSyncItem changedItem;
         boolean replaced = false;
@@ -126,12 +168,13 @@ public final class PendingSyncQueue
             if (existing != null)
             {
                 existing.payload = payload == null ? new JsonObject() : payload.deepCopy();
+                existing.triggerReason = normalizeTrigger(triggerReason);
                 changedItem = existing.copy();
                 replaced = true;
             }
             else
             {
-                QueuedSyncItem item = QueuedSyncItem.create(type, dedupeKey, payload, now);
+                QueuedSyncItem item = QueuedSyncItem.create(type, dedupeKey, payload, now, triggerReason);
                 this.items.add(item);
                 this.items.sort(Comparator.comparingLong(value -> value.createdAtMs));
                 changedItem = item.copy();
@@ -140,7 +183,8 @@ public final class PendingSyncQueue
             persistLocked();
         }
 
-        this.listener.onItemQueued(changedItem, replaced, snapshot());
+        boolean replacedExisting = replaced;
+        notifyListenerSafely("item-queued", () -> this.listener.onItemQueued(changedItem, replacedExisting, snapshot()));
     }
 
     public void requestFlush(String reason)
@@ -163,16 +207,24 @@ public final class PendingSyncQueue
 
     public void forceFlush(String reason)
     {
-        synchronized (this.lock)
+        if (shouldResetRetryBackoff(reason))
         {
-            for (QueuedSyncItem item : this.items)
+            synchronized (this.lock)
             {
-                item.nextRetryAtMs = 0L;
+                for (QueuedSyncItem item : this.items)
+                {
+                    item.nextRetryAtMs = 0L;
+                }
+                persistLocked();
             }
-            persistLocked();
         }
-
         requestFlush(reason);
+    }
+
+    private static boolean shouldResetRetryBackoff(String reason)
+    {
+        String normalized = reason == null ? "" : reason.toLowerCase(Locale.ROOT);
+        return normalized.contains("manual") || normalized.contains("website link");
     }
 
     public Snapshot snapshot()
@@ -183,8 +235,28 @@ public final class PendingSyncQueue
         }
     }
 
-    public boolean hasDueItem()
+    public long nextAttemptAtMs(SyncItemType... types)
     {
+        synchronized (this.lock)
+        {
+            long now = System.currentTimeMillis();
+            long nextFutureAttemptAtMs = Long.MAX_VALUE;
+            for (QueuedSyncItem item : this.items)
+            {
+                if (matchesAnyType(item.type, types) == false)
+                {
+                    continue;
+                }
+                if (item.nextRetryAtMs <= now)
+                {
+                    return 0L;
+                }
+                nextFutureAttemptAtMs = Math.min(nextFutureAttemptAtMs, item.nextRetryAtMs);
+            }
+            return nextFutureAttemptAtMs == Long.MAX_VALUE ? 0L : nextFutureAttemptAtMs;
+        }
+    }
+    public boolean hasDueItem()    {
         synchronized (this.lock)
         {
             long now = System.currentTimeMillis();
@@ -209,10 +281,10 @@ public final class PendingSyncQueue
     private void flushLoop(String reason)
     {
         this.flushActive = true;
-        this.listener.onFlushStarted(reason, snapshot());
 
         try
         {
+            notifyListenerSafely("flush-started", () -> this.listener.onFlushStarted(reason, snapshot()));
             while (true)
             {
                 QueuedSyncItem item = nextDueItem();
@@ -222,7 +294,29 @@ public final class PendingSyncQueue
                     return;
                 }
 
-                SyncSendResult result = this.sender.send(item.copy());
+                notifyListenerSafely("attempt-started", () -> this.listener.onItemAttemptStarted(item.copy(), snapshot()));
+                SyncSendResult result;
+                try
+                {
+                    result = this.sender.send(item.copy());
+                    if (result == null)
+                    {
+                        result = SyncSendResult.retry(-1, "Sync sender returned no result.", "");
+                    }
+                }
+                catch (Exception exception)
+                {
+                    String detail = exception.getMessage() == null
+                            ? exception.getClass().getSimpleName()
+                            : exception.getMessage();
+                    MMM.LOGGER.warn("{} send-loop-failed id={} type={} trigger={} detail={}",
+                            LOG_PREFIX,
+                            item.id,
+                            item.type,
+                            normalizeTrigger(item.triggerReason),
+                            detail);
+                    result = SyncSendResult.retry(-1, detail, "");
+                }
                 handleResult(item, result);
             }
         }
@@ -230,7 +324,7 @@ public final class PendingSyncQueue
         {
             this.flushActive = false;
             this.flushScheduled.set(false);
-            this.listener.onFlushFinished(reason, snapshot());
+            notifyListenerSafely("flush-finished", () -> this.listener.onFlushFinished(reason, snapshot()));
         }
     }
 
@@ -269,7 +363,7 @@ public final class PendingSyncQueue
                 this.items.removeIf(item -> item.id.equals(attemptedItem.id));
                 this.lastSuccessfulSyncAtMs = now;
                 persistLocked();
-                this.listener.onItemSucceeded(attemptedItem, result, snapshotLocked());
+                notifyListenerSafely("item-succeeded", () -> this.listener.onItemSucceeded(attemptedItem, result, snapshotLocked()));
                 return;
             }
 
@@ -277,7 +371,7 @@ public final class PendingSyncQueue
             {
                 this.items.removeIf(item -> item.id.equals(attemptedItem.id));
                 persistLocked();
-                this.listener.onItemDropped(attemptedItem, result, snapshotLocked());
+                notifyListenerSafely("item-dropped", () -> this.listener.onItemDropped(attemptedItem, result, snapshotLocked()));
                 return;
             }
 
@@ -285,7 +379,7 @@ public final class PendingSyncQueue
             current.lastRetryAtMs = now;
             current.nextRetryAtMs = now + SyncRetryPolicy.computeDelayMs(current.retryCount);
             persistLocked();
-            this.listener.onRetryScheduled(current.copy(), result, current.nextRetryAtMs, snapshotLocked());
+            notifyListenerSafely("retry-scheduled", () -> this.listener.onRetryScheduled(current.copy(), result, current.nextRetryAtMs, snapshotLocked()));
         }
     }
 
@@ -297,14 +391,63 @@ public final class PendingSyncQueue
             return this.items.stream()
                     .filter(item -> item.nextRetryAtMs <= now)
                     .filter(this.dueItemFilter)
-                    .min(Comparator.comparingLong(item -> item.createdAtMs))
+                    .min(Comparator
+                            .comparingInt(PendingSyncQueue::queuePriority)
+                            .thenComparingInt(item -> item.retryCount)
+                            .thenComparingLong(PendingSyncQueue::queueCreatedAtSortValue))
                     .map(QueuedSyncItem::copy)
                     .orElse(null);
         }
     }
 
-    private QueuedSyncItem findByTypeAndKey(SyncItemType type, String dedupeKey)
+    private static int queuePriority(QueuedSyncItem item)
     {
+        if (item == null || item.type == null)
+        {
+            return 99;
+        }
+
+        return switch (item.type)
+        {
+            case WEBSITE_LINK_CLAIM -> 0;
+            case CLOUD_LIVE_STATE -> 1;
+            case CLOUD_FINISHED_SESSION -> 2;
+            case PLAYER_TOTAL_DIGS -> 3;
+        };
+    }
+
+    private static long queueCreatedAtSortValue(QueuedSyncItem item)
+    {
+        if (item == null)
+        {
+            return Long.MAX_VALUE;
+        }
+
+        return item.type == SyncItemType.CLOUD_FINISHED_SESSION ? -item.createdAtMs : item.createdAtMs;
+    }
+
+    private static boolean matchesAnyType(SyncItemType itemType, SyncItemType... types)
+    {
+        if (itemType == null || types == null || types.length == 0)
+        {
+            return false;
+        }
+        for (SyncItemType type : types)
+        {
+            if (itemType == type)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String normalizeTrigger(String triggerReason)
+    {
+        return triggerReason == null || triggerReason.isBlank() ? "unspecified" : triggerReason.trim();
+    }
+
+    private QueuedSyncItem findByTypeAndKey(SyncItemType type, String dedupeKey)    {
         String normalizedKey = dedupeKey == null ? "" : dedupeKey;
         for (QueuedSyncItem item : this.items)
         {
@@ -333,23 +476,71 @@ public final class PendingSyncQueue
     private Snapshot snapshotLocked()
     {
         EnumMap<SyncItemType, Integer> counts = new EnumMap<>(SyncItemType.class);
+        long now = System.currentTimeMillis();
+        long nextFutureAttemptAtMs = Long.MAX_VALUE;
+        boolean hasImmediatelyDueItem = false;
         for (QueuedSyncItem item : this.items)
         {
             counts.merge(item.type, 1, Integer::sum);
+            if (item.nextRetryAtMs <= now)
+            {
+                hasImmediatelyDueItem = true;
+            }
+            else
+            {
+                nextFutureAttemptAtMs = Math.min(nextFutureAttemptAtMs, item.nextRetryAtMs);
+            }
         }
 
-        return new Snapshot(this.items.size(), this.lastSuccessfulSyncAtMs, this.flushActive, Map.copyOf(counts));
+        long nextAttemptAtMs = hasImmediatelyDueItem || nextFutureAttemptAtMs == Long.MAX_VALUE
+                ? 0L
+                : nextFutureAttemptAtMs;
+        return new Snapshot(
+                this.items.size(),
+                this.lastSuccessfulSyncAtMs,
+                nextAttemptAtMs,
+                this.flushActive,
+                Map.copyOf(counts));
+    }
+    private void persistLocked()
+    {
+        List<QueuedSyncItem> itemSnapshot = this.items.stream().map(QueuedSyncItem::copy).toList();
+        long successfulSyncSnapshot = this.lastSuccessfulSyncAtMs;
+        try
+        {
+            this.flushExecutor.execute(() -> {
+                try
+                {
+                    this.store.save(itemSnapshot, successfulSyncSnapshot);
+                }
+                catch (Exception exception)
+                {
+                    String detail = exception.getMessage() == null
+                            ? exception.getClass().getSimpleName()
+                            : exception.getMessage();
+                    notifyListenerSafely("persistence-failed", () -> this.listener.onPersistenceFailed(detail, snapshot()));
+                }
+            });
+        }
+        catch (RuntimeException exception)
+        {
+            String detail = exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
+            notifyListenerSafely("persistence-failed", () -> this.listener.onPersistenceFailed(detail, snapshotLocked()));
+        }
     }
 
-    private void persistLocked()
+    private void notifyListenerSafely(String event, Runnable callback)
     {
         try
         {
-            this.store.save(this.items, this.lastSuccessfulSyncAtMs);
+            callback.run();
         }
-        catch (Exception exception)
+        catch (RuntimeException exception)
         {
-            this.listener.onPersistenceFailed(exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage(), snapshotLocked());
+            String detail = exception.getMessage() == null
+                    ? exception.getClass().getSimpleName()
+                    : exception.getMessage();
+            MMM.LOGGER.warn("{} listener-failed event={} detail={}", LOG_PREFIX, event, detail);
         }
     }
 

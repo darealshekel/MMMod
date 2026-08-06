@@ -38,8 +38,22 @@ public final class SourceScanManager
                 world
         );
 
-        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        boolean manualSelection = SyncScoreboardSelector.hasManualSelection();
+        ScoreboardObjective selectedObjective = manualSelection
+                ? SyncScoreboardSelector.resolveSelectedObjective(client)
+                : null;
+        if (manualSelection && selectedObjective == null)
+        {
+            return empty(world);
+        }
+
+        ScoreboardObjective sidebar = manualSelection
+                ? selectedObjective
+                : scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
         List<ScoreboardParser.ObjectiveRows> objectiveRows = scoreboard.getObjectives().stream()
+                .filter(objective -> manualSelection
+                        ? objective == selectedObjective
+                        : SyncScoreboardSelector.isEligible(objective))
                 .map(objective -> new ScoreboardParser.ObjectiveRows(objective, scoreboard.getScoreboardEntries(objective)))
                 .toList();
 
@@ -56,7 +70,11 @@ public final class SourceScanManager
                 .filter(candidate -> candidate != null && candidate.snapshot().isValid())
                 .toList();
 
-        if (sidebarCandidate != null && sidebarCandidate.snapshot().isValid() && sidebarCandidate.objectivePriority() >= 70)
+        if (manualSelection && sidebarCandidate != null && sidebarCandidate.snapshot().isValid())
+        {
+            chosen = sidebarCandidate;
+        }
+        else if (sidebarCandidate != null && sidebarCandidate.snapshot().isValid() && sidebarCandidate.objectivePriority() >= 70)
         {
             chosen = sidebarCandidate;
         }
@@ -71,7 +89,7 @@ public final class SourceScanManager
             chosen = bestTotalCandidate.orElse(null);
         }
 
-        if (chosen == null)
+        if (chosen == null && manualSelection == false)
         {
             ScoreboardParser.Candidate combinedToolUsage = ScoreboardParser.parseCombinedToolUsage(
                     username,
@@ -84,14 +102,14 @@ public final class SourceScanManager
             }
         }
 
-        if (chosen == null)
+        if (chosen == null && manualSelection == false)
         {
             chosen = candidates.stream()
                     .max(Comparator.comparingInt(ScoreboardParser.Candidate::confidence))
                     .orElse(null);
         }
 
-        PlayerDigsModel playerDigs = PlayerDigsParser.parse(client);
+        PlayerDigsModel playerDigs = resolvePlayerDigs(client, sourceDisplayName);
         boolean compatible = chosen != null
                 && chosen.snapshot().isValid()
                 && chosen.confidence() >= COMPATIBLE_CONFIDENCE_THRESHOLD;
@@ -153,6 +171,56 @@ public final class SourceScanManager
         );
     }
 
+    private static PlayerDigsModel resolvePlayerDigs(MinecraftClient client, String sourceDisplayName)
+    {
+        if (SyncScoreboardSelector.hasManualSelection())
+        {
+            ScoreboardObjective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
+            long total = SyncScoreboardSelector.readSelectedPlayerTotal(client);
+            if (selected == null || total <= 0L)
+            {
+                return null;
+            }
+            return new PlayerDigsModel(
+                    client.player.getGameProfile().name(),
+                    total,
+                    System.currentTimeMillis(),
+                    sourceDisplayName,
+                    selected.getDisplayName().getString());
+        }
+
+        PlayerDigsModel parsed = PlayerDigsParser.parse(client);
+        if (parsed != null && parsed.isValid())
+        {
+            return parsed;
+        }
+
+        PersonalTotalDetector.Detection detection = PersonalTotalDetector.detect(client);
+        if (detection.chosenTotal() <= 0L)
+        {
+            return null;
+        }
+
+        String objectiveTitle = switch (detection.chosenSource())
+        {
+            case "sidebar" -> detection.sidebarObjectiveTitle();
+            case "tab" -> detection.tabObjectiveTitle();
+            case "tool-uses" -> detection.toolUsageObjectiveTitle();
+            default -> "";
+        };
+        if (ScoreboardParser.isMiningEvidence(objectiveTitle) == false)
+        {
+            return null;
+        }
+
+        return new PlayerDigsModel(
+                client.player.getGameProfile().name(),
+                detection.chosenTotal(),
+                System.currentTimeMillis(),
+                sourceDisplayName,
+                objectiveTitle
+        );
+    }
     private static String resolveIconUrl(MinecraftClient client)
     {
         if (client == null)

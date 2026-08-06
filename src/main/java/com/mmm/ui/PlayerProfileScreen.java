@@ -58,13 +58,16 @@ public class PlayerProfileScreen extends CompatScreen
         MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
 
         MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, Math.max(0, layout.contentWidth - 196), MmmUi.TEXT, true);
-        MmmUi.statusChip(context, this.textRenderer, layout.contentX, layout.headerY + 18, syncLabel(), syncColor());
-        MmmUi.drawTextWithin(context, this.textRenderer, "Local mining data is stored on this client and sent on your account cadence.", layout.contentX, layout.headerY + 42, layout.contentWidth, MmmUi.LABEL, false);
+        if (!layout.compact)
+        {
+            MmmUi.statusChip(context, this.textRenderer, layout.contentX, layout.headerY + 18, syncLabel(), syncColor());
+            MmmUi.drawTextWithin(context, this.textRenderer, "Local mining data is stored on this client and sent on your account cadence.", layout.contentX, layout.headerY + 42, layout.contentWidth, MmmUi.LABEL, false);
+        }
 
-        drawTotalsCard(context, layout.leftX, layout.cardsY, layout.cardWidth, 102);
-        drawRecordsCard(context, layout.rightX, layout.cardsY, layout.cardWidth, 102);
-        drawSourceCard(context, layout.leftX, layout.cardsY + 112, layout.cardWidth, layout.lowerHeight);
-        drawBreakdownCard(context, layout.rightX, layout.cardsY + 112, layout.cardWidth, layout.lowerHeight);
+        drawTotalsCard(context, layout.leftX, layout.cardsY, layout.cardWidth, layout.topHeight);
+        drawRecordsCard(context, layout.rightX, layout.cardsY, layout.cardWidth, layout.topHeight);
+        drawSourceCard(context, layout.leftX, layout.lowerY, layout.cardWidth, layout.lowerHeight);
+        drawBreakdownCard(context, layout.rightX, layout.lowerY, layout.cardWidth, layout.lowerHeight);
 
         super.render(context, mouseX, mouseY, delta);
         MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
@@ -90,7 +93,7 @@ public class PlayerProfileScreen extends CompatScreen
     @Override
     public boolean shouldPause()
     {
-        return false;
+        return MmmUi.shouldPauseGame();
     }
 
     @Override
@@ -104,9 +107,14 @@ public class PlayerProfileScreen extends CompatScreen
         long worldTotal = MiningStats.getCurrentSourceTotalMined();
         MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
         drawCardTitle(context, x, y, width, "Totals");
-        drawBlocksMetric(context, x, y + 30, width, "Global Total", globalTotal);
-        drawBlocksMetric(context, x, y + 56, width, "World Total", worldTotal);
-        MmmUi.drawTextWithin(context, this.textRenderer, lastGlobalUpdateText(), x + CARD_PADDING, y + height - 14, width - CARD_PADDING * 2, MmmUi.MUTED, false);
+        int firstRow = height < 90 ? 26 : 30;
+        int step = height < 90 ? 20 : 26;
+        drawBlocksMetric(context, x, y + firstRow, width, "Global Total", globalTotal);
+        drawBlocksMetric(context, x, y + firstRow + step, width, "World Total", worldTotal);
+        if (height >= 86)
+        {
+            MmmUi.drawTextWithin(context, this.textRenderer, lastGlobalUpdateText(), x + CARD_PADDING, y + height - 14, width - CARD_PADDING * 2, MmmUi.MUTED, false);
+        }
     }
 
     private void drawRecordsCard(DrawContext context, int x, int y, int width, int height)
@@ -117,10 +125,12 @@ public class PlayerProfileScreen extends CompatScreen
         long weeklyRecord = MiningStats.getPersonalRecordWeeklyBlocks();
         MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
         drawCardTitle(context, x, y, width, "Records");
-        drawDualBlocksMetric(context, x, y + 28, width, "Today / Week", dailyBlocks, weeklyBlocks);
-        drawDualBlocksMetric(context, x, y + 52, width, "PR Day / Week", dailyRecord, weeklyRecord);
+        int firstRow = height < 90 ? 25 : 28;
+        int step = height < 90 ? 19 : 24;
+        drawDualBlocksMetric(context, x, y + firstRow, width, "Today / Week", dailyBlocks, weeklyBlocks);
+        drawDualBlocksMetric(context, x, y + firstRow + step, width, "PR Day / Week", dailyRecord, weeklyRecord);
         String fastest100k = MiningStats.getFastest100kClock();
-        drawMetric(context, x, y + 76, width, "Fastest 100k", fastest100k, "--".equals(fastest100k) ? MmmUi.INACTIVE : MmmUi.TEXT);
+        drawMetric(context, x, y + firstRow + step * 2, width, "Fastest 100k", fastest100k, "--".equals(fastest100k) ? MmmUi.INACTIVE : MmmUi.TEXT);
     }
 
     private void drawSourceCard(DrawContext context, int x, int y, int width, int height)
@@ -128,10 +138,21 @@ public class PlayerProfileScreen extends CompatScreen
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
         MmmUi.card(context, x, y, width, height, MmmUi.CARD_SOFT, MmmUi.BORDER);
         drawCardTitle(context, x, y, width, "Current Source");
-        drawMetric(context, x, y + 30, width, "Name", MmmUi.truncate(this.textRenderer, world.displayName(), width - 92), MmmUi.TEXT);
-        drawMetric(context, x, y + 56, width, "Type", world.kind(), MmmUi.TEXT);
-        drawMetric(context, x, y + 82, width, "Estimated Pace", UiFormat.formatDetailedBlocksPerHour(MiningStats.getEstimatedBlocksPerHour()), MmmUi.TEXT);
-        drawMetric(context, x, y + 108, width, "Sync Every", UiFormat.formatDuration(CloudSyncManager.getSyncIntervalMs() / 1000L), MmmUi.TEXT);
+        int firstRow = height < 130 ? 26 : 30;
+        int step = height < 130 ? 19 : 26;
+        drawMetric(context, x, y + firstRow, width, "Name", MmmUi.truncate(this.textRenderer, world.displayName(), width - 92), MmmUi.TEXT);
+        if (firstRow + step + 12 < height)
+        {
+            drawMetric(context, x, y + firstRow + step, width, "Type", world.kind(), MmmUi.TEXT);
+        }
+        if (firstRow + step * 2 + 12 < height)
+        {
+            drawMetric(context, x, y + firstRow + step * 2, width, "Estimated Pace", UiFormat.formatDetailedBlocksPerHour(MiningStats.getEstimatedBlocksPerHour()), MmmUi.TEXT);
+        }
+        if (firstRow + step * 3 + 12 < height)
+        {
+            drawMetric(context, x, y + firstRow + step * 3, width, "Sync Every", UiFormat.formatDuration(CloudSyncManager.getSyncIntervalMs() / 1000L), MmmUi.TEXT);
+        }
     }
 
     private void drawBreakdownCard(DrawContext context, int x, int y, int width, int height)
@@ -299,20 +320,24 @@ public class PlayerProfileScreen extends CompatScreen
 
     private Layout computeLayout()
     {
-        int panelWidth = Math.min(MmmUi.contentWidth(this.width) - 12, 620);
-        panelWidth = Math.max(420, panelWidth);
-        int panelHeight = Math.min(this.height - 24, 336);
+        boolean compact = this.height < 400 || MmmUi.contentWidth(this.width) < 480;
+        int panelWidth = Math.min(620, Math.max(1, MmmUi.contentWidth(this.width) - 12));
+        int availableHeight = Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT - 8);
+        int panelHeight = Math.min(availableHeight, 336);
         int panelX = MmmUi.centerContentX(this.width, panelWidth);
-        int panelY = (this.height - panelHeight) / 2;
-        int contentX = panelX + PANEL_PADDING;
-        int contentWidth = panelWidth - PANEL_PADDING * 2;
+        int panelY = MmmUi.TOP_BAR_HEIGHT + Math.max(4, (availableHeight - panelHeight) / 2);
+        int padding = compact ? 10 : PANEL_PADDING;
+        int contentX = panelX + padding;
+        int contentWidth = panelWidth - padding * 2;
         int cardWidth = (contentWidth - CARD_GAP) / 2;
-        int cardsY = panelY + 74;
-        int lowerHeight = Math.max(126, panelY + panelHeight - cardsY - 112 - PANEL_PADDING);
-        return new Layout(panelX, panelY, panelWidth, panelHeight, panelX + panelWidth, contentX, panelY + 16, contentWidth, contentX, contentX + cardWidth + CARD_GAP, cardWidth, cardsY, lowerHeight);
+        int cardsY = panelY + (compact ? 38 : 74);
+        int topHeight = compact ? 70 : 102;
+        int lowerY = cardsY + topHeight + CARD_GAP;
+        int lowerHeight = Math.max(48, panelY + panelHeight - lowerY - padding);
+        return new Layout(panelX, panelY, panelWidth, panelHeight, panelX + panelWidth, contentX, panelY + (compact ? 10 : 16), contentWidth, contentX, contentX + cardWidth + CARD_GAP, cardWidth, cardsY, topHeight, lowerY, lowerHeight, compact);
     }
 
-    private record Layout(int panelX, int panelY, int panelWidth, int panelHeight, int panelRight, int contentX, int headerY, int contentWidth, int leftX, int rightX, int cardWidth, int cardsY, int lowerHeight)
+    private record Layout(int panelX, int panelY, int panelWidth, int panelHeight, int panelRight, int contentX, int headerY, int contentWidth, int leftX, int rightX, int cardWidth, int cardsY, int topHeight, int lowerY, int lowerHeight, boolean compact)
     {
     }
 }

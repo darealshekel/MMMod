@@ -25,14 +25,20 @@ public final class PlayerDigsParser
 
     public static PlayerDigsModel parse(MinecraftClient client)
     {
+        return parse(client, ScoreboardReader.readObjectives(client));
+    }
+
+    static PlayerDigsModel parse(MinecraftClient client, List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots)
+    {
         if (client == null || client.player == null)
         {
             return null;
         }
 
+        List<ScoreboardReader.ObjectiveSnapshot> snapshots = objectiveSnapshots == null ? List.of() : objectiveSnapshots;
         String currentUsername = client.player.getGameProfile().name();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        Candidate best = ScoreboardReader.readObjectives(client).stream()
+        Candidate best = snapshots.stream()
                 .map(snapshot -> parseObjective(currentUsername, snapshot))
                 .filter(candidate -> candidate != null)
                 .max(Comparator.comparingInt(Candidate::confidence))
@@ -78,7 +84,6 @@ public final class PlayerDigsParser
                                           int index,
                                           ScoreboardReader.ScoreboardLine line)
     {
-        String titleLower = snapshot.title().toLowerCase(Locale.ROOT);
         String lineLower = line.cleaned().toLowerCase(Locale.ROOT);
         String ownerLower = line.owner().toLowerCase(Locale.ROOT);
         String usernameLower = currentUsername.toLowerCase(Locale.ROOT);
@@ -89,12 +94,20 @@ public final class PlayerDigsParser
             return null;
         }
 
-        boolean objectiveLooksRelevant = titleLower.contains("dig") || titleLower.contains("dug");
+        boolean objectiveLooksRelevant = ScoreboardParser.isMiningEvidence(snapshot.title());
         boolean lineLooksRelevant = lineLower.contains("dig") || lineLower.contains("dug");
         boolean isPlayerRow = ownerLower.equals(usernameLower) || lineLower.contains(usernameLower);
+        boolean miningContext = objectiveLooksRelevant || lineLooksRelevant;
         boolean isExplicitPlayerLabel = PLAYER_MARKERS.stream().anyMatch(lineLower::contains)
-                && (lineLooksRelevant || objectiveLooksRelevant);
+                && miningContext;
         boolean isGlobalLine = GLOBAL_MARKERS.stream().anyMatch(lineLower::contains);
+
+        // Player ownership alone is not enough: sprint distance and similar
+        // objectives also expose a score for the current player.
+        if (miningContext == false)
+        {
+            return null;
+        }
 
         if (isGlobalLine && isPlayerRow == false && isExplicitPlayerLabel == false)
         {
@@ -145,6 +158,8 @@ public final class PlayerDigsParser
         {
             confidence += 80;
         }
+
+
         if (isGlobalLine)
         {
             confidence -= 60;

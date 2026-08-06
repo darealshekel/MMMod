@@ -7,6 +7,8 @@ import java.util.Locale;
 import com.mmm.config.Configs;
 import com.mmm.tracker.MiningStats;
 
+import net.minecraft.util.math.MathHelper;
+
 public final class UiFormat
 {
     private static final DecimalFormat COMPACT_FORMAT_SMALL = new DecimalFormat("0.##", DecimalFormatSymbols.getInstance(Locale.US));
@@ -14,6 +16,11 @@ public final class UiFormat
     private static final DecimalFormat COMPACT_FORMAT_LARGE = new DecimalFormat("0", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat WHOLE_NUMBER_FORMAT = new DecimalFormat("#,###", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat BLOCKS_PER_SECOND_FORMAT = new DecimalFormat("0.0", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat BLOCKS_PER_MINUTE_FORMAT = new DecimalFormat("0.0", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat GOAL_PERCENT_FORMAT_WHOLE = new DecimalFormat("0", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat GOAL_PERCENT_FORMAT_1 = new DecimalFormat("0.0", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat GOAL_PERCENT_FORMAT_2 = new DecimalFormat("0.00", DecimalFormatSymbols.getInstance(Locale.US));
+    private static final DecimalFormat GOAL_PERCENT_FORMAT_3 = new DecimalFormat("0.000", DecimalFormatSymbols.getInstance(Locale.US));
 
     public static final int YELLOW = 0xFFF2D24B;
     public static final int TEXT_PRIMARY = 0xFFFFFFFF;
@@ -73,6 +80,11 @@ public final class UiFormat
         return BLOCKS_PER_SECOND_FORMAT.format(safeValue);
     }
 
+    public static String formatBlocksPerMinute(double value)
+    {
+        return BLOCKS_PER_MINUTE_FORMAT.format(Math.max(0D, value));
+    }
+
     public static String formatDuration(long totalSeconds)
     {
         long seconds = Math.max(0L, totalSeconds);
@@ -107,14 +119,52 @@ public final class UiFormat
         return "Calculating";
     }
 
+    public static String formatGoalPercent(MiningStats.GoalProgress progress)
+    {
+        double value = progress == null ? 0.0D : progress.getPercentValue();
+        if (!Configs.Generic.GOAL_PERCENT_DECIMALS.getBooleanValue())
+        {
+            return GOAL_PERCENT_FORMAT_WHOLE.format(value) + "%";
+        }
+
+        DecimalFormat format = switch (Configs.Generic.GOAL_PERCENT_DECIMAL_PLACES.getIntegerValue())
+        {
+            case 2 -> GOAL_PERCENT_FORMAT_2;
+            case 3 -> GOAL_PERCENT_FORMAT_3;
+            default -> GOAL_PERCENT_FORMAT_1;
+        };
+        return format.format(value) + "%";
+    }
+
     public static int getGoalColor(MiningStats.GoalProgress progress)
     {
-        int percent = progress.getPercent();
-        if (percent >= 100) return BLUE;
-        if (percent >= 75) return DARK_GREEN;
-        if (percent >= 50) return LIGHT_GREEN;
-        if (percent >= 25) return GOLD;
-        return RED;
+        return getGoalProgressColor(progress);
+    }
+
+    public static int getGoalProgressColor(MiningStats.GoalProgress progress)
+    {
+        double ratio = progress == null || progress.target() <= 0L
+                ? 0.0D
+                : Math.max(0.0D, progress.current() / (double) progress.target());
+        if (ratio > 1.0D)
+        {
+            float hue = (float) ((1.0D / 3.0D + ratio - 1.0D) % 1.0D);
+            return 0xFF000000 | MathHelper.hsvToRgb(hue, 0.92F, 1.0F);
+        }
+
+        int red;
+        int green;
+        if (ratio <= 0.5D)
+        {
+            red = 255;
+            green = (int) Math.round(ratio * 2.0D * 255.0D);
+        }
+        else
+        {
+            red = (int) Math.round((1.0D - ratio) * 2.0D * 255.0D);
+            green = 255;
+        }
+        return 0xFF000000 | red << 16 | green << 8;
     }
 
     public static int getBlocksMinedMilestoneColor(long value)

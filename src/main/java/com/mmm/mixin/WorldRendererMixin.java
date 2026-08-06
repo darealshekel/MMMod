@@ -1,6 +1,7 @@
 package com.mmm.mixin;
 
-import com.mmm.tweak.BlockEspRenderer;
+import com.mmm.config.Configs;
+import com.mmm.feature.BlockEspRenderer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
@@ -31,6 +32,18 @@ public abstract class WorldRendererMixin
                                              double cameraX, double cameraY, double cameraZ,
                                              OutlineRenderState outlineRenderState, int color, float tickProgress);
 
+    @Inject(method = "renderBlockDamage", at = @At("HEAD"), cancellable = true)
+    private void mmm$suppressVanillaBreakingOverlay(MatrixStack matrices,
+                                                    VertexConsumerProvider.Immediate vertexConsumers,
+                                                    WorldRenderState worldRenderState,
+                                                    CallbackInfo ci)
+    {
+        if (Configs.Generic.BREAKING_INDICATORS.getBooleanValue())
+        {
+            ci.cancel();
+        }
+    }
+
     @Inject(method = "renderTargetBlockOutline", at = @At("HEAD"), cancellable = true)
     private void mmm$renderCustomBlockEspOutline(VertexConsumerProvider.Immediate vertexConsumers,
                                                  MatrixStack matrices,
@@ -38,7 +51,7 @@ public abstract class WorldRendererMixin
                                                  WorldRenderState worldRenderState,
                                                  CallbackInfo ci)
     {
-        if (!BlockEspRenderer.shouldReplaceVanillaOutline(this.client))
+        if (!BlockEspRenderer.shouldReplaceVanillaOutline(this.client) || this.client.world == null)
         {
             return;
         }

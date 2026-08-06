@@ -2,6 +2,7 @@ package com.mmm.sync;
 
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -12,7 +13,7 @@ import com.mmm.Reference;
 import com.mmm.config.Configs;
 import com.mmm.util.MmmDebugLogger;
 
-import fi.dy.masa.malilib.util.FileUtils;
+import net.fabricmc.loader.api.FabricLoader;
 
 public final class SyncQueueManager
 {
@@ -37,7 +38,7 @@ public final class SyncQueueManager
             return;
         }
 
-        Path queuePath = FileUtils.getConfigDirectoryAsPath().resolve(Reference.STORAGE_ID + "-sync-queue.json");
+        Path queuePath = FabricLoader.getInstance().getConfigDir().resolve(Reference.STORAGE_ID + "-sync-queue.json");
         queue = new PendingSyncQueue(
                 queuePath,
                 SyncQueueManager::send,
@@ -55,7 +56,7 @@ public final class SyncQueueManager
     {
         if (queue == null)
         {
-            return;
+            initialize();
         }
 
         if (now - lastPeriodicFlushMs >= PERIODIC_FLUSH_INTERVAL_MS)
@@ -90,6 +91,11 @@ public final class SyncQueueManager
 
     public static void enqueueCloudLiveState(JsonObject payload)
     {
+        enqueueCloudLiveState(payload, "live state");
+    }
+
+    public static void enqueueCloudLiveState(JsonObject payload, String triggerReason)
+    {
         if (isSyncEnabledFor(SyncItemType.CLOUD_LIVE_STATE) == false)
         {
             logEnqueueSkippedDisabled(SyncItemType.CLOUD_LIVE_STATE);
@@ -97,11 +103,16 @@ public final class SyncQueueManager
         }
 
         initialize();
-        queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, "cloud-live-state", payload, true);
+        queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, "cloud-live-state", payload, true, triggerReason);
         requestFlush("enqueue cloud live state");
     }
 
     public static void enqueueCloudFinishedSession(String sessionKey, JsonObject payload)
+    {
+        enqueueCloudFinishedSession(sessionKey, payload, "finished session");
+    }
+
+    public static void enqueueCloudFinishedSession(String sessionKey, JsonObject payload, String triggerReason)
     {
         if (isSyncEnabledFor(SyncItemType.CLOUD_FINISHED_SESSION) == false)
         {
@@ -110,11 +121,16 @@ public final class SyncQueueManager
         }
 
         initialize();
-        queue.enqueue(SyncItemType.CLOUD_FINISHED_SESSION, sessionKey == null ? "" : sessionKey, payload, true);
+        queue.enqueue(SyncItemType.CLOUD_FINISHED_SESSION, sessionKey == null ? "" : sessionKey, payload, true, triggerReason);
         requestFlush("enqueue finished session");
     }
 
     public static void enqueuePlayerTotalDigs(String dedupeKey, JsonObject payload)
+    {
+        enqueuePlayerTotalDigs(dedupeKey, payload, "total digs");
+    }
+
+    public static void enqueuePlayerTotalDigs(String dedupeKey, JsonObject payload, String triggerReason)
     {
         if (isSyncEnabledFor(SyncItemType.PLAYER_TOTAL_DIGS) == false)
         {
@@ -123,14 +139,14 @@ public final class SyncQueueManager
         }
 
         initialize();
-        queue.enqueue(SyncItemType.PLAYER_TOTAL_DIGS, dedupeKey == null ? "" : dedupeKey, payload, true);
+        queue.enqueue(SyncItemType.PLAYER_TOTAL_DIGS, dedupeKey == null ? "" : dedupeKey, payload, true, triggerReason);
         requestFlush("enqueue player total digs");
     }
 
     public static void enqueueWebsiteLinkClaim(String dedupeKey, JsonObject payload)
     {
         initialize();
-        queue.enqueue(SyncItemType.WEBSITE_LINK_CLAIM, dedupeKey == null ? "" : dedupeKey, payload, true);
+        queue.enqueue(SyncItemType.WEBSITE_LINK_CLAIM, dedupeKey == null ? "" : dedupeKey, payload, true, "website link claim");
         requestFlush("enqueue website link");
     }
 
@@ -138,6 +154,12 @@ public final class SyncQueueManager
     {
         initialize();
         return queue.snapshot();
+    }
+
+    public static long getNextAttemptAtMs(SyncItemType... types)
+    {
+        initialize();
+        return queue.nextAttemptAtMs(types);
     }
 
     private static SyncSendResult send(QueuedSyncItem item)
@@ -148,6 +170,11 @@ public final class SyncQueueManager
             {
                 MMM.LOGGER.warn("{} send-skipped-item-invalid reason=invalid_queue_item", LOG_PREFIX);
                 return SyncSendResult.drop(-1, "Invalid queue item.", "");
+            }
+
+            if (item.type == SyncItemType.PLAYER_TOTAL_DIGS)
+            {
+                return SyncSendResult.drop(410, "Legacy partial sync replaced by the complete daily sync.", "");
             }
 
             if (isSyncEnabledFor(item.type) == false)
@@ -178,6 +205,8 @@ public final class SyncQueueManager
                     && item.payload.get("minecraft_uuid").getAsString().isBlank() == false;
             boolean hasLinkedIdentity = Configs.websiteLinkedMinecraftUuid != null
                     && Configs.websiteLinkedMinecraftUuid.isBlank() == false;
+            boolean hasClientSyncToken = Configs.websiteSyncToken != null
+                    && Configs.websiteSyncToken.isBlank() == false;
 
             if (hasClientId == false || hasUsername == false)
             {
@@ -208,20 +237,37 @@ public final class SyncQueueManager
                         item.type);
             }
 
-            Map<String, String> headers = Map.of(
-                    "x-mmm-sync-item-id", item.id,
-                    "x-mmm-sync-item-type", item.type.name());
+            if (item.type != SyncItemType.WEBSITE_LINK_CLAIM && (hasLinkedIdentity == false || hasClientSyncToken == false))
+            {
+                return SyncSendResult.drop(401, "Link MMMod to the website before syncing.", "");
+            }
 
+            Map<String, String> headers = new HashMap<>();
+            headers.put("x-mmm-sync-item-id", item.id);
+            headers.put("x-mmm-sync-item-type", item.type.name());
+            if (item.type != SyncItemType.WEBSITE_LINK_CLAIM)
+            {
+                headers.put("x-mmm-client-sync-token", Configs.websiteSyncToken);
+            }
+
+            String requestBody = item.payload.toString();
+            long requestStartedAtMs = System.currentTimeMillis();
+            notifyUploading(item);
             MmmDebugLogger.info(
                     "syncqueue-request-" + item.type.name(),
                     SEND_SUCCESS_LOG_INTERVAL_MS,
-                    "{} request-sent id={} type={} endpoint={} payloadSummary={}",
+                    "{} request-sent id={} type={} trigger={} endpoint={} payloadBytes={} payloadRecords={} payloadSummary={}",
                     LOG_PREFIX,
                     item.id,
                     item.type,
+                    item.triggerReason,
                     endpoint,
+                    requestBody.getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
+                    countPayloadRecords(item.payload),
                     summarizePayload(item.payload));
-            HttpResponse<String> response = ApiClient.postJsonBlocking(endpoint, secret, item.payload.toString(), headers);
+            notifyWaitingForResponse(item);
+            HttpResponse<String> response = ApiClient.postJsonBlocking(endpoint, secret, requestBody, headers);
+            long elapsedMs = Math.max(0L, System.currentTimeMillis() - requestStartedAtMs);
             int statusCode = response.statusCode();
             String body = response.body() == null ? "" : response.body();
             if (statusCode >= 200 && statusCode < 300)
@@ -229,21 +275,23 @@ public final class SyncQueueManager
                 MmmDebugLogger.info(
                         "syncqueue-response-" + item.type.name(),
                         SEND_SUCCESS_LOG_INTERVAL_MS,
-                        "{} response-received id={} type={} status={} body={}",
+                        "{} response-received id={} type={} status={} elapsedMs={} response={}",
                         LOG_PREFIX,
                         item.id,
                         item.type,
                         statusCode,
-                        summarizeResponseBody(body));
+                        elapsedMs,
+                        summarizeResponse(body));
             }
             else
             {
-                MMM.LOGGER.warn("{} response-received id={} type={} status={} body={}",
+                MMM.LOGGER.warn("{} response-received id={} type={} status={} elapsedMs={} response={}",
                         LOG_PREFIX,
                         item.id,
                         item.type,
                         statusCode,
-                        summarizeResponseBody(body));
+                        elapsedMs,
+                        summarizeResponse(body));
             }
 
             if (statusCode >= 200 && statusCode < 300)
@@ -255,6 +303,15 @@ public final class SyncQueueManager
                     && (isPermanentLinkFailure(statusCode, body) || statusCode == 401 || statusCode == 403))
             {
                 return SyncSendResult.drop(statusCode, extractError(body, "Could not claim link code."), body);
+            }
+            if (item.type != SyncItemType.WEBSITE_LINK_CLAIM && (statusCode == 401 || statusCode == 403))
+            {
+                String rejectionDetail = extractError(body, "Website link expired or was rejected. Generate a new mod link code.");
+                if (statusCode == 401 || isWebsiteLinkRejection(rejectionDetail))
+                {
+                    WebsiteLinkManager.invalidatePersistedLink(rejectionDetail);
+                }
+                return SyncSendResult.drop(statusCode, rejectionDetail, body);
             }
 
             String detail = extractError(body, "HTTP " + statusCode);
@@ -282,9 +339,40 @@ public final class SyncQueueManager
         };
     }
 
+    public static boolean isMiningSyncAuthenticated()
+    {
+        return WebsiteLinkManager.hasPersistedLink()
+                && WebsiteLinkManager.isCurrentPlayerLinked();
+    }
+
+    public static void discardMiningItemsForOtherPlayers(String linkedUuid)
+    {
+        if (linkedUuid == null || linkedUuid.isBlank())
+        {
+            return;
+        }
+
+        initialize();
+        int removed = queue.removeMatching(item -> isMiningItem(item.type)
+                && payloadUuid(item.payload).equalsIgnoreCase(linkedUuid) == false);
+        if (removed > 0)
+        {
+            MMM.LOGGER.info("{} stale-account-items-removed count={}", LOG_PREFIX, removed);
+        }
+    }
+
     private static boolean isSyncEnabledFor(QueuedSyncItem item)
     {
-        return item != null && isSyncEnabledFor(item.type);
+        if (item == null || isSyncEnabledFor(item.type) == false)
+        {
+            return false;
+        }
+
+        if (item.type == SyncItemType.CLOUD_LIVE_STATE || item.type == SyncItemType.CLOUD_FINISHED_SESSION)
+        {
+            return CloudSyncManager.isCurrentContextPayloadPreparedForSync();
+        }
+        return true;
     }
 
     private static boolean isSyncEnabledFor(SyncItemType type)
@@ -299,16 +387,61 @@ public final class SyncQueueManager
             return false;
         }
 
-        return type != SyncItemType.PLAYER_TOTAL_DIGS
-                || Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue();
+        return true;
     }
 
-    private static void logEnqueueSkippedDisabled(SyncItemType type)
+    private static boolean isMiningItem(SyncItemType type)
     {
+        return type == SyncItemType.CLOUD_LIVE_STATE
+                || type == SyncItemType.CLOUD_FINISHED_SESSION
+                || type == SyncItemType.PLAYER_TOTAL_DIGS;
+    }
+
+    private static String payloadUuid(JsonObject payload)
+    {
+        if (payload == null
+                || payload.has("minecraft_uuid") == false
+                || payload.get("minecraft_uuid").isJsonPrimitive() == false)
+        {
+            return "";
+        }
+        return payload.get("minecraft_uuid").getAsString().trim();
+    }
+
+    private static void notifyUploading(QueuedSyncItem item)
+    {
+        switch (item.type)
+        {
+            case CLOUD_LIVE_STATE, CLOUD_FINISHED_SESSION -> CloudSyncManager.onQueueUploading(item.type);
+            case PLAYER_TOTAL_DIGS -> DigsSyncManager.onQueueUploading();
+            case WEBSITE_LINK_CLAIM -> { }
+        }
+    }
+
+    private static void notifyWaitingForResponse(QueuedSyncItem item)
+    {
+        switch (item.type)
+        {
+            case CLOUD_LIVE_STATE, CLOUD_FINISHED_SESSION -> CloudSyncManager.onQueueWaitingForResponse(item.type);
+            case PLAYER_TOTAL_DIGS -> DigsSyncManager.onQueueWaitingForResponse();
+            case WEBSITE_LINK_CLAIM -> { }
+        }
+    }
+
+    private static void logEnqueueSkippedDisabled(SyncItemType type)    {
         MmmDebugLogger.info("syncqueue-enqueue-disabled-" + type.name(), DISABLED_SYNC_LOG_INTERVAL_MS,
                 "{} enqueue-skipped-disabled type={}",
                 LOG_PREFIX,
                 type);
+    }
+
+    private static boolean isWebsiteLinkRejection(String detail)
+    {
+        String normalized = detail == null ? "" : detail.trim().toLowerCase(java.util.Locale.ROOT);
+        return normalized.contains("website link")
+                || normalized.contains("sync token")
+                || normalized.contains("another installation")
+                || normalized.contains("unauthorized");
     }
 
     private static boolean isPermanentLinkFailure(int statusCode, String body)
@@ -346,9 +479,16 @@ public final class SyncQueueManager
         try
         {
             JsonObject object = JsonParser.parseString(body).getAsJsonObject();
-            if (object.has("error") && object.get("error").isJsonPrimitive())
+            for (String key : new String[] {"error", "message", "reason"})
             {
-                return object.get("error").getAsString();
+                if (object.has(key) && object.get(key).isJsonPrimitive())
+                {
+                    String detail = object.get(key).getAsString().trim();
+                    if (detail.isBlank() == false)
+                    {
+                        return detail;
+                    }
+                }
             }
         }
         catch (Exception e)
@@ -356,9 +496,9 @@ public final class SyncQueueManager
             MmmDebugLogger.debug(
                     "syncqueue-error-response-parse",
                     ERROR_PARSE_DEBUG_LOG_INTERVAL_MS,
-                    "{} failed to parse sync error response body='{}': {}",
+                    "{} failed to parse sync error response bodyLength={} error={}",
                     LOG_PREFIX,
-                    body,
+                    body == null ? 0 : body.length(),
                     e.getMessage());
         }
 
@@ -413,16 +553,62 @@ public final class SyncQueueManager
         return "username=" + username + " source=" + source + " total=" + total;
     }
 
-    private static String summarizeResponseBody(String body)
+    private static int countPayloadRecords(JsonObject payload)
+    {
+        return payload == null ? 0 : countArrayElements(payload);
+    }
+
+    private static int countArrayElements(com.google.gson.JsonElement element)
+    {
+        if (element == null || element.isJsonNull())
+        {
+            return 0;
+        }
+        if (element.isJsonArray())
+        {
+            int count = element.getAsJsonArray().size();
+            for (com.google.gson.JsonElement child : element.getAsJsonArray())
+            {
+                count += countArrayElements(child);
+            }
+            return count;
+        }
+        if (element.isJsonObject())
+        {
+            int count = 0;
+            for (Map.Entry<String, com.google.gson.JsonElement> entry : element.getAsJsonObject().entrySet())
+            {
+                count += countArrayElements(entry.getValue());
+            }
+            return count;
+        }
+        return 0;
+    }
+
+    private static String summarizeResponse(String body)
     {
         if (body == null || body.isBlank())
         {
             return "<empty>";
         }
 
-        String compact = body.replace('\n', ' ').replace('\r', ' ').trim();
-        int maxLength = 700;
-        return compact.length() <= maxLength ? compact : compact.substring(0, maxLength) + "...";
+        try
+        {
+            JsonObject source = JsonParser.parseString(body).getAsJsonObject();
+            JsonObject safe = new JsonObject();
+            for (String key : new String[] {"ok", "status", "code", "synced", "daily_mining_synced", "accepted_public_totals", "source_sync_accepted", "sync_skipped", "reason", "next_sync_at", "error", "message"})
+            {
+                if (source.has(key) && source.get(key).isJsonPrimitive())
+                {
+                    safe.add(key, source.get(key));
+                }
+            }
+            return safe.size() == 0 ? "<json response>" : safe.toString();
+        }
+        catch (Exception ignored)
+        {
+            return "<non-json response length=" + body.length() + ">";
+        }
     }
 
     private static final class QueueListener implements PendingSyncQueue.Listener
@@ -446,13 +632,32 @@ public final class SyncQueueManager
         @Override
         public void onItemQueued(QueuedSyncItem item, boolean replaced, PendingSyncQueue.Snapshot snapshot)
         {
-            MMM.LOGGER.info("{} item-enqueued id={} type={} replaced={} queueSize={}",
+            MMM.LOGGER.info("{} item-enqueued id={} type={} trigger={} replaced={} queueSize={}",
                     LOG_PREFIX,
                     item.id,
                     item.type,
+                    item.triggerReason,
                     replaced,
                     snapshot.queueSize());
             notifyQueued(item);
+        }
+
+        @Override
+        public void onItemAttemptStarted(QueuedSyncItem item, PendingSyncQueue.Snapshot snapshot)
+        {
+            MMM.LOGGER.info("{} item-attempt-started id={} type={} trigger={} retryCount={} queueSize={}",
+                    LOG_PREFIX,
+                    item.id,
+                    item.type,
+                    item.triggerReason,
+                    item.retryCount,
+                    snapshot.queueSize());
+            switch (item.type)
+            {
+                case CLOUD_LIVE_STATE, CLOUD_FINISHED_SESSION -> CloudSyncManager.onQueuePreparing(item.type);
+                case PLAYER_TOTAL_DIGS -> DigsSyncManager.onQueuePreparing();
+                case WEBSITE_LINK_CLAIM -> { }
+            }
         }
 
         @Override
@@ -478,10 +683,11 @@ public final class SyncQueueManager
         @Override
         public void onItemSucceeded(QueuedSyncItem item, SyncSendResult result, PendingSyncQueue.Snapshot snapshot)
         {
-            MMM.LOGGER.info("{} item-removed-success id={} type={} status={} queueSize={}",
+            MMM.LOGGER.info("{} item-removed-success id={} type={} trigger={} status={} queueSize={}",
                     LOG_PREFIX,
                     item.id,
                     item.type,
+                    item.triggerReason,
                     result.statusCode(),
                     snapshot.queueSize());
             notifySuccess(item, result);
@@ -490,10 +696,11 @@ public final class SyncQueueManager
         @Override
         public void onRetryScheduled(QueuedSyncItem item, SyncSendResult result, long nextRetryAtMs, PendingSyncQueue.Snapshot snapshot)
         {
-            MMM.LOGGER.warn("{} item-retained-retry id={} type={} status={} retryCount={} nextRetry={} queueSize={} detail={}",
+            MMM.LOGGER.warn("{} item-retained-retry id={} type={} trigger={} status={} retryCount={} nextRetry={} queueSize={} detail={}",
                     LOG_PREFIX,
                     item.id,
                     item.type,
+                    item.triggerReason,
                     result.statusCode(),
                     item.retryCount,
                     PendingSyncQueue.formatInstant(nextRetryAtMs),
@@ -505,10 +712,11 @@ public final class SyncQueueManager
         @Override
         public void onItemDropped(QueuedSyncItem item, SyncSendResult result, PendingSyncQueue.Snapshot snapshot)
         {
-            MMM.LOGGER.warn("{} item-dropped id={} type={} status={} queueSize={} detail={}",
+            MMM.LOGGER.warn("{} item-dropped id={} type={} trigger={} status={} queueSize={} detail={}",
                     LOG_PREFIX,
                     item.id,
                     item.type,
+                    item.triggerReason,
                     result.statusCode(),
                     snapshot.queueSize(),
                     result.detail());

@@ -34,7 +34,6 @@ public class WebsiteLinkScreen extends CompatScreen
     private static final int COLOR_INSET = MmmUi.INSET;
     private static final int COLOR_BORDER = MmmUi.BORDER;
     private static final int COLOR_BORDER_SOFT = MmmUi.BORDER_SOFT;
-    private static final int COLOR_ACCENT = MmmUi.ACCENT;
     private static final int COLOR_VALUE = MmmUi.TEXT;
     private static final int COLOR_LABEL = MmmUi.LABEL;
     private static final int COLOR_MUTED = MmmUi.MUTED;
@@ -68,7 +67,7 @@ public class WebsiteLinkScreen extends CompatScreen
         this.codeField = new TextFieldWidget(this.textRenderer, getCodeFieldX(layout) + FIELD_PAD_X, layout.linkY + 78 + FIELD_PAD_Y, getCodeFieldWidth(layout) - FIELD_PAD_X * 2, INPUT_HEIGHT, Text.empty());
         this.codeField.setMaxLength(12);
         this.codeField.setDrawsBackground(false);
-        this.codeField.setCentered(false);
+
         this.codeField.setEditableColor(COLOR_VALUE);
         this.codeField.setUneditableColor(COLOR_MUTED);
         this.codeField.setChangedListener(text -> {
@@ -147,7 +146,7 @@ public class WebsiteLinkScreen extends CompatScreen
     @Override
     public boolean shouldPause()
     {
-        return false;
+        return MmmUi.shouldPauseGame();
     }
 
     @Override
@@ -158,29 +157,45 @@ public class WebsiteLinkScreen extends CompatScreen
     private void drawHeader(DrawContext context, Layout layout)
     {
         MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
-        drawPill(context, layout.contentX, layout.headerY + 18, 126, 16, "Account Sync");
-        drawWrappedText(
-                context,
-                "Open the MMM website, generate a temporary code, then confirm the link here.",
-                layout.contentX + 2,
-                layout.headerY + 38,
-                Math.min(HEADER_TEXT_WIDTH, layout.contentWidth - 4),
-                COLOR_LABEL);
+        if (!layout.compact)
+        {
+            drawPill(context, layout.contentX, layout.headerY + 18, 126, 16, "Account Sync");
+            drawWrappedText(
+                    context,
+                    "Open the MMM website, generate a temporary code, then confirm the link here.",
+                    layout.contentX + 2,
+                    layout.headerY + 38,
+                    Math.min(HEADER_TEXT_WIDTH, layout.contentWidth - 4),
+                    COLOR_LABEL);
+        }
     }
 
     private void drawStepsCard(DrawContext context, Layout layout)
     {
+        if (layout.stepsHeight <= 0)
+        {
+            return;
+        }
         fillCard(context, layout.stepsX, layout.stepsY, layout.stepsWidth, layout.stepsHeight, COLOR_CARD, COLOR_BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, "How It Works", layout.stepsX + CARD_PADDING, layout.stepsY + 10, layout.stepsWidth - CARD_PADDING * 2, COLOR_VALUE, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Three direct actions. No filler controls.", layout.stepsX + CARD_PADDING, layout.stepsY + 23, layout.stepsWidth - CARD_PADDING * 2, COLOR_MUTED, false);
 
         int rowY = layout.stepsY + 46;
         int rowWidth = layout.stepsWidth - CARD_PADDING * 2;
-        int miniGap = 12;
-        int cardWidth = (rowWidth - miniGap * 2) / 3;
-        drawMiniStep(context, layout.stepsX + CARD_PADDING, rowY, cardWidth, "1", "Open website", "Go to the login page in your browser.");
-        drawMiniStep(context, layout.stepsX + CARD_PADDING + cardWidth + miniGap, rowY, cardWidth, "2", "Generate code", "Create a temporary mod link code there.");
-        drawMiniStep(context, layout.stepsX + CARD_PADDING + (cardWidth + miniGap) * 2, rowY, cardWidth, "3", "Paste and link", "Enter the code below and confirm.");
+        if (layout.stepsWidth < 240)
+        {
+            drawCompactStep(context, layout.stepsX + CARD_PADDING, rowY, rowWidth, "1", "Open website");
+            drawCompactStep(context, layout.stepsX + CARD_PADDING, rowY + 22, rowWidth, "2", "Generate code");
+            drawCompactStep(context, layout.stepsX + CARD_PADDING, rowY + 44, rowWidth, "3", "Paste and link");
+        }
+        else
+        {
+            int miniGap = 12;
+            int cardWidth = (rowWidth - miniGap * 2) / 3;
+            drawMiniStep(context, layout.stepsX + CARD_PADDING, rowY, cardWidth, "1", "Open website", "Go to the login page in your browser.");
+            drawMiniStep(context, layout.stepsX + CARD_PADDING + cardWidth + miniGap, rowY, cardWidth, "2", "Generate code", "Create a temporary mod link code there.");
+            drawMiniStep(context, layout.stepsX + CARD_PADDING + (cardWidth + miniGap) * 2, rowY, cardWidth, "3", "Paste and link", "Enter the code below and confirm.");
+        }
     }
 
     private void drawLinkCard(DrawContext context, Layout layout)
@@ -189,7 +204,7 @@ public class WebsiteLinkScreen extends CompatScreen
         MmmUi.drawTextWithin(context, this.textRenderer, "Link Code", layout.linkX + CARD_PADDING, layout.linkY + 10, layout.linkWidth - CARD_PADDING * 2, COLOR_VALUE, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Paste the code from the site and finish the account link from here.", layout.linkX + CARD_PADDING, layout.linkY + 23, layout.linkWidth - CARD_PADDING * 2, COLOR_MUTED, false);
         context.drawText(this.textRenderer, Text.literal("Website"), layout.linkX + CARD_PADDING, layout.linkY + 46, COLOR_LABEL, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, WEBSITE_LOGIN_URL, layout.linkX + CARD_PADDING + 52, layout.linkY + 46, layout.linkWidth - CARD_PADDING * 2 - 52, COLOR_ACCENT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, WEBSITE_LOGIN_URL, layout.linkX + CARD_PADDING + 52, layout.linkY + 46, layout.linkWidth - CARD_PADDING * 2 - 52, MmmUi.accent(), false);
         context.drawText(this.textRenderer, Text.literal("Website Code"), layout.linkX + CARD_PADDING, layout.linkY + 64, COLOR_LABEL, false);
     }
 
@@ -224,17 +239,25 @@ public class WebsiteLinkScreen extends CompatScreen
         drawStatusChip(context, layout.statusX + CARD_PADDING, layout.statusY + 28, stateLabel, stateColor);
 
         int summaryY = layout.statusY + 52;
-        fillCard(context, layout.statusX + CARD_PADDING, summaryY, layout.statusWidth - CARD_PADDING * 2, 60, COLOR_INSET, COLOR_BORDER_SOFT);
-        drawWrappedText(context, statusLine, layout.statusX + CARD_PADDING + 10, summaryY + 10, layout.statusWidth - CARD_PADDING * 2 - 20, statusColor);
-        drawWrappedText(
-                context,
-                linked ? "Stored locally and ready for sync." : "Nothing is stored locally on this client yet.",
-                layout.statusX + CARD_PADDING + 10,
-                summaryY + 30,
-                layout.statusWidth - CARD_PADDING * 2 - 20,
-                COLOR_MUTED);
+        int summaryHeight = layout.compact ? 40 : 60;
+        fillCard(context, layout.statusX + CARD_PADDING, summaryY, layout.statusWidth - CARD_PADDING * 2, summaryHeight, COLOR_INSET, COLOR_BORDER_SOFT);
+        if (layout.compact)
+        {
+            MmmUi.drawTextWithin(context, this.textRenderer, statusLine, layout.statusX + CARD_PADDING + 8, summaryY + 10, layout.statusWidth - CARD_PADDING * 2 - 16, statusColor, false);
+        }
+        else
+        {
+            drawWrappedText(context, statusLine, layout.statusX + CARD_PADDING + 10, summaryY + 10, layout.statusWidth - CARD_PADDING * 2 - 20, statusColor);
+            drawWrappedText(
+                    context,
+                    linked ? "Stored locally and ready for sync." : "Nothing is stored locally on this client yet.",
+                    layout.statusX + CARD_PADDING + 10,
+                    summaryY + 30,
+                    layout.statusWidth - CARD_PADDING * 2 - 20,
+                    COLOR_MUTED);
+        }
 
-        if (state.detail().isBlank() == false)
+        if (!layout.compact && state.detail().isBlank() == false)
         {
             int detailColor = switch (state.status())
             {
@@ -253,9 +276,16 @@ public class WebsiteLinkScreen extends CompatScreen
     private void drawMiniStep(DrawContext context, int x, int y, int width, String number, String title, String description)
     {
         fillCard(context, x, y, width, 64, COLOR_INSET, COLOR_BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(number), x + 10, y + 10, COLOR_ACCENT, false);
+        context.drawText(this.textRenderer, Text.literal(number), x + 10, y + 10, MmmUi.accent(), false);
         MmmUi.drawTextWithin(context, this.textRenderer, title, x + 24, y + 10, width - 34, COLOR_VALUE, false);
         drawWrappedText(context, description, x + 10, y + 27, width - 20, COLOR_MUTED);
+    }
+
+    private void drawCompactStep(DrawContext context, int x, int y, int width, String number, String title)
+    {
+        fillCard(context, x, y, width, 18, COLOR_INSET, COLOR_BORDER_SOFT);
+        context.drawText(this.textRenderer, Text.literal(number), x + 7, y + 5, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.textRenderer, title, x + 20, y + 5, width - 27, COLOR_VALUE, false);
     }
 
     private void drawCodeFieldShell(DrawContext context)
@@ -269,7 +299,7 @@ public class WebsiteLinkScreen extends CompatScreen
         int y = this.codeField.getY() - FIELD_PAD_Y;
         int width = this.codeField.getWidth() + FIELD_PAD_X * 2;
         int height = INPUT_HEIGHT;
-        fillCard(context, x, y, width, height, COLOR_INSET, this.codeField.isFocused() ? COLOR_ACCENT : COLOR_BORDER_SOFT);
+        fillCard(context, x, y, width, height, COLOR_INSET, this.codeField.isFocused() ? MmmUi.accent() : COLOR_BORDER_SOFT);
     }
 
     private void drawWrappedText(DrawContext context, String text, int x, int y, int maxWidth, int color)
@@ -285,9 +315,9 @@ public class WebsiteLinkScreen extends CompatScreen
 
     private void drawPill(DrawContext context, int x, int y, int width, int height, String text)
     {
-        fillCard(context, x, y, width, height, COLOR_CARD, COLOR_ACCENT);
+        fillCard(context, x, y, width, height, COLOR_CARD, MmmUi.accent());
         String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
-        context.drawText(this.textRenderer, Text.literal(clipped), x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2), y + 4, COLOR_ACCENT, false);
+        context.drawText(this.textRenderer, Text.literal(clipped), x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2), y + 4, MmmUi.accent(), false);
     }
 
     private void drawStatusChip(DrawContext context, int x, int y, String text, int borderColor)
@@ -368,9 +398,12 @@ public class WebsiteLinkScreen extends CompatScreen
     {
         Configs.websiteLinkedMinecraftUuid = "";
         Configs.websiteLinkedMinecraftUsername = "";
+        Configs.websiteSyncToken = "";
         Configs.websiteLinkedAtMs = 0L;
         Configs.websiteGlobalTotalBlocks = 0L;
         Configs.websiteGlobalTotalUpdatedAtMs = 0L;
+        Configs.websiteLastSuccessfulSyncMs = 0L;
+        Configs.clearSourceSyncCooldowns();
         Configs.saveToFile();
         WebsiteLinkManager.reset();
         refreshState();
@@ -390,23 +423,26 @@ public class WebsiteLinkScreen extends CompatScreen
 
     private Layout computeLayout()
     {
-        int availableWidth = Math.max(360, MmmUi.contentWidth(this.width) - PANEL_MARGIN);
-        int panelWidth = Math.min(796, Math.max(560, availableWidth));
-        int panelHeight = Math.min(408, Math.max(356, this.height - 28));
+        boolean compact = this.height < 400 || MmmUi.contentWidth(this.width) < 540;
+        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - PANEL_MARGIN);
+        int panelWidth = Math.min(796, availableWidth);
+        int availableHeight = Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT - 8);
+        int panelHeight = Math.min(408, availableHeight);
         int panelX = MmmUi.centerContentX(this.width, panelWidth);
-        int panelY = (this.height - panelHeight) / 2;
-        int contentX = panelX + PANEL_PADDING;
-        int contentWidth = panelWidth - PANEL_PADDING * 2;
-        int headerY = panelY + PANEL_PADDING;
-        int stepsY = headerY + 66;
-        int statusWidth = Math.max(222, Math.min(252, contentWidth / 3));
+        int panelY = MmmUi.TOP_BAR_HEIGHT + Math.max(4, (availableHeight - panelHeight) / 2);
+        int padding = compact ? 8 : PANEL_PADDING;
+        int contentX = panelX + padding;
+        int contentWidth = panelWidth - padding * 2;
+        int headerY = panelY + padding;
+        int stepsY = headerY + (compact ? 24 : 66);
+        int statusWidth = Math.max(84, Math.min(252, contentWidth / 3));
         int stepsWidth = contentWidth - statusWidth - CARD_GAP;
-        int stepsHeight = 122;
-        int linkY = stepsY + stepsHeight + CARD_GAP;
-        int linkHeight = 140;
+        int stepsHeight = compact ? 0 : 122;
+        int linkY = compact ? stepsY : stepsY + stepsHeight + CARD_GAP;
+        int linkHeight = compact ? Math.max(140, panelY + panelHeight - padding - linkY) : 140;
         int statusX = contentX + stepsWidth + CARD_GAP;
         int statusY = stepsY;
-        int statusHeight = stepsHeight + CARD_GAP + linkHeight;
+        int statusHeight = compact ? linkHeight : stepsHeight + CARD_GAP + linkHeight;
         int statusButtonWidth = statusWidth - CARD_PADDING * 2;
         int statusSecondaryButtonY = statusY + statusHeight - CARD_PADDING - BUTTON_HEIGHT;
         int statusPrimaryButtonY = statusSecondaryButtonY - BUTTON_HEIGHT - BUTTON_ROW_GAP;
@@ -435,7 +471,8 @@ public class WebsiteLinkScreen extends CompatScreen
                 statusButtonX,
                 statusButtonWidth,
                 statusPrimaryButtonY,
-                statusSecondaryButtonY);
+                statusSecondaryButtonY,
+                compact);
     }
 
     private record Layout(
@@ -461,7 +498,8 @@ public class WebsiteLinkScreen extends CompatScreen
             int statusButtonX,
             int statusButtonWidth,
             int statusPrimaryButtonY,
-            int statusSecondaryButtonY)
+            int statusSecondaryButtonY,
+            boolean compact)
     {
     }
 }

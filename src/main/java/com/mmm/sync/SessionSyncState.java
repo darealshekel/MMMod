@@ -1,13 +1,11 @@
 package com.mmm.sync;
 
 import com.mmm.MMM;
+import com.mmm.storage.AtomicTextStorage;
 import com.mmm.storage.SharedStoragePaths;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -60,8 +58,16 @@ final class SessionSyncState
 
         try
         {
+            AtomicTextStorage.ReadResult result = AtomicTextStorage.readWithBackup(
+                    SYNCED_SESSIONS_FILE,
+                    SessionSyncState::isValidStateFile);
+            if (result.value() == null)
+            {
+                return;
+            }
+
             String storedVersion = "";
-            for (String line : Files.readAllLines(SYNCED_SESSIONS_FILE))
+            for (String line : result.value().lines().toList())
             {
                 if (line != null && line.startsWith(VERSION_PREFIX))
                 {
@@ -85,6 +91,11 @@ final class SessionSyncState
                 SYNCED_SESSION_KEYS.clear();
                 persist();
             }
+            else if (result.recoveredFromBackup())
+            {
+                MMM.LOGGER.warn("[MMM] Recovered synced session acknowledgements from backup.");
+                persist();
+            }
         }
         catch (IOException e)
         {
@@ -96,15 +107,18 @@ final class SessionSyncState
     {
         try
         {
-            Files.createDirectories(SYNCED_SESSIONS_FILE.getParent());
-            List<String> lines = new ArrayList<>();
-            lines.add(VERSION_PREFIX + CURRENT_VERSION);
-            lines.addAll(SYNCED_SESSION_KEYS);
-            Files.write(
+            StringBuilder contents = new StringBuilder(VERSION_PREFIX)
+                    .append(CURRENT_VERSION)
+                    .append(System.lineSeparator());
+            for (String sessionKey : SYNCED_SESSION_KEYS)
+            {
+                contents.append(sessionKey).append(System.lineSeparator());
+            }
+            AtomicTextStorage.write(
                     SYNCED_SESSIONS_FILE,
-                    lines,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING);
+                    contents.toString(),
+                    true,
+                    SessionSyncState::isValidStateFile);
         }
         catch (IOException e)
         {
@@ -115,5 +129,26 @@ final class SessionSyncState
     private static String normalizeSessionKey(String sessionKey)
     {
         return sessionKey == null ? "" : sessionKey.trim();
+    }
+
+    private static boolean isValidStateFile(String contents)
+    {
+        if (contents == null || contents.isBlank())
+        {
+            return false;
+        }
+        for (String line : contents.lines().toList())
+        {
+            String normalized = normalizeSessionKey(line);
+            if (normalized.isBlank() || normalized.startsWith(VERSION_PREFIX))
+            {
+                continue;
+            }
+            if (normalized.matches("sess_[0-9]+") == false)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 }

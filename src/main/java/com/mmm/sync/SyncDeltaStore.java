@@ -5,14 +5,12 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.mmm.MMM;
 import com.mmm.Reference;
+import com.mmm.storage.AtomicJsonStorage;
 import com.mmm.util.MmmDebugLogger;
-import fi.dy.masa.malilib.util.FileUtils;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
+import net.fabricmc.loader.api.FabricLoader;
+import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -513,14 +511,18 @@ final class SyncDeltaStore
             return;
         }
         loaded = true;
-        File file = stateFile();
-        if (file.isFile() == false)
+        try
         {
-            return;
-        }
-        try (FileReader reader = new FileReader(file))
-        {
-            JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+            AtomicJsonStorage.ReadResult result = AtomicJsonStorage.readObjectWithBackup(stateFile());
+            if (result.value() == null)
+            {
+                return;
+            }
+            if (result.recoveredFromBackup())
+            {
+                MMM.LOGGER.warn("[MMM_SYNC] sync-state-recovered-from-backup source={}", result.source());
+            }
+            JsonObject root = result.value();
             if (root.has("sectionFingerprints") && root.get("sectionFingerprints").isJsonObject())
             {
                 for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("sectionFingerprints").entrySet())
@@ -550,6 +552,10 @@ final class SyncDeltaStore
                         AETERNUM_LEADERBOARDS.put(entry.getKey(), entry.getValue().getAsJsonObject().deepCopy());
                     }
                 }
+            }
+            if (result.recoveredFromBackup())
+            {
+                save();
             }
         }
         catch (Exception exception)
@@ -587,14 +593,8 @@ final class SyncDeltaStore
     {
         try
         {
-            File file = stateFile();
-            File parent = file.getParentFile();
-            if (parent != null && parent.isDirectory() == false)
-            {
-                parent.mkdirs();
-            }
-
             JsonObject root = new JsonObject();
+
             JsonObject sections = new JsonObject();
             for (Map.Entry<String, String> entry : SECTION_FINGERPRINTS.entrySet())
             {
@@ -621,10 +621,8 @@ final class SyncDeltaStore
             }
             root.add("aeternumLeaderboards", leaderboards);
 
-            try (FileWriter writer = new FileWriter(file))
-            {
-                GSON.toJson(root, writer);
-            }
+            AtomicJsonStorage.write(stateFile(), root, true);
+
         }
         catch (Exception exception)
         {
@@ -632,8 +630,8 @@ final class SyncDeltaStore
         }
     }
 
-    private static File stateFile()
+    private static Path stateFile()
     {
-        return new File(FileUtils.getConfigDirectoryAsPath().toFile(), STATE_FILE_NAME);
+        return FabricLoader.getInstance().getConfigDir().resolve(STATE_FILE_NAME);
     }
 }

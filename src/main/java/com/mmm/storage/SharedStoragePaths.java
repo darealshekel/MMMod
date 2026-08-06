@@ -9,7 +9,7 @@ import java.util.Set;
 
 import com.mmm.Reference;
 
-import fi.dy.masa.malilib.util.FileUtils;
+import net.fabricmc.loader.api.FabricLoader;
 
 public final class SharedStoragePaths
 {
@@ -34,7 +34,7 @@ public final class SharedStoragePaths
             return Paths.get(userHome).resolve(UNIX_HOME_DIR);
         }
 
-        return FileUtils.getConfigDirectoryAsPath().resolve(Reference.STORAGE_ID);
+        return FabricLoader.getInstance().getConfigDir().resolve(Reference.STORAGE_ID);
     }
 
     public static Path sessionsDir()
@@ -47,10 +47,25 @@ public final class SharedStoragePaths
         return root().resolve("cross-version-state.json");
     }
 
+    public static Path miningCalendarFile(String playerKey)
+    {
+        String safePlayerKey = playerKey == null ? "unlinked" : playerKey.trim().toLowerCase().replaceAll("[^a-z0-9-]", "");
+        if (safePlayerKey.isBlank())
+        {
+            safePlayerKey = "unlinked";
+        }
+        return root().resolve("mining-calendar").resolve(safePlayerKey + ".json");
+    }
+
+    public static Path goalSoundsDir()
+    {
+        return root().resolve("goal-sounds");
+    }
+
     public static Set<Path> legacyConfigDirs()
     {
         Set<Path> dirs = new LinkedHashSet<>();
-        Path currentConfigDir = FileUtils.getConfigDirectoryAsPath().toAbsolutePath().normalize();
+        Path currentConfigDir = FabricLoader.getInstance().getConfigDir().toAbsolutePath().normalize();
         addIfDirectory(dirs, currentConfigDir);
         addSiblingInstanceConfigDirs(dirs, currentConfigDir);
 

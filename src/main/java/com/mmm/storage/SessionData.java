@@ -59,6 +59,27 @@ public class SessionData
                 : clampBlocksPerHour(this.peakBlocksPerHour);
     }
 
+    public int getBestHourBlocks()
+    {
+        if (this.miningRateBuckets.isEmpty())
+        {
+            return clampBlocksPerHour(this.peakBlocksPerHour);
+        }
+
+        long windowTotal = 0L;
+        long bestTotal = 0L;
+        for (int index = 0; index < this.miningRateBuckets.size(); index++)
+        {
+            windowTotal += Math.max(0, this.miningRateBuckets.get(index));
+            if (index >= 60)
+            {
+                windowTotal -= Math.max(0, this.miningRateBuckets.get(index - 60));
+            }
+            bestTotal = Math.max(bestTotal, windowTotal);
+        }
+        return clampBlocksPerHour(bestTotal);
+    }
+
     public void updatePeakBlocksPerHour(long value)
     {
         this.peakBlocksPerHour = Math.max(this.getPeakBlocksPerHour(), clampBlocksPerHour(value));
@@ -79,6 +100,33 @@ public class SessionData
         recordMinedAmount(activeElapsedMs, 1L);
     }
 
+    public boolean repairInflatedTotalFromBreakdown()
+    {
+        if (this.blockBreakdown == null || this.blockBreakdown.isEmpty())
+        {
+            return false;
+        }
+
+        long breakdownTotal = 0L;
+        for (long amount : this.blockBreakdown.values())
+        {
+            long safeAmount = Math.max(0L, amount);
+            breakdownTotal = Long.MAX_VALUE - breakdownTotal < safeAmount
+                    ? Long.MAX_VALUE
+                    : breakdownTotal + safeAmount;
+        }
+
+        if (this.totalBlocks <= breakdownTotal)
+        {
+            return false;
+        }
+
+        this.totalBlocks = breakdownTotal;
+        this.miningRateBuckets.clear();
+        this.peakBlocksPerHour = 0;
+        return true;
+    }
+
     public void recordMinedAmount(long activeElapsedMs, long amount)
     {
         if (amount <= 0L)
@@ -92,6 +140,45 @@ public class SessionData
         int bucketBlocks = (int) Math.min(Integer.MAX_VALUE, nextValue);
         this.miningRateBuckets.set(bucketIndex, bucketBlocks);
         updatePeakBlocksPerHour(this.getBucketBlocksPerHour(bucketBlocks));
+    }
+
+    public void recordMinedAmountOverInterval(long startActiveElapsedMs, long endActiveElapsedMs, long amount)
+    {
+        if (amount <= 0L)
+        {
+            return;
+        }
+
+        long startMs = Math.max(0L, startActiveElapsedMs);
+        long endMs = Math.max(startMs, endActiveElapsedMs);
+        if (endMs <= startMs)
+        {
+            recordMinedAmount(endMs, amount);
+            return;
+        }
+
+        long durationMs = endMs - startMs;
+        int startBucket = (int) Math.max(0L, startMs / RATE_BUCKET_DURATION_MS);
+        int endBucket = (int) Math.max(startBucket, (endMs - 1L) / RATE_BUCKET_DURATION_MS);
+        long allocated = 0L;
+        long coveredMs = 0L;
+
+        for (int bucket = startBucket; bucket <= endBucket; bucket++)
+        {
+            long bucketStartMs = (long) bucket * RATE_BUCKET_DURATION_MS;
+            long bucketEndMs = bucketStartMs + RATE_BUCKET_DURATION_MS;
+            long overlapMs = Math.max(0L, Math.min(endMs, bucketEndMs) - Math.max(startMs, bucketStartMs));
+            if (overlapMs <= 0L)
+            {
+                continue;
+            }
+
+            coveredMs += overlapMs;
+            long cumulative = bucket == endBucket ? amount : Math.round(amount * (coveredMs / (double) durationMs));
+            long bucketAmount = Math.max(0L, cumulative - allocated);
+            allocated += bucketAmount;
+            recordMinedAmount(bucketStartMs, bucketAmount);
+        }
     }
 
     public String serialise()

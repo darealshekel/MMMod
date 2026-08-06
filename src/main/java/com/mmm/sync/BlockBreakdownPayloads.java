@@ -43,6 +43,8 @@ public final class BlockBreakdownPayloads
         object.addProperty("captured_at", Instant.ofEpochMilli(capturedAt).toString());
         object.addProperty("scope", "local_player");
         object.addProperty("source", resolveSource(worldStats));
+        object.addProperty("filtered", true);
+        object.addProperty("authoritative_total", false);
         object.addProperty("total_count", breakdown.values().stream().mapToLong(Long::longValue).sum());
         object.add("items", buildItems(breakdown));
         return object;

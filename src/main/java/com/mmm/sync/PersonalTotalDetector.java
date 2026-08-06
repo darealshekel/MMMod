@@ -3,6 +3,7 @@ package com.mmm.sync;
 import com.mmm.MMM;
 import com.mmm.util.MmmDebugLogger;
 import com.mojang.authlib.GameProfile;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -31,18 +32,29 @@ final class PersonalTotalDetector
 
     static Detection detect(MinecraftClient client)
     {
+        return detect(client, ScoreboardReader.readObjectives(client));
+    }
+
+    static Detection detect(MinecraftClient client, List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots)
+    {
         if (client == null || client.player == null)
         {
             return Detection.empty("client-or-player-missing");
         }
 
+        List<ScoreboardReader.ObjectiveSnapshot> snapshots = objectiveSnapshots == null ? List.of() : objectiveSnapshots;
         String username = client.player.getGameProfile().name();
         String usernameLower = username == null ? "" : username.toLowerCase(Locale.ROOT);
-        SidebarResult sidebar = detectFromSidebar(client, username, usernameLower);
+        SidebarResult sidebar = detectFromSidebar(client, username, usernameLower, snapshots);
         TabResult tab = detectFromTabList(client, username, usernameLower);
+        ToolUsageResult toolUsage = detectToolUsageTotal(client, username);
 
-        long chosen = Math.max(sidebar.total(), tab.total());
-        String chosenSource = chosen <= 0L ? "none" : (sidebar.total() >= tab.total() ? "sidebar" : "tab");
+        long chosen = Math.max(Math.max(sidebar.total(), tab.total()), toolUsage.total());
+        String chosenSource = chosen <= 0L
+                ? "none"
+                : toolUsage.total() >= sidebar.total() && toolUsage.total() >= tab.total()
+                    ? "tool-uses"
+                    : sidebar.total() >= tab.total() ? "sidebar" : "tab";
         String skipReason = chosen <= 0L ? "no-valid-personal-total" : "";
 
         return new Detection(
@@ -58,11 +70,274 @@ final class PersonalTotalDetector
                 tab.matchedUsername(),
                 tab.rawScore(),
                 tab.renderedText(),
+                toolUsage.total(),
+                toolUsage.objectiveTitle(),
                 skipReason
         );
     }
 
-    private static SidebarResult detectFromSidebar(MinecraftClient client, String username, String usernameLower)
+    private static ToolUsageResult detectToolUsageTotal(MinecraftClient client, String username)
+    {
+        if (client == null || client.world == null || client.player == null || username == null || username.isBlank())
+        {
+            return new ToolUsageResult(0L, "");
+        }
+
+        Scoreboard scoreboard = client.world.getScoreboard();
+        long pickaxeUses = 0L;
+        long shovelUses = 0L;
+        long axeUses = 0L;
+        long hoeUses = 0L;
+        long shearsUses = 0L;
+
+        for (ScoreboardObjective objective : scoreboard.getObjectives())
+        {
+            String context = clean(objective.getName()) + " " + clean(objective.getDisplayName().getString());
+            boolean pickaxe = ScoreboardParser.isPickUsesObjective(context);
+            boolean shovel = ScoreboardParser.isShovelUsesObjective(context);
+            boolean axe = ScoreboardParser.isAxeUsesObjective(context);
+            boolean hoe = ScoreboardParser.isHoeUsesObjective(context);
+            boolean shears = ScoreboardParser.isShearsUsesObjective(context);
+            int matchedKinds = (pickaxe ? 1 : 0)
+                    + (shovel ? 1 : 0)
+                    + (axe ? 1 : 0)
+                    + (hoe ? 1 : 0)
+                    + (shears ? 1 : 0);
+            if (matchedKinds != 1)
+            {
+                continue;
+            }
+
+            long value = readDirectScore(scoreboard, objective, client.player.getGameProfile(), username);
+            if (pickaxe)
+            {
+                pickaxeUses = Math.max(pickaxeUses, value);
+            }
+            else if (shovel)
+            {
+                shovelUses = Math.max(shovelUses, value);
+            }
+            else if (axe)
+            {
+                axeUses = Math.max(axeUses, value);
+            }
+            else if (hoe)
+            {
+                hoeUses = Math.max(hoeUses, value);
+            }
+            else
+            {
+                shearsUses = Math.max(shearsUses, value);
+            }
+        }
+
+        return new ToolUsageResult(
+                combineToolUsageTotals(pickaxeUses, shovelUses, axeUses, hoeUses, shearsUses),
+                toolUsageObjectiveTitle(pickaxeUses, shovelUses, axeUses, hoeUses, shearsUses));
+    }
+
+    static FastTotalPlan buildFastTotalPlan(MinecraftClient client, String sourceType, String objectiveTitle)
+    {
+        if (client == null || client.world == null || client.player == null || sourceType == null)
+        {
+            return FastTotalPlan.empty();
+        }
+
+        Scoreboard scoreboard = client.world.getScoreboard();
+        return switch (sourceType)
+        {
+            case "tab" -> FastTotalPlan.single(
+                    scoreboard,
+                    sourceType,
+                    matchingObjective(scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.LIST), objectiveTitle));
+            case "sidebar" -> FastTotalPlan.single(
+                    scoreboard,
+                    sourceType,
+                    matchingObjective(scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR), objectiveTitle));
+            case "parser" -> buildParserPlan(client, scoreboard, sourceType, objectiveTitle);
+            case "tool-uses" -> buildToolUsagePlan(client, scoreboard, sourceType);
+            default -> FastTotalPlan.empty();
+        };
+    }
+
+    static long readValidatedTotal(MinecraftClient client, FastTotalPlan plan)
+    {
+        if (client == null || client.world == null || client.player == null || plan == null || plan.isUsable() == false)
+        {
+            return 0L;
+        }
+
+        Scoreboard scoreboard = client.world.getScoreboard();
+        if (scoreboard != plan.scoreboard())
+        {
+            return 0L;
+        }
+
+        String username = client.player.getGameProfile().name();
+        if ("tool-uses".equals(plan.sourceType()))
+        {
+            return combineToolUsageTotals(
+                    readDirectScore(scoreboard, plan.pickaxe(), client.player.getGameProfile(), username),
+                    readDirectScore(scoreboard, plan.shovel(), client.player.getGameProfile(), username),
+                    readDirectScore(scoreboard, plan.axe(), client.player.getGameProfile(), username),
+                    readDirectScore(scoreboard, plan.hoe(), client.player.getGameProfile(), username),
+                    readDirectScore(scoreboard, plan.shears(), client.player.getGameProfile(), username));
+        }
+
+        return readDirectScore(scoreboard, plan.primary(), client.player.getGameProfile(), username);
+    }
+
+    private static FastTotalPlan buildParserPlan(
+            MinecraftClient client,
+            Scoreboard scoreboard,
+            String sourceType,
+            String expectedTitle)
+    {
+        ScoreboardObjective bestObjective = null;
+        long best = 0L;
+        for (ScoreboardObjective objective : scoreboard.getObjectives())
+        {
+            if (objectiveMatches(objective, expectedTitle))
+            {
+                long value = readDirectScore(
+                        scoreboard,
+                        objective,
+                        client.player.getGameProfile(),
+                        client.player.getGameProfile().name());
+                if (bestObjective == null || value > best)
+                {
+                    bestObjective = objective;
+                    best = value;
+                }
+            }
+        }
+        return FastTotalPlan.single(scoreboard, sourceType, bestObjective);
+    }
+
+    private static FastTotalPlan buildToolUsagePlan(
+            MinecraftClient client,
+            Scoreboard scoreboard,
+            String sourceType)
+    {
+        ScoreboardObjective pickaxeObjective = null;
+        ScoreboardObjective shovelObjective = null;
+        ScoreboardObjective axeObjective = null;
+        ScoreboardObjective hoeObjective = null;
+        ScoreboardObjective shearsObjective = null;
+        long pickaxeUses = 0L;
+        long shovelUses = 0L;
+        long axeUses = 0L;
+        long hoeUses = 0L;
+        long shearsUses = 0L;
+        String username = client.player.getGameProfile().name();
+
+        for (ScoreboardObjective objective : scoreboard.getObjectives())
+        {
+            String context = clean(objective.getName()) + " " + clean(objective.getDisplayName().getString());
+            boolean pickaxe = ScoreboardParser.isPickUsesObjective(context);
+            boolean shovel = ScoreboardParser.isShovelUsesObjective(context);
+            boolean axe = ScoreboardParser.isAxeUsesObjective(context);
+            boolean hoe = ScoreboardParser.isHoeUsesObjective(context);
+            boolean shears = ScoreboardParser.isShearsUsesObjective(context);
+            int matchedKinds = (pickaxe ? 1 : 0)
+                    + (shovel ? 1 : 0)
+                    + (axe ? 1 : 0)
+                    + (hoe ? 1 : 0)
+                    + (shears ? 1 : 0);
+            if (matchedKinds != 1)
+            {
+                continue;
+            }
+
+            long value = readDirectScore(scoreboard, objective, client.player.getGameProfile(), username);
+            if (pickaxe && (pickaxeObjective == null || value > pickaxeUses))
+            {
+                pickaxeObjective = objective;
+                pickaxeUses = value;
+            }
+            else if (shovel && (shovelObjective == null || value > shovelUses))
+            {
+                shovelObjective = objective;
+                shovelUses = value;
+            }
+            else if (axe && (axeObjective == null || value > axeUses))
+            {
+                axeObjective = objective;
+                axeUses = value;
+            }
+            else if (hoe && (hoeObjective == null || value > hoeUses))
+            {
+                hoeObjective = objective;
+                hoeUses = value;
+            }
+            else if (shears && (shearsObjective == null || value > shearsUses))
+            {
+                shearsObjective = objective;
+                shearsUses = value;
+            }
+        }
+
+        return new FastTotalPlan(
+                scoreboard,
+                sourceType,
+                null,
+                pickaxeObjective,
+                shovelObjective,
+                axeObjective,
+                hoeObjective,
+                shearsObjective);
+    }
+
+    private static ScoreboardObjective matchingObjective(ScoreboardObjective objective, String expectedTitle)
+    {
+        return objectiveMatches(objective, expectedTitle) ? objective : null;
+    }
+
+    private static boolean objectiveMatches(ScoreboardObjective objective, String expectedTitle)
+    {
+        if (objective == null || expectedTitle == null || expectedTitle.isBlank())
+        {
+            return false;
+        }
+
+        String expected = clean(expectedTitle);
+        return expected.equalsIgnoreCase(clean(objective.getName()))
+                || expected.equalsIgnoreCase(clean(objective.getDisplayName().getString()));
+    }
+
+    static long combineToolUsageTotals(long pickaxeUses,
+                                       long shovelUses,
+                                       long axeUses,
+                                       long hoeUses,
+                                       long shearsUses)
+    {
+        return Math.max(0L, pickaxeUses)
+                + Math.max(0L, shovelUses)
+                + Math.max(0L, axeUses)
+                + Math.max(0L, hoeUses)
+                + Math.max(0L, shearsUses);
+    }
+
+    static String toolUsageObjectiveTitle(long pickaxeUses,
+                                          long shovelUses,
+                                          long axeUses,
+                                          long hoeUses,
+                                          long shearsUses)
+    {
+        List<String> labels = new ArrayList<>();
+        if (pickaxeUses > 0L) labels.add("Pickaxe Uses");
+        if (shovelUses > 0L) labels.add("Shovel Uses");
+        if (axeUses > 0L) labels.add("Axe Uses");
+        if (hoeUses > 0L) labels.add("Hoe Uses");
+        if (shearsUses > 0L) labels.add("Shears Uses");
+        return labels.isEmpty() ? "" : "Combined Tool Uses: " + String.join(" + ", labels);
+    }
+
+    private static SidebarResult detectFromSidebar(
+            MinecraftClient client,
+            String username,
+            String usernameLower,
+            List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots)
     {
         if (client.world == null)
         {
@@ -78,14 +353,14 @@ final class PersonalTotalDetector
 
         long rawScore = readDirectScore(scoreboard, objective, client.player.getGameProfile(), username);
         String objectiveTitle = clean(objective.getDisplayName().getString());
-        String rendered = findRenderedSidebarLineForUser(client, usernameLower);
-        long parsedRendered = parseNumber(rendered);
+        String rendered = findRenderedSidebarLineForUser(objectiveSnapshots, usernameLower);
+        long parsedRendered = renderedMiningTotal(rendered);
         long acceptedRawScore = sanitizeDirectScore(rawScore, rendered, objectiveTitle, usernameLower, "sidebar");
         long total = Math.max(rawScore, parsedRendered);
         total = Math.max(acceptedRawScore, parsedRendered);
         if (total <= 0L)
         {
-            total = Math.max(0L, fallbackFromSidebarEntries(client, usernameLower, objectiveTitle));
+            total = Math.max(0L, fallbackFromSidebarEntries(objectiveSnapshots, usernameLower, objectiveTitle));
         }
 
         return new SidebarResult(
@@ -112,7 +387,8 @@ final class PersonalTotalDetector
         Collection<PlayerListEntry> playerList = client.getNetworkHandler().getPlayerList();
         if (playerList == null || playerList.isEmpty())
         {
-            return new TabResult(rawScore, objectiveTitle, username, rawScore, "empty-tab-list");
+            long acceptedRawScore = sanitizeDirectScore(rawScore, "", objectiveTitle, usernameLower, "tab");
+            return new TabResult(acceptedRawScore, objectiveTitle, username, acceptedRawScore, "empty-tab-list");
         }
 
         String rendered = "";
@@ -134,7 +410,7 @@ final class PersonalTotalDetector
             if (profileName.toLowerCase(Locale.ROOT).equals(usernameLower))
             {
                 rendered = clean(display);
-                parsedRendered = parseNumber(rendered);
+                parsedRendered = renderedMiningTotal(rendered);
                 break;
             }
         }
@@ -148,6 +424,13 @@ final class PersonalTotalDetector
                 acceptedRawScore,
                 rendered.isBlank() ? "no-tab-match" : rendered
         );
+    }
+
+    static long renderedMiningTotal(String rendered)
+    {
+        // Tier/name tags can contain a website total. Never treat that decoration
+        // as the server's mining score unless the rendered line labels it as mining.
+        return ScoreboardParser.hasMiningLabel(rendered) ? parseNumber(rendered) : 0L;
     }
 
     private static long parseNumber(String raw)
@@ -205,6 +488,10 @@ final class PersonalTotalDetector
 
     private static long readDirectScore(Scoreboard scoreboard, ScoreboardObjective objective, GameProfile profile, String username)
     {
+        if (scoreboard == null || objective == null || profile == null || username == null || username.isBlank())
+        {
+            return 0L;
+        }
         long fromProfile = readScore(scoreboard, objective, ScoreHolder.fromProfile(profile));
         long fromName = readScore(scoreboard, objective, ScoreHolder.fromName(username));
         return Math.max(fromProfile, fromName);
@@ -220,10 +507,11 @@ final class PersonalTotalDetector
         return score == null ? 0L : Math.max(0L, score.getScore());
     }
 
-    private static String findRenderedSidebarLineForUser(MinecraftClient client, String usernameLower)
+    private static String findRenderedSidebarLineForUser(
+            List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots,
+            String usernameLower)
     {
-        List<ScoreboardReader.ObjectiveSnapshot> objectives = ScoreboardReader.readObjectives(client);
-        for (ScoreboardReader.ObjectiveSnapshot snapshot : objectives)
+        for (ScoreboardReader.ObjectiveSnapshot snapshot : objectiveSnapshots)
         {
             if (snapshot.sidebar() == false)
             {
@@ -241,11 +529,13 @@ final class PersonalTotalDetector
         return "";
     }
 
-    private static long fallbackFromSidebarEntries(MinecraftClient client, String usernameLower, String objectiveTitle)
+    private static long fallbackFromSidebarEntries(
+            List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots,
+            String usernameLower,
+            String objectiveTitle)
     {
-        List<ScoreboardReader.ObjectiveSnapshot> objectives = ScoreboardReader.readObjectives(client);
         long best = 0L;
-        for (ScoreboardReader.ObjectiveSnapshot snapshot : objectives)
+        for (ScoreboardReader.ObjectiveSnapshot snapshot : objectiveSnapshots)
         {
             if (snapshot.sidebar() == false)
             {
@@ -260,6 +550,12 @@ final class PersonalTotalDetector
                 {
                     continue;
                 }
+                if (ScoreboardParser.isMiningEvidence(objectiveTitle) == false
+                        && ScoreboardParser.hasMiningLabel(line.cleaned()) == false)
+                {
+                    continue;
+                }
+
                 long parsed = parseNumber(line.cleaned());
                 boolean accepted = false;
                 String reason = "inline-number";
@@ -304,9 +600,11 @@ final class PersonalTotalDetector
             return 0L;
         }
 
-        long parsedRendered = parseNumber(rendered);
+        long parsedRendered = ScoreboardParser.isMiningEvidence(objectiveTitle) || ScoreboardParser.hasMiningLabel(rendered)
+                ? parseNumber(rendered)
+                : 0L;
         boolean hasDigitsInRendered = parsedRendered > 0L;
-        boolean hasDigContext = hasDigMarkers(rendered) || hasDigMarkers(objectiveTitle);
+        boolean hasDigContext = ScoreboardParser.isMiningEvidence(objectiveTitle) || ScoreboardParser.hasMiningLabel(rendered);
         boolean rankLike = isLikelyRankOnlyLine(rendered, usernameLower, rawScore);
         boolean accepted = false;
         String reason = "rejected-ambiguous-direct-score";
@@ -316,7 +614,7 @@ final class PersonalTotalDetector
             accepted = false;
             reason = "rejected-rank-like-line";
         }
-        else if (hasDigitsInRendered)
+        else if (hasDigitsInRendered && (ScoreboardParser.isMiningEvidence(objectiveTitle) || ScoreboardParser.hasMiningLabel(rendered)))
         {
             accepted = true;
             reason = "accepted-rendered-number";
@@ -407,12 +705,14 @@ final class PersonalTotalDetector
             String tabMatchedUsername,
             long tabRawScore,
             String tabRenderedText,
+            long toolUsageTotal,
+            String toolUsageObjectiveTitle,
             String skipReason
     )
     {
         static Detection empty(String reason)
         {
-            return new Detection(0L, 0L, 0L, "none", "", "", 0L, "", "", "", 0L, "", reason == null ? "" : reason);
+            return new Detection(0L, 0L, 0L, "none", "", "", 0L, "", "", "", 0L, "", 0L, "", reason == null ? "" : reason);
         }
     }
 
@@ -434,5 +734,43 @@ final class PersonalTotalDetector
             String renderedText
     )
     {
+    }
+
+    private record ToolUsageResult(long total, String objectiveTitle)
+    {
+    }
+
+    record FastTotalPlan(
+            Scoreboard scoreboard,
+            String sourceType,
+            ScoreboardObjective primary,
+            ScoreboardObjective pickaxe,
+            ScoreboardObjective shovel,
+            ScoreboardObjective axe,
+            ScoreboardObjective hoe,
+            ScoreboardObjective shears)
+    {
+        static FastTotalPlan empty()
+        {
+            return new FastTotalPlan(null, "none", null, null, null, null, null, null);
+        }
+
+        static FastTotalPlan single(Scoreboard scoreboard, String sourceType, ScoreboardObjective primary)
+        {
+            return new FastTotalPlan(scoreboard, sourceType, primary, null, null, null, null, null);
+        }
+
+        boolean isUsable()
+        {
+            if (scoreboard == null || sourceType == null || "none".equals(sourceType))
+            {
+                return false;
+            }
+            if ("tool-uses".equals(sourceType))
+            {
+                return pickaxe != null || shovel != null || axe != null || hoe != null || shears != null;
+            }
+            return primary != null;
+        }
     }
 }

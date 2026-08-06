@@ -5,15 +5,13 @@ import com.google.gson.JsonArray;
 import com.mmm.MMM;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
-import com.mmm.storage.SessionData;
+import com.mmm.storage.MiningCalendarStore;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
-import com.mmm.tracker.MiningValidationTracker;
+import com.mmm.tracker.SourceTotalPolicy;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import net.minecraft.client.MinecraftClient;
 
 public final class DigsSyncManager
@@ -22,9 +20,13 @@ public final class DigsSyncManager
     private static final long HUD_FAILURE_GRACE_MS = 12_000L;
     private static final long HUD_HEALTH_STALE_MS = 90_000L;
     private static final long AUTHORITATIVE_MODEL_STALE_MS = 15_000L;
+    private static final long SCOREBOARD_DETECTION_INTERVAL_MS = 500L;
     private static final long SYNC_UNAVAILABLE_LOG_INTERVAL_MS = 30_000L;
 
     private static PlayerDigsModel latestModel;
+    private static boolean latestModelAuthoritative;
+    private static String latestModelSourceType = "none";
+    private static PersonalTotalDetector.FastTotalPlan latestFastTotalPlan = PersonalTotalDetector.FastTotalPlan.empty();
     private static String lastQueuedFingerprint;
     private static String lastSuccessfulFingerprint;
     private static long lastQueueAttemptMs;
@@ -46,6 +48,7 @@ public final class DigsSyncManager
     private static volatile long debugTabRawScore;
     private static volatile String debugSkipReason = "";
     private static volatile long lastSyncUnavailableLogMs;
+    private static long nextScoreboardDetectionAtMs;
     private static volatile String lastSyncUnavailableReason = "";
 
     private DigsSyncManager()
@@ -55,18 +58,45 @@ public final class DigsSyncManager
     public static void onClientTick(long now)
     {
         clearStaleModel(now);
-
         MinecraftClient client = MinecraftClient.getInstance();
-        PersonalTotalDetector.Detection detection = PersonalTotalDetector.detect(client);
-        PlayerDigsModel parserModel = PlayerDigsParser.parse(client);
+        refreshAuthoritativeTotalFast(client, now);
+        if (now < nextScoreboardDetectionAtMs)
+        {
+            return;
+        }
+        long detectionIntervalMs = latestFastTotalPlan.isUsable()
+                ? 2_000L
+                : SCOREBOARD_DETECTION_INTERVAL_MS;
+        nextScoreboardDetectionAtMs = now + detectionIntervalMs;
+
+        List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots = ScoreboardReader.readObjectives(client);
+        PersonalTotalDetector.Detection detection = PersonalTotalDetector.detect(client, objectiveSnapshots);
+        PlayerDigsModel parserModel = PlayerDigsParser.parse(client, objectiveSnapshots);
         TotalSelection selection = selectAuthoritativeTotal(client, detection, parserModel, now);
         applyDetectionDebug(detection, selection);
 
         if (selection.model() != null)
         {
             latestModel = selection.model();
-            MiningStats.bootstrapSourceTotalFromScoreboard(latestModel.totalDigs(), latestModel.server(), now);
-            MiningStats.applyScoreboardTotalMined(latestModel.totalDigs(), now);
+            latestModelAuthoritative = selection.authoritative();
+            latestModelSourceType = selection.sourceType();
+            if (latestModelAuthoritative)
+            {
+                latestFastTotalPlan = PersonalTotalDetector.buildFastTotalPlan(
+                        client,
+                        selection.sourceType(),
+                        selection.objectiveTitle());
+                MiningStats.bootstrapSourceTotalFromScoreboard(
+                        latestModel.totalDigs(),
+                        latestModel.server(),
+                        selection.objectiveTitle(),
+                        true,
+                        now);
+            }
+            else
+            {
+                latestFastTotalPlan = PersonalTotalDetector.FastTotalPlan.empty();
+            }
             if (status != SyncStatus.SYNCED)
             {
                 status = SyncStatus.CONNECTED;
@@ -74,48 +104,17 @@ public final class DigsSyncManager
             touchHealthy();
         }
 
-        if (latestModel == null || latestModel.isValid() == false)
-        {
-            return;
-        }
+        // CloudSyncManager owns transport so one complete payload claims the
+        // server-enforced daily source-sync slot. This class only detects totals.
+    }
 
-        if (Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false)
-        {
-            logSyncUnavailable("totalDigsSyncEnabled_false");
-            return;
-        }
-
-        if (canSync() == false)
-        {
-            return;
-        }
-
-        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
-        boolean cadenceDue = lastQueueAttemptMs <= 0L || now - lastQueueAttemptMs >= CloudSyncManager.getSyncIntervalMs();
-        if (cadenceDue == false)
-        {
-            return;
-        }
-
-        JsonObject payload = buildPayload(latestModel);
-        String fingerprint = fingerprint(
-                latestModel,
-                BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(worldInfo),
-                sourcePayloadFingerprint(payload));
-        lastQueueAttemptMs = now;
-
-        if (fingerprint.equals(lastSuccessfulFingerprint) && status == SyncStatus.SYNCED)
-        {
-            return;
-        }
-
-        if (fingerprint.equals(lastQueuedFingerprint) && status == SyncStatus.QUEUED)
-        {
-            return;
-        }
-
-        lastQueuedFingerprint = fingerprint;
-        SyncQueueManager.enqueuePlayerTotalDigs(dedupeKey(latestModel), payload);
+    public static void onSyncScoreboardSelectionChanged()
+    {
+        latestModel = null;
+        latestModelAuthoritative = false;
+        latestModelSourceType = "none";
+        latestFastTotalPlan = PersonalTotalDetector.FastTotalPlan.empty();
+        nextScoreboardDetectionAtMs = 0L;
     }
 
     static void onQueued(JsonObject payload)
@@ -123,12 +122,30 @@ public final class DigsSyncManager
         status = SyncStatus.QUEUED;
     }
 
+    static void onQueuePreparing()
+    {
+        status = SyncStatus.QUEUED;
+    }
+
+    static void onQueueUploading()
+    {
+        status = SyncStatus.QUEUED;
+    }
+
+    static void onQueueWaitingForResponse()
+    {
+        status = SyncStatus.QUEUED;
+    }
     static void onQueueSuccess(JsonObject payload, String responseBody)
     {
         status = SyncStatus.SYNCED;
         touchHealthy();
-        CloudSyncManager.applySuccessfulSyncResponse(responseBody);
+        CloudSyncManager.applySuccessfulSyncResponse(payload, responseBody);
         SyncDeltaStore.markPayloadSynced(payload);
+        if (responseAcknowledgesDailyMining(responseBody))
+        {
+            MiningCalendarStore.markPayloadSynced(payload);
+        }
         lastSuccessfulFingerprint = latestModel == null
                 ? fingerprint(payload)
                 : fingerprint(
@@ -136,27 +153,6 @@ public final class DigsSyncManager
                     BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(WorldSessionContext.getCurrentWorldInfo()),
                     sourcePayloadFingerprint(payload));
         lastQueuedFingerprint = lastSuccessfulFingerprint;
-    }
-
-    public static void syncNow(String reason)
-    {
-        long now = System.currentTimeMillis();
-        if (latestModel == null
-                || latestModel.isValid() == false
-                || now - latestModel.capturedAtMs() > AUTHORITATIVE_MODEL_STALE_MS
-                || canSync() == false)
-        {
-            return;
-        }
-
-        JsonObject payload = buildPayload(latestModel);
-        lastQueueAttemptMs = now;
-        lastQueuedFingerprint = fingerprint(
-                latestModel,
-                BlockBreakdownPayloads.fingerprintCurrentWorldBlockBreakdown(WorldSessionContext.getCurrentWorldInfo()),
-                sourcePayloadFingerprint(payload));
-        SyncQueueManager.enqueuePlayerTotalDigs(dedupeKey(latestModel), payload);
-        SyncQueueManager.forceFlush(reason == null || reason.isBlank() ? "total digs sync" : reason);
     }
 
     static void onQueueRetry(String detail, long nextRetryAtMs)
@@ -171,12 +167,19 @@ public final class DigsSyncManager
         lastFailureSignalMs = System.currentTimeMillis();
     }
 
+    public static void requestScheduledSync(String reason)
+    {
+        // The 1.21 branch sends one complete source snapshot through CloudSyncManager.
+        // Keeping totals and sessions in that payload prevents partial-source overwrites.
+        CloudSyncManager.requestScheduledSync(reason);
+    }
     public static boolean isHudHealthy(long now)
     {
         if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false
-                || Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false
                 || Configs.cloudSyncEndpoint == null
-                || Configs.cloudSyncEndpoint.isBlank())
+                || Configs.cloudSyncEndpoint.isBlank()
+                || WebsiteLinkManager.hasPersistedLink() == false
+                || isCurrentPlayerMismatch())
         {
             return false;
         }
@@ -202,7 +205,6 @@ public final class DigsSyncManager
 
         return recentHealthyMs > 0L && now - recentHealthyMs <= HUD_HEALTH_STALE_MS;
     }
-
     private static TotalSelection selectAuthoritativeTotal(MinecraftClient client,
                                                            PersonalTotalDetector.Detection detection,
                                                            PlayerDigsModel parserModel,
@@ -211,56 +213,102 @@ public final class DigsSyncManager
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         String sourceName = ScoreboardSourceResolver.displayName(worldInfo != null ? worldInfo.displayName() : "", worldInfo);
 
+        if (SyncScoreboardSelector.hasManualSelection())
+        {
+            net.minecraft.scoreboard.ScoreboardObjective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
+            long selectedTotal = SyncScoreboardSelector.readSelectedPlayerTotal(client);
+            if (selected == null || selectedTotal <= 0L)
+            {
+                return new TotalSelection(sourceName, null, "none", "", "selected-scoreboard-unavailable", false);
+            }
+
+            String objectiveTitle = selected.getDisplayName().getString();
+            PlayerDigsModel model = new PlayerDigsModel(
+                    resolveUsername(client, parserModel),
+                    selectedTotal,
+                    now,
+                    sourceName,
+                    objectiveTitle);
+            return new TotalSelection(sourceName, model, "parser", objectiveTitle, "selected-scoreboard", true);
+        }
+
         long tabTotal = Math.max(0L, detection.tabTotal());
         long sidebarTotal = Math.max(0L, detection.sidebarTotal());
         long parserTotal = parserModel != null && parserModel.isValid() ? Math.max(0L, parserModel.totalDigs()) : 0L;
+        long toolUsageTotal = Math.max(0L, detection.toolUsageTotal());
         long cachedTotal = Math.max(0L, MiningStats.getCurrentSourceTotalMined());
 
-        Candidate chosen = chooseBestCandidate(tabTotal, sidebarTotal, parserTotal, cachedTotal);
+        // A dedicated total-digs objective is authoritative. Tool counters are
+        // the fallback only when the server does not expose such an objective.
+        if (ScoreboardParser.isToolUsesObjective(detection.tabObjectiveTitle()))
+        {
+            tabTotal = 0L;
+        }
+        if (ScoreboardParser.isToolUsesObjective(detection.sidebarObjectiveTitle()))
+        {
+            sidebarTotal = 0L;
+        }
+        if (parserModel != null && ScoreboardParser.isToolUsesObjective(parserModel.objectiveTitle()))
+        {
+            parserTotal = 0L;
+        }
+
+        Candidate chosen = chooseBestCandidate(tabTotal, sidebarTotal, parserTotal, toolUsageTotal, cachedTotal);
         if (!chosen.valid())
         {
-            return new TotalSelection(sourceName, null, chosen.reason());
+            return new TotalSelection(sourceName, null, "none", "", chosen.reason(), false);
         }
 
         String username = resolveUsername(client, parserModel);
-        String objectiveTitle = resolveObjectiveTitle(parserModel, detection);
+        String objectiveTitle = resolveObjectiveTitle(chosen, parserModel, detection);
         PlayerDigsModel model = new PlayerDigsModel(username, chosen.total(), now, sourceName, objectiveTitle);
-        return new TotalSelection(sourceName, model, chosen.reason());
+        return new TotalSelection(sourceName, model, chosen.sourceType(), objectiveTitle, chosen.reason(), isAuthoritativeCandidate(chosen));
     }
 
-    private static Candidate chooseBestCandidate(long tabTotal, long sidebarTotal, long parserTotal, long cachedTotal)
+    private static boolean isAuthoritativeCandidate(Candidate candidate)
+    {
+        return candidate != null
+                && candidate.valid()
+                && "cached".equals(candidate.sourceType()) == false;
+    }
+
+    private static Candidate chooseBestCandidate(long tabTotal,
+                                                 long sidebarTotal,
+                                                 long parserTotal,
+                                                 long toolUsageTotal,
+                                                 long cachedTotal)
     {
         // Reject tiny ambiguous totals when stronger evidence exists.
-        long strongest = Math.max(Math.max(tabTotal, sidebarTotal), Math.max(parserTotal, cachedTotal));
+        long strongest = Math.max(
+                Math.max(tabTotal, sidebarTotal),
+                Math.max(Math.max(parserTotal, toolUsageTotal), cachedTotal));
 
         Candidate tab = validate("tab", tabTotal, strongest);
         Candidate sidebar = validate("sidebar", sidebarTotal, strongest);
         Candidate parser = validate("parser", parserTotal, strongest);
+        Candidate toolUsage = validate("tool-uses", toolUsageTotal, strongest);
         Candidate cached = validate("cached", cachedTotal, strongest);
 
-        Candidate live = strongestValid(tab, sidebar, parser);
-        if (live.valid()) return live;
+        // Keep one deterministic authority order. Choosing the numerically largest
+        // objective made World Total alternate when servers exposed several mining scores.
+        Candidate dedicatedTotal = firstValid(tab, sidebar, parser);
+        if (dedicatedTotal.valid()) return dedicatedTotal;
+        if (toolUsage.valid()) return toolUsage;
         if (cached.valid()) return cached;
 
         return new Candidate("none", 0L, false, "no-valid-total");
     }
 
-    private static Candidate strongestValid(Candidate... candidates)
+    private static Candidate firstValid(Candidate... candidates)
     {
-        Candidate best = new Candidate("none", 0L, false, "no-valid-live-total");
         for (Candidate candidate : candidates)
         {
-            if (candidate.valid() == false)
+            if (candidate.valid())
             {
-                continue;
-            }
-
-            if (best.valid() == false || candidate.total() > best.total())
-            {
-                best = candidate;
+                return candidate;
             }
         }
-        return best;
+        return new Candidate("none", 0L, false, "no-valid-live-total");
     }
 
     private static Candidate validate(String source, long total, long strongest)
@@ -289,17 +337,31 @@ public final class DigsSyncManager
         payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
         payload.addProperty("mod_version", Reference.MOD_VERSION);
         payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.addProperty("sync_origin", "client_evidence");
 
         JsonObject world = new JsonObject();
         world.addProperty("key", worldInfo.id());
         world.addProperty("display_name", worldInfo.displayName());
         world.addProperty("kind", normaliseWorldKind(worldInfo.kind()));
+        world.addProperty("source_type", worldInfo.sourceType());
         world.addProperty("host", (String) null);
         world.addProperty("source_key", ScoreboardSourceResolver.sourceKey(worldInfo.displayName(), worldInfo));
         world.addProperty("source_name", ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo));
         payload.add("world", world);
-        payload.add("current_world_totals", buildCurrentWorldTotals(worldInfo, model.totalDigs()));
+        long effectivePlayerTotal = SourceTotalPolicy.preferAuthoritative(
+                MiningStats.getCurrentSourceTotalMined(),
+                model.totalDigs(),
+                latestModelAuthoritative);
+        payload.add("current_world_totals", buildCurrentWorldTotals(
+                worldInfo,
+                effectivePlayerTotal,
+                latestModelAuthoritative));
         payload.add("mining_records", buildMiningRecords());
+        JsonArray dailyMining = MiningCalendarStore.pendingEntries();
+        if (dailyMining.size() > 0)
+        {
+            payload.add("daily_mining", dailyMining);
+        }
 
         JsonObject currentWorldBlockBreakdown = BlockBreakdownPayloads.buildCurrentWorldBlockBreakdown(worldInfo);
         if (currentWorldBlockBreakdown != null)
@@ -325,22 +387,14 @@ public final class DigsSyncManager
 
         JsonObject digs = new JsonObject();
         digs.addProperty("username", model.username());
-        digs.addProperty("total_digs", model.totalDigs());
+        digs.addProperty("total_digs", effectivePlayerTotal);
         digs.addProperty("server", model.server());
         digs.addProperty("timestamp", Instant.ofEpochMilli(model.capturedAtMs()).toString());
         digs.addProperty("objective_title", model.objectiveTitle());
+        digs.addProperty("total_origin", MiningStats.getCurrentSourcePendingLocalBlocks() > 0L
+                ? "scoreboard_plus_client_valid_blocks"
+                : "scoreboard");
         payload.add("player_total_digs", digs);
-
-        SessionData currentSession = MiningStats.getCurrentSession();
-        long sessionStartMs = currentSession == null ? 0L : currentSession.startTimeMs;
-        long sessionEndMs = currentSession == null ? 0L : currentSession.endTimeMs;
-        payload.add("validation", MiningValidationTracker.buildPayload(
-                model.username(),
-                client != null && client.player != null ? client.player.getUuidAsString() : "",
-                worldInfo,
-                MiningStats.getSessionBlocksMined(),
-                sessionStartMs,
-                sessionEndMs));
 
         return payload;
     }
@@ -411,12 +465,8 @@ public final class DigsSyncManager
             return null;
         }
 
-        Set<String> fakeUsernames = CarpetFakePlayerDetector.findLikelyFakeUsernames(client, snapshot.entries());
-        List<SourceLeaderboardEntry> realEntries = snapshot.entries().stream()
-                .filter(SourceLeaderboardEntry::isValid)
-                .filter(entry -> fakeUsernames.contains(entry.username().toLowerCase(Locale.ROOT)) == false)
-                .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
-                .toList();
+        SourceLeaderboardPayloadSupport.FilterResult filtered = SourceLeaderboardPayloadSupport.filterEntries(client, snapshot.entries());
+        List<SourceLeaderboardEntry> realEntries = filtered.entries();
 
         if (realEntries.isEmpty())
         {
@@ -428,10 +478,10 @@ public final class DigsSyncManager
         leaderboard.addProperty("objective_title", snapshot.objectiveTitle());
         leaderboard.addProperty("captured_at", Instant.ofEpochMilli(snapshot.capturedAtMs()).toString());
         leaderboard.addProperty("source_type", "scoreboard");
+        leaderboard.addProperty("mode", "full");
+        leaderboard.addProperty("complete_snapshot", true);
 
-        long snapshotTotalDigs = Math.max(0L, snapshot.totalDigs());
-        long filteredTotalDigs = realEntries.stream().mapToLong(SourceLeaderboardEntry::digs).sum();
-        long payloadTotalDigs = Math.max(snapshotTotalDigs, filteredTotalDigs);
+        long payloadTotalDigs = SourceLeaderboardPayloadSupport.resolveTotal(snapshot, realEntries);
         if (payloadTotalDigs > 0L)
         {
             leaderboard.addProperty("total_digs", payloadTotalDigs);
@@ -448,18 +498,20 @@ public final class DigsSyncManager
             entries.add(row);
         }
 
-        if (fakeUsernames.isEmpty() == false)
+        if (filtered.fakeUsernames().isEmpty() == false && filtered.filterCollapsedScoreboard() == false)
         {
-            JsonArray filtered = new JsonArray();
-            fakeUsernames.stream().sorted().forEach(filtered::add);
-            leaderboard.add("filtered_fake_usernames", filtered);
+            JsonArray filteredUsernames = new JsonArray();
+            filtered.fakeUsernames().stream().sorted().forEach(filteredUsernames::add);
+            leaderboard.add("filtered_fake_usernames", filteredUsernames);
         }
 
         leaderboard.add("entries", entries);
         return leaderboard;
     }
 
-    private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo, long authoritativeTotal)
+    private static JsonObject buildCurrentWorldTotals(WorldSessionContext.WorldInfo worldInfo,
+                                                      long authoritativeTotal,
+                                                      boolean authoritativeAvailable)
     {
         Configs.WorldStatsEntry worldStats = Configs.getOrCreateWorldStats(
                 worldInfo.id(),
@@ -471,8 +523,15 @@ public final class DigsSyncManager
         totals.addProperty("world_key", worldStats.worldId);
         totals.addProperty("display_name", worldStats.displayName);
         totals.addProperty("kind", normaliseWorldKind(worldStats.kind));
+        totals.addProperty("source_type", worldInfo.sourceType());
         totals.addProperty("host", (String) null);
-        totals.addProperty("total_blocks", Math.max(0L, authoritativeTotal));
+        long totalBlocks = SourceTotalPolicy.preferAuthoritative(
+                MiningStats.getCurrentSourceTotalMined(),
+                authoritativeTotal,
+                authoritativeAvailable);
+        boolean scoreboardBacked = authoritativeAvailable || MiningStats.hasAuthoritativeCurrentSourceScoreboardTotal();
+        totals.addProperty("total_blocks", totalBlocks);
+        totals.addProperty("total_origin", scoreboardBacked ? "scoreboard" : "client_valid_blocks");
         totals.addProperty("last_seen_at", Instant.ofEpochMilli(Math.max(worldStats.lastSeenAt, System.currentTimeMillis())).toString());
         return totals;
     }
@@ -514,19 +573,22 @@ public final class DigsSyncManager
         return "Player";
     }
 
-    private static String resolveObjectiveTitle(PlayerDigsModel parsed, PersonalTotalDetector.Detection detection)
+    private static String resolveObjectiveTitle(Candidate chosen, PlayerDigsModel parsed, PersonalTotalDetector.Detection detection)
     {
-        if (parsed != null && parsed.objectiveTitle() != null && parsed.objectiveTitle().isBlank() == false)
+        if (chosen != null)
         {
-            return parsed.objectiveTitle();
-        }
-        if (detection.tabObjectiveTitle() != null && detection.tabObjectiveTitle().isBlank() == false)
-        {
-            return detection.tabObjectiveTitle();
-        }
-        if (detection.sidebarObjectiveTitle() != null && detection.sidebarObjectiveTitle().isBlank() == false)
-        {
-            return detection.sidebarObjectiveTitle();
+            String selected = switch (chosen.sourceType())
+            {
+                case "tab" -> detection.tabObjectiveTitle();
+                case "sidebar" -> detection.sidebarObjectiveTitle();
+                case "parser" -> parsed == null ? "" : parsed.objectiveTitle();
+                case "tool-uses" -> detection.toolUsageObjectiveTitle();
+                default -> "";
+            };
+            if (selected != null && selected.isBlank() == false)
+            {
+                return selected;
+            }
         }
         return "Scoreboard";
     }
@@ -539,11 +601,6 @@ public final class DigsSyncManager
             return false;
         }
 
-        if (Configs.Generic.TOTAL_DIGS_SYNC_ENABLED.getBooleanValue() == false)
-        {
-            logSyncUnavailable("totalDigsSyncEnabled_false");
-            return false;
-        }
 
         if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
         {
@@ -551,9 +608,20 @@ public final class DigsSyncManager
             return false;
         }
 
+        if (WebsiteLinkManager.hasPersistedLink() == false)
+        {
+            logSyncUnavailable("website_link_required");
+            return false;
+        }
+
+        if (isCurrentPlayerMismatch())
+        {
+            logSyncUnavailable("linked_account_mismatch");
+            return false;
+        }
+
         return true;
     }
-
     private static void logSyncUnavailable(String reason)
     {
         long now = System.currentTimeMillis();
@@ -564,10 +632,10 @@ public final class DigsSyncManager
 
         lastSyncUnavailableReason = reason;
         lastSyncUnavailableLogMs = now;
-        MMM.LOGGER.warn("{} total-digs-sync-disabled reason={} endpoint={}",
+        MMM.LOGGER.warn("{} total-digs-sync-disabled reason={} endpointConfigured={}",
                 LOG_PREFIX,
                 reason,
-                Configs.cloudSyncEndpoint == null ? "" : Configs.cloudSyncEndpoint);
+                Configs.cloudSyncEndpoint != null && Configs.cloudSyncEndpoint.isBlank() == false);
     }
 
     private static String dedupeKey(PlayerDigsModel model)
@@ -611,8 +679,26 @@ public final class DigsSyncManager
         String blockBreakdownFingerprint = payload.has("current_world_block_breakdown")
                 ? BlockBreakdownPayloads.fingerprint(payload.getAsJsonObject("current_world_block_breakdown"))
                 : "";
+        String dailyMiningFingerprint = payload.has("daily_mining") ? payload.get("daily_mining").toString() : "";
         return username.toLowerCase(Locale.ROOT) + "|" + server.toLowerCase(Locale.ROOT) + "|" + total + "|"
-                + worldTotal + "|" + blockBreakdownFingerprint + "|" + sourcePayloadFingerprint(payload);
+                + worldTotal + "|" + blockBreakdownFingerprint + "|" + dailyMiningFingerprint + "|" + sourcePayloadFingerprint(payload);
+    }
+
+    private static boolean responseAcknowledgesDailyMining(String responseBody)
+    {
+        if (responseBody == null || responseBody.isBlank())
+        {
+            return false;
+        }
+        try
+        {
+            JsonObject response = com.google.gson.JsonParser.parseString(responseBody).getAsJsonObject();
+            return response.has("daily_mining_synced") && response.get("daily_mining_synced").getAsBoolean();
+        }
+        catch (Exception ignored)
+        {
+            return false;
+        }
     }
 
     private static String sourcePayloadFingerprint(JsonObject payload)
@@ -689,7 +775,31 @@ public final class DigsSyncManager
                 worldInfo.displayName(),
                 worldInfo.kind(),
                 worldInfo.host());
-        return Math.max(0L, worldStats.totalBlocks);
+        return MiningStats.getCurrentSourceTotalMined();
+    }
+
+    private static void refreshAuthoritativeTotalFast(MinecraftClient client, long now)
+    {
+        PlayerDigsModel current = latestModel;
+        if (current == null || latestModelAuthoritative == false || "none".equals(latestModelSourceType))
+        {
+            return;
+        }
+
+        long total = PersonalTotalDetector.readValidatedTotal(client, latestFastTotalPlan);
+        if (total <= 0L || total == current.totalDigs())
+        {
+            return;
+        }
+
+        latestModel = new PlayerDigsModel(current.username(), total, now, current.server(), current.objectiveTitle());
+        debugChosenTotal = total;
+        MiningStats.bootstrapSourceTotalFromScoreboard(
+                total,
+                current.server(),
+                current.objectiveTitle(),
+                true,
+                now);
     }
 
     private static void clearStaleModel(long now)
@@ -702,6 +812,9 @@ public final class DigsSyncManager
         if (now - latestModel.capturedAtMs() > AUTHORITATIVE_MODEL_STALE_MS)
         {
             latestModel = null;
+            latestModelAuthoritative = false;
+            latestModelSourceType = "none";
+            latestFastTotalPlan = PersonalTotalDetector.FastTotalPlan.empty();
         }
     }
 
@@ -710,7 +823,7 @@ public final class DigsSyncManager
         debugSidebarTotal = detection.sidebarTotal();
         debugTabTotal = detection.tabTotal();
         debugChosenTotal = selection.model() == null ? 0L : selection.model().totalDigs();
-        debugChosenSource = selection.model() == null ? "none" : selection.reason();
+        debugChosenSource = selection.model() == null ? "none" : selection.sourceType();
         debugSidebarObjective = detection.sidebarObjectiveTitle();
         debugTabObjective = detection.tabObjectiveTitle();
         debugSidebarMatchedUser = detection.sidebarMatchedUsername();
@@ -725,6 +838,27 @@ public final class DigsSyncManager
     public static String getStatusLabel()
     {
         PendingSyncQueue.Snapshot snapshot = SyncQueueManager.getSnapshot();
+        if (Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() == false)
+        {
+            return "Disabled";
+        }
+        if (Configs.cloudSyncEndpoint == null || Configs.cloudSyncEndpoint.isBlank())
+        {
+            return "Unavailable";
+        }
+        if (snapshot.countFor(SyncItemType.WEBSITE_LINK_CLAIM) > 0)
+        {
+            return snapshot.flushActive() ? "Linking" : "Link queued";
+        }
+        if (WebsiteLinkManager.hasPersistedLink() == false)
+        {
+            return "Not authenticated";
+        }
+        if (isCurrentPlayerMismatch())
+        {
+            return "Wrong account";
+        }
+
         int pending = snapshot.countFor(SyncItemType.PLAYER_TOTAL_DIGS);
         if (snapshot.flushActive() && pending > 0)
         {
@@ -743,14 +877,25 @@ public final class DigsSyncManager
         };
     }
 
+    private static boolean isCurrentPlayerMismatch()
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return client != null
+                && client.player != null
+                && WebsiteLinkManager.isCurrentPlayerLinked() == false;
+    }
     public static void resetForDisconnect()
     {
         latestModel = null;
+        latestModelAuthoritative = false;
+        latestModelSourceType = "none";
+        latestFastTotalPlan = PersonalTotalDetector.FastTotalPlan.empty();
         lastQueueAttemptMs = 0L;
         status = SyncStatus.CONNECTED;
         lastFailureSignalMs = 0L;
         lastQueuedFingerprint = null;
         lastSuccessfulFingerprint = null;
+        nextScoreboardDetectionAtMs = 0L;
         clearDebug();
     }
 
@@ -761,7 +906,7 @@ public final class DigsSyncManager
 
     public static boolean hasAuthoritativeTotalDigs()
     {
-        if (latestModel == null || latestModel.isValid() == false)
+        if (latestModel == null || latestModel.isValid() == false || latestModelAuthoritative == false)
         {
             return false;
         }
@@ -826,7 +971,7 @@ public final class DigsSyncManager
     {
     }
 
-    private record TotalSelection(String sourceName, PlayerDigsModel model, String reason)
+    private record TotalSelection(String sourceName, PlayerDigsModel model, String sourceType, String objectiveTitle, String reason, boolean authoritative)
     {
     }
 }

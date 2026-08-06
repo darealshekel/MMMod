@@ -31,9 +31,25 @@ public final class WebsiteLinkManager
         STATE.set(LinkState.idle());
     }
 
+    static void invalidatePersistedLink(String detail)
+    {
+        Configs.websiteLinkedMinecraftUuid = "";
+        Configs.websiteLinkedMinecraftUsername = "";
+        Configs.websiteSyncToken = "";
+        Configs.websiteLinkedAtMs = 0L;
+        Configs.clearSourceSyncCooldowns();
+        Configs.saveToFile();
+        STATE.set(LinkState.error(detail == null || detail.isBlank()
+                ? "Website link expired. Generate a new mod link code."
+                : detail));
+    }
+
     public static boolean hasPersistedLink()
     {
-        return Configs.websiteLinkedMinecraftUuid != null && Configs.websiteLinkedMinecraftUuid.isBlank() == false;
+        return Configs.websiteLinkedMinecraftUuid != null
+                && Configs.websiteLinkedMinecraftUuid.isBlank() == false
+                && Configs.websiteSyncToken != null
+                && Configs.websiteSyncToken.isBlank() == false;
     }
 
     public static String getPersistedUsername()
@@ -87,8 +103,19 @@ public final class WebsiteLinkManager
     static void onQueueSuccess(JsonObject payload, String responseBody)
     {
         String linkedUsername = extractUsername(responseBody);
-        persistLink(linkedUsername);
+        String syncToken = extractSyncToken(responseBody);
+        if (syncToken.isBlank())
+        {
+            STATE.set(LinkState.error("The website did not return a sync credential. Generate a new link code."));
+            return;
+        }
+        if (persistLink(payload, linkedUsername, syncToken) == false)
+        {
+            STATE.set(LinkState.error("The saved link request did not contain a Minecraft identity. Generate a new link code."));
+            return;
+        }
         STATE.set(LinkState.success(linkedUsername));
+        CloudSyncManager.requestScheduledSync("website link completed");
     }
 
     static void onQueueRetry(String detail, long nextRetryAtMs)
@@ -140,6 +167,24 @@ public final class WebsiteLinkManager
         return "";
     }
 
+    private static String extractSyncToken(String body)
+    {
+        try
+        {
+            JsonObject object = JsonParser.parseString(body).getAsJsonObject();
+            if (object.has("syncToken") && object.get("syncToken").isJsonPrimitive())
+            {
+                return object.get("syncToken").getAsString().trim();
+            }
+        }
+        catch (Exception e)
+        {
+            MMM.LOGGER.warn("[MMM_SYNC] failed to parse website sync credential: {}", e.getMessage());
+        }
+
+        return "";
+    }
+
     private static String resolveUsername(MinecraftClient client)
     {
         try
@@ -167,27 +212,53 @@ public final class WebsiteLinkManager
         return rawCode == null ? "" : rawCode.toUpperCase().replaceAll("[^A-Z0-9]", "");
     }
 
-    private static void persistLink(String linkedUsername)
+    private static boolean persistLink(JsonObject payload, String linkedUsername, String syncToken)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.player == null)
+        String nextUuid = payloadString(payload, "minecraft_uuid");
+        if (nextUuid.isBlank())
         {
-            return;
+            nextUuid = payloadString(payload, "minecraftUuid");
+        }
+        if (nextUuid.isBlank())
+        {
+            return false;
         }
 
-        String nextUuid = client.player.getUuidAsString();
-        String nextUsername = linkedUsername == null || linkedUsername.isBlank() ? resolveUsername(client) : linkedUsername;
+        String payloadUsername = payloadString(payload, "username");
+        String nextUsername = linkedUsername == null || linkedUsername.isBlank() ? payloadUsername : linkedUsername;
         boolean identityChanged = nextUuid.equalsIgnoreCase(Configs.websiteLinkedMinecraftUuid) == false
                 || nextUsername.equalsIgnoreCase(Configs.websiteLinkedMinecraftUsername) == false;
         Configs.websiteLinkedMinecraftUuid = nextUuid;
         Configs.websiteLinkedMinecraftUsername = nextUsername;
+        Configs.websiteSyncToken = syncToken == null ? "" : syncToken.trim();
         Configs.websiteLinkedAtMs = System.currentTimeMillis();
         if (identityChanged)
         {
             Configs.websiteGlobalTotalBlocks = 0L;
             Configs.websiteGlobalTotalUpdatedAtMs = 0L;
+            Configs.websiteLastSuccessfulSyncMs = 0L;
+            Configs.clearSourceSyncCooldowns();
+            SyncQueueManager.discardMiningItemsForOtherPlayers(nextUuid);
         }
         Configs.saveToFile();
+        return true;
+    }
+
+    private static String payloadString(JsonObject payload, String key)
+    {
+        if (payload == null || key == null || payload.has(key) == false || payload.get(key).isJsonPrimitive() == false)
+        {
+            return "";
+        }
+        try
+        {
+            String value = payload.get(key).getAsString();
+            return value == null ? "" : value.trim();
+        }
+        catch (RuntimeException ignored)
+        {
+            return "";
+        }
     }
 
     public record LinkState(Status status, String code, String detail, String linkedUsername)
