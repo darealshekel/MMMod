@@ -42,6 +42,7 @@ public final class MmmTimerState
     private static boolean expired;
     private static boolean creditsPending;
     private static long lastSaveMs;
+    private static long sessionPausedAtMs;
     private static long runStartedAtMs;
     private static long hourStartTimeMs;
     private static long blocksBroken;
@@ -252,6 +253,7 @@ public final class MmmTimerState
         {
             shiftRunClocks(Math.max(0L, now - pausedAtMs));
         }
+        sessionPausedAtMs = 0L;
         startedAtMs = now - (durationMs - remaining);
         running = true;
         paused = false;
@@ -320,6 +322,7 @@ public final class MmmTimerState
         expired = false;
         remainingPausedMs = durationMs;
         startedAtMs = 0L;
+        sessionPausedAtMs = 0L;
         resetRunStats();
         Configs.Generic.TIMER_HUD_VISIBLE.setBooleanValue(false);
         Configs.saveToFile();
@@ -335,6 +338,7 @@ public final class MmmTimerState
         expired = false;
         remainingPausedMs = durationMs;
         startedAtMs = 0L;
+        sessionPausedAtMs = 0L;
         Configs.Generic.TIMER_HUD_VISIBLE.setBooleanValue(false);
         Configs.saveToFile();
         save();
@@ -348,6 +352,7 @@ public final class MmmTimerState
         }
 
         long now = System.currentTimeMillis();
+        syncSessionPauseClock(now);
         if (running)
         {
             long remaining = getRemainingMs(now);
@@ -411,6 +416,7 @@ public final class MmmTimerState
 
     public static void onSessionStarted()
     {
+        sessionPausedAtMs = 0L;
         if (paused)
         {
             return;
@@ -510,7 +516,9 @@ public final class MmmTimerState
         {
             return 0D;
         }
-        long now = paused && pausedAtMs > 0L ? pausedAtMs : System.currentTimeMillis();
+        long now = paused && pausedAtMs > 0L
+                ? pausedAtMs
+                : activeClockNow(System.currentTimeMillis());
         long elapsedMs = now - hourStartTimeMs;
         if (elapsedMs <= 0L)
         {
@@ -613,7 +621,7 @@ public final class MmmTimerState
         {
             return Math.max(0L, remainingPausedMs);
         }
-        long elapsed = Math.max(0L, now - startedAtMs);
+        long elapsed = Math.max(0L, activeClockNow(now) - startedAtMs);
         return Math.max(0L, durationMs - elapsed);
     }
 
@@ -621,7 +629,7 @@ public final class MmmTimerState
     {
         if (running)
         {
-            return Math.max(0L, Math.min(durationMs, now - startedAtMs));
+            return Math.max(0L, Math.min(durationMs, activeClockNow(now) - startedAtMs));
         }
         if (paused)
         {
@@ -629,7 +637,7 @@ public final class MmmTimerState
         }
         if (MiningStats.isSessionActive())
         {
-            return Math.max(0L, now - runStartedAtMs);
+            return Math.max(0L, activeClockNow(now) - runStartedAtMs);
         }
         return Math.max(0L, durationMs - Math.max(0L, remainingPausedMs));
     }
@@ -718,6 +726,41 @@ public final class MmmTimerState
         {
             hourStartTimeMs += pausedDurationMs;
         }
+    }
+
+    private static void syncSessionPauseClock(long now)
+    {
+        if (MiningStats.isSessionPaused())
+        {
+            if (sessionPausedAtMs <= 0L)
+            {
+                sessionPausedAtMs = now;
+            }
+            return;
+        }
+
+        if (sessionPausedAtMs <= 0L)
+        {
+            return;
+        }
+
+        long pausedDurationMs = Math.max(0L, now - sessionPausedAtMs);
+        sessionPausedAtMs = 0L;
+        if (paused)
+        {
+            return;
+        }
+
+        shiftRunClocks(pausedDurationMs);
+        if (running && startedAtMs > 0L)
+        {
+            startedAtMs += pausedDurationMs;
+        }
+    }
+
+    private static long activeClockNow(long now)
+    {
+        return sessionPausedAtMs > 0L ? Math.min(now, sessionPausedAtMs) : now;
     }
 
     private static long clampDuration(long value)

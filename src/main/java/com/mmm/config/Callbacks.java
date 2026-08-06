@@ -8,6 +8,8 @@ import com.mmm.feature.PerimeterWallDigHelper;
 import com.mmm.feature.TranslucentLavaRenderer;
 import com.mmm.hud.SessionHistoryScreen;
 import com.mmm.hud.SummaryScreen;
+import com.mmm.storage.SessionData;
+import com.mmm.storage.SessionHistory;
 import com.mmm.hotkey.MmmHotkey;
 import com.mmm.scoreboard.ScoreboardEditScreen;
 import com.mmm.scoreboard.ScoreboardRecordsScreen;
@@ -40,7 +42,7 @@ public final class Callbacks
         Hotkeys.OPEN_SUMMARY.setCallback(() -> withClient(client -> client.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), client.currentScreen))));
         Hotkeys.OPEN_HISTORY.setCallback(() -> withClient(client -> client.setScreen(new SessionHistoryScreen(client.currentScreen))));
         Hotkeys.PAUSE_SESSION.setCallback(Callbacks::pauseSession);
-        Hotkeys.TOGGLE_SESSION.setCallback(() -> MmmMessages.actionbar(MiningStats.toggleSession() ? "Mining session started" : "Mining session ended"));
+        Hotkeys.TOGGLE_SESSION.setCallback(Callbacks::startOrEndSession);
         Hotkeys.EXPORT_HISTORY.setCallback(Callbacks::exportHistory);
         Hotkeys.SCOREBOARD_PAGE_UP.setCallback(() -> MmmMessages.actionbar(ScoreboardService.pageUp() ? "Previous scoreboard page" : "Already on the first scoreboard page"));
         Hotkeys.SCOREBOARD_PAGE_DOWN.setCallback(() -> MmmMessages.actionbar(ScoreboardService.pageDown() ? "Next scoreboard page" : "Already on the last scoreboard page"));
@@ -85,6 +87,25 @@ public final class Callbacks
         BlockEspRenderer.refreshConfig();
     }
 
+    private static void startOrEndSession()
+    {
+        if (MiningStats.isSessionActive() == false)
+        {
+            MiningStats.startNewSession();
+            MmmMessages.actionbar("Mining session started");
+            return;
+        }
+
+        SessionData finished = MiningStats.finaliseSession();
+        if (SessionHistory.isQualifyingSession(finished))
+        {
+            MmmMessages.actionbar("Mining session ended and saved");
+        }
+        else
+        {
+            MmmMessages.actionbar("Mining session ended - 10,000 blocks required to save");
+        }
+    }
     private static void pauseSession()
     {
         if (!MiningStats.isSessionActive())

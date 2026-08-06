@@ -25,7 +25,6 @@ import com.mmm.config.Configs;
 
 public final class SessionHistory
 {
-    public static final long MIN_SESSION_DURATION_MS = 10L * 60L * 1000L;
     public static final long MIN_SESSION_BLOCKS = 10_000L;
     private static final Path ROOT_DIR = SharedStoragePaths.sessionsDir();
     private static final List<SessionData> HISTORY = new ArrayList<>();
@@ -132,9 +131,7 @@ public final class SessionHistory
 
     public static boolean isQualifyingSession(SessionData session)
     {
-        return session != null
-                && session.getDurationMs() >= MIN_SESSION_DURATION_MS
-                && session.totalBlocks >= MIN_SESSION_BLOCKS;
+        return session != null && session.totalBlocks >= MIN_SESSION_BLOCKS;
     }
 
     public static synchronized List<WorldHistory> getWorldHistories()

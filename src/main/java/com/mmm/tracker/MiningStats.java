@@ -1,7 +1,5 @@
 package com.mmm.tracker;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -11,6 +9,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.stream.Collectors;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.screen.GameMenuScreen;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.util.math.BlockPos;
@@ -35,6 +34,7 @@ import com.mmm.util.DailyProgressPolicy;
 import com.mmm.util.PeriodKeys;
 import com.mmm.util.WeeklyProgressPolicy;
 import com.mmm.util.UiFormat;
+import it.unimi.dsi.fastutil.longs.LongArrayFIFOQueue;
 
 public final class MiningStats
 {
@@ -57,8 +57,8 @@ public final class MiningStats
     private static final int BPS_WINDOW_TICKS = 100;
     private static final ZoneId DAILY_RESET_ZONE = ZoneId.of("UTC");
 
-    private static final Deque<Long> MINE_EVENTS = new ArrayDeque<>();
-    private static final Deque<Long> FASTEST_100K_EVENT_TIMES = new ArrayDeque<>();
+    private static final LongArrayFIFOQueue MINE_EVENTS = new LongArrayFIFOQueue();
+    private static final LongArrayFIFOQueue FASTEST_100K_EVENT_TIMES = new LongArrayFIFOQueue();
     private static final RollingMiningMetrics METRIC_TICK_COUNTS = new RollingMiningMetrics(BPH_WINDOW_TICKS);
     private static SessionData currentSession = new SessionData(System.currentTimeMillis());
     private static String currentWorldId = "default";
@@ -75,6 +75,7 @@ public final class MiningStats
     private static long autoMiningStreakStartMs;
     private static long lastValidBlockMineMs;
     private static boolean sessionAutoPaused;
+    private static boolean sessionMenuPaused;
     private static long metricTickIndex;
     private static long lastBpsUpdateTick;
     private static long lastBphUpdateTick;
@@ -127,6 +128,7 @@ public final class MiningStats
             sessionPaused = false;
             sessionAutoPaused = false;
         }
+        sessionMenuPaused = false;
 
         resetDailyProgressIfNeeded();
         resetPeriodStatsIfNeeded(System.currentTimeMillis());
@@ -218,7 +220,7 @@ public final class MiningStats
 
         if (sessionPaused == false)
         {
-            MINE_EVENTS.addLast(now);
+            MINE_EVENTS.enqueue(now);
             pruneOldEvents(now);
         }
 
@@ -287,6 +289,7 @@ public final class MiningStats
         autoMiningStreakStartMs = 0L;
         lastValidBlockMineMs = 0L;
         sessionAutoPaused = false;
+        sessionMenuPaused = false;
         lastScoreboardSessionUpdateActiveElapsedMs = 0L;
         sessionActiveTicks = 0L;
     }
@@ -331,6 +334,7 @@ public final class MiningStats
         }
 
         long now = System.currentTimeMillis();
+        sessionMenuPaused = false;
         if (sessionPaused)
         {
             pausedAccumulatedMs += Math.max(0L, now - pausedAtMs);
@@ -365,11 +369,82 @@ public final class MiningStats
         return sessionActive && sessionPaused;
     }
 
+    private static void updateMenuPauseState(MinecraftClient client, long now)
+    {
+        if (sessionActive == false)
+        {
+            sessionMenuPaused = false;
+            return;
+        }
+        if (client == null || client.world == null || client.player == null)
+        {
+            return;
+        }
+
+        boolean pauseRequested = client.isInSingleplayer()
+                && client.currentScreen != null
+                && (client.currentScreen instanceof GameMenuScreen
+                || client.currentScreen.shouldPause());
+        if (pauseRequested)
+        {
+            if (sessionPaused == false)
+            {
+                pausedAtMs = now;
+                sessionPaused = true;
+                sessionAutoPaused = false;
+                sessionMenuPaused = true;
+                freezeRollingMetrics();
+                CloudSyncManager.syncHeartbeat();
+                checkpointActiveSession(now, true);
+                MmmDebugLogger.info(
+                        "miningstats-menu-pause",
+                        SESSION_DEBUG_LOG_INTERVAL_MS,
+                        "[MMM_DEBUG] session-menu-paused");
+            }
+            return;
+        }
+
+        if (sessionMenuPaused == false)
+        {
+            return;
+        }
+
+        sessionMenuPaused = false;
+        if (sessionPaused == false)
+        {
+            return;
+        }
+
+        long pausedDurationMs = Math.max(0L, now - pausedAtMs);
+        pausedAccumulatedMs += pausedDurationMs;
+        pausedAtMs = 0L;
+        sessionPaused = false;
+        sessionAutoPaused = false;
+        if (lastValidBlockMineMs > 0L)
+        {
+            lastValidBlockMineMs += pausedDurationMs;
+        }
+        if (autoMiningStreakStartMs > 0L)
+        {
+            autoMiningStreakStartMs += pausedDurationMs;
+        }
+        rollingBlocksPerHour = calculateSessionBph();
+        rollingBlocksPerSecond = calculateRollingBps(lastBpsSmoothing);
+        updateDisplayedRollingMetrics();
+        CloudSyncManager.syncHeartbeat();
+        checkpointActiveSession(now, true);
+        MmmDebugLogger.info(
+                "miningstats-menu-resume",
+                SESSION_DEBUG_LOG_INTERVAL_MS,
+                "[MMM_DEBUG] session-menu-resumed");
+    }
+
     public static void onClientTick()
     {
         MinecraftClient client = MinecraftClient.getInstance();
         boolean hasMiningContext = client != null && client.world != null && client.player != null;
         long now = System.currentTimeMillis();
+        updateMenuPauseState(client, now);
         if (hasMiningContext && now - lastWorldContextRefreshMs >= 1_000L)
         {
             lastWorldContextRefreshMs = now;
@@ -720,6 +795,31 @@ public final class MiningStats
     {
         return Math.max(0L, Configs.fastest100kMs);
     }
+    public static synchronized boolean applyAuthoritativeFastest100k(long seconds, long startedAtMs, long finishedAtMs)
+    {
+        if (seconds < 5_000L || seconds > 315_360_000L)
+        {
+            return false;
+        }
+
+        long durationMs = seconds * 1_000L;
+        long currentMs = Math.max(0L, Configs.fastest100kMs);
+        boolean currentIsImpossible = currentMs > 0L && currentMs < 5_000_000L;
+        if (!currentIsImpossible && currentMs > 0L && currentMs <= durationMs)
+        {
+            return false;
+        }
+
+        long timestampDurationMs = finishedAtMs - startedAtMs;
+        boolean timestampsMatch = startedAtMs > 0L
+                && finishedAtMs > startedAtMs
+                && Math.abs(timestampDurationMs - durationMs) <= 2_000L;
+        Configs.fastest100kMs = durationMs;
+        Configs.fastest100kStartedAtMs = timestampsMatch ? startedAtMs : 0L;
+        Configs.fastest100kFinishedAtMs = timestampsMatch ? finishedAtMs : 0L;
+        Configs.saveToFile();
+        return true;
+    }
 
     public static long getFastest100kSeconds()
     {
@@ -1019,18 +1119,18 @@ public final class MiningStats
 
     private static void recordFastest100kWindow(long now)
     {
-        FASTEST_100K_EVENT_TIMES.addLast(now);
+        FASTEST_100K_EVENT_TIMES.enqueue(now);
         while (FASTEST_100K_EVENT_TIMES.size() > FASTEST_100K_TARGET)
         {
-            FASTEST_100K_EVENT_TIMES.pollFirst();
+            FASTEST_100K_EVENT_TIMES.dequeueLong();
         }
 
-        if (FASTEST_100K_EVENT_TIMES.size() < FASTEST_100K_TARGET || FASTEST_100K_EVENT_TIMES.peekFirst() == null)
+        if (FASTEST_100K_EVENT_TIMES.size() < FASTEST_100K_TARGET)
         {
             return;
         }
 
-        long startedAt = FASTEST_100K_EVENT_TIMES.peekFirst();
+        long startedAt = FASTEST_100K_EVENT_TIMES.firstLong();
         updateFastest100kRecord(Math.max(1L, now - startedAt), startedAt, now);
     }
 
@@ -1193,9 +1293,9 @@ public final class MiningStats
     private static void pruneOldEvents(long now)
     {
         long cutoff = now - ONE_HOUR_MS;
-        while (MINE_EVENTS.isEmpty() == false && MINE_EVENTS.peekFirst() < cutoff)
+        while (MINE_EVENTS.isEmpty() == false && MINE_EVENTS.firstLong() < cutoff)
         {
-            MINE_EVENTS.pollFirst();
+            MINE_EVENTS.dequeueLong();
         }
     }
 
@@ -1280,6 +1380,7 @@ public final class MiningStats
         pausedAtMs = now;
         sessionPaused = true;
         sessionAutoPaused = true;
+        sessionMenuPaused = false;
         autoMiningStreakStartMs = 0L;
         freezeRollingMetrics();
         CloudSyncManager.syncHeartbeat();
@@ -1297,6 +1398,7 @@ public final class MiningStats
         pausedAtMs = 0L;
         sessionPaused = false;
         sessionAutoPaused = false;
+        sessionMenuPaused = false;
         rollingBlocksPerHour = calculateSessionBph();
         rollingBlocksPerSecond = calculateRollingBps(lastBpsSmoothing);
         updateDisplayedRollingMetrics();
@@ -1395,6 +1497,7 @@ public final class MiningStats
                         currentSession,
                         sessionPaused,
                         sessionAutoPaused,
+                        sessionMenuPaused,
                         pausedAtMs,
                         pausedAccumulatedMs,
                         sessionStartTotalMined,
@@ -1426,6 +1529,7 @@ public final class MiningStats
         pausedAccumulatedMs = Math.max(0L, checkpoint.pausedAccumulatedMs());
         sessionPaused = checkpoint.paused();
         sessionAutoPaused = checkpoint.autoPaused();
+        sessionMenuPaused = sessionPaused && checkpoint.menuPaused();
         if (sessionPaused)
         {
             long pauseStartedAtMs = checkpoint.pausedAtMs() > 0L && checkpoint.pausedAtMs() <= now

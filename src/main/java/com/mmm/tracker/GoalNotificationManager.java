@@ -7,12 +7,11 @@ import java.util.Set;
 
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
-import com.mmm.social.MilestoneSocialRelay;
+import com.mmm.social.PublicChatClient;
 import com.mmm.sound.GoalSoundLibrary;
 import com.mmm.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -56,16 +55,12 @@ public final class GoalNotificationManager
 
         if (crossedMilestone > 0 && TRIGGERED_THRESHOLDS.add(crossedMilestone))
         {
-            MilestoneSocialRelay.publishMilestone(crossedMilestone, progress);
+            PublicChatClient.publishMilestone(crossedMilestone, progress);
             if (FeatureToggle.MMM_NOTIFICATIONS.getBooleanValue())
             {
                 showThresholdAnnouncement(crossedMilestone, progress);
             }
         }
-    }
-
-    public static void render(DrawContext context, MinecraftClient client)
-    {
     }
 
     public static void clear()

@@ -6,12 +6,9 @@ MMMod is the official client-side companion for [Manual Mining Maniacs](https://
 
 | Minecraft | Release asset |
 | --- | --- |
-| 1.21 | `mmm-1.0.17+1.21.jar` |
-| 1.21.1 | `mmm-1.0.17+1.21.1.jar` |
-| 1.21.4 | `mmm-1.0.17+1.21.4.jar` |
-| 1.21.6 | `mmm-1.0.17+1.21.6.jar` |
+| 1.21 | `mmm-1.0.18.1+1.21.jar` | | 1.21.1 | `mmm-1.0.18.1+1.21.1.jar` | | 1.21.4 | `mmm-1.0.18.1+1.21.4.jar` | | 1.21.6 | `mmm-1.0.18.1+1.21.6.jar` | | 1.21.11 | `mmm-1.0.18.1+1.21.11.jar` |
 
-MMMod 1.0.17 packages its matching Fabric API inside the release jar. You only need:
+MMMod 1.0.18.1 packages its matching Fabric API inside the release jar. You only need:
 
 - Fabric Loader 0.16.14 or newer
 - Mod Menu is recommended for opening the settings screen
@@ -46,6 +43,7 @@ Do not install both MMMod version jars in the same instance.
 - Current hour and best-hour statistics.
 - Global, source, session, daily, weekly, personal-record, reset, project, and timer lines.
 - Configurable HUD position, anchor, scale, background, visibility, and colors.
+- Configurable MMM menu accent color and background opacity.
 - Movable timer, block-stat, hourly-stat, and notification modules.
 - Optional abbreviated numbers using lowercase `k` and uppercase `M`, `B`, and `T`.
 
@@ -61,7 +59,7 @@ Do not install both MMMod version jars in the same instance.
 - Pickaxe milestone animation: stone, iron, diamond, then netherite.
 - Built-in milestone sounds plus a separate custom OGG sound for every milestone.
 - Custom sounds are stored in MMM's shared data folder and work across supported versions.
-- Optional milestone sharing between linked MMMod players on the same server.
+- Optional global milestone sharing between website-linked MMMod players.
 
 ### Timer challenge
 
@@ -122,6 +120,7 @@ Durations accept values such as `90s`, `30m`, and `2h`.
 
 - Website synchronization is **off by default**.
 - In-game website-link flow associates MMMod with a claimed Minecraft account.
+- Minecraft chat includes separate Minecraft and MMM input tabs; the MMM tab talks globally to linked players without sending to the current server.
 - Per-source scoreboard selector chooses the total-mined objective used for website synchronization.
 - Reads visible scoreboard evidence, player/source totals, source identity, block breakdowns, and sessions.
 - Delta-based queued synchronization avoids repeatedly sending unchanged local data.

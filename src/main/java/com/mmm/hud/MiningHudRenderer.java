@@ -9,7 +9,6 @@ import com.mmm.config.FeatureToggle;
 import com.mmm.sync.CloudSyncManager;
 import com.mmm.sync.DigsSyncManager;
 import com.mmm.timer.MmmTimerState;
-import com.mmm.tracker.GoalNotificationManager;
 import com.mmm.tracker.MiningStats;
 import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
@@ -28,6 +27,12 @@ public final class MiningHudRenderer
     private static final int GOAL_BAR_BORDER = HUD_NEUTRAL_BORDER_COLOR;
     private static final int GOAL_BAR_EXTRA_HEIGHT = 24;
     private static final String ZERO_CLOCK = "00:00:00";
+    private static final long HUD_MODEL_CACHE_NANOS = 50_000_000L;
+
+    private static HudFrame cachedFrame;
+    private static boolean cachedShowTitle;
+    private static boolean cachedSessionPaused;
+    private static long hudModelCacheExpiresAtNanos;
 
     private MiningHudRenderer()
     {
@@ -40,26 +45,25 @@ public final class MiningHudRenderer
             client.player == null ||
             client.options.hudHidden)
         {
-            GoalNotificationManager.render(context, client);
             return;
         }
 
         boolean showTitle = Configs.Generic.HUD_TITLE_VISIBLE.getBooleanValue();
         boolean sessionPaused = MiningStats.isSessionPaused();
-        List<HudLine> lines = buildHudLines(showTitle, sessionPaused);
-        MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
-        boolean showDailyGoalBar = shouldShowDailyGoalBar(dailyGoal);
+        HudFrame frame = getHudFrame(client, showTitle, sessionPaused);
+        List<HudLine> lines = frame.lines();
+        MiningStats.GoalProgress dailyGoal = frame.dailyGoal();
+        boolean showDailyGoalBar = frame.showDailyGoalBar();
 
         if (lines.isEmpty() && !showDailyGoalBar)
         {
-            GoalNotificationManager.render(context, client);
             return;
         }
-        int lineHeight = client.textRenderer.fontHeight + 2;
-        int padding = 4;
-        int width = Math.max(Math.max(getTextWidth(client, lines), getGoalHeaderWidth(client, dailyGoal, showDailyGoalBar)), 190);
-        int extraHeight = showDailyGoalBar ? GOAL_BAR_EXTRA_HEIGHT : 0;
-        int totalHeight = lines.size() * lineHeight + extraHeight + padding * 2;
+        int lineHeight = frame.lineHeight();
+        int padding = frame.padding();
+        int width = frame.width();
+        int extraHeight = frame.extraHeight();
+        int totalHeight = frame.totalHeight();
 
         float scale = (float) Configs.Generic.HUD_SCALE.getDoubleValue();
         int scaledWidth = (int) ((width + padding * 2) * scale);
@@ -116,7 +120,6 @@ public final class MiningHudRenderer
         }
 
         context.getMatrices().pop();
-        GoalNotificationManager.render(context, client);
     }
 
     private static List<HudLine> buildHudLines(boolean showTitle, boolean sessionPaused)
@@ -193,21 +196,51 @@ public final class MiningHudRenderer
 
     public static int[] getBounds(MinecraftClient client)
     {
-        List<HudLine> lines = buildHudLines(Configs.Generic.HUD_TITLE_VISIBLE.getBooleanValue(), MiningStats.isSessionPaused());
-        MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
-        boolean showDailyGoalBar = shouldShowDailyGoalBar(dailyGoal);
+        boolean showTitle = Configs.Generic.HUD_TITLE_VISIBLE.getBooleanValue();
+        boolean sessionPaused = MiningStats.isSessionPaused();
+        HudFrame frame = getHudFrame(client, showTitle, sessionPaused);
 
-        int width = Math.max(Math.max(getTextWidth(client, lines), getGoalHeaderWidth(client, dailyGoal, showDailyGoalBar)), 190);
-        int lineHeight = client.textRenderer.fontHeight + 2;
-        int padding = 4;
-        int extraHeight = showDailyGoalBar ? GOAL_BAR_EXTRA_HEIGHT : 0;
-        int totalHeight = lines.size() * lineHeight + extraHeight + padding * 2;
+        int width = frame.width();
+        int padding = frame.padding();
+        int totalHeight = frame.totalHeight();
         double scale = Configs.Generic.HUD_SCALE.getDoubleValue();
         int scaledWidth = (int) ((width + padding * 2) * scale);
         int scaledHeight = (int) (totalHeight * scale);
         int x = resolveHudX(client, scaledWidth);
         int y = resolveHudY(client, scaledHeight);
         return new int[] { x, y, x + scaledWidth, y + scaledHeight };
+    }
+
+    private static HudFrame getHudFrame(MinecraftClient client, boolean showTitle, boolean sessionPaused)
+    {
+        long now = System.nanoTime();
+        if (cachedFrame != null
+                && cachedShowTitle == showTitle
+                && cachedSessionPaused == sessionPaused
+                && now < hudModelCacheExpiresAtNanos)
+        {
+            return cachedFrame;
+        }
+
+        List<HudLine> lines = List.copyOf(buildHudLines(showTitle, sessionPaused));
+        MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
+        boolean showDailyGoalBar = shouldShowDailyGoalBar(dailyGoal);
+        int lineHeight = client.textRenderer.fontHeight + 2;
+        int padding = 4;
+        int width = Math.max(Math.max(getTextWidth(client, lines), getGoalHeaderWidth(client, dailyGoal, showDailyGoalBar)), 190);
+        int extraHeight = showDailyGoalBar ? GOAL_BAR_EXTRA_HEIGHT : 0;
+        int totalHeight = lines.size() * lineHeight + extraHeight + padding * 2;
+
+        cachedFrame = new HudFrame(lines, dailyGoal, showDailyGoalBar, lineHeight, padding, width, extraHeight, totalHeight);
+        cachedShowTitle = showTitle;
+        cachedSessionPaused = sessionPaused;
+        hudModelCacheExpiresAtNanos = now + HUD_MODEL_CACHE_NANOS;
+        return cachedFrame;
+    }
+
+    private record HudFrame(List<HudLine> lines, MiningStats.GoalProgress dailyGoal, boolean showDailyGoalBar,
+                            int lineHeight, int padding, int width, int extraHeight, int totalHeight)
+    {
     }
 
     private record HudSegment(String text, int color)

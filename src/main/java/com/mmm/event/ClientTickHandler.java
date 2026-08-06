@@ -1,7 +1,9 @@
 package com.mmm.event;
 
+import com.mmm.sync.WebsiteProfileTotals;
+
 import com.mmm.hud.SummaryScreen;
-import com.mmm.social.MilestoneSocialRelay;
+import com.mmm.social.PublicChatClient;
 import com.mmm.storage.SessionData;
 import com.mmm.tags.TierTagManager;
 import com.mmm.timer.MmmBlockBreakDetector;
@@ -22,9 +24,10 @@ public class ClientTickHandler
 
         MmmHotkeyManager.tick(mc);
         com.mmm.tracker.MiningStats.onClientTick();
+        WebsiteProfileTotals.refresh(false);
         MmmBlockBreakDetector.onClientTick(mc);
         MmmTimerState.onClientTick(mc);
-        MilestoneSocialRelay.onClientTick(mc);
+        PublicChatClient.onClientTick(mc);
         TierTagManager.onClientTick(mc);
 
         if (MmmTimerState.consumeCreditsPending() && mc.currentScreen == null)
