@@ -101,8 +101,9 @@ public class Configs
         public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", false, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
         public static final ConfigBoolean GOAL_PICKAXE_ANIMATION = new ConfigBoolean("goalPickaxeAnimation", true, "Show a pickaxe animation at each main daily-goal milestone.");
-        public static final ConfigBoolean SHARE_GOAL_MILESTONES = new ConfigBoolean("shareGoalMilestones", true, "Share goal milestones with linked MMM players on this server.");
-        public static final ConfigBoolean RECEIVE_GOAL_MILESTONES = new ConfigBoolean("receiveGoalMilestones", true, "Show goal milestones from linked MMM players on this server.");
+        public static final ConfigBoolean SHARE_GOAL_MILESTONES = new ConfigBoolean("shareGoalMilestones", true, "Share daily-goal milestones with linked MMM players.");
+        public static final ConfigBoolean RECEIVE_GOAL_MILESTONES = new ConfigBoolean("receiveGoalMilestones", true, "Show daily-goal milestones from linked MMM players.");
+        public static final ConfigBoolean SHOW_MMM_CHAT_MESSAGES = new ConfigBoolean("showMmmChatMessages", true, "Show messages from linked MMM players in Minecraft chat.");
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 820, "Mining HUD horizontal position.");
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 460, "Mining HUD vertical position.");
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
@@ -151,6 +152,7 @@ public class Configs
         public static final ConfigColor HUD_INACTIVE_HEX_COLOR = new ConfigColor("hudInactiveHexColor", DEFAULT_HUD_INACTIVE_HEX_COLOR, "Inactive/paused text color used by the MMM HUD.");
         public static final ConfigColor HUD_BACKGROUND_HEX_COLOR = new ConfigColor("hudBackgroundHexColor", DEFAULT_HUD_BACKGROUND_HEX_COLOR, "Background color used by MMM HUD panels and text boxes.");
         public static final ConfigColor MENU_HEX_COLOR = new ConfigColor("menuHexColor", DEFAULT_MENU_HEX_COLOR, "Accent color used by MMM menu screens.");
+        public static final ConfigInteger MENU_OPACITY = new ConfigInteger("menuOpacity", 100, 0, 100, "Opacity of MMM menu backgrounds.");
         public static final ConfigOptionList BPS_SMOOTHING = new ConfigOptionList("bpsSmoothing", BpsSmoothing.FAST, "Blocks/sec Smoothing");
         public static final ConfigBoolean SMALL_DIG_ITEMS = new ConfigBoolean("smallDigItems", false, "Render MMM breakdown block items smaller, like the Smoll Dig Items resource pack.");
         public static final ConfigDouble SMALL_DIG_ITEM_SCALE = new ConfigDouble("smallDigItemScale", 0.2D, 0.1D, 1.0D, "Size of tracked mining block items while Small Dig Items is enabled.");
@@ -201,6 +203,7 @@ public class Configs
                 GOAL_PICKAXE_ANIMATION,
                 SHARE_GOAL_MILESTONES,
                 RECEIVE_GOAL_MILESTONES,
+                SHOW_MMM_CHAT_MESSAGES,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
@@ -249,6 +252,7 @@ public class Configs
                 HUD_INACTIVE_HEX_COLOR,
                 HUD_BACKGROUND_HEX_COLOR,
                 MENU_HEX_COLOR,
+                MENU_OPACITY,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
                 SMALL_DIG_ITEM_SCALE,
@@ -303,6 +307,7 @@ public class Configs
                 GOAL_PICKAXE_ANIMATION,
                 SHARE_GOAL_MILESTONES,
                 RECEIVE_GOAL_MILESTONES,
+                SHOW_MMM_CHAT_MESSAGES,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
@@ -351,6 +356,7 @@ public class Configs
                 HUD_INACTIVE_HEX_COLOR,
                 HUD_BACKGROUND_HEX_COLOR,
                 MENU_HEX_COLOR,
+                MENU_OPACITY,
                 BPS_SMOOTHING,
                 SMALL_DIG_ITEMS,
                 SMALL_DIG_ITEM_SCALE,
@@ -1737,6 +1743,7 @@ public class Configs
 
         String normalized = endpoint.trim().toLowerCase(Locale.ROOT);
         return normalized.contains("supabase.co/functions/v1/mmm-sync")
+                || normalized.contains("supabase.co/functions/v1/aetweaks-sync")
                 || normalized.contains("jmspoiryzfilppiovhmf.supabase.co");
     }
 

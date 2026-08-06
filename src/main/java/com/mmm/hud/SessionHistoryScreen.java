@@ -371,7 +371,7 @@ public class SessionHistoryScreen extends Screen
         stat(context, vx, statY, cardWidth, 50, "Total Mined", UiFormat.formatCompact(session.totalBlocks), "blocks");
         stat(context, vx + cardWidth + G, statY, cardWidth, 50, "Active Time", formatClock(session.getDurationMs()), "session");
         stat(context, vx, statY + 56, cardWidth, 50, "Avg Rate", UiFormat.formatCompact(session.getAverageBlocksPerHour()), "blocks/hr");
-        stat(context, vx + cardWidth + G, statY + 56, cardWidth, 50, "Peak Rate", UiFormat.formatCompact(session.getPeakBlocksPerHour()), "blocks/hr");
+        stat(context, vx + cardWidth + G, statY + 56, cardWidth, 50, "Best Hour", UiFormat.formatCompact(session.getBestHourBlocks()), "blocks mined");
         int graphY = statY + 118;
         card(context, vx, graphY, vw, PACE_CARD_HEIGHT, SOFT, BORDER_SOFT);
         MmmUi.drawTextWithin(context, this.textRenderer, "Session Pace", vx + 10, graphY + 8, vw - 20, TEXT, false);

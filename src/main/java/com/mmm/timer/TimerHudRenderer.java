@@ -337,18 +337,6 @@ public final class TimerHudRenderer
         drawText(context, MinecraftClient.getInstance().textRenderer, title, 17, 8, Configs.getHudTitleColor());
     }
 
-    private static void drawBlockStatsShell(DrawContext context, int width, int height, String title)
-    {
-        if (Configs.Generic.BLOCK_STATS_BACKGROUND.getBooleanValue())
-        {
-            drawCard(context, width, height, title);
-            return;
-        }
-
-        context.fill(0, 8, 3, 18, MmmUi.RED);
-        drawText(context, MinecraftClient.getInstance().textRenderer, title, 12, 8, Configs.getHudTitleColor());
-    }
-
     private static void drawText(DrawContext context, TextRenderer renderer, String text, int x, int y, int color)
     {
         context.drawText(renderer, Text.literal(text), x, y, color, Configs.useHudTextShadow());

@@ -11,6 +11,7 @@ public final class ActiveSessionCheckpoint
             SessionData session,
             boolean paused,
             boolean autoPaused,
+            boolean menuPaused,
             long pausedAtMs,
             long pausedAccumulatedMs,
             long sessionStartTotalMined,
@@ -96,6 +97,7 @@ public final class ActiveSessionCheckpoint
         root.addProperty("session", state.session().serialise());
         root.addProperty("paused", state.paused());
         root.addProperty("autoPaused", state.autoPaused());
+        root.addProperty("menuPaused", state.menuPaused());
         root.addProperty("pausedAtMs", Math.max(0L, state.pausedAtMs()));
         root.addProperty("pausedAccumulatedMs", Math.max(0L, state.pausedAccumulatedMs()));
         root.addProperty("sessionStartTotalMined", Math.max(0L, state.sessionStartTotalMined()));
@@ -132,6 +134,7 @@ public final class ActiveSessionCheckpoint
                 session,
                 booleanValue(root, "paused"),
                 booleanValue(root, "autoPaused"),
+                booleanValue(root, "menuPaused"),
                 longValue(root, "pausedAtMs"),
                 longValue(root, "pausedAccumulatedMs"),
                 longValue(root, "sessionStartTotalMined"),

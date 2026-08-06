@@ -263,7 +263,7 @@ public class SummaryScreen extends Screen
         drawStatCard(context, layout.contentX, cardY, cardWidth, cardHeight, "Total Mined", UiFormat.formatCompact(this.session.totalBlocks), "blocks");
         drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP), cardY, cardWidth, cardHeight, "Active Time", formatClock(this.session.getDurationMs()), "pauses excluded");
         drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 2, cardY, cardWidth, cardHeight, "Avg Rate", UiFormat.formatCompact(this.session.getAverageBlocksPerHour()), "blocks/hr");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 3, cardY, cardWidth, cardHeight, "Peak Rate", UiFormat.formatCompact(this.session.getPeakBlocksPerHour()), "blocks/hr");
+        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 3, cardY, cardWidth, cardHeight, "Best Hour", UiFormat.formatCompact(this.session.getBestHourBlocks()), "blocks mined");
     }
 
     private void drawGraphCard(DrawContext context, Layout layout, int mouseX, int mouseY, float animation)
@@ -730,7 +730,7 @@ public class SummaryScreen extends Screen
         builder.append("Total Mined: ").append(UiFormat.formatBlocks(this.session.totalBlocks)).append('\n');
         builder.append("Session Time: ").append(formatClock(this.session.getDurationMs())).append('\n');
         builder.append("Average Rate: ").append(UiFormat.formatBlocksPerHour(this.session.getAverageBlocksPerHour())).append('\n');
-        builder.append("Peak Rate: ").append(UiFormat.formatBlocksPerHour(this.session.getPeakBlocksPerHour())).append('\n');
+        builder.append("Best Hour: ").append(UiFormat.formatBlocks(this.session.getBestHourBlocks())).append(" blocks\n");
         builder.append("Best Streak: ").append(this.session.bestStreakSeconds).append("s\n");
 
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();

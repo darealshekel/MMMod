@@ -23,6 +23,7 @@ class ActiveSessionCheckpointTest
                 session,
                 true,
                 true,
+                true,
                 50_000L,
                 4_000L,
                 1_000_000L,
@@ -39,6 +40,7 @@ class ActiveSessionCheckpointTest
         assertEquals(64_000L, restored.session().getDurationMs());
         assertTrue(restored.paused());
         assertTrue(restored.autoPaused());
+        assertTrue(restored.menuPaused());
         assertEquals(4_000L, restored.pausedAccumulatedMs());
         assertEquals(1_000_000L, restored.sessionStartTotalMined());
         assertEquals(60_000L, restored.savedAtMs());
@@ -75,6 +77,7 @@ class ActiveSessionCheckpointTest
     {
         return new ActiveSessionCheckpoint.State(
                 session(1_000L, 61_000L, blocks),
+                false,
                 false,
                 false,
                 0L,

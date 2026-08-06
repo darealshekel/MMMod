@@ -55,7 +55,6 @@ public final class MmmUi
     public static final int PAGE_PAD = 14;
 
     private static final int SIDEBAR_ROW_HEIGHT = 24;
-    private static final int SIDEBAR_ROW_GAP = 7;
 
     private MmmUi()
     {
@@ -121,9 +120,17 @@ public final class MmmUi
         return (alpha << 24) | (color & 0x00FFFFFF);
     }
 
+    public static int menuSurface(int color)
+    {
+        int configuredAlpha = Math.round(255.0F * Configs.Generic.MENU_OPACITY.getIntegerValue() / 100.0F);
+        int baseAlpha = color >>> 24;
+        int alpha = Math.round(baseAlpha * configuredAlpha / 255.0F);
+        return withAlpha(color, alpha);
+    }
+
     public static void backdrop(DrawContext context, int width, int height)
     {
-        context.fill(0, 0, width, height, OVERLAY);
+        context.fill(0, 0, width, height, menuSurface(OVERLAY));
     }
 
     public static int contentLeft()
@@ -194,7 +201,7 @@ public final class MmmUi
         int sidebarWidth = sidebarWidth(width);
         int sidePad = sidebarWidth < 120 ? 8 : 12;
         SidebarMetrics metrics = sidebarMetrics(height);
-        context.fill(0, TOP_BAR_HEIGHT, sidebarWidth, height, 0xE9080808);
+        context.fill(0, TOP_BAR_HEIGHT, sidebarWidth, height, menuSurface(0xE9080808));
         context.drawBorder(0, TOP_BAR_HEIGHT, sidebarWidth, Math.max(1, height - TOP_BAR_HEIGHT), BORDER);
 
         int titleY = metrics.titleY();
@@ -207,7 +214,7 @@ public final class MmmUi
             boolean hovered = mouseX >= sidePad && mouseX < sidebarWidth - sidePad && mouseY >= y && mouseY < y + metrics.rowHeight();
             int fill = active ? accentSoft() : hovered ? accentHover() : INSET;
             int border = active || hovered ? accent() : BORDER_SOFT;
-            context.fill(sidePad, y, sidebarWidth - sidePad, y + metrics.rowHeight(), fill);
+            context.fill(sidePad, y, sidebarWidth - sidePad, y + metrics.rowHeight(), menuSurface(fill));
             context.drawBorder(sidePad, y, sidebarWidth - sidePad * 2, metrics.rowHeight(), border);
             int textY = y + Math.max(2, (metrics.rowHeight() - 8) / 2);
             String label = sidebarWidth < 120 ? route.compactLabel : route.label;
@@ -226,7 +233,7 @@ public final class MmmUi
 
     public static void drawMmmTopBar(DrawContext context, TextRenderer renderer, int width)
     {
-        context.fill(0, 0, width, TOP_BAR_HEIGHT, 0xF0060606);
+        context.fill(0, 0, width, TOP_BAR_HEIGHT, menuSurface(0xF0060606));
         context.drawBorder(0, 0, width, TOP_BAR_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, accent());
         drawTextWithin(context, renderer, "MMM", 26, 10, 40, accent(), false);
@@ -280,7 +287,7 @@ public final class MmmUi
 
     public static void card(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
-        context.fill(x, y, x + width, y + height, fillColor);
+        context.fill(x, y, x + width, y + height, menuSurface(fillColor));
         context.drawBorder(x, y, width, height, borderColor);
     }
 

@@ -16,6 +16,13 @@ public final class ScoreboardHudRenderer
 {
     private static final int NORMALIZED_WIDTH = 820;
     private static final int NORMALIZED_HEIGHT = 460;
+    private static final long LAYOUT_CACHE_NANOS = 50_000_000L;
+
+    private static ScoreboardObjective cachedObjective;
+    private static Layout cachedLayout;
+    private static int cachedScreenWidth = -1;
+    private static int cachedScreenHeight = -1;
+    private static long layoutCacheExpiresAtNanos;
 
     private ScoreboardHudRenderer()
     {
@@ -70,16 +77,29 @@ public final class ScoreboardHudRenderer
         int storedY = maxY == 0 ? 0 : (int) Math.round(y * (double) NORMALIZED_HEIGHT / maxY);
         Configs.Generic.SCOREBOARD_X.setIntegerValue(Math.max(0, Math.min(NORMALIZED_WIDTH, storedX)));
         Configs.Generic.SCOREBOARD_Y.setIntegerValue(Math.max(0, Math.min(NORMALIZED_HEIGHT, storedY)));
+        invalidateLayout();
     }
 
     public static void resetPosition()
     {
         Configs.Generic.SCOREBOARD_X.resetToDefault();
         Configs.Generic.SCOREBOARD_Y.resetToDefault();
+        invalidateLayout();
     }
 
     private static Layout layout(MinecraftClient client, ScoreboardObjective objective)
     {
+        long now = System.nanoTime();
+        int currentScreenWidth = client.getWindow().getScaledWidth();
+        int currentScreenHeight = client.getWindow().getScaledHeight();
+        if (cachedLayout != null
+                && cachedObjective == objective
+                && cachedScreenWidth == currentScreenWidth
+                && cachedScreenHeight == currentScreenHeight
+                && now < layoutCacheExpiresAtNanos)
+        {
+            return cachedLayout;
+        }
         List<ScoreboardEntry> sortedEntries = ScoreboardService.getSortedEntries(objective);
         int pageSize = Configs.Generic.SCOREBOARD_MAX_ENTRIES.getIntegerValue();
         ScoreboardState.clampPage(sortedEntries.size(), Math.max(1, pageSize));
@@ -106,8 +126,8 @@ public final class ScoreboardHudRenderer
         float scale = (float) Math.max(0.5D, Math.min(2.0D, Configs.Generic.SCOREBOARD_SCALE.getDoubleValue()));
         int scaledPanelWidth = Math.round(panelWidth * scale);
         int scaledPanelHeight = Math.round(panelHeight * scale);
-        int screenWidth = client.getWindow().getScaledWidth();
-        int screenHeight = client.getWindow().getScaledHeight();
+        int screenWidth = currentScreenWidth;
+        int screenHeight = currentScreenHeight;
         int maxX = Math.max(0, screenWidth - scaledPanelWidth);
         int maxY = Math.max(0, screenHeight - scaledPanelHeight);
 
@@ -135,10 +155,22 @@ public final class ScoreboardHudRenderer
 
         x = Math.max(0, Math.min(maxX, x));
         y = Math.max(0, Math.min(maxY, y));
-        return new Layout(title, entries, rowHeight, panelWidth, titleHeight, panelHeight, scale, x, y,
+        Layout layout = new Layout(title, List.copyOf(entries), rowHeight, panelWidth, titleHeight, panelHeight, scale, x, y,
                 new Bounds(x, y, x + scaledPanelWidth, y + scaledPanelHeight));
+        cachedObjective = objective;
+        cachedLayout = layout;
+        cachedScreenWidth = screenWidth;
+        cachedScreenHeight = screenHeight;
+        layoutCacheExpiresAtNanos = now + LAYOUT_CACHE_NANOS;
+        return layout;
     }
 
+    public static void invalidateLayout()
+    {
+        cachedObjective = null;
+        cachedLayout = null;
+        layoutCacheExpiresAtNanos = 0L;
+    }
     private static int withAlpha(int rgb, double opacity)
     {
         int alpha = Math.max(0, Math.min(255, (int) Math.round(opacity * 255.0D)));
