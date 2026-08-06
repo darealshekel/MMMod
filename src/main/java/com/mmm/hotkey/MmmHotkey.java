@@ -15,6 +15,7 @@ import org.lwjgl.glfw.GLFW;
 public final class MmmHotkey
 {
     private final String name;
+    private final String prettyName;
     private final String defaultStorageString;
     private final String comment;
     private String storageString;
@@ -24,14 +25,20 @@ public final class MmmHotkey
 
     public MmmHotkey(String name, String defaultStorageString, String comment)
     {
+        this(name, null, defaultStorageString, comment);
+    }
+
+    public MmmHotkey(String name, String prettyName, String defaultStorageString, String comment)
+    {
         this.name = Objects.requireNonNull(name);
+        this.prettyName = prettyName == null || prettyName.isBlank() ? splitCamelCase(this.name) : prettyName;
         this.defaultStorageString = defaultStorageString == null ? "" : defaultStorageString;
         this.storageString = this.defaultStorageString;
         this.comment = comment == null ? "" : comment;
     }
 
     public String getName() { return this.name; }
-    public String getPrettyName() { return splitCamelCase(this.name); }
+    public String getPrettyName() { return this.prettyName; }
     public String getComment() { return this.comment; }
     public String getStorageString() { return this.storageString; }
     public String getDefaultStorageString() { return this.defaultStorageString; }

@@ -4,8 +4,6 @@ import com.mmm.config.Configs;
 import com.mmm.mixin.ClientPlayerInteractionManagerAccessor;
 import com.mmm.mixin.WorldRendererAccessor;
 import com.mmm.render.Color4f;
-import java.util.ArrayList;
-import java.util.List;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
@@ -29,6 +27,8 @@ public final class BreakingIndicatorRenderer
     private static final int MAX_INDICATORS = 64;
     private static final double MIN_VISIBLE_SCALE = 0.12D;
     private static final double BOX_EXPAND = 0.003D;
+    private static final BlockPos[] INDICATOR_POSITIONS = new BlockPos[MAX_INDICATORS];
+    private static final float[] INDICATOR_PROGRESS = new float[MAX_INDICATORS];
     private static boolean initialized;
 
     private BreakingIndicatorRenderer()
@@ -63,8 +63,8 @@ public final class BreakingIndicatorRenderer
             return;
         }
 
-        List<Indicator> indicators = collectIndicators(client);
-        if (indicators.isEmpty())
+        int indicatorCount = collectIndicators(client);
+        if (indicatorCount == 0)
         {
             return;
         }
@@ -74,17 +74,17 @@ public final class BreakingIndicatorRenderer
         {
             RenderLayer fillLayer = RenderLayer.getDebugFilledBox();
             BufferBuilder fillBuffer = Tessellator.getInstance().begin(fillLayer.getDrawMode(), fillLayer.getVertexFormat());
-            for (Indicator indicator : indicators)
+            for (int index = 0; index < indicatorCount; index++)
             {
-                renderFill(client, matrices, fillBuffer, camera, indicator);
+                renderFill(client, matrices, fillBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
             }
             fillLayer.draw(fillBuffer.end());
 
             RenderLayer lineLayer = RenderLayer.getLines();
             BufferBuilder lineBuffer = Tessellator.getInstance().begin(lineLayer.getDrawMode(), lineLayer.getVertexFormat());
-            for (Indicator indicator : indicators)
+            for (int index = 0; index < indicatorCount; index++)
             {
-                renderOutline(client, matrices, lineBuffer, camera, indicator);
+                renderOutline(client, matrices, lineBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
             }
             lineLayer.draw(lineBuffer.end());
         }
@@ -94,8 +94,9 @@ public final class BreakingIndicatorRenderer
         }
     }
 
-    private static List<Indicator> collectIndicators(MinecraftClient client)    {
-        List<Indicator> indicators = new ArrayList<>();
+    private static int collectIndicators(MinecraftClient client)
+    {
+        int indicatorCount = 0;
         ClientPlayerInteractionManagerAccessor interaction =
                 (ClientPlayerInteractionManagerAccessor) client.interactionManager;
         BlockPos ownPos = interaction.mmm$getCurrentBreakingPos();
@@ -118,12 +119,13 @@ public final class BreakingIndicatorRenderer
 
         if (isRenderable(client, ownPos) && ownProgress > 0.0F)
         {
-            indicators.add(new Indicator(ownPos.toImmutable(), ownProgress));
+            INDICATOR_POSITIONS[indicatorCount] = ownPos.toImmutable();
+            INDICATOR_PROGRESS[indicatorCount++] = ownProgress;
         }
 
         for (BlockBreakingInfo info : ((WorldRendererAccessor) client.worldRenderer).mmm$getBlockBreakingInfos().values())
         {
-            if (indicators.size() >= MAX_INDICATORS)
+            if (indicatorCount >= MAX_INDICATORS)
             {
                 break;
             }
@@ -137,10 +139,11 @@ public final class BreakingIndicatorRenderer
 
             if (client.player.squaredDistanceTo(Vec3d.ofCenter(pos)) <= MAX_RENDER_DISTANCE_SQUARED)
             {
-                indicators.add(new Indicator(pos.toImmutable(), (stage + 1) / 10.0F));
+                INDICATOR_POSITIONS[indicatorCount] = pos.toImmutable();
+                INDICATOR_PROGRESS[indicatorCount++] = (stage + 1) / 10.0F;
             }
         }
-        return indicators;
+        return indicatorCount;
     }
 
     private static boolean isRenderable(MinecraftClient client, BlockPos pos)
@@ -157,14 +160,15 @@ public final class BreakingIndicatorRenderer
                                    MatrixStack matrices,
                                    BufferBuilder buffer,
                                    Vec3d camera,
-                                   Indicator indicator)
+                                   BlockPos pos,
+                                   float progress)
     {
-        Box bounds = getBounds(client, camera, indicator);
+        Box bounds = getBounds(client, camera, pos, progress);
         if (bounds == null)
         {
             return;
         }
-        Color4f fill = colorForProgress(indicator.progress(), 0.24F);
+        Color4f fill = colorForProgress(progress, 0.24F);
         renderCameraFacingFaces(matrices, buffer, bounds, fill);
     }
 
@@ -230,14 +234,15 @@ public final class BreakingIndicatorRenderer
                                       MatrixStack matrices,
                                       BufferBuilder buffer,
                                       Vec3d camera,
-                                      Indicator indicator)
+                                      BlockPos pos,
+                                   float progress)
     {
-        Box bounds = getBounds(client, camera, indicator);
+        Box bounds = getBounds(client, camera, pos, progress);
         if (bounds == null)
         {
             return;
         }
-        Color4f outline = colorForProgress(indicator.progress(), 0.95F);
+        Color4f outline = colorForProgress(progress, 0.95F);
         VertexRendering.drawBox(
                 matrices,
                 buffer,
@@ -254,16 +259,15 @@ public final class BreakingIndicatorRenderer
         );
     }
 
-    private static Box getBounds(MinecraftClient client, Vec3d camera, Indicator indicator)
+    private static Box getBounds(MinecraftClient client, Vec3d camera, BlockPos pos, float progress)
     {
-        BlockPos pos = indicator.pos();
         BlockState state = client.world.getBlockState(pos);
         VoxelShape shape = state.getOutlineShape(client.world, pos);
         if (state.isAir() || shape.isEmpty())
         {
             return null;
         }
-        return scaledBounds(shape.getBoundingBox(), pos, indicator.progress(), camera.x, camera.y, camera.z);
+        return scaledBounds(shape.getBoundingBox(), pos, progress, camera.x, camera.y, camera.z);
     }
 
     private static Box scaledBounds(Box local,
@@ -323,7 +327,4 @@ public final class BreakingIndicatorRenderer
         return Math.round(start + (end - start) * amount);
     }
 
-    private record Indicator(BlockPos pos, float progress)
-    {
-    }
 }

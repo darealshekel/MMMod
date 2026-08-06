@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
+import com.mmm.tracker.MiningStats;
 import com.mmm.util.MmmDebugLogger;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -20,7 +21,7 @@ import net.minecraft.client.MinecraftClient;
 public final class WebsiteProfileTotals
 {
     private static final String PROFILE_API = "https://www.mmmaniacs.com/api/player-detail?slug=%s&view=total&refreshCache=1&liveTs=%d";
-    private static final long MIN_REFRESH_INTERVAL_MS = 30_000L;
+    private static final long MIN_REFRESH_INTERVAL_MS = 30L * 60L * 1_000L;
     private static final long REFRESH_LOG_INTERVAL_MS = 30_000L;
     private static final long JSON_PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
@@ -80,6 +81,7 @@ public final class WebsiteProfileTotals
                         }
 
                         JsonObject profileTotal = parseProfileTotal(response.body());
+                        applyMiningRecords(profileTotal);
                         long blocksNum = extractBlocksNum(profileTotal);
                         if (blocksNum < 0L || !isAuthoritative(profileTotal))
                         {
@@ -144,6 +146,43 @@ public final class WebsiteProfileTotals
                     : object.has("updatedAt") && object.get("updatedAt").isJsonPrimitive()
                             ? object.get("updatedAt").getAsString()
                             : "";
+            return value.isBlank() ? 0L : Instant.parse(value).toEpochMilli();
+        }
+        catch (Exception ignored)
+        {
+            return 0L;
+        }
+    }
+    private static void applyMiningRecords(JsonObject profileTotal)
+    {
+        if (profileTotal == null || !profileTotal.has("miningRecords"))
+        {
+            return;
+        }
+
+        JsonElement element = profileTotal.get("miningRecords");
+        if (element == null || !element.isJsonObject())
+        {
+            return;
+        }
+
+        JsonObject records = element.getAsJsonObject();
+        MiningStats.applyAuthoritativeFastest100k(
+                getLong(records, "fastest100kSeconds", 0L),
+                getTimestamp(records, "fastest100kStartedAt"),
+                getTimestamp(records, "fastest100kFinishedAt"));
+    }
+
+    private static long getTimestamp(JsonObject object, String key)
+    {
+        try
+        {
+            if (object == null || !object.has(key) || !object.get(key).isJsonPrimitive())
+            {
+                return 0L;
+            }
+
+            String value = object.get(key).getAsString();
             return value.isBlank() ? 0L : Instant.parse(value).toEpochMilli();
         }
         catch (Exception ignored)

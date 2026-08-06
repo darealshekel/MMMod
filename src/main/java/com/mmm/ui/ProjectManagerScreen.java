@@ -649,11 +649,6 @@ public class ProjectManagerScreen extends Screen
         return normalized * normalized * (3.0F - 2.0F * normalized);
     }
 
-    private String truncateToWidth(String value, int maxWidth)
-    {
-        return MmmUi.truncate(this.textRenderer, value, maxWidth);
-    }
-
     private Layout computeLayout()
     {
         boolean compact = this.height < 400 || MmmUi.contentWidth(this.width) < 520;

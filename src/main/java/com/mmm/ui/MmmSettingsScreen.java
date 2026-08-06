@@ -1,7 +1,6 @@
 package com.mmm.ui;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -35,15 +34,12 @@ public class MmmSettingsScreen extends Screen
 {
     private static final int BG = 0xFF050505;
     private static final int TOP_BAR = 0xF0060606;
-    private static final int SIDEBAR = 0xE9080808;
     private static final int CARD = 0xF20D0D0D;
     private static final int INSET = 0xFF121212;
     private static final int BORDER = 0xFF1F1F1F;
     private static final int BORDER_SOFT = 0xFF272727;
     private static final int TEXT = 0xFFF5F5F5;
     private static final int MUTED = 0xFF949494;
-    private static final int RED = 0xFFE00000;
-    private static final int RED_DARK = 0xFFC20000;
     private static final int GREEN = 0xFF43D483;
     private static final int ERROR = 0xFFFF5965;
     private static final int WARNING = 0xFFFFB84D;
@@ -67,7 +63,6 @@ public class MmmSettingsScreen extends Screen
     private final List<ScrollTarget> scrollTargets = new ArrayList<>();
     private final List<SliderTarget> sliderTargets = new ArrayList<>();
     private final Map<IConfigBase, TextFieldWidget> textFields = new IdentityHashMap<>();
-    private final Map<SettingsSection, Integer> sectionY = new HashMap<>();
     private double scrollY = 0.0D;
     private int contentHeight = 0;
     private SliderTarget draggingSlider;
@@ -137,7 +132,6 @@ public class MmmSettingsScreen extends Screen
         this.clickTargets.clear();
         this.scrollTargets.clear();
         this.sliderTargets.clear();
-        this.sectionY.clear();
         for (TextFieldWidget field : this.textFields.values())
         {
             field.setVisible(false);
@@ -146,7 +140,7 @@ public class MmmSettingsScreen extends Screen
         this.refreshVisibleSections();
         this.updateLayout();
 
-        context.fill(0, 0, this.width, this.height, BG);
+        context.fill(0, 0, this.width, this.height, MmmUi.menuSurface(BG));
         this.drawSidebar(context, mouseX, mouseY);
         this.drawTopBar(context, mouseX, mouseY);
 
@@ -333,7 +327,7 @@ public class MmmSettingsScreen extends Screen
 
     private void drawTopBar(DrawContext context, int mouseX, int mouseY)
     {
-        context.fill(0, 0, this.width, TOP_HEIGHT, TOP_BAR);
+        context.fill(0, 0, this.width, TOP_HEIGHT, MmmUi.menuSurface(TOP_BAR));
         context.drawBorder(0, 0, this.width, TOP_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, MmmUi.accent());
         MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 26, 10, 40, MmmUi.accent(), false);
@@ -400,12 +394,10 @@ public class MmmSettingsScreen extends Screen
             int rightHeight = right == null ? 0 : this.sectionHeight(right);
             int rowHeight = Math.max(leftHeight, rightHeight);
 
-            this.sectionY.put(left.section(), rowY);
             this.drawSection(context, left, x, rowY, columnW, rowHeight, mouseX, mouseY);
 
             if (right != null)
             {
-                this.sectionY.put(right.section(), rowY);
                 this.drawSection(context, right, x + columnW + GAP, rowY, columnW, rowHeight, mouseX, mouseY);
             }
 
@@ -416,7 +408,7 @@ public class MmmSettingsScreen extends Screen
     private void drawSection(DrawContext context, VisibleSection visibleSection, int x, int y, int width, int height, int mouseX, int mouseY)
     {
         SettingsSection section = visibleSection.section();
-        context.fill(x, y, x + width, y + height, CARD);
+        context.fill(x, y, x + width, y + height, MmmUi.menuSurface(CARD));
         context.drawBorder(x, y, width, height, BORDER);
         MmmUi.drawSectionHeading(context, this.textRenderer, section.title(), x + CARD_PAD, y + 12, width - CARD_PAD * 2);
         MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, MUTED, false);
@@ -501,7 +493,7 @@ public class MmmSettingsScreen extends Screen
         boolean hovered = this.contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
         int fill = enabled ? MmmUi.accent() : INSET;
         int border = hovered ? MmmUi.accent() : BORDER_SOFT;
-        context.fill(x, y, x + width, y + FIELD_HEIGHT, fill);
+        context.fill(x, y, x + width, y + FIELD_HEIGHT, enabled ? fill : MmmUi.menuSurface(fill));
         context.drawBorder(x, y, width, FIELD_HEIGHT, border);
         String label = enabled ? "ON" : "OFF";
         int labelW = this.textRenderer.getWidth(label);
@@ -590,7 +582,9 @@ public class MmmSettingsScreen extends Screen
             min = integerConfig.getMinIntegerValue();
             max = integerConfig.getMaxIntegerValue();
             current = integerConfig.getIntegerValue();
-            value = Integer.toString(integerConfig.getIntegerValue());
+            value = config == Configs.Generic.MENU_OPACITY
+                    ? integerConfig.getIntegerValue() + "%"
+                    : Integer.toString(integerConfig.getIntegerValue());
         }
         else
         {
@@ -603,7 +597,7 @@ public class MmmSettingsScreen extends Screen
         int fillWidth = (int) Math.round(width * ratio);
         boolean hovered = this.contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
 
-        context.fill(x, trackY, x + width, trackY + 3, INSET);
+        context.fill(x, trackY, x + width, trackY + 3, MmmUi.menuSurface(INSET));
         context.fill(x, trackY, x + fillWidth, trackY + 3, MmmUi.accent());
         context.drawBorder(x, trackY, width, 3, hovered ? MmmUi.accent() : BORDER_SOFT);
         int thumbX = Math.max(x, Math.min(x + width - 4, x + fillWidth - 2));
@@ -658,7 +652,7 @@ public class MmmSettingsScreen extends Screen
         boolean hovered = this.contains(mouseX, mouseY, x, y, width, height);
         int fill = subtle ? INSET : hovered ? MmmUi.accentHover() : INSET;
         int border = hovered ? MmmUi.accent() : BORDER_SOFT;
-        context.fill(x, y, x + width, y + height, fill);
+        context.fill(x, y, x + width, y + height, MmmUi.menuSurface(fill));
         context.drawBorder(x, y, width, height, border);
         String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
         int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
@@ -679,56 +673,6 @@ public class MmmSettingsScreen extends Screen
         context.fill(x, thumbY, x + 3, thumbY + thumbH, MmmUi.accent());
     }
 
-    private boolean isSidebarActive(SidebarItem item)
-    {
-        int viewportY = TOP_HEIGHT;
-        int currentY = viewportY + 44 - (int) Math.round(this.scrollY);
-        if (item == SidebarItem.GENERAL)
-        {
-            return this.scrollY < 42;
-        }
-
-        for (SettingsSection section : this.sections)
-        {
-            Integer y = this.sectionY.get(section);
-            if (y != null && section.sidebarItem() == item && y <= TOP_HEIGHT + 64)
-            {
-                currentY = y;
-            }
-        }
-
-        SidebarItem active = SidebarItem.GENERAL;
-        int best = Integer.MIN_VALUE;
-        for (Map.Entry<SettingsSection, Integer> entry : this.sectionY.entrySet())
-        {
-            int y = entry.getValue();
-            if (y <= TOP_HEIGHT + 90 && y > best)
-            {
-                best = y;
-                active = entry.getKey().sidebarItem();
-            }
-        }
-        return active == item && currentY <= TOP_HEIGHT + this.height;
-    }
-
-    private void scrollTo(SidebarItem item)
-    {
-        if (item == SidebarItem.GENERAL)
-        {
-            this.scrollY = 0.0D;
-            return;
-        }
-
-        for (SettingsSection section : this.sections)
-        {
-            if (section.sidebarItem() == item)
-            {
-                this.scrollY = Math.max(0, section.absoluteOffset());
-                return;
-            }
-        }
-    }
-
     private void updateLayout()
     {
         int rowY = CONTENT_HEADER_HEIGHT;
@@ -744,10 +688,8 @@ public class MmmSettingsScreen extends Screen
             {
                 rowHeight = Math.max(rowHeight, this.sectionHeight(right));
             }
-            left.section().setAbsoluteOffset(rowY);
             if (right != null)
             {
-                right.section().setAbsoluteOffset(rowY);
             }
             rowY += rowHeight + GAP;
         }
@@ -1091,8 +1033,9 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Decimal Places", "Choose 1, 2, or 3 decimal places.", Configs.Generic.GOAL_PERCENT_DECIMAL_PLACES, ControlKind.SLIDER),
                 new SettingRow("Goal Tracking", "Track today's goal.", FeatureToggle.MMM_DAILY_GOAL, ControlKind.BOOLEAN),
                 new SettingRow("Milestone Messages", "Post progress alerts in chat.", FeatureToggle.MMM_NOTIFICATIONS, ControlKind.BOOLEAN),
-                new SettingRow("Share Milestones", "Share progress with MMM players here.", Configs.Generic.SHARE_GOAL_MILESTONES, ControlKind.BOOLEAN),
-                new SettingRow("Receive Milestones", "Show progress from MMM players here.", Configs.Generic.RECEIVE_GOAL_MILESTONES, ControlKind.BOOLEAN),
+                new SettingRow("Share Milestones", "Share progress with linked MMM players.", Configs.Generic.SHARE_GOAL_MILESTONES, ControlKind.BOOLEAN),
+                new SettingRow("Receive Milestones", "Show global milestones from linked players.", Configs.Generic.RECEIVE_GOAL_MILESTONES, ControlKind.BOOLEAN),
+                new SettingRow("MMM Chat Messages", "Show global MMM messages in Minecraft chat.", Configs.Generic.SHOW_MMM_CHAT_MESSAGES, ControlKind.BOOLEAN),
                 new SettingRow("Sound Alerts", "Play milestone sounds.", FeatureToggle.MMM_SOUND_ALERTS, ControlKind.BOOLEAN),
                 new SettingRow("Custom Sounds", "Choose sounds for 25%, 50%, 75%, and 100%.", null, ControlKind.ACTION),
                 new SettingRow("Pickaxe Animation", "Show a pickaxe at each milestone.", Configs.Generic.GOAL_PICKAXE_ANIMATION, ControlKind.BOOLEAN)
@@ -1153,6 +1096,7 @@ public class MmmSettingsScreen extends Screen
         ));
         this.sections.add(SettingsSection.colors(
                 new SettingRow("MMM Menu", "Set the menu accent.", Configs.Generic.MENU_HEX_COLOR, ControlKind.COLOR),
+                new SettingRow("Menu Opacity", "Change menu background transparency.", Configs.Generic.MENU_OPACITY, ControlKind.SLIDER),
                 new SettingRow("HUD Title", "Set the title color.", Configs.Generic.HUD_TITLE_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("HUD Text", "Set the label color.", Configs.Generic.HUD_TEXT_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("HUD Numbers", "Set the number color.", Configs.Generic.HUD_NUMBER_HEX_COLOR, ControlKind.COLOR),
@@ -1297,7 +1241,6 @@ public class MmmSettingsScreen extends Screen
         private final String title;
         private final String description;
         private final List<SettingRow> rows;
-        private int absoluteOffset;
 
         private SettingsSection(SidebarItem sidebarItem, String title, String description, List<SettingRow> rows)
         {
@@ -1332,16 +1275,6 @@ public class MmmSettingsScreen extends Screen
             return new SettingsSection(SidebarItem.HUD, "HUD CONTENT", "Choose exactly what appears on screen.", List.of(rows));
         }
 
-        private static SettingsSection timer(SettingRow... rows)
-        {
-            return new SettingsSection(SidebarItem.HUD, "BLOCK TIMER", "Set up the optional challenge timer.", List.of(rows));
-        }
-
-        private static SettingsSection blockStats(SettingRow... rows)
-        {
-            return new SettingsSection(SidebarItem.HUD, "BLOCK STATS", "Set up the live block list.", List.of(rows));
-        }
-
         private static SettingsSection colors(SettingRow... rows)
         {
             return new SettingsSection(SidebarItem.COLORS, "HUD COLORS", "Choose colors for menus and HUD text.", List.of(rows));
@@ -1361,11 +1294,6 @@ public class MmmSettingsScreen extends Screen
         private static SettingsSection blockEsp(SettingRow... rows)
         {
             return new SettingsSection(SidebarItem.BLOCK_ESP, "BLOCK ESP", "Change how block highlights look.", List.of(rows));
-        }
-
-        private static SettingsSection about(SettingRow... rows)
-        {
-            return new SettingsSection(SidebarItem.ABOUT, "ABOUT", "Current mod version and existing MMM screens.", List.of(rows));
         }
 
         private static SettingsSection developer(SettingRow... rows)
@@ -1391,16 +1319,6 @@ public class MmmSettingsScreen extends Screen
         private List<SettingRow> rows()
         {
             return this.rows;
-        }
-
-        private int absoluteOffset()
-        {
-            return this.absoluteOffset;
-        }
-
-        private void setAbsoluteOffset(int absoluteOffset)
-        {
-            this.absoluteOffset = absoluteOffset;
         }
     }
 }

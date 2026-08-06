@@ -10,7 +10,7 @@ public final class Hotkeys
     public static final MmmHotkey OPEN_SUMMARY = new MmmHotkey("openSummary", "LEFT_ALT,S", "Open the current session summary");
     public static final MmmHotkey OPEN_HISTORY = new MmmHotkey("openHistory", "LEFT_ALT,H", "Open the saved session history");
     public static final MmmHotkey PAUSE_SESSION = new MmmHotkey("pauseSession", "LEFT_ALT,P", "Pause or resume the current mining session");
-    public static final MmmHotkey TOGGLE_SESSION = new MmmHotkey("toggleSession", "LEFT_ALT,T", "Start or end the current mining session");
+    public static final MmmHotkey TOGGLE_SESSION = new MmmHotkey("toggleSession", "Start/End Session", "LEFT_ALT,T", "Start a session or end and save it");
     public static final MmmHotkey EXPORT_HISTORY = new MmmHotkey("exportHistory", "", "Export session history for the current world/server");
     public static final MmmHotkey SCOREBOARD_PAGE_UP = new MmmHotkey("scoreboardPageUp", "PAGE_UP", "Show the previous scoreboard page");
     public static final MmmHotkey SCOREBOARD_PAGE_DOWN = new MmmHotkey("scoreboardPageDown", "PAGE_DOWN", "Show the next scoreboard page");

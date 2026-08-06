@@ -34,16 +34,6 @@ public final class ScoreboardParser
             "mined blocks",
             "network"
     );
-    private static final List<String> TOTAL_OBJECTIVE_MARKERS = List.of(
-            "sum",
-            "total",
-            "combinedblocks",
-            "combined blocks",
-            "combined_blocks",
-            "combined-blocks",
-            "blocks mined",
-            "mined blocks"
-    );
     private static final List<String> DIG_OBJECTIVE_MARKERS = List.of(
             "dig",
             "dug",
