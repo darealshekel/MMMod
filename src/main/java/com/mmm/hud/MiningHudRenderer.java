@@ -179,8 +179,10 @@ public final class MiningHudRenderer
         }
         if (Configs.Generic.HUD_SESSION_TIME_VISIBLE.getBooleanValue())
         {
-            String sessionClock = MiningStats.getSessionDurationClock();
-            lines.add(HudLine.text("Session Time: " + sessionClock, inactiveTextColor(sessionClock, sessionPaused)));
+            String sessionIgtClock = MiningStats.getSessionDurationClock();
+            String sessionTimeClock = MiningStats.getSessionWallDurationClock();
+            lines.add(HudLine.text("Session IGT: " + sessionIgtClock, inactiveTextColor(sessionIgtClock, sessionPaused)));
+            lines.add(HudLine.text("Session Time: " + sessionTimeClock, inactiveTextColor(sessionTimeClock, false)));
         }
         if (Configs.Generic.HUD_DAILY_RESET_VISIBLE.getBooleanValue() && FeatureToggle.MMM_DAILY_GOAL.getBooleanValue())
         {
