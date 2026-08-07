@@ -347,7 +347,7 @@ public class SessionHistoryScreen extends Screen
             int rowColor = index == this.selectedIndex ? MmmUi.rowSelected() : hovered ? MmmUi.rowHover() : ((row & 1) == 0 ? ROW_ALT : INSET);
             context.fill(x + 4, rowY, x + viewportWidth - 4, rowY + RH - 4, rowColor);
             MmmUi.drawTextWithin(context, this.textRenderer, "#" + (index + 1) + "  " + DATE_FMT.format(new Date(session.startTimeMs)), x + 12, rowY + 6, viewportWidth - 24, TEXT, false);
-            MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatCompact(session.totalBlocks) + " blocks  |  " + session.getDurationString() + "  |  " + UiFormat.formatCompact(session.getAverageBlocksPerHour()) + "/hr", x + 12, rowY + 19, viewportWidth - 24, MUTED, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatCompact(session.totalBlocks) + " blocks  |  IGT " + session.getDurationString() + "  |  Time " + session.getWallDurationString(), x + 12, rowY + 19, viewportWidth - 24, MUTED, false);
         }
         context.disableScissor();
         drawListBar(context, x + width - SBW, y, height, mouseX, mouseY, visibleRows);
@@ -369,10 +369,12 @@ public class SessionHistoryScreen extends Screen
         int cardWidth = (vw - G) / 2;
         int statY = drawY + 16;
         stat(context, vx, statY, cardWidth, 50, "Total Mined", UiFormat.formatCompact(session.totalBlocks), "blocks");
-        stat(context, vx + cardWidth + G, statY, cardWidth, 50, "Active Time", formatClock(session.getDurationMs()), "session");
-        stat(context, vx, statY + 56, cardWidth, 50, "Avg Rate", UiFormat.formatCompact(session.getAverageBlocksPerHour()), "blocks/hr");
-        stat(context, vx + cardWidth + G, statY + 56, cardWidth, 50, "Best Hour", UiFormat.formatCompact(session.getBestHourBlocks()), "blocks mined");
-        int graphY = statY + 118;
+        stat(context, vx + cardWidth + G, statY, cardWidth, 50, "Best Hour", UiFormat.formatCompact(session.getBestHourBlocks()), "blocks mined");
+        stat(context, vx, statY + 56, cardWidth, 50, "Session IGT", formatClock(session.getActiveDurationMs()), "pauses excluded");
+        stat(context, vx + cardWidth + G, statY + 56, cardWidth, 50, "Session Time", formatClock(session.getWallDurationMs()), "pauses included");
+        stat(context, vx, statY + 112, cardWidth, 50, "Avg Rate", UiFormat.formatCompact(session.getAverageBlocksPerHour()), "blocks/hr");
+        stat(context, vx + cardWidth + G, statY + 112, cardWidth, 50, "Best Streak", session.bestStreakSeconds + "s", "active mining");
+        int graphY = statY + 174;
         card(context, vx, graphY, vw, PACE_CARD_HEIGHT, SOFT, BORDER_SOFT);
         MmmUi.drawTextWithin(context, this.textRenderer, "Session Pace", vx + 10, graphY + 8, vw - 20, TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Blocks per hour across the session", vx + 10, graphY + 20, vw - 20, MUTED, false);
@@ -382,9 +384,8 @@ public class SessionHistoryScreen extends Screen
             MmmUi.drawTextRightWithin(context, this.textRenderer, rateLabel, vx + vw - 10, graphY + 8, Math.max(72, vw / 2), Configs.getHudNumberColor(), false);
         }
         int infoY = graphY + PACE_CARD_HEIGHT + 10;
-        row(context, vx, vx + vw, infoY, "Best Streak", session.bestStreakSeconds + "s");
-        row(context, vx, vx + vw, infoY + 16, "Top Block", getTopBlock(session));
-        drawBreakdown(context, vx, infoY + 38, vw, session, mouseX, mouseY);
+        row(context, vx, vx + vw, infoY, "Top Block", getTopBlock(session));
+        drawBreakdown(context, vx, infoY + 22, vw, session, mouseX, mouseY);
         context.disableScissor();
         drawDetailBar(context, l, mouseX, mouseY);
     }
@@ -627,7 +628,7 @@ public class SessionHistoryScreen extends Screen
     private void dragBreakdown(double mouseY){ BreakdownMetrics m=metrics(); int count=this.breakdownEntryCount, max=getBreakdownMax(count,m.listHeight); if(max<=0){this.breakdownScroll=0; return;} int th=getBreakdownThumb(m.listHeight,count), travel=Math.max(1,m.listHeight-th); double n=Math.max(0.0D, Math.min(1.0D, ((mouseY-th/2.0D)-m.listY)/travel)); setBreakdownScroll((int)Math.round(n*max)); }
     private int getListThumb(int h,int vis){ if(this.sessions.isEmpty()) return h; int th=(int)Math.round((vis/(double)this.sessions.size())*h); return Math.max(SBM, Math.min(h, th)); }
     private int getListOffset(int h,int th,int max){ return max<=0?0:(int)Math.round((this.listScroll/(double)max)*(h-th)); }
-    private int getDetailContentHeight(){ return 578; }
+    private int getDetailContentHeight(){ return 634; }
     private int getBreakdownMax(int count,int h){ return Math.max(0, count*14-h); }
     private int getBreakdownThumb(int h,int count){ int ch=Math.max(1, count*14); return Math.max(SBM, Math.min(h, (int)Math.round((h/(double)ch)*h))); }
     private int getBreakdownOffset(int h,int count){ int max=getBreakdownMax(count,h), th=getBreakdownThumb(h,count); return max<=0?0:(int)Math.round((this.breakdownScroll/(double)max)*(h-th)); }
