@@ -94,12 +94,13 @@ public final class SessionHistory
         for (int i = HISTORY.size() - 1; i >= 0; i--)
         {
             SessionData session = HISTORY.get(i);
-            builder.append(String.format("#%-3d %s | %6d blocks/hour avg | %6d blocks | %s | Streak %ds%n",
+            builder.append(String.format("#%-3d %s | %6d blocks/hour avg | %6d blocks | IGT %s | Time %s | Streak %ds%n",
                     i + 1,
                     dateFormat.format(new Date(session.startTimeMs)),
                     session.getAverageBlocksPerHour(),
                     session.totalBlocks,
                     session.getDurationString(),
+                    session.getWallDurationString(),
                     session.bestStreakSeconds));
         }
         builder.append("\n=== End of Export ===\n");

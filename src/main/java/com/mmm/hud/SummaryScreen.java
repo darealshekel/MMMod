@@ -257,13 +257,14 @@ public class SummaryScreen extends Screen
     private void drawStatCards(DrawContext context, Layout layout)
     {
         int cardY = layout.statY;
-        int cardWidth = (layout.contentWidth - CARD_GAP * 3) / 4;
+        int cardWidth = (layout.contentWidth - CARD_GAP * 4) / 5;
 
         int cardHeight = layout.compact ? 40 : 54;
         drawStatCard(context, layout.contentX, cardY, cardWidth, cardHeight, "Total Mined", UiFormat.formatCompact(this.session.totalBlocks), "blocks");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP), cardY, cardWidth, cardHeight, "Active Time", formatClock(this.session.getDurationMs()), "pauses excluded");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 2, cardY, cardWidth, cardHeight, "Avg Rate", UiFormat.formatCompact(this.session.getAverageBlocksPerHour()), "blocks/hr");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 3, cardY, cardWidth, cardHeight, "Best Hour", UiFormat.formatCompact(this.session.getBestHourBlocks()), "blocks mined");
+        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP), cardY, cardWidth, cardHeight, "Session IGT", formatClock(this.session.getActiveDurationMs()), "pauses excluded");
+        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 2, cardY, cardWidth, cardHeight, "Session Time", formatClock(this.session.getWallDurationMs()), "pauses included");
+        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 3, cardY, cardWidth, cardHeight, "Avg Rate", UiFormat.formatCompact(this.session.getAverageBlocksPerHour()), "blocks/hr");
+        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 4, cardY, cardWidth, cardHeight, "Best Hour", UiFormat.formatCompact(this.session.getBestHourBlocks()), "blocks mined");
     }
 
     private void drawGraphCard(DrawContext context, Layout layout, int mouseX, int mouseY, float animation)
@@ -728,7 +729,8 @@ public class SummaryScreen extends Screen
         builder.append(this.heading).append('\n');
         builder.append("World/Server: ").append(this.worldName).append('\n');
         builder.append("Total Mined: ").append(UiFormat.formatBlocks(this.session.totalBlocks)).append('\n');
-        builder.append("Session Time: ").append(formatClock(this.session.getDurationMs())).append('\n');
+        builder.append("Session IGT: ").append(formatClock(this.session.getActiveDurationMs())).append('\n');
+        builder.append("Session Time: ").append(formatClock(this.session.getWallDurationMs())).append('\n');
         builder.append("Average Rate: ").append(UiFormat.formatBlocksPerHour(this.session.getAverageBlocksPerHour())).append('\n');
         builder.append("Best Hour: ").append(UiFormat.formatBlocks(this.session.getBestHourBlocks())).append(" blocks\n");
         builder.append("Best Streak: ").append(this.session.bestStreakSeconds).append("s\n");

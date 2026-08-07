@@ -16,6 +16,7 @@ public class SessionData
 
     public final long startTimeMs;
     public long endTimeMs;
+    public long wallDurationMs;
     public long totalBlocks;
     public long bestStreakSeconds;
     public int peakBlocksPerHour;
@@ -33,9 +34,28 @@ public class SessionData
         return Math.max(0L, this.endTimeMs - this.startTimeMs);
     }
 
+    public long getActiveDurationMs()
+    {
+        return this.getDurationMs();
+    }
+
+    public long getWallDurationMs()
+    {
+        return Math.max(this.getActiveDurationMs(), this.wallDurationMs);
+    }
+
     public String getDurationString()
     {
-        long elapsed = this.getDurationMs();
+        return formatDuration(this.getActiveDurationMs());
+    }
+
+    public String getWallDurationString()
+    {
+        return formatDuration(this.getWallDurationMs());
+    }
+
+    private static String formatDuration(long elapsed)
+    {
         long hours = elapsed / 3_600_000L;
         long minutes = (elapsed % 3_600_000L) / 60_000L;
         long seconds = (elapsed % 60_000L) / 1_000L;
@@ -183,14 +203,14 @@ public class SessionData
 
     public String serialise()
     {
-        return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.getPeakBlocksPerHour() + "," + this.serialiseBreakdown() + "," + this.serialiseRateBuckets();
+        return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.getPeakBlocksPerHour() + "," + this.serialiseBreakdown() + "," + this.serialiseRateBuckets() + "," + this.getWallDurationMs();
     }
 
     public static SessionData deserialise(String line)
     {
         try
         {
-            String[] parts = line.split(",", 7);
+            String[] parts = line.split(",", 8);
             SessionData session = new SessionData(Long.parseLong(parts[0]));
             session.endTimeMs = Long.parseLong(parts[1]);
             session.totalBlocks = Long.parseLong(parts[2]);
@@ -204,6 +224,9 @@ public class SessionData
             {
                 session.miningRateBuckets = deserialiseRateBuckets(parts[6]);
             }
+            session.wallDurationMs = parts.length >= 8
+                    ? Math.max(session.getActiveDurationMs(), Long.parseLong(parts[7]))
+                    : session.getActiveDurationMs();
             return session;
         }
         catch (Exception e)
