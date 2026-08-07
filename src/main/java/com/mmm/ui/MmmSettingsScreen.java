@@ -1076,7 +1076,7 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Blocks/min", "Also show Blocks/min.", Configs.Generic.BLOCKS_PER_MINUTE_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Hour / Best Hour", "Show current and best hour.", Configs.Generic.HOURLY_STATS_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Timer Status", "Show timer status.", Configs.Generic.HUD_TIMER_STATUS_VISIBLE, ControlKind.BOOLEAN),
-                new SettingRow("Session Time", "Show session duration.", Configs.Generic.HUD_SESSION_TIME_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Session Times", "Show active time and time with pauses.", Configs.Generic.HUD_SESSION_TIME_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Daily Reset", "Show time until UTC reset.", Configs.Generic.HUD_DAILY_RESET_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Goal ETA", "Show time left to goal.", FeatureToggle.MMM_HUD_ETA, ControlKind.BOOLEAN),
                 new SettingRow("Daily Goal Bar", "Show goal progress and % in the HUD.", Configs.Generic.HUD_DAILY_GOAL_BAR_VISIBLE, ControlKind.BOOLEAN),

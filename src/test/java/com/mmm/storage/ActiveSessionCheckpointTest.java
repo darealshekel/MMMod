@@ -19,6 +19,7 @@ class ActiveSessionCheckpointTest
     {
         Path target = this.tempDir.resolve("active-session.json");
         SessionData session = session(1_000L, 65_000L, 12_345L);
+        session.wallDurationMs = 90_000L;
         ActiveSessionCheckpoint.State expected = new ActiveSessionCheckpoint.State(
                 session,
                 true,
@@ -38,6 +39,7 @@ class ActiveSessionCheckpointTest
         assertNotNull(restored);
         assertEquals(12_345L, restored.session().totalBlocks);
         assertEquals(64_000L, restored.session().getDurationMs());
+        assertEquals(90_000L, restored.session().getWallDurationMs());
         assertTrue(restored.paused());
         assertTrue(restored.autoPaused());
         assertTrue(restored.menuPaused());
