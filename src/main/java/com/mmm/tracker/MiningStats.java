@@ -121,9 +121,10 @@ public final class MiningStats
     public static synchronized SessionData finaliseSession()
     {
         boolean wasActive = sessionActive;
+        long now = System.currentTimeMillis();
         if (sessionPaused)
         {
-            pausedAccumulatedMs += Math.max(0L, System.currentTimeMillis() - pausedAtMs);
+            pausedAccumulatedMs += Math.max(0L, now - pausedAtMs);
             pausedAtMs = 0L;
             sessionPaused = false;
             sessionAutoPaused = false;
@@ -133,7 +134,8 @@ public final class MiningStats
         resetDailyProgressIfNeeded();
         resetPeriodStatsIfNeeded(System.currentTimeMillis());
         MiningCalendarStore.flush();
-        currentSession.endTimeMs = System.currentTimeMillis() - pausedAccumulatedMs;
+        currentSession.endTimeMs = now - pausedAccumulatedMs;
+        currentSession.wallDurationMs = Math.max(0L, now - currentSession.startTimeMs);
         if (wasActive && shouldPersistSession(currentSession))
         {
             SessionHistory.save(currentSession);
@@ -227,7 +229,8 @@ public final class MiningStats
         if (sessionActive && sessionPaused == false)
         {
             currentSession.totalBlocks++;
-            currentSession.endTimeMs = now;
+            currentSession.endTimeMs = now - pausedAccumulatedMs;
+            currentSession.wallDurationMs = Math.max(0L, now - currentSession.startTimeMs);
             currentSession.recordMineEvent(getActiveElapsedMs(now));
             recordFastest100kIfReached(now);
 
@@ -697,6 +700,15 @@ public final class MiningStats
         return String.format("%02d:%02d:%02d", hours, minutes, seconds);
     }
 
+    public static String getSessionWallDurationClock()
+    {
+        long totalSeconds = Math.max(0L, getSessionWallDurationMs() / 1000L);
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        long seconds = totalSeconds % 60L;
+        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+    }
+
     public static String getDailyResetCountdownClock()
     {
         resetDailyProgressIfNeeded();
@@ -721,6 +733,16 @@ public final class MiningStats
 
         long now = sessionPaused ? pausedAtMs : System.currentTimeMillis();
         return Math.max(0L, now - currentSession.startTimeMs - pausedAccumulatedMs);
+    }
+
+    public static long getSessionWallDurationMs()
+    {
+        if (sessionActive == false)
+        {
+            return 0L;
+        }
+
+        return Math.max(0L, System.currentTimeMillis() - currentSession.startTimeMs);
     }
 
     private static long getActiveElapsedMs(long now)
@@ -847,11 +869,13 @@ public final class MiningStats
         if (sessionActive == false)
         {
             currentSession.endTimeMs = currentSession.startTimeMs;
+            currentSession.wallDurationMs = 0L;
             return currentSession;
         }
 
         long now = sessionPaused ? pausedAtMs : System.currentTimeMillis();
         currentSession.endTimeMs = now - pausedAccumulatedMs;
+        currentSession.wallDurationMs = Math.max(0L, System.currentTimeMillis() - currentSession.startTimeMs);
         return currentSession;
     }
 
@@ -897,6 +921,7 @@ public final class MiningStats
 
         session.totalBlocks = totalBlocks;
         session.endTimeMs = startTimeMs + durationMinutes * ONE_MINUTE_MS;
+        session.wallDurationMs = session.getActiveDurationMs();
         session.bestStreakSeconds = random.nextLong(12L * 60L, Math.min(90L * 60L, Math.max(13L * 60L, durationMinutes * 45L)));
         session.blockBreakdown = buildDevSessionBreakdown(totalBlocks);
         return session;
@@ -1491,6 +1516,7 @@ public final class MiningStats
         currentSession.endTimeMs = Math.max(
                 currentSession.startTimeMs,
                 effectiveNow - Math.max(0L, pausedAccumulatedMs));
+        currentSession.wallDurationMs = Math.max(0L, now - currentSession.startTimeMs);
         ActiveSessionCheckpoint.save(
                 currentWorldId,
                 new ActiveSessionCheckpoint.State(
@@ -1554,6 +1580,7 @@ public final class MiningStats
         currentSession.endTimeMs = Math.max(
                 currentSession.startTimeMs,
                 (sessionPaused ? pausedAtMs : now) - pausedAccumulatedMs);
+        currentSession.wallDurationMs = Math.max(currentSession.wallDurationMs, now - currentSession.startTimeMs);
         lastSessionCheckpointMs = now;
         autoMiningStreakStartMs = 0L;
         lastValidBlockMineMs = 0L;
@@ -1584,4 +1611,3 @@ public final class MiningStats
     public record ProjectProgress(String name, long blocksMined) {}
 
 }
-

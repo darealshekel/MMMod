@@ -117,7 +117,7 @@ public class Configs
         public static final ConfigBoolean HUD_DAILY_WEEK_VISIBLE = new ConfigBoolean("hudDailyWeekVisible", true, "Show today's and this week's blocks.");
         public static final ConfigBoolean HUD_RECORDS_VISIBLE = new ConfigBoolean("hudRecordsVisible", true, "Show daily and weekly personal records.");
         public static final ConfigBoolean HUD_FASTEST_100K_VISIBLE = new ConfigBoolean("hudFastest100kVisible", true, "Show your fastest 100k time.");
-        public static final ConfigBoolean HUD_SESSION_TIME_VISIBLE = new ConfigBoolean("hudSessionTimeVisible", true, "Show the current session time.");
+        public static final ConfigBoolean HUD_SESSION_TIME_VISIBLE = new ConfigBoolean("hudSessionTimeVisible", true, "Show active and full session time.");
         public static final ConfigBoolean HUD_DAILY_RESET_VISIBLE = new ConfigBoolean("hudDailyResetVisible", true, "Show the countdown to the daily reset.");
         public static final ConfigBoolean HUD_TIMER_STATUS_VISIBLE = new ConfigBoolean("hudTimerStatusVisible", true, "Show timer status in the main HUD.");
         public static final ConfigBoolean HUD_DAILY_GOAL_BAR_VISIBLE = new ConfigBoolean("hudDailyGoalBarVisible", false, "Show daily-goal progress and a colored bar in the main HUD.");
