@@ -14,6 +14,7 @@
 
 - Menu opacity now updates live without dimming text, controls, or borders.
 - In singleplayer, active sessions now pause while ESC is open or Minecraft is paused, then resume when play continues.
+- Session History and Summary now separate active **Session IGT** from total **Session Time**, including pauses.
 
 ## 1.0.18 - 2026-07-29
 
