@@ -1525,7 +1525,7 @@ public final class CloudSyncManager
         leaderboard.addProperty("mode", "full");
         leaderboard.addProperty("complete_snapshot", true);
 
-        long payloadTotalDigs = SourceLeaderboardPayloadSupport.resolveTotal(snapshot, realEntries);
+        long payloadTotalDigs = SourceLeaderboardPayloadSupport.resolveTotal(snapshot, filtered);
         if (payloadTotalDigs > 0L)
         {
             leaderboard.addProperty("total_digs", payloadTotalDigs);
@@ -1539,6 +1539,12 @@ public final class CloudSyncManager
             row.addProperty("digs", entry.digs());
             row.addProperty("rank", entry.rank());
             row.addProperty("source_server", snapshot.serverName());
+            SourceLeaderboardPayloadSupport.IdentityEvidence identity = filtered.identityFor(entry);
+            if (identity != null)
+            {
+                row.addProperty("minecraft_uuid", identity.minecraftUuid());
+                row.addProperty("identity_verified", true);
+            }
             entries.add(row);
         }
 

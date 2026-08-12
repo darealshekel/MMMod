@@ -161,8 +161,13 @@ public abstract class ScoreboardChatScreenMixin extends Screen
 
     private void mmm$switchChannel(Channel channel)
     {
-        if (mmm$selectedChannel == channel || this.chatField == null)
+        if (this.chatField == null)
         {
+            return;
+        }
+        if (mmm$selectedChannel == channel)
+        {
+            this.setFocused(this.chatField);
             return;
         }
 
@@ -191,7 +196,7 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         this.chatField.setPlaceholder(Text.literal(publicChannel
                 ? "Message linked MMM players..."
                 : "Minecraft chat..."));
-        this.chatField.setFocused(true);
+        this.setFocused(this.chatField);
     }
 
     private int mmm$tabWidth(Channel channel)
