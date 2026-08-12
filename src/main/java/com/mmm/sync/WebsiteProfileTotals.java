@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 public final class WebsiteProfileTotals
 {
@@ -221,15 +221,15 @@ public final class WebsiteProfileTotals
             return Configs.websiteLinkedMinecraftUsername.trim();
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.getSession() == null)
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.getUser() == null)
         {
             return "";
         }
 
         try
         {
-            String username = client.getSession().getUsername();
+            String username = client.getUser().getName();
             return username == null ? "" : username.trim();
         }
         catch (Exception e)

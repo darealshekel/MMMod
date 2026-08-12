@@ -26,7 +26,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 public final class CloudSyncManager
 {
@@ -76,7 +76,7 @@ public final class CloudSyncManager
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         refreshLeaderboardSnapshot(client, now, false);
 
         if (isSyncCadenceDue(now))
@@ -111,7 +111,7 @@ public final class CloudSyncManager
             return;
         }
 
-        refreshLeaderboardSnapshot(MinecraftClient.getInstance(), now, true);
+        refreshLeaderboardSnapshot(Minecraft.getInstance(), now, true);
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
@@ -130,7 +130,7 @@ public final class CloudSyncManager
             syncStatusDetail = "Next sync in " + getNextSyncLabel();
             return;
         }
-        refreshLeaderboardSnapshot(MinecraftClient.getInstance(), now, true);
+        refreshLeaderboardSnapshot(Minecraft.getInstance(), now, true);
         lastHeartbeatMs = now;
         lastLiveBlockSyncMs = now;
         SessionData liveSession = MiningStats.isSessionActive() ? MiningStats.getCurrentSession() : null;
@@ -162,13 +162,13 @@ public final class CloudSyncManager
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         String sourceName = ScoreboardSourceResolver.displayName(worldInfo.displayName(), worldInfo);
         boolean autoSyncEnabled = Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue();
         boolean hasEndpoint = Configs.cloudSyncEndpoint != null && Configs.cloudSyncEndpoint.isBlank() == false;
-        boolean hasContext = client != null && client.player != null && client.world != null;
-        boolean loggedIn = hasContext && client.getSession() != null && client.getSession().getUsername().isBlank() == false;
+        boolean hasContext = client != null && client.player != null && client.level != null;
+        boolean loggedIn = hasContext && client.getUser() != null && client.getUser().getName().isBlank() == false;
         long totalMined = MiningStats.getTotalMined();
         long sessionMined = MiningStats.getSessionBlocksMined();
         boolean hasSyncSecret = Configs.cloudSyncSecret != null && Configs.cloudSyncSecret.isBlank() == false;
@@ -913,7 +913,7 @@ public final class CloudSyncManager
         return currentContextPayloadPrepared;
     }
 
-    private static void refreshLeaderboardSnapshot(MinecraftClient client, long now, boolean force)
+    private static void refreshLeaderboardSnapshot(Minecraft client, long now, boolean force)
     {
         if (client == null)
         {
@@ -1213,13 +1213,13 @@ public final class CloudSyncManager
 
     private static boolean hasLiveContext()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        return client != null && client.player != null && client.world != null;
+        Minecraft client = Minecraft.getInstance();
+        return client != null && client.player != null && client.level != null;
     }
 
     private static boolean isCurrentPlayerMismatch()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         return client != null
                 && client.player != null
                 && WebsiteLinkManager.isCurrentPlayerLinked() == false;
@@ -1242,7 +1242,7 @@ public final class CloudSyncManager
 
     private static JsonObject buildPayload(SessionData session, String sessionStatus)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
         MiningStats.ProjectProgress projectProgress = MiningStats.getActiveProjectProgress();
@@ -1251,10 +1251,10 @@ public final class CloudSyncManager
 
         JsonObject payload = new JsonObject();
         payload.addProperty("client_id", Configs.cloudClientId);
-        payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
+        payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getStringUUID() : null);
         payload.addProperty("username", resolveUsername(client));
         payload.addProperty("mod_version", Reference.MOD_VERSION);
-        payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.addProperty("minecraft_version", client != null ? client.getLaunchedVersion() : null);
         payload.addProperty("sync_origin", "client_evidence");
         payload.add("world", buildWorld(worldInfo));
         payload.add("lifetime_totals", buildLifetimeTotals());
@@ -1437,7 +1437,7 @@ public final class CloudSyncManager
         return totals;
     }
 
-    private static SourceEvidence readSourceEvidence(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo)
+    private static SourceEvidence readSourceEvidence(Minecraft client, WorldSessionContext.WorldInfo worldInfo)
     {
         SourceScanResult scan = SourceScanManager.scan(client);
         if (scan != null && scan.hasMeaningfulEvidence() == false)
@@ -1452,7 +1452,7 @@ public final class CloudSyncManager
         return new SourceEvidence(scan, leaderboards, playerTotalDigs);
     }
 
-    private static long resolvePlayerTotalDigs(MinecraftClient client,
+    private static long resolvePlayerTotalDigs(Minecraft client,
                                                SourceScanResult scan,
                                                SourceLeaderboardSnapshot snapshot)
     {
@@ -1508,7 +1508,7 @@ public final class CloudSyncManager
         }
 
         SourceLeaderboardPayloadSupport.FilterResult filtered = SourceLeaderboardPayloadSupport.filterEntries(
-                MinecraftClient.getInstance(),
+                Minecraft.getInstance(),
                 snapshot.entries());
         List<SourceLeaderboardEntry> realEntries = filtered.entries();
 
@@ -1553,7 +1553,7 @@ public final class CloudSyncManager
         return leaderboard;
     }
 
-    private static JsonObject buildSourceScan(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo)
+    private static JsonObject buildSourceScan(Minecraft client, WorldSessionContext.WorldInfo worldInfo)
     {
         SourceScanResult scan = SourceScanManager.scan(client);
         return buildSourceScan(scan, worldInfo);
@@ -1622,7 +1622,7 @@ public final class CloudSyncManager
         return object;
     }
 
-    private static JsonObject buildPlayerTotalDigs(MinecraftClient client,
+    private static JsonObject buildPlayerTotalDigs(Minecraft client,
                                                    WorldSessionContext.WorldInfo worldInfo,
                                                    SourceEvidence sourceEvidence)
     {
@@ -1945,7 +1945,7 @@ public final class CloudSyncManager
         return "unknown";
     }
 
-    private static String resolveUsername(MinecraftClient client)
+    private static String resolveUsername(Minecraft client)
     {
         if (client == null)
         {
@@ -1954,7 +1954,7 @@ public final class CloudSyncManager
 
         try
         {
-            String username = client.getSession().getUsername();
+            String username = client.getUser().getName();
             if (username != null && username.isBlank() == false)
             {
                 return username;
@@ -1972,16 +1972,16 @@ public final class CloudSyncManager
         return "Player";
     }
 
-    private static boolean hasSessionToken(MinecraftClient client)
+    private static boolean hasSessionToken(Minecraft client)
     {
-        if (client == null || client.getSession() == null)
+        if (client == null || client.getUser() == null)
         {
             return false;
         }
 
         try
         {
-            String token = client.getSession().getAccessToken();
+            String token = client.getUser().getAccessToken();
             return token != null && token.isBlank() == false;
         }
         catch (Exception ignored)

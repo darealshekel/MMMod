@@ -3,7 +3,17 @@ package com.mmm.timer;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import com.mmm.config.Configs;
 import com.mmm.hud.HudModuleId;
 import com.mmm.ui.MmmUi;
@@ -11,17 +21,6 @@ import com.mmm.util.UiFormat;
 
 import com.mmm.config.value.IConfigDouble;
 import com.mmm.config.value.IConfigInteger;
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
 
 public final class TimerHudRenderer
 {
@@ -47,9 +46,9 @@ public final class TimerHudRenderer
     {
     }
 
-    public static void render(DrawContext context, MinecraftClient client)
+    public static void render(GuiGraphicsExtractor context, Minecraft client)
     {
-        if (client == null || client.player == null || client.options.hudHidden)
+        if (client == null || client.player == null || client.gui.hud.isHidden())
         {
             return;
         }
@@ -65,7 +64,7 @@ public final class TimerHudRenderer
         }
     }
 
-    public static void drawModule(DrawContext context, MinecraftClient client, HudModuleId module, boolean preview)
+    public static void drawModule(GuiGraphicsExtractor context, Minecraft client, HudModuleId module, boolean preview)
     {
         if (module == HudModuleId.MAIN || client == null)
         {
@@ -76,9 +75,9 @@ public final class TimerHudRenderer
         int x = bounds[0];
         int y = bounds[1];
         double scale = getScale(module);
-        context.getMatrices().pushMatrix();
-        context.getMatrices().translate(x, y);
-        context.getMatrices().scale((float) scale, (float) scale);
+        context.pose().pushMatrix();
+        context.pose().translate(x, y);
+        context.pose().scale((float) scale, (float) scale);
         switch (module)
         {
             case TIMER -> drawTimer(context, client, preview);
@@ -87,10 +86,10 @@ public final class TimerHudRenderer
             case NOTIFICATION -> drawNotification(context, client, preview);
             default -> {}
         }
-        context.getMatrices().popMatrix();
+        context.pose().popMatrix();
     }
 
-    public static int[] getBounds(MinecraftClient client, HudModuleId module)
+    public static int[] getBounds(Minecraft client, HudModuleId module)
     {
         if (module == HudModuleId.MAIN)
         {
@@ -133,7 +132,7 @@ public final class TimerHudRenderer
         MmmTimerState.save();
     }
 
-    public static void setModulePosition(MinecraftClient client, HudModuleId module, int actualX, int actualY)
+    public static void setModulePosition(Minecraft client, HudModuleId module, int actualX, int actualY)
     {
         if (module == HudModuleId.MAIN)
         {
@@ -143,8 +142,8 @@ public final class TimerHudRenderer
         int[] bounds = getBounds(client, module);
         int width = bounds[2] - bounds[0];
         int height = bounds[3] - bounds[1];
-        int maxX = Math.max(1, client.getWindow().getScaledWidth() - width);
-        int maxY = Math.max(1, client.getWindow().getScaledHeight() - height);
+        int maxX = Math.max(1, client.getWindow().getGuiScaledWidth() - width);
+        int maxY = Math.max(1, client.getWindow().getGuiScaledHeight() - height);
         xConfig(module).setIntegerValue(Math.max(0, Math.min(820, (int) Math.round((Math.max(0, Math.min(maxX, actualX)) / (double) maxX) * 820.0D))));
         yConfig(module).setIntegerValue(Math.max(0, Math.min(460, (int) Math.round((Math.max(0, Math.min(maxY, actualY)) / (double) maxY) * 460.0D))));
     }
@@ -180,7 +179,7 @@ public final class TimerHudRenderer
         MmmTimerState.save();
     }
 
-    private static void drawTimer(DrawContext context, MinecraftClient client, boolean preview)
+    private static void drawTimer(GuiGraphicsExtractor context, Minecraft client, boolean preview)
     {
         if (preview == false && MmmTimerState.isTimerDisplayActive() == false)
         {
@@ -189,7 +188,7 @@ public final class TimerHudRenderer
 
         long remaining = MmmTimerState.getRemainingMs();
         String timerText = MmmTimerState.formatTime(remaining);
-        int textWidth = client.textRenderer.getWidth(timerText);
+        int textWidth = client.font.width(timerText);
         double ratio = MmmTimerState.getDurationMs() <= 0L ? 0D : remaining / (double) MmmTimerState.getDurationMs();
         float progress = Math.max(0F, Math.min(1F, (float) ratio));
         int color = MmmTimerState.isExpired() ? 0xFFFF5555 : getTimerColor(progress);
@@ -203,7 +202,7 @@ public final class TimerHudRenderer
             context.fill(barX, barY, barX + filledWidth, barY + TIMER_BAR_HEIGHT, color);
         }
 
-        drawTextShadow(context, client.textRenderer, timerText, (WIDTH_TIMER - textWidth) / 2, barY + TIMER_BAR_HEIGHT + 3, color);
+        drawTextShadow(context, client.font, timerText, (WIDTH_TIMER - textWidth) / 2, barY + TIMER_BAR_HEIGHT + 3, color);
 
         if (MmmTimerState.isExpired())
         {
@@ -211,15 +210,15 @@ public final class TimerHudRenderer
             int alpha = (int) (128 + 127 * Math.sin(now / 300.0D));
             int expiredColor = (alpha << 24) | 0x00FF5555;
             String expiredText = "TIME'S UP!";
-            int expiredWidth = client.textRenderer.getWidth(expiredText);
-            drawTextShadow(context, client.textRenderer, expiredText, (WIDTH_TIMER - expiredWidth) / 2, barY + TIMER_BAR_HEIGHT + 3 + client.textRenderer.fontHeight + 2, expiredColor);
+            int expiredWidth = client.font.width(expiredText);
+            drawTextShadow(context, client.font, expiredText, (WIDTH_TIMER - expiredWidth) / 2, barY + TIMER_BAR_HEIGHT + 3 + client.font.lineHeight + 2, expiredColor);
         }
     }
 
-    private static void drawHourly(DrawContext context, MinecraftClient client, boolean preview)
+    private static void drawHourly(GuiGraphicsExtractor context, Minecraft client, boolean preview)
     {
         drawCard(context, WIDTH_HOURLY, HEIGHT_HOURLY, "HOURLY STATS");
-        TextRenderer renderer = client.textRenderer;
+        Font renderer = client.font;
         drawMetric(context, renderer, "Current Hour", MmmTimerState.getCurrentHourBlocks(), 22);
         drawMetric(context, renderer, "Estimated Blocks/hr", MmmTimerState.getEstimatedBlocksPerHour(), 34);
         drawMetric(context, renderer, "Best Hour", MmmTimerState.getBestHourBlocks(), 46);
@@ -227,7 +226,7 @@ public final class TimerHudRenderer
         drawTextRight(context, renderer, UiFormat.formatBlocksPerMinute(MmmTimerState.getBlocksPerMinute()), WIDTH_HOURLY - 12, 58, Configs.getHudNumberColor());
     }
 
-    private static void drawBlockStats(DrawContext context, MinecraftClient client, boolean preview)
+    private static void drawBlockStats(GuiGraphicsExtractor context, Minecraft client, boolean preview)
     {
         List<MmmTimerState.BlockCount> blocks = MmmTimerState.getTopBlocks();
         if (blocks.isEmpty())
@@ -235,7 +234,7 @@ public final class TimerHudRenderer
             if (preview)
             {
                 String header = "Block Statistics";
-                drawTextShadow(context, client.textRenderer, header, WIDTH_BLOCKS - client.textRenderer.getWidth(header), 0, 0xFFDDDDDD);
+                drawTextShadow(context, client.font, header, WIDTH_BLOCKS - client.font.width(header), 0, 0xFFDDDDDD);
             }
             return;
         }
@@ -266,12 +265,12 @@ public final class TimerHudRenderer
         }
 
         int endIndex = Math.min(startIndex + maxEntries, blocks.size());
-        int lineHeight = showIcons ? 18 : client.textRenderer.fontHeight + 2;
+        int lineHeight = showIcons ? 18 : client.font.lineHeight + 2;
         int iconOffset = showIcons ? 18 : 0;
         int line = 0;
         String header = isStatic ? "Block Statistics" : "Block Statistics >>>";
-        int headerWidth = client.textRenderer.getWidth(header);
-        drawTextShadow(context, client.textRenderer, header, WIDTH_BLOCKS - headerWidth, line * lineHeight, 0xFFDDDDDD);
+        int headerWidth = client.font.width(header);
+        drawTextShadow(context, client.font, header, WIDTH_BLOCKS - headerWidth, line * lineHeight, 0xFFDDDDDD);
         line++;
 
         for (int i = startIndex; i < endIndex; i++)
@@ -283,7 +282,7 @@ public final class TimerHudRenderer
                 displayName = displayName.substring(0, 14) + "..";
             }
             String text = displayName + ": " + entry.count();
-            int textWidth = client.textRenderer.getWidth(text);
+            int textWidth = client.font.width(text);
             int rowColor = (i % 2 == 0) ? 0xFFAADDFF : 0xFF99BBDD;
             int rowY = line * lineHeight + (showIcons ? 4 : 0);
 
@@ -294,7 +293,7 @@ public final class TimerHudRenderer
                     ItemStack stack = getCachedIcon(entry.id());
                     if (stack.isEmpty() == false)
                     {
-                        context.drawItem(stack, WIDTH_BLOCKS - textWidth - iconOffset, line * lineHeight);
+                        context.item(stack, WIDTH_BLOCKS - textWidth - iconOffset, line * lineHeight);
                     }
                 }
                 catch (RuntimeException ignored)
@@ -302,42 +301,42 @@ public final class TimerHudRenderer
                 }
             }
 
-            drawTextShadow(context, client.textRenderer, text, WIDTH_BLOCKS - textWidth, rowY, rowColor);
+            drawTextShadow(context, client.font, text, WIDTH_BLOCKS - textWidth, rowY, rowColor);
             line++;
         }
 
         if (isStatic == false && totalPages > 1)
         {
             String pageText = (blockStatsPage + 1) + "/" + totalPages;
-            int pageWidth = client.textRenderer.getWidth(pageText);
-            drawTextShadow(context, client.textRenderer, pageText, WIDTH_BLOCKS - pageWidth, line * lineHeight, 0xFF888888);
+            int pageWidth = client.font.width(pageText);
+            drawTextShadow(context, client.font, pageText, WIDTH_BLOCKS - pageWidth, line * lineHeight, 0xFF888888);
         }
     }
 
-    private static void drawNotification(DrawContext context, MinecraftClient client, boolean preview)
+    private static void drawNotification(GuiGraphicsExtractor context, Minecraft client, boolean preview)
     {
         drawCard(context, WIDTH_NOTIFICATION, HEIGHT_NOTIFICATION, "HOUR " + MmmTimerState.getNotificationHour());
         long blocks = MmmTimerState.getNotificationBlocks();
         double bpm = MmmTimerState.getNotificationBlocksPerMinute();
-        drawText(context, client.textRenderer, UiFormat.formatCompact(blocks) + " blocks", 12, 23, Configs.getHudNumberColor());
-        drawTextRight(context, client.textRenderer, UiFormat.formatBlocksPerMinute(bpm) + "/min", WIDTH_NOTIFICATION - 12, 23, Configs.getHudTextColor());
+        drawText(context, client.font, UiFormat.formatCompact(blocks) + " blocks", 12, 23, Configs.getHudNumberColor());
+        drawTextRight(context, client.font, UiFormat.formatBlocksPerMinute(bpm) + "/min", WIDTH_NOTIFICATION - 12, 23, Configs.getHudTextColor());
     }
 
-    private static void drawMetric(DrawContext context, TextRenderer renderer, String label, long value, int y)
+    private static void drawMetric(GuiGraphicsExtractor context, Font renderer, String label, long value, int y)
     {
         drawText(context, renderer, label, 12, y, Configs.getHudTextColor());
         drawTextRight(context, renderer, UiFormat.formatCompact(value), WIDTH_HOURLY - 12, y, Configs.getHudNumberColor());
     }
 
-    private static void drawCard(DrawContext context, int width, int height, String title)
+    private static void drawCard(GuiGraphicsExtractor context, int width, int height, String title)
     {
         context.fill(0, 0, width, height, Configs.getHudBackgroundColor());
         MmmUi.drawBorder(context, 0, 0, width, height, CARD_BORDER);
         context.fill(8, 8, 11, 18, MmmUi.RED);
-        drawText(context, MinecraftClient.getInstance().textRenderer, title, 17, 8, Configs.getHudTitleColor());
+        drawText(context, Minecraft.getInstance().font, title, 17, 8, Configs.getHudTitleColor());
     }
 
-    private static void drawBlockStatsShell(DrawContext context, int width, int height, String title)
+    private static void drawBlockStatsShell(GuiGraphicsExtractor context, int width, int height, String title)
     {
         if (Configs.Generic.BLOCK_STATS_BACKGROUND.getBooleanValue())
         {
@@ -346,22 +345,22 @@ public final class TimerHudRenderer
         }
 
         context.fill(0, 8, 3, 18, MmmUi.RED);
-        drawText(context, MinecraftClient.getInstance().textRenderer, title, 12, 8, Configs.getHudTitleColor());
+        drawText(context, Minecraft.getInstance().font, title, 12, 8, Configs.getHudTitleColor());
     }
 
-    private static void drawText(DrawContext context, TextRenderer renderer, String text, int x, int y, int color)
+    private static void drawText(GuiGraphicsExtractor context, Font renderer, String text, int x, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), x, y, color, Configs.useHudTextShadow());
+        context.text(renderer, Component.literal(text), x, y, color, Configs.useHudTextShadow());
     }
 
-    private static void drawTextShadow(DrawContext context, TextRenderer renderer, String text, int x, int y, int color)
+    private static void drawTextShadow(GuiGraphicsExtractor context, Font renderer, String text, int x, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), x, y, color, Configs.useHudTextShadow());
+        context.text(renderer, Component.literal(text), x, y, color, Configs.useHudTextShadow());
     }
 
-    private static void drawTextRight(DrawContext context, TextRenderer renderer, String text, int rightX, int y, int color)
+    private static void drawTextRight(GuiGraphicsExtractor context, Font renderer, String text, int rightX, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), rightX - renderer.getWidth(text), y, color, Configs.useHudTextShadow());
+        context.text(renderer, Component.literal(text), rightX - renderer.width(text), y, color, Configs.useHudTextShadow());
     }
 
     private static int rawWidth(HudModuleId module)
@@ -376,11 +375,11 @@ public final class TimerHudRenderer
         };
     }
 
-    private static int rawHeight(MinecraftClient client, HudModuleId module)
+    private static int rawHeight(Minecraft client, HudModuleId module)
     {
         return switch (module)
         {
-            case TIMER -> HEIGHT_TIMER + (MmmTimerState.isExpired() ? client.textRenderer.fontHeight + 2 : 0);
+            case TIMER -> HEIGHT_TIMER + (MmmTimerState.isExpired() ? client.font.lineHeight + 2 : 0);
             case HOURLY -> HEIGHT_HOURLY;
             case BLOCK_STATS -> blockStatsHeight(MmmTimerState.getTopBlocks().size());
             case NOTIFICATION -> HEIGHT_NOTIFICATION;
@@ -429,15 +428,15 @@ public final class TimerHudRenderer
         return Math.max(0.25D, Math.min(3.0D, scaleConfig(module).getDoubleValue()));
     }
 
-    private static int resolveX(MinecraftClient client, IConfigInteger config, int scaledWidth)
+    private static int resolveX(Minecraft client, IConfigInteger config, int scaledWidth)
     {
-        int maxX = Math.max(0, client.getWindow().getScaledWidth() - scaledWidth);
+        int maxX = Math.max(0, client.getWindow().getGuiScaledWidth() - scaledWidth);
         return Math.max(0, Math.min(maxX, (int) Math.round(maxX * (Math.max(0, Math.min(820, config.getIntegerValue())) / 820.0D))));
     }
 
-    private static int resolveY(MinecraftClient client, IConfigInteger config, int scaledHeight)
+    private static int resolveY(Minecraft client, IConfigInteger config, int scaledHeight)
     {
-        int maxY = Math.max(0, client.getWindow().getScaledHeight() - scaledHeight);
+        int maxY = Math.max(0, client.getWindow().getGuiScaledHeight() - scaledHeight);
         return Math.max(0, Math.min(maxY, (int) Math.round(maxY * (Math.max(0, Math.min(460, config.getIntegerValue())) / 460.0D))));
     }
 
@@ -445,15 +444,15 @@ public final class TimerHudRenderer
     {
         boolean showIcons = Configs.Generic.BLOCK_STATS_ICONS.getBooleanValue();
         boolean isStatic = Configs.Generic.BLOCK_STATS_STATIC.getBooleanValue();
-        int lineHeight = showIcons ? 18 : MinecraftClient.getInstance().textRenderer.fontHeight + 2;
+        int lineHeight = showIcons ? 18 : Minecraft.getInstance().font.lineHeight + 2;
         int visibleEntries = isStatic ? Math.min(BLOCK_STATS_STATIC_SIZE, entries) : Math.min(BLOCK_STATS_PAGE_SIZE, entries);
         int pageLine = isStatic || entries <= BLOCK_STATS_PAGE_SIZE ? 0 : 1;
         return Math.max(lineHeight, lineHeight * (1 + Math.max(0, visibleEntries) + pageLine));
     }
 
-    private static boolean isPlayerListOpen(MinecraftClient client)
+    private static boolean isPlayerListOpen(Minecraft client)
     {
-        return client != null && client.options != null && client.options.playerListKey.isPressed();
+        return client != null && client.options != null && client.options.keyPlayerList.isDown();
     }
 
     private static String blockName(String id)
@@ -482,7 +481,7 @@ public final class TimerHudRenderer
         {
             return Blocks.STONE;
         }
-        Block block = Registries.BLOCK.get(identifier);
+        Block block = BuiltInRegistries.BLOCK.getValue(identifier);
         return block == null ? Blocks.STONE : block;
     }
 

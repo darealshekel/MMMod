@@ -28,10 +28,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 public final class PublicChatClient
 {
@@ -68,7 +68,7 @@ public final class PublicChatClient
     {
     }
 
-    public static void onClientTick(MinecraftClient client)
+    public static void onClientTick(Minecraft client)
     {
         if (++tickCounter < 20)
         {
@@ -94,7 +94,7 @@ public final class PublicChatClient
 
     public static void sendMessage(String rawMessage)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         String message = normalizeMessage(rawMessage);
         if (client == null
                 || client.player == null
@@ -109,7 +109,7 @@ public final class PublicChatClient
         }
 
         JsonObject payload = new JsonObject();
-        payload.addProperty("minecraftUuid", client.player.getUuidAsString());
+        payload.addProperty("minecraftUuid", client.player.getStringUUID());
         payload.addProperty("clientId", Configs.cloudClientId);
         payload.addProperty("message", message);
         sending = true;
@@ -162,7 +162,7 @@ public final class PublicChatClient
 
     public static void publishMilestone(int threshold, MiningStats.GoalProgress progress)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null
                 || client.player == null
                 || progress == null
@@ -175,7 +175,7 @@ public final class PublicChatClient
 
         JsonObject payload = new JsonObject();
         payload.addProperty("roomId", PUBLIC_ROOM_ID);
-        payload.addProperty("minecraftUuid", client.player.getUuidAsString());
+        payload.addProperty("minecraftUuid", client.player.getStringUUID());
         payload.addProperty("clientId", Configs.cloudClientId);
         payload.addProperty("threshold", threshold);
         payload.addProperty("current", Math.max(0L, progress.current()));
@@ -230,7 +230,7 @@ public final class PublicChatClient
         }
     }
 
-    private static synchronized void connect(MinecraftClient client)
+    private static synchronized void connect(Minecraft client)
     {
         disconnect();
         if (client.player == null)
@@ -241,7 +241,7 @@ public final class PublicChatClient
         connecting = true;
         long connectionGeneration = generation;
         String endpoint = BASE_ENDPOINT + "/events?room=" + encode(PUBLIC_ROOM_ID)
-                + "&minecraftUuid=" + encode(client.player.getUuidAsString())
+                + "&minecraftUuid=" + encode(client.player.getStringUUID())
                 + "&clientId=" + encode(Configs.cloudClientId);
         try
         {
@@ -393,22 +393,22 @@ public final class PublicChatClient
 
     private static void showChatMessage(String username, String messageText)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         client.execute(() -> {
             if (client.player == null || Configs.Generic.SHOW_MMM_CHAT_MESSAGES.getBooleanValue() == false)
             {
                 return;
             }
-            MutableText message = Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
-                    .append(Text.literal(username).styled(style -> style.withColor(MmmUi.accent() & 0x00FFFFFF)))
-                    .append(Text.literal(": " + messageText).formatted(Formatting.WHITE));
-            client.player.sendMessage(message, false);
+            MutableComponent message = Component.literal("[MMM] ").withStyle(ChatFormatting.DARK_GRAY)
+                    .append(Component.literal(username).withStyle(style -> style.withColor(MmmUi.accent() & 0x00FFFFFF)))
+                    .append(Component.literal(": " + messageText).withStyle(ChatFormatting.WHITE));
+            client.player.sendSystemMessage(message);
         });
     }
 
     private static void showMilestone(String username, int threshold, long current, long target)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         client.execute(() -> {
             if (client.player == null
                     || Configs.Generic.RECEIVE_GOAL_MILESTONES.getBooleanValue() == false
@@ -427,20 +427,20 @@ public final class PublicChatClient
                 case 100 -> " completed today's goal";
                 default -> " pushed today's goal further";
             };
-            MutableText message = Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
-                    .append(Text.literal(username).formatted(Formatting.WHITE))
-                    .append(Text.literal(milestoneMessage + " (").formatted(Formatting.GRAY))
-                    .append(Text.literal(threshold + "% - ").styled(style -> style.withColor(color)))
-                    .append(Text.literal(String.format(Locale.US, "%,d / %,d", current, target))
-                            .styled(style -> style.withColor(color)))
-                    .append(Text.literal(" blocks).").formatted(Formatting.GRAY));
-            client.player.sendMessage(message, false);
+            MutableComponent message = Component.literal("[MMM] ").withStyle(ChatFormatting.DARK_GRAY)
+                    .append(Component.literal(username).withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal(milestoneMessage + " (").withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(threshold + "% - ").withStyle(style -> style.withColor(color)))
+                    .append(Component.literal(String.format(Locale.US, "%,d / %,d", current, target))
+                            .withStyle(style -> style.withColor(color)))
+                    .append(Component.literal(" blocks).").withStyle(ChatFormatting.GRAY));
+            client.player.sendSystemMessage(message);
         });
     }
 
     private static void showLocalError(String detail)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null)
         {
             return;
@@ -448,8 +448,8 @@ public final class PublicChatClient
         client.execute(() -> {
             if (client.player != null)
             {
-                client.player.sendMessage(Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
-                        .append(Text.literal(detail).formatted(Formatting.RED)), false);
+                client.player.sendSystemMessage(Component.literal("[MMM] ").withStyle(ChatFormatting.DARK_GRAY)
+                        .append(Component.literal(detail).withStyle(ChatFormatting.RED)));
             }
         });
     }

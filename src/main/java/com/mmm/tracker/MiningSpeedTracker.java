@@ -1,9 +1,8 @@
 package com.mmm.tracker;
 
 import com.mmm.mixin.ClientPlayerInteractionManagerAccessor;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
 
 public final class MiningSpeedTracker
 {
@@ -23,7 +22,7 @@ public final class MiningSpeedTracker
     {
     }
 
-    public static void tick(MinecraftClient client)
+    public static void tick(Minecraft client)
     {
         if (MiningStats.isSessionActive() == false)
         {
@@ -31,14 +30,14 @@ public final class MiningSpeedTracker
             return;
         }
 
-        if (client.interactionManager == null || client.world == null || client.player == null)
+        if (client.gameMode == null || client.level == null || client.player == null)
         {
             resetBlock();
             tickIdle();
             return;
         }
 
-        ClientPlayerInteractionManagerAccessor accessor = (ClientPlayerInteractionManagerAccessor) client.interactionManager;
+        ClientPlayerInteractionManagerAccessor accessor = (ClientPlayerInteractionManagerAccessor) client.gameMode;
         boolean mining = accessor.mmm$isBreakingBlock();
         BlockPos blockPos = accessor.mmm$getCurrentBreakingPos();
 
@@ -54,7 +53,7 @@ public final class MiningSpeedTracker
 
         if (!blockPos.equals(lastBlockPos))
         {
-            lastBlockPos = blockPos.toImmutable();
+            lastBlockPos = blockPos.immutable();
         }
 
         if (!MiningStats.isSessionPaused())

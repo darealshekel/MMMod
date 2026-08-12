@@ -3,21 +3,20 @@ package com.mmm.feature;
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.render.Color4f;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.RenderLayers;
-import net.minecraft.client.render.VertexRendering;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.util.shape.VoxelShapes;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 public final class BlockEspRenderer
 {
@@ -37,12 +36,12 @@ public final class BlockEspRenderer
             return;
         }
         initialized = true;
-        WorldRenderEvents.END_MAIN.register(context -> {
-            MatrixStack matrices = context.matrices();
-            if (matrices != null && context.worldState().cameraRenderState != null)
+        LevelRenderEvents.END_MAIN.register(context -> {
+            PoseStack matrices = context.poseStack();
+            if (matrices != null && context.levelState().cameraRenderState != null)
             {
-                render(MinecraftClient.getInstance(), matrices,
-                        context.worldState().cameraRenderState.pos, context.consumers());
+                render(Minecraft.getInstance(), matrices,
+                        context.levelState().cameraRenderState.pos, context.submitNodeCollector());
             }
         });
     }
@@ -52,10 +51,10 @@ public final class BlockEspRenderer
         Configs.Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(Configs.normalizeBlockEspHexColor(Configs.Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
     }
 
-    private static void render(MinecraftClient client,
-                               MatrixStack matrices,
-                               Vec3d camera,
-                               VertexConsumerProvider consumers)
+    private static void render(Minecraft client,
+                               PoseStack matrices,
+                               Vec3 camera,
+                               SubmitNodeCollector consumers)
     {
         if (!FeatureToggle.MMM_BLOCK_ESP.getBooleanValue() || Configs.isBlockEspOutlineOnly())
         {
@@ -67,14 +66,14 @@ public final class BlockEspRenderer
         {
             return;
         }
-        BlockState state = client.world.getBlockState(targetPos);
-        VoxelShape shape = state.getOutlineShape(client.world, targetPos);
+        BlockState state = client.level.getBlockState(targetPos);
+        VoxelShape shape = state.getShape(client.level, targetPos);
         if (shape.isEmpty())
         {
             return;
         }
 
-        Box local = shape.getBoundingBox();
+        AABB local = shape.bounds();
         double minX = targetPos.getX() + local.minX - camera.x - BOX_EXPAND;
         double minY = targetPos.getY() + local.minY - camera.y - BOX_EXPAND;
         double minZ = targetPos.getZ() + local.minZ - camera.z - BOX_EXPAND;
@@ -85,29 +84,26 @@ public final class BlockEspRenderer
         Color4f fill = Color4f.fromColor(baseColor, Configs.getBlockEspOpacity());
         Color4f outline = Color4f.fromColor(baseColor, Math.min(1.0F, Configs.getBlockEspOpacity() + 0.25F));
 
-        VertexConsumer fillConsumer = consumers.getBuffer(RenderLayers.debugQuads());
-        drawFilledBox(matrices, fillConsumer, minX, minY, minZ, maxX, maxY, maxZ, fill);
-
-        VertexConsumer lineConsumer = consumers.getBuffer(RenderLayers.lines());
-        VertexRendering.drawOutline(
+        consumers.submitCustomGeometry(matrices, RenderTypes.debugQuads(),
+                (pose, fillConsumer) -> drawFilledBox(pose, fillConsumer,
+                        minX, minY, minZ, maxX, maxY, maxZ, fill));
+        consumers.submitShapeOutline(
                 matrices,
-                lineConsumer,
-                VoxelShapes.cuboid(new Box(minX, minY, minZ, maxX, maxY, maxZ)),
-                0.0D,
-                0.0D,
-                0.0D,
+                Shapes.create(new AABB(minX, minY, minZ, maxX, maxY, maxZ)),
+                RenderTypes.lines(),
                 toArgb(outline),
-                1.0F
+                1.0F,
+                false
         );
     }
 
-    private static void drawFilledBox(MatrixStack matrices,
+    private static void drawFilledBox(PoseStack.Pose pose,
                                       VertexConsumer consumer,
                                       double minX, double minY, double minZ,
                                       double maxX, double maxY, double maxZ,
                                       Color4f color)
     {
-        org.joml.Matrix4f matrix = matrices.peek().getPositionMatrix();
+        org.joml.Matrix4f matrix = pose.pose();
         quad(consumer, matrix, minX, minY, minZ, maxX, minY, minZ, maxX, maxY, minZ, minX, maxY, minZ, color);
         quad(consumer, matrix, maxX, minY, maxZ, minX, minY, maxZ, minX, maxY, maxZ, maxX, maxY, maxZ, color);
         quad(consumer, matrix, minX, minY, maxZ, minX, minY, minZ, minX, maxY, minZ, minX, maxY, maxZ, color);
@@ -124,10 +120,10 @@ public final class BlockEspRenderer
                              double x4, double y4, double z4,
                              Color4f color)
     {
-        consumer.vertex(matrix, (float) x1, (float) y1, (float) z1).color(color.r, color.g, color.b, color.a);
-        consumer.vertex(matrix, (float) x2, (float) y2, (float) z2).color(color.r, color.g, color.b, color.a);
-        consumer.vertex(matrix, (float) x3, (float) y3, (float) z3).color(color.r, color.g, color.b, color.a);
-        consumer.vertex(matrix, (float) x4, (float) y4, (float) z4).color(color.r, color.g, color.b, color.a);
+        consumer.addVertex(matrix, (float) x1, (float) y1, (float) z1).setColor(color.r, color.g, color.b, color.a);
+        consumer.addVertex(matrix, (float) x2, (float) y2, (float) z2).setColor(color.r, color.g, color.b, color.a);
+        consumer.addVertex(matrix, (float) x3, (float) y3, (float) z3).setColor(color.r, color.g, color.b, color.a);
+        consumer.addVertex(matrix, (float) x4, (float) y4, (float) z4).setColor(color.r, color.g, color.b, color.a);
     }
 
     private static int toArgb(Color4f color)
@@ -152,29 +148,29 @@ public final class BlockEspRenderer
         return Color4f.fromColor(hex.length() == 9 ? (int) parsed : (int) (0xFF000000L | parsed));
     }
 
-    public static boolean shouldReplaceVanillaOutline(MinecraftClient client)
+    public static boolean shouldReplaceVanillaOutline(Minecraft client)
     {
         return FeatureToggle.MMM_BLOCK_ESP.getBooleanValue()
                 && Configs.getBlockEspOpacity() > 0.0F
                 && getTargetBlock(client) != null;
     }
 
-    private static BlockPos getTargetBlock(MinecraftClient client)
+    private static BlockPos getTargetBlock(Minecraft client)
     {
-        if (client == null || client.player == null || client.world == null || Configs.getBlockEspOpacity() <= 0.0F)
+        if (client == null || client.player == null || client.level == null || Configs.getBlockEspOpacity() <= 0.0F)
         {
             return null;
         }
-        HitResult hitResult = client.crosshairTarget;
+        HitResult hitResult = client.hitResult;
         if (!(hitResult instanceof BlockHitResult blockHitResult) || hitResult.getType() != HitResult.Type.BLOCK)
         {
             return null;
         }
         BlockPos targetPos = blockHitResult.getBlockPos();
-        return client.world.getBlockState(targetPos).isAir() ? null : targetPos;
+        return client.level.getBlockState(targetPos).isAir() ? null : targetPos;
     }
 
-    public static int getCurrentOutlineColor(MinecraftClient client)
+    public static int getCurrentOutlineColor(Minecraft client)
     {
         Color4f color = Color4f.fromColor(getCurrentColor(), Configs.getBlockEspOpacity());
         int alpha = Math.clamp(Math.round(color.a * 255.0F), 0, 255);

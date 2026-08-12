@@ -8,29 +8,27 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import com.mmm.config.Configs;
 import com.mmm.storage.SessionData;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
 import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
-
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.Identifier;
 
 public class SummaryScreen extends CompatScreen
 {
@@ -66,7 +64,7 @@ public class SummaryScreen extends CompatScreen
     private final List<BlockBreakdownEntry> allEntries = new ArrayList<>();
     private final List<BlockBreakdownEntry> filteredEntries = new ArrayList<>();
 
-    private TextFieldWidget searchField;
+    private EditBox searchField;
     private boolean clipboardMessageVisible;
     private int breakdownScrollOffset;
     private boolean draggingScrollbar;
@@ -84,7 +82,7 @@ public class SummaryScreen extends CompatScreen
 
     private SummaryScreen(SessionData session, Screen parent, String worldName, String heading, boolean showChrome)
     {
-        super(Text.literal(heading));
+        super(Component.literal(heading));
         this.session = session;
         this.parent = parent;
         this.worldName = worldName;
@@ -100,35 +98,35 @@ public class SummaryScreen extends CompatScreen
     @Override
     protected void init()
     {
-        this.clearChildren();
+        this.clearWidgets();
         this.clipboardMessageVisible = false;
         this.openedAtMs = System.currentTimeMillis();
         ensureCursorVisible();
         buildBreakdownEntries();
 
         Layout layout = computeLayout();
-        this.searchField = new TextFieldWidget(this.textRenderer, layout.breakdownX + CARD_PADDING, layout.breakdownY + 28, layout.breakdownWidth - CARD_PADDING * 2, SEARCH_HEIGHT, Text.empty());
+        this.searchField = new EditBox(this.font, layout.breakdownX + CARD_PADDING, layout.breakdownY + 28, layout.breakdownWidth - CARD_PADDING * 2, SEARCH_HEIGHT, Component.empty());
         this.searchField.setMaxLength(64);
-        this.searchField.setDrawsBackground(false);
+        this.searchField.setBordered(false);
 
-        this.searchField.setEditableColor(COLOR_VALUE);
-        this.searchField.setUneditableColor(COLOR_MUTED);
-        this.searchField.setChangedListener(value -> refreshFilteredEntries());
-        this.addDrawableChild(this.searchField);
+        this.searchField.setTextColor(COLOR_VALUE);
+        this.searchField.setTextColorUneditable(COLOR_MUTED);
+        this.searchField.setResponder(value -> refreshFilteredEntries());
+        this.addRenderableWidget(this.searchField);
 
         int actionY = layout.headerY;
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Copy"), button ->
+        this.addRenderableWidget(Button.builder(Component.literal("Copy"), button ->
         {
-            MinecraftClient.getInstance().keyboard.setClipboard(buildShareText());
+            Minecraft.getInstance().keyboardHandler.setClipboard(buildShareText());
             clipboardMessageVisible = true;
-        }).dimensions(layout.panelRight - 148, actionY - 2, 64, BUTTON_HEIGHT).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(layout.panelRight - 74, actionY - 2, 64, BUTTON_HEIGHT).build());
+        }).bounds(layout.panelRight - 148, actionY - 2, 64, BUTTON_HEIGHT).build());
+        this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose()).bounds(layout.panelRight - 74, actionY - 2, 64, BUTTON_HEIGHT).build());
 
         refreshFilteredEntries();
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         ensureCursorVisible();
         Layout layout = computeLayout();
@@ -140,7 +138,7 @@ public class SummaryScreen extends CompatScreen
         MmmUi.backdrop(context, this.width, this.height);
         if (this.showChrome)
         {
-            MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SUMMARY");
+            MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SUMMARY");
         }
         fillRoundedCard(context, layout.panelX, animatedPanelY, layout.panelWidth, layout.panelHeight, COLOR_PANEL, COLOR_BORDER);
 
@@ -151,22 +149,22 @@ public class SummaryScreen extends CompatScreen
         drawBreakdownCard(context, animatedLayout, mouseX, mouseY);
         drawSearchFieldShell(context);
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
 
-        if (this.searchField != null && this.searchField.getText().isBlank() && this.searchField.isFocused() == false)
+        if (this.searchField != null && this.searchField.getValue().isBlank() && this.searchField.isFocused() == false)
         {
-            String placeholder = MmmUi.truncate(this.textRenderer, SEARCH_PLACEHOLDER, this.searchField.getWidth() - 12);
+            String placeholder = MmmUi.truncate(this.font, SEARCH_PLACEHOLDER, this.searchField.getWidth() - 12);
             int placeholderX = this.searchField.getX() + 6;
-            context.drawText(this.textRenderer, Text.literal(placeholder), placeholderX, this.searchField.getY() + 6, COLOR_MUTED, false);
+            context.text(this.font, Component.literal(placeholder), placeholderX, this.searchField.getY() + 6, COLOR_MUTED, false);
         }
 
         if (this.clipboardMessageVisible)
         {
-            context.drawText(this.textRenderer, Text.literal("Summary copied to clipboard."), animatedLayout.breakdownX, animatedLayout.panelBottom - 14, COLOR_SUCCESS, false);
+            context.text(this.font, Component.literal("Summary copied to clipboard."), animatedLayout.breakdownX, animatedLayout.panelBottom - 14, COLOR_SUCCESS, false);
         }
         if (this.showChrome)
         {
-            MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+            MmmUi.drawMmmTopBar(context, this.font, this.width);
         }
     }
 
@@ -220,43 +218,43 @@ public class SummaryScreen extends CompatScreen
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
-        MinecraftClient.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().gui.setScreen(this.parent);
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
     }
 
     private void ensureCursorVisible()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.mouse != null)
+        Minecraft client = Minecraft.getInstance();
+        if (client != null && client.mouseHandler != null)
         {
-            client.mouse.unlockCursor();
+            client.mouseHandler.releaseMouse();
         }
     }
 
-    private void drawHeader(DrawContext context, Layout layout)
+    private void drawHeader(GuiGraphicsExtractor context, Layout layout)
     {
         int titleWidth = layout.compact ? Math.max(0, layout.contentWidth - 156) : layout.contentWidth;
-        MmmUi.drawTextWithin(context, this.textRenderer, this.heading, layout.contentX, layout.headerY, titleWidth, COLOR_VALUE, true);
+        MmmUi.drawTextWithin(context, this.font, this.heading, layout.contentX, layout.headerY, titleWidth, COLOR_VALUE, true);
         if (!layout.compact)
         {
             drawPill(context, layout.contentX, layout.headerY + 18, Math.min(200, layout.graphWidth - 20), 16, this.worldName, COLOR_CARD, MmmUi.accent());
-            MmmUi.drawTextWithin(context, this.textRenderer, "Session pace, goals, and block mix in the MMM website style.", layout.contentX + 2, layout.headerY + 40, layout.contentWidth - 4, COLOR_LABEL, false);
+            MmmUi.drawTextWithin(context, this.font, "Session pace, goals, and block mix in the MMM website style.", layout.contentX + 2, layout.headerY + 40, layout.contentWidth - 4, COLOR_LABEL, false);
         }
     }
 
-    private void drawStatCards(DrawContext context, Layout layout)
+    private void drawStatCards(GuiGraphicsExtractor context, Layout layout)
     {
         int cardY = layout.statY;
         int cardWidth = (layout.contentWidth - CARD_GAP * 4) / 5;
@@ -269,15 +267,15 @@ public class SummaryScreen extends CompatScreen
         drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 4, cardY, cardWidth, cardHeight, "Best Hour", UiFormat.formatCompact(this.session.getBestHourBlocks()), "blocks mined");
     }
 
-    private void drawGraphCard(DrawContext context, Layout layout, int mouseX, int mouseY, float animation)
+    private void drawGraphCard(GuiGraphicsExtractor context, Layout layout, int mouseX, int mouseY, float animation)
     {
         if (layout.compact)
         {
             return;
         }
         fillRoundedCard(context, layout.graphX, layout.graphY, layout.graphWidth, layout.graphHeight, COLOR_CARD, COLOR_BORDER);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Mining Rate", layout.graphX + CARD_PADDING, layout.graphY + 10, layout.graphWidth - CARD_PADDING * 2, COLOR_VALUE, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Blocks per hour over active session time", layout.graphX + CARD_PADDING, layout.graphY + 24, layout.graphWidth - CARD_PADDING * 2, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.font, "Mining Rate", layout.graphX + CARD_PADDING, layout.graphY + 10, layout.graphWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.font, "Blocks per hour over active session time", layout.graphX + CARD_PADDING, layout.graphY + 24, layout.graphWidth - CARD_PADDING * 2, COLOR_LABEL, false);
 
         int chartX = layout.graphX + CARD_PADDING;
         int chartY = layout.graphY + 42;
@@ -286,19 +284,19 @@ public class SummaryScreen extends CompatScreen
         drawMiningRateGraph(context, chartX, chartY, chartWidth, chartHeight, animation);
     }
 
-    private void drawGoalCard(DrawContext context, Layout layout)
+    private void drawGoalCard(GuiGraphicsExtractor context, Layout layout)
     {
         if (layout.compact)
         {
             return;
         }
         fillRoundedCard(context, layout.goalX, layout.goalY, layout.goalWidth, layout.goalHeight, COLOR_CARD, COLOR_BORDER);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Daily Goal", layout.goalX + CARD_PADDING, layout.goalY + 10, layout.goalWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.font, "Daily Goal", layout.goalX + CARD_PADDING, layout.goalY + 10, layout.goalWidth - CARD_PADDING * 2, COLOR_VALUE, false);
 
         MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
         if (progress.enabled() == false)
         {
-            context.drawText(this.textRenderer, Text.literal("Disabled"), layout.goalX + CARD_PADDING, layout.goalY + 32, COLOR_MUTED, false);
+            context.text(this.font, Component.literal("Disabled"), layout.goalX + CARD_PADDING, layout.goalY + 32, COLOR_MUTED, false);
             return;
         }
 
@@ -307,9 +305,9 @@ public class SummaryScreen extends CompatScreen
         int barY = layout.goalY + 42;
         int barWidth = layout.goalWidth - CARD_PADDING * 2;
         String percentText = UiFormat.formatGoalPercent(progress);
-        int percentWidth = this.textRenderer.getWidth(percentText);
-        MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatProgress(progress.current(), progress.target()), barX, layout.goalY + 27, Math.max(0, barWidth - percentWidth - 8), COLOR_VALUE, false);
-        MmmUi.drawTextRightWithin(context, this.textRenderer, percentText, barX + barWidth, layout.goalY + 27, percentWidth, goalColor, false);
+        int percentWidth = this.font.width(percentText);
+        MmmUi.drawTextWithin(context, this.font, UiFormat.formatProgress(progress.current(), progress.target()), barX, layout.goalY + 27, Math.max(0, barWidth - percentWidth - 8), COLOR_VALUE, false);
+        MmmUi.drawTextRightWithin(context, this.font, percentText, barX + barWidth, layout.goalY + 27, percentWidth, goalColor, false);
 
         int fillWidth = progress.target() <= 0 ? 0 : (int) Math.round(barWidth * Math.min(1.0D, progress.current() / (double) progress.target()));
         context.fill(barX, barY, barX + barWidth, barY + 8, MmmUi.INSET);
@@ -318,15 +316,15 @@ public class SummaryScreen extends CompatScreen
 
         String etaText = "ETA: " + MiningStats.getEstimatedTimeToDailyGoal();
         String streakText = "Best Streak: " + this.session.bestStreakSeconds + "s";
-        MmmUi.drawTextWithin(context, this.textRenderer, etaText, barX, barY + 16, barWidth, COLOR_LABEL, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, streakText, barX, barY + 30, barWidth, COLOR_MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, etaText, barX, barY + 16, barWidth, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.font, streakText, barX, barY + 30, barWidth, COLOR_MUTED, false);
     }
 
-    private void drawBreakdownCard(DrawContext context, Layout layout, int mouseX, int mouseY)
+    private void drawBreakdownCard(GuiGraphicsExtractor context, Layout layout, int mouseX, int mouseY)
     {
         fillRoundedCard(context, layout.breakdownX, layout.breakdownY, layout.breakdownWidth, layout.breakdownHeight, COLOR_CARD_SOFT, COLOR_BORDER);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Block Breakdown", layout.breakdownX + CARD_PADDING, layout.breakdownY + 10, layout.breakdownWidth - CARD_PADDING * 2, COLOR_VALUE, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Search and scan the blocks that shaped the run.", layout.breakdownX + CARD_PADDING, layout.breakdownY + 21, layout.breakdownWidth - CARD_PADDING * 2, COLOR_MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, "Block Breakdown", layout.breakdownX + CARD_PADDING, layout.breakdownY + 10, layout.breakdownWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.font, "Search and scan the blocks that shaped the run.", layout.breakdownX + CARD_PADDING, layout.breakdownY + 21, layout.breakdownWidth - CARD_PADDING * 2, COLOR_MUTED, false);
 
         int listX = layout.breakdownX + CARD_PADDING;
         int listY = layout.breakdownY + 60;
@@ -341,7 +339,7 @@ public class SummaryScreen extends CompatScreen
         int drawY = listY + 6 - this.breakdownScrollOffset;
         if (this.filteredEntries.isEmpty())
         {
-            context.drawText(this.textRenderer, Text.literal("No matching blocks found."), listX + 8, drawY + 4, COLOR_MUTED, false);
+            context.text(this.font, Component.literal("No matching blocks found."), listX + 8, drawY + 4, COLOR_MUTED, false);
         }
         else
         {
@@ -358,23 +356,23 @@ public class SummaryScreen extends CompatScreen
         drawScrollbar(context, listX + listWidth - SCROLLBAR_WIDTH, listY, listHeight, mouseX, mouseY);
     }
 
-    private void drawBreakdownRow(DrawContext context, int x, int y, int width, BlockBreakdownEntry entry)
+    private void drawBreakdownRow(GuiGraphicsExtractor context, int x, int y, int width, BlockBreakdownEntry entry)
     {
         int rowColor = ((y / BREAKDOWN_ROW_HEIGHT) & 1) == 0 ? MmmUi.ROW_ALT : MmmUi.INSET;
         context.fill(x - 2, y - 1, x + width, y + BREAKDOWN_ROW_HEIGHT - 2, rowColor);
-        context.drawItem(entry.icon(), x, y + 1);
+        context.item(entry.icon(), x, y + 1);
 
         String countText = UiFormat.formatCompact(entry.count());
-        int countWidth = this.textRenderer.getWidth(countText);
+        int countWidth = this.font.width(countText);
         int countX = x + width - countWidth - 4;
         int nameWidth = Math.max(40, countX - (x + 24) - 8);
-        String blockName = truncateToWidth(this.textRenderer, entry.name(), nameWidth);
+        String blockName = truncateToWidth(this.font, entry.name(), nameWidth);
 
-        context.drawText(this.textRenderer, Text.literal(blockName), x + 22, y + 6, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal(countText), countX, y + 6, Configs.getHudNumberColor(), false);
+        context.text(this.font, Component.literal(blockName), x + 22, y + 6, COLOR_VALUE, false);
+        context.text(this.font, Component.literal(countText), countX, y + 6, Configs.getHudNumberColor(), false);
     }
 
-    private void drawMiningRateGraph(DrawContext context, int x, int y, int width, int height, float animation)
+    private void drawMiningRateGraph(GuiGraphicsExtractor context, int x, int y, int width, int height, float animation)
     {
         List<Double> rates = buildGraphRates();
         context.fill(x, y, x + width, y + height, MmmUi.INSET);
@@ -387,7 +385,7 @@ public class SummaryScreen extends CompatScreen
 
         if (rates.isEmpty())
         {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Mine blocks to build a pace graph"), x + width / 2, y + height / 2 - 4, COLOR_MUTED);
+            context.centeredText(this.font, Component.literal("Mine blocks to build a pace graph"), x + width / 2, y + height / 2 - 4, COLOR_MUTED);
             return;
         }
 
@@ -453,30 +451,30 @@ public class SummaryScreen extends CompatScreen
         }
 
         String maxLabel = UiFormat.formatCompact(Math.round(maxRate)) + "/hr";
-        context.drawText(this.textRenderer, Text.literal(maxLabel), x + 4, y + 4, COLOR_LABEL, false);
-        context.drawText(this.textRenderer, Text.literal("0"), x + 4, chartBottom - 8, COLOR_MUTED, false);
+        context.text(this.font, Component.literal(maxLabel), x + 4, y + 4, COLOR_LABEL, false);
+        context.text(this.font, Component.literal("0"), x + 4, chartBottom - 8, COLOR_MUTED, false);
 
         String startLabel = "0m";
         String endLabel = formatGraphTimeLabel(Math.max(1, rates.size()) * 60L);
-        int endWidth = this.textRenderer.getWidth(endLabel);
-        context.drawText(this.textRenderer, Text.literal(startLabel), x, y + height - 10, COLOR_MUTED, false);
-        context.drawText(this.textRenderer, Text.literal(endLabel), x + width - endWidth, y + height - 10, COLOR_MUTED, false);
+        int endWidth = this.font.width(endLabel);
+        context.text(this.font, Component.literal(startLabel), x, y + height - 10, COLOR_MUTED, false);
+        context.text(this.font, Component.literal(endLabel), x + width - endWidth, y + height - 10, COLOR_MUTED, false);
     }
 
-    private void drawStatCard(DrawContext context, int x, int y, int width, int height, String label, String value, String suffix)
+    private void drawStatCard(GuiGraphicsExtractor context, int x, int y, int width, int height, String label, String value, String suffix)
     {
         fillRoundedCard(context, x, y, width, height, COLOR_CARD_SOFT, COLOR_BORDER_SOFT);
         int textWidth = width - CARD_PADDING * 2;
-        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y + 9, textWidth, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.font, label, x + CARD_PADDING, y + 9, textWidth, COLOR_LABEL, false);
         int valueColor = inactiveValueColor(value) == COLOR_INACTIVE ? COLOR_INACTIVE : Configs.getHudNumberColor();
-        MmmUi.drawTextWithin(context, this.textRenderer, value, x + CARD_PADDING, y + 24, textWidth, valueColor, false);
+        MmmUi.drawTextWithin(context, this.font, value, x + CARD_PADDING, y + 24, textWidth, valueColor, false);
         if (height >= 50 && suffix.isBlank() == false)
         {
-            MmmUi.drawTextWithin(context, this.textRenderer, suffix, x + CARD_PADDING, y + 38, textWidth, COLOR_MUTED, false);
+            MmmUi.drawTextWithin(context, this.font, suffix, x + CARD_PADDING, y + 38, textWidth, COLOR_MUTED, false);
         }
     }
 
-    private void drawSearchFieldShell(DrawContext context)
+    private void drawSearchFieldShell(GuiGraphicsExtractor context)
     {
         if (this.searchField == null)
         {
@@ -490,7 +488,7 @@ public class SummaryScreen extends CompatScreen
         fillRoundedCard(context, x, y, width, height, COLOR_INSET, this.searchField.isFocused() ? MmmUi.accent() : COLOR_BORDER_SOFT);
     }
 
-    private void drawScrollbar(DrawContext context, int x, int y, int height, int mouseX, int mouseY)
+    private void drawScrollbar(GuiGraphicsExtractor context, int x, int y, int height, int mouseX, int mouseY)
     {
         int maxScroll = getMaxBreakdownScroll();
         if (maxScroll <= 0)
@@ -506,15 +504,15 @@ public class SummaryScreen extends CompatScreen
         context.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight, thumbColor);
     }
 
-    private void drawPill(DrawContext context, int x, int y, int width, int height, String text, int fillColor, int borderColor)
+    private void drawPill(GuiGraphicsExtractor context, int x, int y, int width, int height, String text, int fillColor, int borderColor)
     {
         fillRoundedCard(context, x, y, width, height, fillColor, borderColor);
-        String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
-        int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, MmmUi.accent(), false);
+        String clipped = MmmUi.truncate(this.font, text, width - 8);
+        int textX = x + Math.max(4, (width - this.font.width(clipped)) / 2);
+        context.text(this.font, Component.literal(clipped), textX, y + 4, MmmUi.accent(), false);
     }
 
-    private void fillRoundedCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
+    private void fillRoundedCard(GuiGraphicsExtractor context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
         MmmUi.card(context, x, y, width, height, fillColor, borderColor);
     }
@@ -533,7 +531,7 @@ public class SummaryScreen extends CompatScreen
     private void refreshFilteredEntries()
     {
         this.filteredEntries.clear();
-        String query = this.searchField == null ? "" : this.searchField.getText().trim().toLowerCase(Locale.ROOT);
+        String query = this.searchField == null ? "" : this.searchField.getValue().trim().toLowerCase(Locale.ROOT);
         for (BlockBreakdownEntry entry : this.allEntries)
         {
             if (query.isBlank() || entry.searchName().contains(query))
@@ -554,13 +552,13 @@ public class SummaryScreen extends CompatScreen
         }
     }
 
-    private void drawCurveSegment(DrawContext context, float startX, float startY, float endX, float endY, float previousY, float nextY)
+    private void drawCurveSegment(GuiGraphicsExtractor context, float startX, float startY, float endX, float endY, float previousY, float nextY)
     {
         int steps = Math.max(6, Math.round(Math.abs(endX - startX) * 1.5F));
         for (int step = 0; step <= steps; step++)
         {
             float t = step / (float) steps;
-            float pointX = MathHelper.lerp(t, startX, endX);
+            float pointX = Mth.lerp(t, startX, endX);
             float tangentStart = (endY - previousY) * 0.5F;
             float tangentEnd = (nextY - startY) * 0.5F;
             float t2 = t * t;
@@ -595,7 +593,7 @@ public class SummaryScreen extends CompatScreen
         }
 
         long elapsed = System.currentTimeMillis() - this.openedAtMs;
-        float normalized = MathHelper.clamp(elapsed / 280.0F, 0.0F, 1.0F);
+        float normalized = Mth.clamp(elapsed / 280.0F, 0.0F, 1.0F);
         return normalized * normalized * (3.0F - 2.0F * normalized);
     }
 
@@ -783,16 +781,16 @@ public class SummaryScreen extends CompatScreen
         return hours + "h " + remainingMinutes + "m";
     }
 
-    private String truncateToWidth(TextRenderer renderer, String value, int maxWidth)
+    private String truncateToWidth(Font renderer, String value, int maxWidth)
     {
-        if (renderer.getWidth(value) <= maxWidth)
+        if (renderer.width(value) <= maxWidth)
         {
             return value;
         }
 
         String ellipsis = "...";
         String trimmed = value;
-        while (trimmed.length() > 1 && renderer.getWidth(trimmed + ellipsis) > maxWidth)
+        while (trimmed.length() > 1 && renderer.width(trimmed + ellipsis) > maxWidth)
         {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
@@ -828,13 +826,13 @@ public class SummaryScreen extends CompatScreen
             return Blocks.STONE;
         }
 
-        Block block = Registries.BLOCK.get(identifier);
+        Block block = BuiltInRegistries.BLOCK.getValue(identifier);
         return block == null ? Blocks.STONE : block;
     }
 
     private static String resolveWorldName()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         WorldSessionContext.update(client);
         return WorldSessionContext.getCurrentWorldName();
     }

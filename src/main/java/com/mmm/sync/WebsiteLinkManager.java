@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.atomic.AtomicReference;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 public final class WebsiteLinkManager
 {
@@ -64,18 +64,18 @@ public final class WebsiteLinkManager
 
     public static boolean isCurrentPlayerLinked()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null || hasPersistedLink() == false)
         {
             return false;
         }
 
-        return client.player.getUuidAsString().equalsIgnoreCase(Configs.websiteLinkedMinecraftUuid);
+        return client.player.getStringUUID().equalsIgnoreCase(Configs.websiteLinkedMinecraftUuid);
     }
 
     public static void claimCode(String rawCode)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null)
         {
             STATE.set(LinkState.error("Join a world or server before linking."));
@@ -91,7 +91,7 @@ public final class WebsiteLinkManager
 
         JsonObject payload = buildPayload(client, code);
         STATE.set(LinkState.submitting(code));
-        SyncQueueManager.enqueueWebsiteLinkClaim("website-link|" + client.player.getUuidAsString() + "|" + code, payload);
+        SyncQueueManager.enqueueWebsiteLinkClaim("website-link|" + client.player.getStringUUID() + "|" + code, payload);
         SyncQueueManager.forceFlush("website link request");
     }
 
@@ -129,10 +129,10 @@ public final class WebsiteLinkManager
         STATE.set(LinkState.error(detail == null || detail.isBlank() ? "Could not claim link code." : detail));
     }
 
-    private static JsonObject buildPayload(MinecraftClient client, String code)
+    private static JsonObject buildPayload(Minecraft client, String code)
     {
         String username = resolveUsername(client);
-        String uuid = client.player.getUuidAsString();
+        String uuid = client.player.getStringUUID();
 
         JsonObject payload = new JsonObject();
         payload.addProperty("code", code);
@@ -185,11 +185,11 @@ public final class WebsiteLinkManager
         return "";
     }
 
-    private static String resolveUsername(MinecraftClient client)
+    private static String resolveUsername(Minecraft client)
     {
         try
         {
-            String username = client.getSession().getUsername();
+            String username = client.getUser().getName();
             if (username != null && username.isBlank() == false)
             {
                 return username;

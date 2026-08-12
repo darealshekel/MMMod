@@ -4,14 +4,15 @@ import com.mmm.config.Configs;
 import com.mmm.social.PublicChatClient;
 import com.mmm.sync.WebsiteLinkManager;
 import com.mmm.ui.MmmUi;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ChatScreen;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -31,9 +32,9 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     private String mmm$publicDraft = "";
 
     @Shadow
-    protected TextFieldWidget chatField;
+    protected EditBox input;
 
-    protected ScoreboardChatScreenMixin(Text title)
+    protected ScoreboardChatScreenMixin(Component title)
     {
         super(title);
     }
@@ -41,12 +42,12 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     @Inject(method = "init", at = @At("TAIL"))
     private void mmm$initializeChannel(CallbackInfo ci)
     {
-        if (this.chatField == null)
+        if (this.input == null)
         {
             return;
         }
 
-        this.mmm$minecraftDraft = this.chatField.getText();
+        this.mmm$minecraftDraft = this.input.getValue();
         if (this.mmm$minecraftDraft.isBlank() == false)
         {
             mmm$selectedChannel = Channel.MINECRAFT;
@@ -54,32 +55,35 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         mmm$applySelectedChannel();
     }
 
-    @Inject(method = "render", at = @At("TAIL"))
-    private void mmm$renderChannelTabs(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci)
+    @Inject(method = "extractRenderState", at = @At("TAIL"))
+    private void mmm$renderChannelTabs(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci)
     {
-        if (this.chatField == null)
+        if (this.input == null)
         {
             return;
         }
 
-        int x = this.chatField.getX();
-        int y = Math.max(1, this.chatField.getY() - TAB_HEIGHT - 2);
+        int x = this.input.getX();
+        int y = Math.max(1, this.input.getY() - TAB_HEIGHT - 2);
         mmm$drawTab(context, Channel.MINECRAFT, x, y, mouseX, mouseY);
         x += mmm$tabWidth(Channel.MINECRAFT);
         mmm$drawTab(context, Channel.MMM, x, y, mouseX, mouseY);
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void mmm$selectChannel(double mouseX, double mouseY, int button,
+    private void mmm$selectChannel(MouseButtonEvent input, boolean doubleClick,
                                    CallbackInfoReturnable<Boolean> cir)
     {
-        if (button != 0 || this.chatField == null)
+        if (input.button() != 0 || this.input == null)
         {
             return;
         }
 
-        int x = this.chatField.getX();
-        int y = Math.max(1, this.chatField.getY() - TAB_HEIGHT - 2);
+        double mouseX = input.x();
+        double mouseY = input.y();
+
+        int x = this.input.getX();
+        int y = Math.max(1, this.input.getY() - TAB_HEIGHT - 2);
         int minecraftWidth = mmm$tabWidth(Channel.MINECRAFT);
         if (mmm$isInside(mouseX, mouseY, x, y, minecraftWidth, TAB_HEIGHT))
         {
@@ -96,7 +100,7 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         }
     }
 
-    @Inject(method = "sendMessage(Ljava/lang/String;Z)V", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "handleChatInput(Ljava/lang/String;Z)V", at = @At("HEAD"), cancellable = true)
     private void mmm$sendPublicMessage(String message, boolean addToHistory, CallbackInfo ci)
     {
         if (mmm$selectedChannel != Channel.MMM)
@@ -112,15 +116,15 @@ public abstract class ScoreboardChatScreenMixin extends Screen
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null)
         {
             return;
         }
         if (WebsiteLinkManager.isCurrentPlayerLinked() == false)
         {
-            client.player.sendMessage(Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
-                    .append(Text.literal("Website link required.").formatted(Formatting.RED)), false);
+            client.player.sendSystemMessage(Component.literal("[MMM] ").withStyle(ChatFormatting.DARK_GRAY)
+                    .append(Component.literal("Website link required.").withStyle(ChatFormatting.RED)));
             return;
         }
 
@@ -128,25 +132,25 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     }
 
     @Redirect(
-            method = "sendMessage",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendChatMessage(Ljava/lang/String;)V"),
+            method = "handleChatInput",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/multiplayer/ClientPacketListener;sendChat(Ljava/lang/String;)V"),
             require = 0)
-    private void mmm$routeDefaultTeamChat(ClientPlayNetworkHandler networkHandler, String message)
+    private void mmm$routeDefaultTeamChat(ClientPacketListener networkHandler, String message)
     {
         if (!Configs.Generic.SCOREBOARD_DEFAULT_TEAM_CHAT.getBooleanValue())
         {
-            networkHandler.sendChatMessage(message);
+            networkHandler.sendChat(message);
             return;
         }
         if (message.startsWith("#"))
         {
-            networkHandler.sendChatMessage(message.length() == 1 ? message : message.substring(1));
+            networkHandler.sendChat(message.length() == 1 ? message : message.substring(1));
             return;
         }
-        networkHandler.sendChatCommand("teammsg " + message);
+        networkHandler.sendCommand("teammsg " + message);
     }
 
-    private void mmm$drawTab(DrawContext context, Channel channel, int x, int y, int mouseX, int mouseY)
+    private void mmm$drawTab(GuiGraphicsExtractor context, Channel channel, int x, int y, int mouseX, int mouseY)
     {
         int width = mmm$tabWidth(channel);
         boolean selected = mmm$selectedChannel == channel;
@@ -156,23 +160,28 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         int color = selected ? 0xFFF5F5F5 : 0xFF949494;
         context.fill(x, y, x + width, y + TAB_HEIGHT, background);
         MmmUi.drawBorder(context, x, y, width, TAB_HEIGHT, border);
-        context.drawTextWithShadow(this.textRenderer, channel.label, x + 6, y + 3, color);
+        context.text(this.font, channel.label, x + 6, y + 3, color);
     }
 
     private void mmm$switchChannel(Channel channel)
     {
-        if (mmm$selectedChannel == channel || this.chatField == null)
+        if (this.input == null)
         {
+            return;
+        }
+        if (mmm$selectedChannel == channel)
+        {
+            this.setFocused(this.input);
             return;
         }
 
         if (mmm$selectedChannel == Channel.MMM)
         {
-            this.mmm$publicDraft = this.chatField.getText();
+            this.mmm$publicDraft = this.input.getValue();
         }
         else
         {
-            this.mmm$minecraftDraft = this.chatField.getText();
+            this.mmm$minecraftDraft = this.input.getValue();
         }
         mmm$selectedChannel = channel;
         mmm$applySelectedChannel();
@@ -180,23 +189,23 @@ public abstract class ScoreboardChatScreenMixin extends Screen
 
     private void mmm$applySelectedChannel()
     {
-        if (this.chatField == null)
+        if (this.input == null)
         {
             return;
         }
 
         boolean publicChannel = mmm$selectedChannel == Channel.MMM;
-        this.chatField.setMaxLength(publicChannel ? PublicChatClient.MAX_MESSAGE_LENGTH : 256);
-        this.chatField.setText(publicChannel ? this.mmm$publicDraft : this.mmm$minecraftDraft);
-        this.chatField.setPlaceholder(Text.literal(publicChannel
+        this.input.setMaxLength(publicChannel ? PublicChatClient.MAX_MESSAGE_LENGTH : 256);
+        this.input.setValue(publicChannel ? this.mmm$publicDraft : this.mmm$minecraftDraft);
+        this.input.setHint(Component.literal(publicChannel
                 ? "Message linked MMM players..."
                 : "Minecraft chat..."));
-        this.chatField.setFocused(true);
+        this.setFocused(this.input);
     }
 
     private int mmm$tabWidth(Channel channel)
     {
-        return this.textRenderer.getWidth(channel.label) + 12;
+        return this.font.width(channel.label) + 12;
     }
 
     private static boolean mmm$isInside(double mouseX, double mouseY, int x, int y, int width, int height)

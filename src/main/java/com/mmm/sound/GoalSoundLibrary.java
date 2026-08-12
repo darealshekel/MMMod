@@ -8,12 +8,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Locale;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import com.mmm.MMM;
 import com.mmm.storage.SharedStoragePaths;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.sound.PositionedSoundInstance;
 
 public final class GoalSoundLibrary
 {
@@ -110,10 +108,10 @@ public final class GoalSoundLibrary
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client != null && client.getSoundManager() != null)
         {
-            client.getSoundManager().play(PositionedSoundInstance.ui(
+            client.getSoundManager().play(SimpleSoundInstance.forUI(
                     threshold >= 100 ? MmmSounds.GOAL_COMPLETE : MmmSounds.GOAL_SUCCESS,
                     1.0F,
                     1.0F));

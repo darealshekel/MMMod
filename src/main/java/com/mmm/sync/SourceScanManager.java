@@ -8,11 +8,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ServerInfo;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
-import net.minecraft.scoreboard.ScoreboardObjective;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.world.scores.DisplaySlot;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.Scoreboard;
 
 public final class SourceScanManager
 {
@@ -23,15 +23,15 @@ public final class SourceScanManager
     {
     }
 
-    public static SourceScanResult scan(MinecraftClient client)
+    public static SourceScanResult scan(Minecraft client)
     {
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
-        if (client == null || client.player == null || client.world == null)
+        if (client == null || client.player == null || client.level == null)
         {
             return empty(world);
         }
 
-        Scoreboard scoreboard = client.world.getScoreboard();
+        Scoreboard scoreboard = client.level.getScoreboard();
         String username = client.player.getGameProfile().name();
         String sourceDisplayName = ScoreboardSourceResolver.displayName(
                 world != null ? world.displayName() : "",
@@ -39,7 +39,7 @@ public final class SourceScanManager
         );
 
         boolean manualSelection = SyncScoreboardSelector.hasManualSelection();
-        ScoreboardObjective selectedObjective = manualSelection
+        Objective selectedObjective = manualSelection
                 ? SyncScoreboardSelector.resolveSelectedObjective(client)
                 : null;
         if (manualSelection && selectedObjective == null)
@@ -47,21 +47,21 @@ public final class SourceScanManager
             return empty(world);
         }
 
-        ScoreboardObjective sidebar = manualSelection
+        Objective sidebar = manualSelection
                 ? selectedObjective
-                : scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+                : scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR);
         List<ScoreboardParser.ObjectiveRows> objectiveRows = scoreboard.getObjectives().stream()
                 .filter(objective -> manualSelection
                         ? objective == selectedObjective
                         : SyncScoreboardSelector.isEligible(objective))
-                .map(objective -> new ScoreboardParser.ObjectiveRows(objective, scoreboard.getScoreboardEntries(objective)))
+                .map(objective -> new ScoreboardParser.ObjectiveRows(objective, scoreboard.listPlayerScores(objective)))
                 .toList();
 
         ScoreboardParser.Candidate sidebarCandidate = ScoreboardParser.parse(
                 username,
                 sourceDisplayName,
                 sidebar,
-                sidebar == null ? java.util.List.of() : scoreboard.getScoreboardEntries(sidebar)
+                sidebar == null ? java.util.List.of() : scoreboard.listPlayerScores(sidebar)
         );
 
         ScoreboardParser.Candidate chosen = null;
@@ -171,11 +171,11 @@ public final class SourceScanManager
         );
     }
 
-    private static PlayerDigsModel resolvePlayerDigs(MinecraftClient client, String sourceDisplayName)
+    private static PlayerDigsModel resolvePlayerDigs(Minecraft client, String sourceDisplayName)
     {
         if (SyncScoreboardSelector.hasManualSelection())
         {
-            ScoreboardObjective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
+            Objective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
             long total = SyncScoreboardSelector.readSelectedPlayerTotal(client);
             if (selected == null || total <= 0L)
             {
@@ -221,20 +221,20 @@ public final class SourceScanManager
                 objectiveTitle
         );
     }
-    private static String resolveIconUrl(MinecraftClient client)
+    private static String resolveIconUrl(Minecraft client)
     {
         if (client == null)
         {
             return null;
         }
 
-        ServerInfo serverInfo = client.getCurrentServerEntry();
+        ServerData serverInfo = client.getCurrentServer();
         if (serverInfo == null)
         {
             return null;
         }
 
-        byte[] favicon = serverInfo.getFavicon();
+        byte[] favicon = serverInfo.getIconBytes();
         if (favicon == null || favicon.length == 0)
         {
             return null;

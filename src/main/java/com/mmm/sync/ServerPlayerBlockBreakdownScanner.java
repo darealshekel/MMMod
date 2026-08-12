@@ -12,9 +12,9 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 
 public final class ServerPlayerBlockBreakdownScanner
 {
@@ -26,9 +26,9 @@ public final class ServerPlayerBlockBreakdownScanner
     {
     }
 
-    public static JsonObject scan(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo)
+    public static JsonObject scan(Minecraft client, WorldSessionContext.WorldInfo worldInfo)
     {
-        if (client == null || client.world == null || worldInfo == null)
+        if (client == null || client.level == null || worldInfo == null)
         {
             return null;
         }
@@ -125,7 +125,7 @@ public final class ServerPlayerBlockBreakdownScanner
 
         String statBlockName = normalized.substring(MINED_CRITERION_PREFIX.length());
         Identifier identifier = resolveStatIdentifier(statBlockName);
-        if (identifier == null || !Registries.BLOCK.containsId(identifier))
+        if (identifier == null || !BuiltInRegistries.BLOCK.containsKey(identifier))
         {
             return null;
         }
@@ -135,7 +135,7 @@ public final class ServerPlayerBlockBreakdownScanner
     private static Identifier resolveStatIdentifier(String statBlockName)
     {
         Identifier direct = Identifier.tryParse(statBlockName);
-        if (direct != null && Registries.BLOCK.containsId(direct))
+        if (direct != null && BuiltInRegistries.BLOCK.containsKey(direct))
         {
             return direct;
         }

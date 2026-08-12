@@ -4,19 +4,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.social.PublicChatClient;
 import com.mmm.sound.GoalSoundLibrary;
 import com.mmm.util.UiFormat;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.text.Text;
 
 public final class GoalNotificationManager
 {
@@ -111,21 +109,21 @@ public final class GoalNotificationManager
             case 75 -> Items.DIAMOND_PICKAXE;
             default -> Items.NETHERITE_PICKAXE;
         };
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client != null && client.player != null)
         {
             ItemStack stack = new ItemStack(pickaxe);
             if (milestone > 100)
             {
-                stack.set(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
+                stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
             }
-            client.execute(() -> client.gameRenderer.showFloatingItem(stack));
+            client.execute(() -> client.gameRenderer.displayItemActivation(stack));
         }
     }
 
     private static void showThresholdAnnouncement(int threshold, MiningStats.GoalProgress progress)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player != null)
         {
             int color = UiFormat.getGoalProgressColor(progress) & 0x00FFFFFF;
@@ -136,7 +134,7 @@ public final class GoalNotificationManager
                     progress.current(),
                     progress.target()
             );
-            client.player.sendMessage(Text.literal(message).styled(style -> style.withColor(color)), false);
+            client.player.sendSystemMessage(Component.literal(message).withStyle(style -> style.withColor(color)));
         }
     }
 

@@ -8,14 +8,12 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import com.mmm.sound.GoalSoundLibrary;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
 
 public class GoalSoundSettingsScreen extends CompatScreen
 {
@@ -23,18 +21,18 @@ public class GoalSoundSettingsScreen extends CompatScreen
     private static final int GAP = 8;
 
     private final Screen parent;
-    private final List<ButtonWidget> thresholdButtons = new ArrayList<>();
+    private final List<Button> thresholdButtons = new ArrayList<>();
     private int selectedThreshold = 25;
-    private ButtonWidget chooseButton;
-    private ButtonWidget previewButton;
-    private ButtonWidget resetButton;
-    private ButtonWidget doneButton;
+    private Button chooseButton;
+    private Button previewButton;
+    private Button resetButton;
+    private Button doneButton;
     private String statusMessage = "Choose a milestone, then select an OGG sound.";
     private boolean statusError;
 
     public GoalSoundSettingsScreen(Screen parent)
     {
-        super(Text.literal("Milestone Sounds"));
+        super(Component.literal("Milestone Sounds"));
         this.parent = parent;
     }
 
@@ -42,53 +40,53 @@ public class GoalSoundSettingsScreen extends CompatScreen
     protected void init()
     {
         MmmUi.ensureCursorVisible();
-        this.clearChildren();
+        this.clearWidgets();
         this.thresholdButtons.clear();
         Layout layout = this.layout();
 
         for (int threshold : GoalSoundLibrary.MILESTONES)
         {
-            ButtonWidget button = ButtonWidget.builder(Text.empty(), ignored -> this.selectThreshold(threshold))
-                    .dimensions(0, 0, 1, BUTTON_HEIGHT)
+            Button button = Button.builder(Component.empty(), ignored -> this.selectThreshold(threshold))
+                    .bounds(0, 0, 1, BUTTON_HEIGHT)
                     .build();
-            this.thresholdButtons.add(this.addDrawableChild(button));
+            this.thresholdButtons.add(this.addRenderableWidget(button));
         }
-        this.chooseButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Choose OGG"), ignored -> this.chooseSound())
-                .dimensions(0, 0, 1, BUTTON_HEIGHT)
+        this.chooseButton = this.addRenderableWidget(Button.builder(Component.literal("Choose OGG"), ignored -> this.chooseSound())
+                .bounds(0, 0, 1, BUTTON_HEIGHT)
                 .build());
-        this.previewButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Preview"), ignored -> GoalSoundLibrary.play(this.selectedThreshold))
-                .dimensions(0, 0, 1, BUTTON_HEIGHT)
+        this.previewButton = this.addRenderableWidget(Button.builder(Component.literal("Preview"), ignored -> GoalSoundLibrary.play(this.selectedThreshold))
+                .bounds(0, 0, 1, BUTTON_HEIGHT)
                 .build());
-        this.resetButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Use Default"), ignored -> this.resetSound())
-                .dimensions(0, 0, 1, BUTTON_HEIGHT)
+        this.resetButton = this.addRenderableWidget(Button.builder(Component.literal("Use Default"), ignored -> this.resetSound())
+                .bounds(0, 0, 1, BUTTON_HEIGHT)
                 .build());
-        this.doneButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), ignored -> this.close())
-                .dimensions(0, 0, 1, BUTTON_HEIGHT)
+        this.doneButton = this.addRenderableWidget(Button.builder(Component.literal("Done"), ignored -> this.onClose())
+                .bounds(0, 0, 1, BUTTON_HEIGHT)
                 .build());
         this.updateBounds(layout);
         this.refreshButtons();
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.ensureCursorVisible();
         Layout layout = this.layout();
         this.updateBounds(layout);
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
+        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SETTINGS");
 
         MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "MILESTONE SOUNDS", layout.contentX(), layout.contentY(), layout.contentWidth());
-        MmmUi.drawTextWithin(context, this.textRenderer, "Set one custom OGG for each fixed daily-goal milestone.", layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
+        MmmUi.drawSectionHeading(context, this.font, "MILESTONE SOUNDS", layout.contentX(), layout.contentY(), layout.contentWidth());
+        MmmUi.drawTextWithin(context, this.font, "Set one custom OGG for each fixed daily-goal milestone.", layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
 
         MmmUi.card(context, layout.contentX(), layout.infoY(), layout.contentWidth(), 58, MmmUi.CARD, MmmUi.BORDER_SOFT);
-        MmmUi.drawTextWithin(context, this.textRenderer, this.selectedThreshold + "% MILESTONE", layout.contentX() + 10, layout.infoY() + 10, layout.contentWidth() - 20, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, GoalSoundLibrary.getDisplayName(this.selectedThreshold), layout.contentX() + 10, layout.infoY() + 28, layout.contentWidth() - 20, MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, GoalSoundLibrary.hasCustomSound(this.selectedThreshold) ? "Custom sound active" : "Built-in MMM sound active", layout.contentX() + 10, layout.infoY() + 42, layout.contentWidth() - 20, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, this.selectedThreshold + "% MILESTONE", layout.contentX() + 10, layout.infoY() + 10, layout.contentWidth() - 20, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, GoalSoundLibrary.getDisplayName(this.selectedThreshold), layout.contentX() + 10, layout.infoY() + 28, layout.contentWidth() - 20, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.font, GoalSoundLibrary.hasCustomSound(this.selectedThreshold) ? "Custom sound active" : "Built-in MMM sound active", layout.contentX() + 10, layout.infoY() + 42, layout.contentWidth() - 20, MmmUi.MUTED, false);
 
-        MmmUi.drawTextWithin(context, this.textRenderer, this.statusMessage, layout.contentX(), layout.statusY(), layout.contentWidth(), this.statusError ? MmmUi.ERROR : MmmUi.MUTED, false);
-        super.render(context, mouseX, mouseY, delta);
+        MmmUi.drawTextWithin(context, this.font, this.statusMessage, layout.contentX(), layout.statusY(), layout.contentWidth(), this.statusError ? MmmUi.ERROR : MmmUi.MUTED, false);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     @Override
@@ -102,19 +100,19 @@ public class GoalSoundSettingsScreen extends CompatScreen
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
-        MinecraftClient.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().gui.setScreen(this.parent);
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
     }
 
@@ -164,7 +162,7 @@ public class GoalSoundSettingsScreen extends CompatScreen
 
     private void finishSelection(int threshold, Path selected, String immediateMessage, boolean immediateError)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null)
         {
             return;
@@ -216,7 +214,7 @@ public class GoalSoundSettingsScreen extends CompatScreen
         {
             int threshold = GoalSoundLibrary.MILESTONES.get(index);
             String label = threshold == this.selectedThreshold ? "[ " + threshold + "% ]" : threshold + "%";
-            this.thresholdButtons.get(index).setMessage(Text.literal(label));
+            this.thresholdButtons.get(index).setMessage(Component.literal(label));
         }
         if (this.resetButton != null)
         {
@@ -229,17 +227,17 @@ public class GoalSoundSettingsScreen extends CompatScreen
         int thresholdWidth = (layout.contentWidth() - GAP * 3) / 4;
         for (int index = 0; index < this.thresholdButtons.size(); index++)
         {
-            ButtonWidget button = this.thresholdButtons.get(index);
+            Button button = this.thresholdButtons.get(index);
             button.setX(layout.contentX() + index * (thresholdWidth + GAP));
             button.setY(layout.thresholdY());
             button.setWidth(thresholdWidth);
         }
 
         int actionWidth = (layout.contentWidth() - GAP * 2) / 3;
-        this.chooseButton.setDimensionsAndPosition(actionWidth, BUTTON_HEIGHT, layout.contentX(), layout.actionY());
-        this.previewButton.setDimensionsAndPosition(actionWidth, BUTTON_HEIGHT, layout.contentX() + actionWidth + GAP, layout.actionY());
-        this.resetButton.setDimensionsAndPosition(actionWidth, BUTTON_HEIGHT, layout.contentX() + (actionWidth + GAP) * 2, layout.actionY());
-        this.doneButton.setDimensionsAndPosition(64, BUTTON_HEIGHT, layout.panelX() + layout.panelWidth() - 76, layout.panelY() + 10);
+        this.chooseButton.setRectangle(actionWidth, BUTTON_HEIGHT, layout.contentX(), layout.actionY());
+        this.previewButton.setRectangle(actionWidth, BUTTON_HEIGHT, layout.contentX() + actionWidth + GAP, layout.actionY());
+        this.resetButton.setRectangle(actionWidth, BUTTON_HEIGHT, layout.contentX() + (actionWidth + GAP) * 2, layout.actionY());
+        this.doneButton.setRectangle(64, BUTTON_HEIGHT, layout.panelX() + layout.panelWidth() - 76, layout.panelY() + 10);
     }
 
     private Layout layout()

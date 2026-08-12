@@ -4,15 +4,13 @@ import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.tracker.MiningStats;
 import com.mmm.util.UiFormat;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.hud.InGameHud;
-import net.minecraft.client.gui.hud.bar.Bar;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.text.Text;
-
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.Hud;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.contextualbar.ContextualBar;
+import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -20,58 +18,58 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-@Mixin(InGameHud.class)
+@Mixin(Hud.class)
 public abstract class InGameHudMixin
 {
-    @Shadow @Final private MinecraftClient client;
+    @Shadow @Final private Minecraft minecraft;
 
     @Redirect(
-            method = "renderPlayerList",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/option/KeyBinding;isPressed()Z")
+            method = "extractTabList",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/KeyMapping;isDown()Z")
     )
-    private boolean mmm$keepPlayerListOpen(KeyBinding keyBinding)
+    private boolean mmm$keepPlayerListOpen(KeyMapping keyBinding)
     {
-        return keyBinding.isPressed() || FeatureToggle.MMM_TOGGLE_TAB.getBooleanValue();
+        return keyBinding.isDown() || FeatureToggle.MMM_TOGGLE_TAB.getBooleanValue();
     }
 
     @Redirect(
-            method = "renderMainHud",
+            method = "extractHotbarAndDecorations",
             at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/hud/bar/Bar;drawExperienceLevel(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/client/font/TextRenderer;I)V")
+                    target = "Lnet/minecraft/client/gui/contextualbar/ContextualBar;extractExperienceLevel(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;I)V")
     )
-    private void mmm$renderDailyGoalPercent(DrawContext context, TextRenderer textRenderer, int experienceLevel)
+    private void mmm$renderDailyGoalPercent(GuiGraphicsExtractor context, Font textRenderer, int experienceLevel)
     {
         MiningStats.GoalProgress progress = mmm$getVisibleGoalProgress();
         if (progress == null || !Configs.Generic.SHOW_GOAL_PERCENT.getBooleanValue()
-                || this.client.player == null || this.client.interactionManager == null
-                || this.client.player.getJumpingMount() != null || !this.client.interactionManager.hasExperienceBar())
+                || this.minecraft.player == null || this.minecraft.gameMode == null
+                || this.minecraft.player.jumpableVehicle() != null || !this.minecraft.gameMode.hasExperience())
         {
-            Bar.drawExperienceLevel(context, textRenderer, experienceLevel);
+            ContextualBar.extractExperienceLevel(context, textRenderer, experienceLevel);
             return;
         }
 
         String percent = UiFormat.formatGoalPercent(progress);
-        int x = (context.getScaledWindowWidth() - textRenderer.getWidth(percent)) / 2;
-        int y = context.getScaledWindowHeight() - 35;
+        int x = (context.guiWidth() - textRenderer.width(percent)) / 2;
+        int y = context.guiHeight() - 35;
         int goalColor = UiFormat.getGoalProgressColor(progress);
 
-        context.drawText(textRenderer, percent, x + 1, y, 0x000000, false);
-        context.drawText(textRenderer, percent, x - 1, y, 0x000000, false);
-        context.drawText(textRenderer, percent, x, y + 1, 0x000000, false);
-        context.drawText(textRenderer, percent, x, y - 1, 0x000000, false);
-        context.drawText(textRenderer, Text.literal(percent), x, y, goalColor, false);
+        context.text(textRenderer, percent, x + 1, y, 0x000000, false);
+        context.text(textRenderer, percent, x - 1, y, 0x000000, false);
+        context.text(textRenderer, percent, x, y + 1, 0x000000, false);
+        context.text(textRenderer, percent, x, y - 1, 0x000000, false);
+        context.text(textRenderer, Component.literal(percent), x, y, goalColor, false);
     }
 
     @Unique
     private static MiningStats.GoalProgress mmm$getVisibleGoalProgress()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (!FeatureToggle.MMM_MINING_TRACKER.getBooleanValue()
                 || !FeatureToggle.MMM_DAILY_GOAL.getBooleanValue()
                 || !FeatureToggle.MMM_HUD_GOAL_PROGRESS.getBooleanValue()
                 || client == null
                 || client.options == null
-                || (!Configs.Generic.ALWAYS_OVERRIDE_XP_BAR.getBooleanValue() && !client.options.playerListKey.isPressed()))
+                || (!Configs.Generic.ALWAYS_OVERRIDE_XP_BAR.getBooleanValue() && !client.options.keyPlayerList.isDown()))
         {
             return null;
         }

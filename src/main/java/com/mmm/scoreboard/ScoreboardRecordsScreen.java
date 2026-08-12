@@ -8,15 +8,14 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import com.mmm.ui.MmmUi;
 
 import com.mmm.util.MmmMessages;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
 
 public final class ScoreboardRecordsScreen extends CompatScreen
 {
@@ -26,15 +25,15 @@ public final class ScoreboardRecordsScreen extends CompatScreen
 
     private final Screen parent;
     private final List<RecordButtons> rowButtons = new ArrayList<>();
-    private ButtonWidget recordButton;
-    private ButtonWidget exportButton;
-    private ButtonWidget closeButton;
+    private Button recordButton;
+    private Button exportButton;
+    private Button closeButton;
     private double scrollY;
     private int contentHeight;
 
     public ScoreboardRecordsScreen(Screen parent)
     {
-        super(Text.literal("Recorded Scoreboards"));
+        super(Component.literal("Recorded Scoreboards"));
         this.parent = parent;
     }
 
@@ -42,25 +41,25 @@ public final class ScoreboardRecordsScreen extends CompatScreen
     protected void init()
     {
         MmmUi.ensureCursorVisible();
-        this.clearChildren();
+        this.clearWidgets();
         this.rowButtons.clear();
-        this.recordButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Record Current"), ignored -> this.recordCurrent())
-                .dimensions(0, 0, 120, 18).build());
-        this.exportButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Export All"), ignored -> this.exportAll())
-                .dimensions(0, 0, 100, 18).build());
-        this.closeButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), ignored -> this.close())
-                .dimensions(0, 0, 70, 18).build());
+        this.recordButton = this.addRenderableWidget(Button.builder(Component.literal("Record Current"), ignored -> this.recordCurrent())
+                .bounds(0, 0, 120, 18).build());
+        this.exportButton = this.addRenderableWidget(Button.builder(Component.literal("Export All"), ignored -> this.exportAll())
+                .bounds(0, 0, 100, 18).build());
+        this.closeButton = this.addRenderableWidget(Button.builder(Component.literal("Back"), ignored -> this.onClose())
+                .bounds(0, 0, 70, 18).build());
 
         List<ScoreboardState.Snapshot> snapshots = ScoreboardState.getSnapshots();
         for (int index = 0; index < snapshots.size(); index++)
         {
             int capturedIndex = index;
-            ButtonWidget up = this.addDrawableChild(ButtonWidget.builder(Text.literal("Up"), ignored -> this.move(capturedIndex, -1))
-                    .dimensions(0, 0, 42, 18).build());
-            ButtonWidget down = this.addDrawableChild(ButtonWidget.builder(Text.literal("Down"), ignored -> this.move(capturedIndex, 1))
-                    .dimensions(0, 0, 48, 18).build());
-            ButtonWidget delete = this.addDrawableChild(ButtonWidget.builder(Text.literal("Delete"), ignored -> this.remove(capturedIndex))
-                    .dimensions(0, 0, 58, 18).build());
+            Button up = this.addRenderableWidget(Button.builder(Component.literal("Up"), ignored -> this.move(capturedIndex, -1))
+                    .bounds(0, 0, 42, 18).build());
+            Button down = this.addRenderableWidget(Button.builder(Component.literal("Down"), ignored -> this.move(capturedIndex, 1))
+                    .bounds(0, 0, 48, 18).build());
+            Button delete = this.addRenderableWidget(Button.builder(Component.literal("Delete"), ignored -> this.remove(capturedIndex))
+                    .bounds(0, 0, 58, 18).build());
             up.active = index > 0;
             down.active = index + 1 < snapshots.size();
             this.rowButtons.add(new RecordButtons(up, down, delete));
@@ -68,11 +67,11 @@ public final class ScoreboardRecordsScreen extends CompatScreen
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
+        MmmUi.drawMmmTopBar(context, this.font, this.width);
 
         int x = MmmUi.contentLeft(this.width);
         int y = MmmUi.TOP_BAR_HEIGHT;
@@ -80,20 +79,20 @@ public final class ScoreboardRecordsScreen extends CompatScreen
         int height = Math.max(1, this.height - y - MmmUi.pagePad(this.width));
         context.enableScissor(x, y, x + width, y + height);
         this.drawContent(context, x, y, width, height);
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
         context.disableScissor();
     }
 
-    private void drawContent(DrawContext context, int x, int viewportY, int width, int viewportHeight)
+    private void drawContent(GuiGraphicsExtractor context, int x, int viewportY, int width, int viewportHeight)
     {
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
-        MmmUi.drawTextWithin(context, this.textRenderer, "RECORDED SCOREBOARDS", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Build one CSV from several scoreboard snapshots.", x, y + 16, width, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, "RECORDED SCOREBOARDS", x, y, width, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, "Build one CSV from several scoreboard snapshots.", x, y + 16, width, MmmUi.MUTED, false);
         y += 38;
 
-        this.recordButton.setDimensionsAndPosition(Math.min(120, width / 3), 18, x, y);
-        this.exportButton.setDimensionsAndPosition(Math.min(100, width / 3), 18, x + Math.min(120, width / 3) + 6, y);
-        this.closeButton.setDimensionsAndPosition(Math.min(70, width / 4), 18, x + width - Math.min(70, width / 4), y);
+        this.recordButton.setRectangle(Math.min(120, width / 3), 18, x, y);
+        this.exportButton.setRectangle(Math.min(100, width / 3), 18, x + Math.min(120, width / 3) + 6, y);
+        this.closeButton.setRectangle(Math.min(70, width / 4), 18, x + width - Math.min(70, width / 4), y);
         boolean toolbarVisible = y + 18 >= viewportY && y <= viewportY + viewportHeight;
         this.recordButton.visible = toolbarVisible;
         this.exportButton.visible = toolbarVisible;
@@ -104,8 +103,8 @@ public final class ScoreboardRecordsScreen extends CompatScreen
         if (snapshots.isEmpty())
         {
             MmmUi.card(context, x, y, width, 52, MmmUi.CARD, MmmUi.BORDER);
-            MmmUi.drawTextWithin(context, this.textRenderer, "NO RECORDS", x + 12, y + 12, width - 24, MmmUi.TEXT, false);
-            MmmUi.drawTextWithin(context, this.textRenderer, "Record the current sidebar to add it here.", x + 12, y + 29, width - 24, MmmUi.MUTED, false);
+            MmmUi.drawTextWithin(context, this.font, "NO RECORDS", x + 12, y + 12, width - 24, MmmUi.TEXT, false);
+            MmmUi.drawTextWithin(context, this.font, "Record the current sidebar to add it here.", x + 12, y + 29, width - 24, MmmUi.MUTED, false);
             this.contentHeight = y + 64 - viewportY + (int) Math.round(this.scrollY);
             return;
         }
@@ -115,17 +114,17 @@ public final class ScoreboardRecordsScreen extends CompatScreen
             ScoreboardState.Snapshot snapshot = snapshots.get(index);
             MmmUi.card(context, x, y, width, ROW_HEIGHT - 4, MmmUi.CARD, MmmUi.BORDER);
             int buttonsWidth = 42 + 48 + 58 + 12;
-            MmmUi.drawTextWithin(context, this.textRenderer, snapshot.displayName(), x + 10, y + 8,
+            MmmUi.drawTextWithin(context, this.font, snapshot.displayName(), x + 10, y + 8,
                     Math.max(20, width - buttonsWidth - 24), MmmUi.TEXT, false);
             String detail = snapshot.rows().size() + " rows  |  " + TIME_FORMAT.format(Instant.ofEpochMilli(snapshot.capturedAtMs()));
-            MmmUi.drawTextWithin(context, this.textRenderer, detail, x + 10, y + 22,
+            MmmUi.drawTextWithin(context, this.font, detail, x + 10, y + 22,
                     Math.max(20, width - buttonsWidth - 24), MmmUi.MUTED, false);
 
             RecordButtons controls = this.rowButtons.get(index);
             int buttonX = x + width - buttonsWidth - 6;
-            controls.up().setDimensionsAndPosition(42, 18, buttonX, y + 10);
-            controls.down().setDimensionsAndPosition(48, 18, buttonX + 46, y + 10);
-            controls.delete().setDimensionsAndPosition(58, 18, buttonX + 98, y + 10);
+            controls.up().setRectangle(42, 18, buttonX, y + 10);
+            controls.down().setRectangle(48, 18, buttonX + 46, y + 10);
+            controls.delete().setRectangle(58, 18, buttonX + 98, y + 10);
             boolean visible = y + ROW_HEIGHT >= viewportY && y <= viewportY + viewportHeight;
             controls.setVisible(visible);
             y += ROW_HEIGHT;
@@ -138,7 +137,7 @@ public final class ScoreboardRecordsScreen extends CompatScreen
         try
         {
             ScoreboardService.recordCurrent();
-            this.clearAndInit();
+            this.rebuildWidgets();
         }
         catch (IOException exception)
         {
@@ -162,7 +161,7 @@ public final class ScoreboardRecordsScreen extends CompatScreen
     {
         if (ScoreboardState.moveSnapshot(index, direction))
         {
-            this.clearAndInit();
+            this.rebuildWidgets();
         }
     }
 
@@ -170,7 +169,7 @@ public final class ScoreboardRecordsScreen extends CompatScreen
     {
         if (ScoreboardState.removeSnapshot(index))
         {
-            this.clearAndInit();
+            this.rebuildWidgets();
         }
     }
 
@@ -194,23 +193,23 @@ public final class ScoreboardRecordsScreen extends CompatScreen
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
-        MinecraftClient.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().gui.setScreen(this.parent);
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
     }
 
-    private record RecordButtons(ButtonWidget up, ButtonWidget down, ButtonWidget delete)
+    private record RecordButtons(Button up, Button down, Button delete)
     {
         private void setVisible(boolean visible)
         {

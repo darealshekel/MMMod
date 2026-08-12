@@ -3,10 +3,9 @@ package com.mmm.hud;
 import com.mmm.config.Configs;
 import com.mmm.tracker.MiningSpeedTracker;
 import com.mmm.ui.MmmUi;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public final class SpeedGraphRenderer
 {
@@ -21,7 +20,7 @@ public final class SpeedGraphRenderer
     {
     }
 
-    public static void render(DrawContext context, MinecraftClient client)
+    public static void render(GuiGraphicsExtractor context, Minecraft client)
     {
         int count = MiningSpeedTracker.getHistoryCount();
         if (count == 0) return;
@@ -31,7 +30,7 @@ public final class SpeedGraphRenderer
         int[] hudBounds = MiningHudRenderer.getBounds(client);
         int x = hudBounds[0];
         int width = hudBounds[2] - hudBounds[0];
-        int screenHeight = client.getWindow().getScaledHeight();
+        int screenHeight = client.getWindow().getGuiScaledHeight();
         boolean graphFitsBelow = hudBounds[3] + GAP + GRAPH_HEIGHT <= screenHeight;
         int y = graphFitsBelow ? hudBounds[3] + GAP : hudBounds[1] - GAP - GRAPH_HEIGHT;
 
@@ -89,9 +88,9 @@ public final class SpeedGraphRenderer
             context.fill(colX, colTop, colX + 1, colTop + 1, lineColor);
         }
 
-        int screenWidth = client.getWindow().getScaledWidth();
+        int screenWidth = client.getWindow().getGuiScaledWidth();
         boolean labelsOnLeft = (x + width / 2) > screenWidth / 2;
-        renderGridLines(context, client.textRenderer, x, y, width, floor, ceiling, opacity, scaleStep, labelsOnLeft);
+        renderGridLines(context, client.font, x, y, width, floor, ceiling, opacity, scaleStep, labelsOnLeft);
     }
 
     private static float computeOpacity()
@@ -124,7 +123,7 @@ public final class SpeedGraphRenderer
         return (newAlpha << 24) | (argbColor & 0x00FFFFFF);
     }
 
-    private static void renderGridLines(DrawContext context, TextRenderer font,
+    private static void renderGridLines(GuiGraphicsExtractor context, Font font,
             int startX, int startY, int width, float floor, float ceiling, float opacity, float scaleStep, boolean labelsOnLeft)
     {
         if (ceiling <= floor) return;
@@ -151,8 +150,8 @@ public final class SpeedGraphRenderer
             context.fill(startX, gridY, startX + width, gridY + 1, gridColor);
 
             String label = Math.round(val) + "";
-            int labelX = labelsOnLeft ? startX - font.getWidth(label) - 2 : startX + width + 2;
-            context.drawText(font, label, labelX, gridY - 3, labelColor, true);
+            int labelX = labelsOnLeft ? startX - font.width(label) - 2 : startX + width + 2;
+            context.text(font, label, labelX, gridY - 3, labelColor, true);
         }
     }
 }

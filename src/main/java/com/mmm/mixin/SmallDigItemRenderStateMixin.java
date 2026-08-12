@@ -1,32 +1,30 @@
 package com.mmm.mixin;
 
 import com.mmm.feature.SmallDigItemRenderer;
-
-import net.minecraft.client.render.model.json.Transformation;
-
+import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(targets = "net.minecraft.client.render.item.ItemRenderState$LayerRenderState")
+@Mixin(targets = "net.minecraft.client.renderer.item.ItemStackRenderState$LayerRenderState")
 public class SmallDigItemRenderStateMixin
 {
     @Shadow
-    Transformation transform;
+    ItemTransform itemTransform;
 
     @Inject(
-            method = "setTransform(Lnet/minecraft/client/render/model/json/Transformation;)V",
+            method = "setItemTransform(Lnet/minecraft/client/resources/model/cuboid/ItemTransform;)V",
             at = @At("HEAD"),
             cancellable = true
     )
-    private void mmm$setSmallDigItemTransform(Transformation transform, CallbackInfo ci)
+    private void mmm$setSmallDigItemTransform(ItemTransform transform, CallbackInfo ci)
     {
-        Transformation scaledTransform = SmallDigItemRenderer.applyActiveScale(transform);
+        ItemTransform scaledTransform = SmallDigItemRenderer.applyActiveScale(transform);
         if (scaledTransform != transform)
         {
-            this.transform = scaledTransform;
+            this.itemTransform = scaledTransform;
             ci.cancel();
         }
     }

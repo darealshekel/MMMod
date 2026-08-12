@@ -9,10 +9,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
-import net.minecraft.scoreboard.ScoreboardObjective;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.scores.DisplaySlot;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.Scoreboard;
 
 public final class SourceLeaderboardReader
 {
@@ -23,20 +23,20 @@ public final class SourceLeaderboardReader
     {
     }
 
-    public static SourceLeaderboardSnapshot read(MinecraftClient client)
+    public static SourceLeaderboardSnapshot read(Minecraft client)
     {
         List<SourceLeaderboardSnapshot> snapshots = readAll(client);
         return snapshots.isEmpty() ? null : snapshots.get(0);
     }
 
-    public static List<SourceLeaderboardSnapshot> readAll(MinecraftClient client)
+    public static List<SourceLeaderboardSnapshot> readAll(Minecraft client)
     {
-        if (client == null || client.world == null || client.player == null)
+        if (client == null || client.level == null || client.player == null)
         {
             return List.of();
         }
 
-        Scoreboard scoreboard = client.world.getScoreboard();
+        Scoreboard scoreboard = client.level.getScoreboard();
         String username = client.player.getGameProfile().name();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         String detectedServerName = ScoreboardSourceResolver.displayName(
@@ -46,7 +46,7 @@ public final class SourceLeaderboardReader
 
         if (SyncScoreboardSelector.hasManualSelection())
         {
-            ScoreboardObjective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
+            Objective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
             if (selected == null)
             {
                 debug("Skipping source sync because the selected scoreboard is unavailable.");
@@ -57,7 +57,7 @@ public final class SourceLeaderboardReader
                     username,
                     detectedServerName,
                     selected,
-                    scoreboard.getScoreboardEntries(selected));
+                    scoreboard.listPlayerScores(selected));
             if (selectedCandidate == null || selectedCandidate.snapshot().isValid() == false)
             {
                 debug("Skipping source sync because the selected scoreboard is not a valid mining leaderboard.");
@@ -74,17 +74,17 @@ public final class SourceLeaderboardReader
         }
 
         List<ScoreboardParser.Candidate> candidates = new ArrayList<>();
-        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        Objective sidebar = scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR);
         if (SyncScoreboardSelector.isEligible(sidebar))
         {
             addCandidate(candidates, ScoreboardParser.parse(
                     username,
                     detectedServerName,
                     sidebar,
-                    scoreboard.getScoreboardEntries(sidebar)));
+                    scoreboard.listPlayerScores(sidebar)));
         }
 
-        for (ScoreboardObjective objective : scoreboard.getObjectives())
+        for (Objective objective : scoreboard.getObjectives())
         {
             if (objective == sidebar || SyncScoreboardSelector.isEligible(objective) == false)
             {
@@ -94,7 +94,7 @@ public final class SourceLeaderboardReader
                     username,
                     detectedServerName,
                     objective,
-                    scoreboard.getScoreboardEntries(objective)));
+                    scoreboard.listPlayerScores(objective)));
         }
 
         if (candidates.isEmpty())

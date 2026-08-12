@@ -3,11 +3,11 @@ package com.mmm.ui;
 import com.mmm.config.Configs;
 import com.mmm.config.value.ConfigColor;
 import java.awt.Color;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 public final class MmmColorEditorScreen extends CompatScreen
 {
@@ -16,7 +16,7 @@ public final class MmmColorEditorScreen extends CompatScreen
     private final Screen parent;
     private final ConfigColor config;
     private final Runnable onClose;
-    private TextFieldWidget hexField;
+    private EditBox hexField;
     private int panelX;
     private int panelY;
     private float hue;
@@ -28,7 +28,7 @@ public final class MmmColorEditorScreen extends CompatScreen
 
     public MmmColorEditorScreen(Screen parent, ConfigColor config, Runnable onClose)
     {
-        super(Text.literal("Color Picker"));
+        super(Component.literal("Color Picker"));
         this.parent = parent;
         this.config = config;
         this.onClose = onClose == null ? () -> {} : onClose;
@@ -40,23 +40,23 @@ public final class MmmColorEditorScreen extends CompatScreen
     {
         this.panelX = (this.width - PANEL_WIDTH) / 2;
         this.panelY = (this.height - PANEL_HEIGHT) / 2;
-        this.hexField = new TextFieldWidget(this.textRenderer, this.panelX + 18, this.panelY + 166, 150, 20, Text.literal("Hex color"));
+        this.hexField = new EditBox(this.font, this.panelX + 18, this.panelY + 166, 150, 20, Component.literal("Hex color"));
         this.hexField.setMaxLength(9);
-        this.hexField.setText(formatColor());
-        this.hexField.setChangedListener(this::onHexChanged);
-        this.addDrawableChild(this.hexField);
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("DONE"), button -> close())
-                .dimensions(this.panelX + 176, this.panelY + 166, 66, 20).build());
+        this.hexField.setValue(formatColor());
+        this.hexField.setResponder(this::onHexChanged);
+        this.addRenderableWidget(this.hexField);
+        this.addRenderableWidget(Button.builder(Component.literal("DONE"), button -> onClose())
+                .bounds(this.panelX + 176, this.panelY + 166, 66, 20).build());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         context.fill(0, 0, this.width, this.height, 0xB8000000);
         context.fill(this.panelX, this.panelY, this.panelX + PANEL_WIDTH, this.panelY + PANEL_HEIGHT, 0xFF090909);
         MmmUi.drawBorder(context, this.panelX, this.panelY, PANEL_WIDTH, PANEL_HEIGHT, 0xFF2A2A2A);
         context.fill(this.panelX + 14, this.panelY + 14, this.panelX + 18, this.panelY + 28, MmmUi.accent());
-        context.drawText(this.textRenderer, Text.literal("CUSTOM COLOR"), this.panelX + 26, this.panelY + 17, 0xFFF5F5F5, false);
+        context.text(this.font, Component.literal("CUSTOM COLOR"), this.panelX + 26, this.panelY + 17, 0xFFF5F5F5, false);
 
         int colorX = this.panelX + 18;
         int colorY = this.panelY + 40;
@@ -94,7 +94,7 @@ public final class MmmColorEditorScreen extends CompatScreen
         int preview = currentArgb();
         context.fill(this.panelX + 18, this.panelY + 194, this.panelX + 242, this.panelY + 204, preview);
         MmmUi.drawBorder(context, this.panelX + 18, this.panelY + 194, 224, 10, 0xFF343434);
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     @Override
@@ -102,7 +102,7 @@ public final class MmmColorEditorScreen extends CompatScreen
     {
         if (button == 0 && !inside(mouseX, mouseY, this.panelX, this.panelY, PANEL_WIDTH, PANEL_HEIGHT))
         {
-            close();
+            onClose();
             return true;
         }
         if (button == 0 && inside(mouseX, mouseY, this.panelX + 18, this.panelY + 40, 188, 112))
@@ -139,13 +139,13 @@ public final class MmmColorEditorScreen extends CompatScreen
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
         applyColor();
         this.onClose.run();
-        if (this.client != null)
+        if (this.minecraft != null)
         {
-            this.client.setScreen(this.parent);
+            this.minecraft.gui.setScreen(this.parent);
         }
     }
 
@@ -167,10 +167,10 @@ public final class MmmColorEditorScreen extends CompatScreen
     {
         this.config.setValueFromString(formatColor());
         Configs.saveToFile();
-        if (this.hexField != null && !this.hexField.getText().equalsIgnoreCase(formatColor()))
+        if (this.hexField != null && !this.hexField.getValue().equalsIgnoreCase(formatColor()))
         {
             this.syncingField = true;
-            this.hexField.setText(formatColor());
+            this.hexField.setValue(formatColor());
             this.syncingField = false;
         }
     }

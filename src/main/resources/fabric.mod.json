@@ -21,8 +21,9 @@
     "mmm.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.14",
-    "fabric-api": ">=0.102.0",
-    "minecraft": "${minecraft_dependency}"
+    "fabricloader": ">=0.19.3",
+    "fabric-api": ">=0.156.0",
+    "minecraft": "${minecraft_dependency}",
+    "java": ">=25"
   }
 }

@@ -4,10 +4,10 @@ import com.mmm.sync.SyncScoreboardSelector;
 import com.mmm.util.UiFormat;
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 public final class SyncScoreboardScreen extends CompatScreen
@@ -21,7 +21,7 @@ public final class SyncScoreboardScreen extends CompatScreen
 
     public SyncScoreboardScreen(Screen parent)
     {
-        super(Text.literal("Sync Scoreboard"));
+        super(Component.literal("Sync Scoreboard"));
         this.parent = parent;
     }
 
@@ -29,19 +29,19 @@ public final class SyncScoreboardScreen extends CompatScreen
     protected void init()
     {
         MmmUi.ensureCursorVisible();
-        this.choices = SyncScoreboardSelector.availableObjectives(MinecraftClient.getInstance());
+        this.choices = SyncScoreboardSelector.availableObjectives(Minecraft.getInstance());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         this.clickTargets.clear();
         Layout layout = layout();
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
+        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SETTINGS");
         MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "SYNC SCOREBOARD", layout.contentX(), layout.contentY(), layout.contentWidth());
-        MmmUi.drawTextWithin(context, this.textRenderer,
+        MmmUi.drawSectionHeading(context, this.font, "SYNC SCOREBOARD", layout.contentX(), layout.contentY(), layout.contentWidth());
+        MmmUi.drawTextWithin(context, this.font,
                 "Choose the mining-total objective for this source. Project and unrelated objectives are hidden.",
                 layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
 
@@ -78,14 +78,14 @@ public final class SyncScoreboardScreen extends CompatScreen
                         : selectedAvailable
                                 ? "Selected objective: " + selected
                                 : "Selected scoreboard unavailable. Source sync is paused.";
-        MmmUi.drawTextWithin(context, this.textRenderer, status, layout.contentX(), layout.statusY(),
+        MmmUi.drawTextWithin(context, this.font, status, layout.contentX(), layout.statusY(),
                 layout.contentWidth() - 70, selectedAvailable ? MmmUi.MUTED : MmmUi.WARNING, false);
         drawButton(context, layout.panelX() + layout.panelWidth() - 70, layout.statusY() - 6,
-                58, 20, "DONE", mouseX, mouseY, this::close);
-        super.render(context, mouseX, mouseY, delta);
+                58, 20, "DONE", mouseX, mouseY, this::onClose);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
-    private void drawChoice(DrawContext context, String title, String subtitle, String objectiveName,
+    private void drawChoice(GuiGraphicsExtractor context, String title, String subtitle, String objectiveName,
                             int playerCount, long sourceTotal, boolean selected,
                             int x, int y, int width, int mouseX, int mouseY)
     {
@@ -93,27 +93,27 @@ public final class SyncScoreboardScreen extends CompatScreen
         int fill = selected ? MmmUi.accentSoft() : hovered ? MmmUi.accentHover() : MmmUi.CARD;
         int border = selected || hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT;
         MmmUi.card(context, x, y, width, ROW_HEIGHT, fill, border);
-        MmmUi.drawTextWithin(context, this.textRenderer, title, x + 10, y + 7, Math.max(1, width - 190), MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, subtitle, x + 10, y + 23, Math.max(1, width - 190), MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, title, x + 10, y + 7, Math.max(1, width - 190), MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.font, subtitle, x + 10, y + 23, Math.max(1, width - 190), MmmUi.MUTED, false);
         if (playerCount > 0 || sourceTotal > 0L)
         {
             String summary = playerCount + " players  /  " + UiFormat.formatCompact(sourceTotal);
-            MmmUi.drawTextRightWithin(context, this.textRenderer, summary, x + width - 10, y + 15, 170, MmmUi.MUTED, false);
+            MmmUi.drawTextRightWithin(context, this.font, summary, x + width - 10, y + 15, 170, MmmUi.MUTED, false);
         }
         this.clickTargets.add(new ClickTarget(x, y, width, ROW_HEIGHT, () -> {
             SyncScoreboardSelector.selectObjective(objectiveName);
-            this.choices = SyncScoreboardSelector.availableObjectives(MinecraftClient.getInstance());
+            this.choices = SyncScoreboardSelector.availableObjectives(Minecraft.getInstance());
         }));
     }
 
-    private void drawButton(DrawContext context, int x, int y, int width, int height, String label,
+    private void drawButton(GuiGraphicsExtractor context, int x, int y, int width, int height, String label,
                             int mouseX, int mouseY, Runnable action)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
         MmmUi.card(context, x, y, width, height, hovered ? MmmUi.accentHover() : MmmUi.INSET,
                 hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(label),
-                x + Math.max(3, (width - this.textRenderer.getWidth(label)) / 2), y + 6,
+        context.text(this.font, Component.literal(label),
+                x + Math.max(3, (width - this.font.width(label)) / 2), y + 6,
                 hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, height, action));
     }
@@ -156,26 +156,26 @@ public final class SyncScoreboardScreen extends CompatScreen
     {
         if (keyCode == GLFW.GLFW_KEY_ESCAPE)
         {
-            close();
+            onClose();
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
-        MinecraftClient.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().gui.setScreen(this.parent);
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
     }
 

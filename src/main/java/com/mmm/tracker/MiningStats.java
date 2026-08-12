@@ -8,11 +8,11 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.stream.Collectors;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.GameMenuScreen;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import com.mmm.config.Configs;
 import com.mmm.config.Configs.ProjectEntry;
 import com.mmm.config.FeatureToggle;
@@ -372,22 +372,22 @@ public final class MiningStats
         return sessionActive && sessionPaused;
     }
 
-    private static void updateMenuPauseState(MinecraftClient client, long now)
+    private static void updateMenuPauseState(Minecraft client, long now)
     {
         if (sessionActive == false)
         {
             sessionMenuPaused = false;
             return;
         }
-        if (client == null || client.world == null || client.player == null)
+        if (client == null || client.level == null || client.player == null)
         {
             return;
         }
 
-        boolean pauseRequested = client.isInSingleplayer()
-                && client.currentScreen != null
-                && (client.currentScreen instanceof GameMenuScreen
-                || client.currentScreen.shouldPause());
+        boolean pauseRequested = client.isLocalServer()
+                && client.gui.screen() != null
+                && (client.gui.screen() instanceof PauseScreen
+                || client.gui.screen().isPauseScreen());
         if (pauseRequested)
         {
             if (sessionPaused == false)
@@ -444,8 +444,8 @@ public final class MiningStats
 
     public static void onClientTick()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        boolean hasMiningContext = client != null && client.world != null && client.player != null;
+        Minecraft client = Minecraft.getInstance();
+        boolean hasMiningContext = client != null && client.level != null && client.player != null;
         long now = System.currentTimeMillis();
         updateMenuPauseState(client, now);
         if (hasMiningContext && now - lastWorldContextRefreshMs >= 1_000L)
@@ -1469,13 +1469,13 @@ public final class MiningStats
 
     private static String getCurrentDimensionId()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.world == null)
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.level == null)
         {
             return "unknown";
         }
 
-        return client.world.getRegistryKey().getValue().toString();
+        return client.level.dimension().identifier().toString();
     }
 
     private static void debugAttribution(String reason, long beforeSourceTotal, long afterSourceTotal, long delta)

@@ -1,13 +1,14 @@
 {
   "required": true,
   "package": "com.mmm.mixin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_25",
   "client": [
     "ClientPlayNetworkHandlerMixin",
     "ClientPlayerInteractionManagerAccessor",
     "ClientPlayerInteractionManagerMixin",
     "DecorationParameterMixin",
     "ExperienceBarMixin",
+    "FluidStateModelSetMixin",
     "HeldItemRendererMixin",
     "InGameHudMixin",
     "KeyboardMixin",
@@ -21,7 +22,6 @@
     "SoundManagerAccessor",
     "SoundSystemAccessor",
     "TeamMixin",
-    "WorldRendererAccessor",
     "WorldRendererMixin"
   ],
   "injectors": {

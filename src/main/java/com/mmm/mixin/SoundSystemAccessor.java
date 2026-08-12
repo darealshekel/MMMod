@@ -1,14 +1,13 @@
 package com.mmm.mixin;
 
-import net.minecraft.client.sound.Channel;
-import net.minecraft.client.sound.SoundSystem;
-
+import net.minecraft.client.sounds.ChannelAccess;
+import net.minecraft.client.sounds.SoundEngine;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(SoundSystem.class)
+@Mixin(SoundEngine.class)
 public interface SoundSystemAccessor
 {
-    @Accessor("channel")
-    Channel mmm$getChannel();
+    @Accessor("channelAccess")
+    ChannelAccess mmm$getChannel();
 }

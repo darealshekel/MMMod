@@ -14,12 +14,9 @@ import javax.imageio.ImageIO;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
 
-import net.fabricmc.fabric.api.client.rendering.v1.BlockRenderLayerMap;
+import net.minecraft.client.Minecraft;
+import net.minecraft.server.packs.repository.PackRepository;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BlockRenderLayer;
-import net.minecraft.fluid.Fluids;
-import net.minecraft.resource.ResourcePackManager;
 
 public final class TranslucentLavaRenderer
 {
@@ -43,7 +40,6 @@ public final class TranslucentLavaRenderer
 
     public static void initialize()
     {
-        BlockRenderLayerMap.putFluids(BlockRenderLayer.TRANSLUCENT, Fluids.LAVA, Fluids.FLOWING_LAVA);
         pendingReloadTicks = STARTUP_DELAY_TICKS;
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (reloadInFlight)
@@ -66,8 +62,8 @@ public final class TranslucentLavaRenderer
             if (++reconcileTicks >= RECONCILE_INTERVAL_TICKS)
             {
                 reconcileTicks = 0;
-                ResourcePackManager manager = client.getResourcePackManager();
-                boolean packEnabled = manager.getEnabledIds().contains(PACK_ID);
+                PackRepository manager = client.getResourcePackRepository();
+                boolean packEnabled = manager.getSelectedIds().contains(PACK_ID);
                 int configuredOpacity = Math.clamp(Configs.Generic.LAVA_OPACITY.getIntegerValue(), 10, 100);
                 if (packEnabled != isEnabled() || (packEnabled && configuredOpacity != lastAppliedOpacity))
                 {
@@ -93,39 +89,39 @@ public final class TranslucentLavaRenderer
         return Math.round(clampedPercent * 255.0F / 100.0F);
     }
 
-    private static void applyResourcePack(MinecraftClient client)
+    private static void applyResourcePack(Minecraft client)
     {
         try
         {
             boolean shouldEnable = isEnabled();
             int opacity = Math.clamp(Configs.Generic.LAVA_OPACITY.getIntegerValue(), 10, 100);
-            Path packDirectory = client.getResourcePackDir().resolve(PACK_DIRECTORY_NAME);
+            Path packDirectory = client.getResourcePackDirectory().resolve(PACK_DIRECTORY_NAME);
             boolean contentChanged = shouldEnable && ensureGeneratedPack(packDirectory, opacity);
 
-            ResourcePackManager manager = client.getResourcePackManager();
-            if (contentChanged || (shouldEnable && manager.hasProfile(PACK_ID) == false))
+            PackRepository manager = client.getResourcePackRepository();
+            if (contentChanged || (shouldEnable && manager.isAvailable(PACK_ID) == false))
             {
-                manager.scanPacks();
+                manager.reload();
             }
 
             boolean stateChanged;
             if (shouldEnable)
             {
-                if (manager.hasProfile(PACK_ID) == false)
+                if (manager.isAvailable(PACK_ID) == false)
                 {
                     MMM.LOGGER.warn("[MMM] Generated translucent lava pack was not discovered at {}", packDirectory);
                     return;
                 }
-                stateChanged = manager.getEnabledIds().contains(PACK_ID) == false && manager.enable(PACK_ID);
+                stateChanged = manager.getSelectedIds().contains(PACK_ID) == false && manager.addPack(PACK_ID);
             }
             else
             {
-                stateChanged = manager.getEnabledIds().contains(PACK_ID) && manager.disable(PACK_ID);
+                stateChanged = manager.getSelectedIds().contains(PACK_ID) && manager.removePack(PACK_ID);
             }
 
             if (stateChanged)
             {
-                client.options.refreshResourcePacks(manager);
+                client.options.updateResourcePacks(manager);
                 lastAppliedOpacity = shouldEnable ? opacity : -1;
                 return;
             }
@@ -137,7 +133,7 @@ public final class TranslucentLavaRenderer
             }
 
             reloadInFlight = true;
-            client.reloadResources().whenComplete((unused, throwable) -> client.execute(() -> {
+            client.reloadResourcePacks().whenComplete((unused, throwable) -> client.execute(() -> {
                 reloadInFlight = false;
                 if (throwable != null)
                 {

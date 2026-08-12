@@ -1,9 +1,8 @@
 package com.mmm.feature;
 
 import com.mmm.config.FeatureToggle;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
 
 public final class FlatDigger
 {
@@ -18,13 +17,13 @@ public final class FlatDigger
             return false;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.player.isSneaking())
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null || client.player.isShiftKeyDown())
         {
             return false;
         }
 
-        int playerFeetY = client.player.getBlockPos().getY();
+        int playerFeetY = client.player.blockPosition().getY();
         return pos.getY() < playerFeetY;
     }
 }

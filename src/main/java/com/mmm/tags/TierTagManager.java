@@ -19,10 +19,10 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 
 public final class TierTagManager
 {
@@ -49,7 +49,7 @@ public final class TierTagManager
     {
     }
 
-    public static void onClientTick(MinecraftClient client)
+    public static void onClientTick(Minecraft client)
     {
         if (++tickCounter < 20)
         {
@@ -57,14 +57,14 @@ public final class TierTagManager
         }
         tickCounter = 0;
 
-        if (client == null || client.getNetworkHandler() == null)
+        if (client == null || client.getConnection() == null)
         {
             clear();
             return;
         }
 
         LinkedHashMap<String, String> discoveredNames = new LinkedHashMap<>();
-        for (PlayerListEntry entry : client.getNetworkHandler().getPlayerList())
+        for (PlayerInfo entry : client.getConnection().getOnlinePlayers())
         {
             addValidName(discoveredNames, entry.getProfile().name());
         }
@@ -98,7 +98,7 @@ public final class TierTagManager
         refresh(List.copyOf(currentNames.values()), signature, now);
     }
 
-    public static MutableText decorateName(String username, Text original)
+    public static MutableComponent decorateName(String username, Component original)
     {
         if (!Configs.Generic.TIER_NAME_TAGS.getBooleanValue())
         {
@@ -111,17 +111,21 @@ public final class TierTagManager
             return null;
         }
 
-        String displayName = knownNames.getOrDefault(normalized, username);
-        MutableText decorated = Text.empty().setStyle(original.getStyle());
-        decorated.append(Text.literal(PlayerTagPayload.formatBlocks(tag.totalBlocks()))
-                .styled(style -> style.withColor(tag.colorRgb())));
-        decorated.append(Text.literal(" | ").styled(style -> style.withColor(0x777777)));
-        decorated.append(Text.literal(displayName)
-                .setStyle(original.getStyle().withColor(0xFFFFFF)));
+        String total = PlayerTagPayload.formatBlocks(tag.totalBlocks());
+        if (original.getString().startsWith(total + " | "))
+        {
+            return null;
+        }
+
+        MutableComponent decorated = Component.empty();
+        decorated.append(Component.literal(total)
+                .withStyle(style -> style.withColor(tag.colorRgb())));
+        decorated.append(Component.literal(" | ").withStyle(style -> style.withColor(0x777777)));
+        decorated.append(original.copy());
         return decorated;
     }
 
-    public static MutableText decorateDisplayedName(Text original)
+    public static MutableComponent decorateDisplayedName(Component original)
     {
         if (original == null)
         {

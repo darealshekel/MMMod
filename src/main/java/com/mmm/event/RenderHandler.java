@@ -5,8 +5,8 @@ import com.mmm.hud.MiningHudRenderer;
 import com.mmm.hud.SpeedGraphRenderer;
 import com.mmm.timer.TimerHudRenderer;
 import com.mmm.tracker.MiningSpeedTracker;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public final class RenderHandler
 {
@@ -16,9 +16,9 @@ public final class RenderHandler
     {
     }
 
-    public static void renderHud(DrawContext drawContext)
+    public static void renderHud(GuiGraphicsExtractor drawContext)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (!FeatureToggle.MMM_MINING_TRACKER.getBooleanValue())
         {
             return;

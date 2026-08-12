@@ -1,5 +1,6 @@
 package com.mmm.hotkey;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -7,10 +8,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.util.InputUtil;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.KeyEvent;
 import org.lwjgl.glfw.GLFW;
 
 public final class MmmHotkey
@@ -65,7 +64,7 @@ public final class MmmHotkey
         this.callback = callback == null ? () -> {} : callback;
     }
 
-    public void tick(MinecraftClient client)
+    public void tick(Minecraft client)
     {
         if (this.storageString.isBlank() || client == null || client.getWindow() == null)
         {
@@ -99,7 +98,7 @@ public final class MmmHotkey
         boolean triggerEdge = finalActionKey == null
                 ? allRequiredKeysDown && !this.wasDown
                 : finalActionNewlyPressed;
-        if (client.currentScreen == null && allRequiredKeysDown && triggerEdge)
+        if (client.gui.screen() == null && allRequiredKeysDown && triggerEdge)
         {
             this.callback.run();
         }
@@ -108,7 +107,7 @@ public final class MmmHotkey
         this.previousKeyStates.keySet().retainAll(tokens);
     }
 
-    public void onKeyEvent(MinecraftClient client, int keyCode, int scanCode, int action)
+    public void onKeyEvent(Minecraft client, int keyCode, int scanCode, int action)
     {
         if (this.storageString.isBlank() || client == null || client.getWindow() == null)
         {
@@ -133,7 +132,7 @@ public final class MmmHotkey
             this.previousKeyStates.put(eventToken, false);
             return;
         }
-        if (action != GLFW.GLFW_PRESS || client.currentScreen != null)
+        if (action != GLFW.GLFW_PRESS || client.gui.screen() != null)
         {
             return;
         }
@@ -216,7 +215,7 @@ public final class MmmHotkey
         {
             return null;
         }
-        String translation = InputUtil.fromKeyCode(new KeyInput(keyCode, scanCode, 0)).getTranslationKey();
+        String translation = InputConstants.getKey(new KeyEvent(keyCode, scanCode, 0)).getName();
         if (translation.startsWith("key.keyboard."))
         {
             translation = translation.substring("key.keyboard.".length());
@@ -226,8 +225,8 @@ public final class MmmHotkey
 
     private InputKey parseKey(String raw)    {
         String value = normalizeToken(raw);
-        var window = MinecraftClient.getInstance().getWindow();
-        long windowHandle = window.getHandle();
+        var window = Minecraft.getInstance().getWindow();
+        long windowHandle = window.handle();
         if (value.startsWith("MOUSE_"))
         {
             try
@@ -270,8 +269,8 @@ public final class MmmHotkey
 
         try
         {
-            int code = InputUtil.fromTranslationKey(translation).getCode();
-            return new InputKey(() -> InputUtil.isKeyPressed(window, code));
+            int code = InputConstants.getKey(translation).getValue();
+            return new InputKey(() -> InputConstants.isKeyDown(window, code));
         }
         catch (Exception ignored)
         {

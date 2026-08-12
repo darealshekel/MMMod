@@ -12,7 +12,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.block.Block;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
 import com.mmm.storage.AsyncPersistence;
@@ -20,9 +21,6 @@ import com.mmm.storage.AtomicTextStorage;
 import com.mmm.storage.SharedStoragePaths;
 import com.mmm.tracker.MiningStats;
 import com.mmm.util.BlockBreakdownCatalog;
-
-import net.minecraft.block.Block;
-import net.minecraft.client.MinecraftClient;
 
 public final class MmmTimerState
 {
@@ -344,7 +342,7 @@ public final class MmmTimerState
         save();
     }
 
-    public static void onClientTick(MinecraftClient client)
+    public static void onClientTick(Minecraft client)
     {
         if (client == null)
         {

@@ -2,11 +2,11 @@ package com.mmm.sync;
 
 import java.util.Comparator;
 import java.util.List;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
-import net.minecraft.scoreboard.ScoreboardEntry;
-import net.minecraft.scoreboard.ScoreboardObjective;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.scores.DisplaySlot;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.PlayerScoreEntry;
+import net.minecraft.world.scores.Scoreboard;
 
 public final class ScoreboardReader
 {
@@ -14,22 +14,22 @@ public final class ScoreboardReader
     {
     }
 
-    public static List<ObjectiveSnapshot> readObjectives(MinecraftClient client)
+    public static List<ObjectiveSnapshot> readObjectives(Minecraft client)
     {
-        if (client == null || client.world == null)
+        if (client == null || client.level == null)
         {
             return List.of();
         }
 
-        Scoreboard scoreboard = client.world.getScoreboard();
-        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        Scoreboard scoreboard = client.level.getScoreboard();
+        Objective sidebar = scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR);
 
         return scoreboard.getObjectives().stream()
                 .map(objective -> new ObjectiveSnapshot(
                         cleanup(objective.getDisplayName().getString()),
-                        objective.getCriterion().getName(),
+                        objective.getCriteria().getName(),
                         sidebar != null && objective.equals(sidebar),
-                        scoreboard.getScoreboardEntries(objective).stream()
+                        scoreboard.listPlayerScores(objective).stream()
                         .map(ScoreboardReader::toLine)
                         .filter(line -> line != null)
                         .sorted(Comparator.comparingInt(ScoreboardLine::scoreValue).reversed())
@@ -39,10 +39,10 @@ public final class ScoreboardReader
                         .toList();
     }
 
-    private static ScoreboardLine toLine(ScoreboardEntry entry)
+    private static ScoreboardLine toLine(PlayerScoreEntry entry)
     {
         String owner = cleanup(entry.owner());
-        String raw = entry.display() != null ? entry.display().getString() : entry.name().getString();
+        String raw = entry.display() != null ? entry.display().getString() : entry.ownerName().getString();
         if (raw == null || raw.isBlank())
         {
             raw = owner;

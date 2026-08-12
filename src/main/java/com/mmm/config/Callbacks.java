@@ -2,7 +2,7 @@ package com.mmm.config;
 
 import java.io.IOException;
 import java.nio.file.Path;
-
+import net.minecraft.client.Minecraft;
 import com.mmm.feature.BlockEspRenderer;
 import com.mmm.feature.PerimeterWallDigHelper;
 import com.mmm.feature.TranslucentLavaRenderer;
@@ -18,7 +18,6 @@ import com.mmm.scoreboard.ScoreboardService;
 import com.mmm.tracker.MiningStats;
 import com.mmm.ui.MmmSettingsScreen;
 import com.mmm.util.MmmMessages;
-import net.minecraft.client.MinecraftClient;
 
 public final class Callbacks
 {
@@ -38,17 +37,17 @@ public final class Callbacks
             toggle.setValueChangeCallback(config -> Configs.saveToFile());
         }
 
-        Hotkeys.OPEN_CONFIG_GUI.setCallback(() -> withClient(client -> client.setScreen(new MmmSettingsScreen(client.currentScreen, true))));
-        Hotkeys.OPEN_SUMMARY.setCallback(() -> withClient(client -> client.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), client.currentScreen))));
-        Hotkeys.OPEN_HISTORY.setCallback(() -> withClient(client -> client.setScreen(new SessionHistoryScreen(client.currentScreen))));
+        Hotkeys.OPEN_CONFIG_GUI.setCallback(() -> withClient(client -> client.gui.setScreen(new MmmSettingsScreen(client.gui.screen(), true))));
+        Hotkeys.OPEN_SUMMARY.setCallback(() -> withClient(client -> client.gui.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), client.gui.screen()))));
+        Hotkeys.OPEN_HISTORY.setCallback(() -> withClient(client -> client.gui.setScreen(new SessionHistoryScreen(client.gui.screen()))));
         Hotkeys.PAUSE_SESSION.setCallback(Callbacks::pauseSession);
         Hotkeys.TOGGLE_SESSION.setCallback(Callbacks::startOrEndSession);
         Hotkeys.EXPORT_HISTORY.setCallback(Callbacks::exportHistory);
         Hotkeys.SCOREBOARD_PAGE_UP.setCallback(() -> MmmMessages.actionbar(ScoreboardService.pageUp() ? "Previous scoreboard page" : "Already on the first scoreboard page"));
         Hotkeys.SCOREBOARD_PAGE_DOWN.setCallback(() -> MmmMessages.actionbar(ScoreboardService.pageDown() ? "Next scoreboard page" : "Already on the last scoreboard page"));
         Hotkeys.TOGGLE_SCOREBOARD.setCallback(() -> toggleAndSave(Configs.Generic.SCOREBOARD_VISIBLE, "Scoreboard shown", "Scoreboard hidden"));
-        Hotkeys.OPEN_SCOREBOARD.setCallback(() -> withClient(client -> client.setScreen(new ScoreboardScreen(client.currentScreen))));
-        Hotkeys.EXPORT_SCOREBOARD.setCallback(() -> withClient(client -> client.setScreen(new ScoreboardRecordsScreen(client.currentScreen))));
+        Hotkeys.OPEN_SCOREBOARD.setCallback(() -> withClient(client -> client.gui.setScreen(new ScoreboardScreen(client.gui.screen()))));
+        Hotkeys.EXPORT_SCOREBOARD.setCallback(() -> withClient(client -> client.gui.setScreen(new ScoreboardRecordsScreen(client.gui.screen()))));
         Hotkeys.EDIT_SCOREBOARD.setCallback(Callbacks::editScoreboard);
         Hotkeys.TOGGLE_SCORE_COMMAS.setCallback(() -> toggleAndSave(Configs.Generic.SCOREBOARD_SCORE_COMMAS, "Score commas enabled", "Score commas disabled"));
         Hotkeys.TOGGLE_SCORE_ABBREVIATION.setCallback(() -> toggleAndSave(Configs.Generic.SCOREBOARD_SCORE_ABBREVIATED, "Short scores enabled", "Short scores disabled"));
@@ -132,7 +131,7 @@ public final class Callbacks
     private static void editScoreboard()
     {
         withClient(client -> ScoreboardService.getSidebarObjective(client).ifPresentOrElse(
-                objective -> client.setScreen(new ScoreboardEditScreen(client.currentScreen, objective)),
+                objective -> client.gui.setScreen(new ScoreboardEditScreen(client.gui.screen(), objective)),
                 () -> MmmMessages.actionbar("No scoreboard is available to edit")));
     }
 
@@ -155,9 +154,9 @@ public final class Callbacks
         Configs.saveToFile();
     }
 
-    private static void withClient(java.util.function.Consumer<MinecraftClient> action)
+    private static void withClient(java.util.function.Consumer<Minecraft> action)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client != null)
         {
             action.accept(client);

@@ -10,7 +10,8 @@ import com.mmm.timer.MmmClientCommands;
 import com.mmm.timer.MmmTimerState;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.minecraft.resources.Identifier;
 
 public final class InitHandler
 {
@@ -30,6 +31,9 @@ public final class InitHandler
             worldListener.pollWorldChange(client);
             tickHandler.onClientTick(client);
         });
-        HudRenderCallback.EVENT.register((drawContext, tickCounter) -> RenderHandler.renderHud(drawContext));
+        HudElementRegistry.addLast(
+                Identifier.fromNamespaceAndPath("mmm", "main_hud"),
+                (drawContext, tickCounter) -> RenderHandler.renderHud(drawContext)
+        );
     }
 }

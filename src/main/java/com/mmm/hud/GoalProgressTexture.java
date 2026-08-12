@@ -1,20 +1,19 @@
 package com.mmm.hud;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import java.io.IOException;
 import java.io.InputStream;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.texture.NativeImage;
-import net.minecraft.client.texture.NativeImageBackedTexture;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.ColorHelper;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.ARGB;
 
 public final class GoalProgressTexture
 {
-    private static final Identifier VANILLA_TEXTURE = Identifier.ofVanilla("textures/gui/sprites/hud/experience_bar_progress.png");
-    private static final Identifier COLORED_TEXTURE = Identifier.of("mmm", "dynamic/goal_progress");
+    private static final Identifier VANILLA_TEXTURE = Identifier.withDefaultNamespace("textures/gui/sprites/hud/experience_bar_progress.png");
+    private static final Identifier COLORED_TEXTURE = Identifier.fromNamespaceAndPath("mmm", "dynamic/goal_progress");
 
-    private static NativeImageBackedTexture texture;
+    private static DynamicTexture texture;
     private static int[] alpha;
     private static float[] brightness;
     private static int width;
@@ -28,7 +27,7 @@ public final class GoalProgressTexture
 
     public static Identifier get(int color)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || unavailable)
         {
             return null;
@@ -53,7 +52,7 @@ public final class GoalProgressTexture
         }
     }
 
-    private static void load(MinecraftClient client) throws IOException
+    private static void load(Minecraft client) throws IOException
     {
         try (InputStream stream = client.getResourceManager().open(VANILLA_TEXTURE);
              NativeImage source = NativeImage.read(stream))
@@ -68,22 +67,22 @@ public final class GoalProgressTexture
                 for (int x = 0; x < width; x++)
                 {
                     int index = y * width + x;
-                    int pixel = source.getColorArgb(x, y);
-                    alpha[index] = ColorHelper.getAlpha(pixel);
-                    int brightestChannel = Math.max(ColorHelper.getRed(pixel),
-                            Math.max(ColorHelper.getGreen(pixel), ColorHelper.getBlue(pixel)));
+                    int pixel = source.getPixel(x, y);
+                    alpha[index] = ARGB.alpha(pixel);
+                    int brightestChannel = Math.max(ARGB.red(pixel),
+                            Math.max(ARGB.green(pixel), ARGB.blue(pixel)));
                     brightness[index] = brightestChannel / 255.0F;
                 }
             }
         }
 
-        texture = new NativeImageBackedTexture("MMM goal progress", width, height, false);
-        client.getTextureManager().registerTexture(COLORED_TEXTURE, texture);
+        texture = new DynamicTexture("MMM goal progress", width, height, false);
+        client.getTextureManager().register(COLORED_TEXTURE, texture);
     }
 
     private static void recolor(int color)
     {
-        NativeImage image = texture.getImage();
+        NativeImage image = texture.getPixels();
         if (image == null)
         {
             throw new IllegalStateException("Goal progress texture is closed");
@@ -98,7 +97,7 @@ public final class GoalProgressTexture
             {
                 int index = y * width + x;
                 float shade = brightness[index];
-                image.setColorArgb(x, y, ColorHelper.getArgb(
+                image.setPixel(x, y, ARGB.color(
                         alpha[index],
                         Math.round(red * shade),
                         Math.round(green * shade),

@@ -12,7 +12,7 @@ import com.mmm.tracker.SourceTotalPolicy;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 public final class DigsSyncManager
 {
@@ -58,7 +58,7 @@ public final class DigsSyncManager
     public static void onClientTick(long now)
     {
         clearStaleModel(now);
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         refreshAuthoritativeTotalFast(client, now);
         if (now < nextScoreboardDetectionAtMs)
         {
@@ -205,7 +205,7 @@ public final class DigsSyncManager
 
         return recentHealthyMs > 0L && now - recentHealthyMs <= HUD_HEALTH_STALE_MS;
     }
-    private static TotalSelection selectAuthoritativeTotal(MinecraftClient client,
+    private static TotalSelection selectAuthoritativeTotal(Minecraft client,
                                                            PersonalTotalDetector.Detection detection,
                                                            PlayerDigsModel parserModel,
                                                            long now)
@@ -215,7 +215,7 @@ public final class DigsSyncManager
 
         if (SyncScoreboardSelector.hasManualSelection())
         {
-            net.minecraft.scoreboard.ScoreboardObjective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
+            net.minecraft.world.scores.Objective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
             long selectedTotal = SyncScoreboardSelector.readSelectedPlayerTotal(client);
             if (selected == null || selectedTotal <= 0L)
             {
@@ -328,15 +328,15 @@ public final class DigsSyncManager
 
     private static JsonObject buildPayload(PlayerDigsModel model)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
 
         JsonObject payload = new JsonObject();
         payload.addProperty("client_id", Configs.cloudClientId);
         payload.addProperty("username", model.username());
-        payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getUuidAsString() : null);
+        payload.addProperty("minecraft_uuid", client != null && client.player != null ? client.player.getStringUUID() : null);
         payload.addProperty("mod_version", Reference.MOD_VERSION);
-        payload.addProperty("minecraft_version", client != null ? client.getGameVersion() : null);
+        payload.addProperty("minecraft_version", client != null ? client.getLaunchedVersion() : null);
         payload.addProperty("sync_origin", "client_evidence");
 
         JsonObject world = new JsonObject();
@@ -399,7 +399,7 @@ public final class DigsSyncManager
         return payload;
     }
 
-    private static JsonObject buildSourceScan(MinecraftClient client)
+    private static JsonObject buildSourceScan(Minecraft client)
     {
         SourceScanResult scan = SourceScanManager.scan(client);
         if (scan == null || scan.hasMeaningfulEvidence() == false)
@@ -438,7 +438,7 @@ public final class DigsSyncManager
         return object;
     }
 
-    private static JsonArray buildSourceLeaderboards(MinecraftClient client)
+    private static JsonArray buildSourceLeaderboards(Minecraft client)
     {
         List<SourceLeaderboardSnapshot> snapshots = SourceLeaderboardReader.readAll(client);
         if (snapshots.isEmpty())
@@ -458,7 +458,7 @@ public final class DigsSyncManager
         return payloads;
     }
 
-    private static JsonObject buildSourceLeaderboard(MinecraftClient client, SourceLeaderboardSnapshot snapshot)
+    private static JsonObject buildSourceLeaderboard(Minecraft client, SourceLeaderboardSnapshot snapshot)
     {
         if (snapshot == null || snapshot.isValid() == false)
         {
@@ -560,7 +560,7 @@ public final class DigsSyncManager
         return "unknown";
     }
 
-    private static String resolveUsername(MinecraftClient client, PlayerDigsModel parsed)
+    private static String resolveUsername(Minecraft client, PlayerDigsModel parsed)
     {
         if (client != null && client.player != null)
         {
@@ -778,7 +778,7 @@ public final class DigsSyncManager
         return MiningStats.getCurrentSourceTotalMined();
     }
 
-    private static void refreshAuthoritativeTotalFast(MinecraftClient client, long now)
+    private static void refreshAuthoritativeTotalFast(Minecraft client, long now)
     {
         PlayerDigsModel current = latestModel;
         if (current == null || latestModelAuthoritative == false || "none".equals(latestModelSourceType))
@@ -879,7 +879,7 @@ public final class DigsSyncManager
 
     private static boolean isCurrentPlayerMismatch()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         return client != null
                 && client.player != null
                 && WebsiteLinkManager.isCurrentPlayerLinked() == false;

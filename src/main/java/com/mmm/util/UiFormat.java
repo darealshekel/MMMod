@@ -3,11 +3,9 @@ package com.mmm.util;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Locale;
-
+import net.minecraft.util.Mth;
 import com.mmm.config.Configs;
 import com.mmm.tracker.MiningStats;
-
-import net.minecraft.util.math.MathHelper;
 
 public final class UiFormat
 {
@@ -149,7 +147,7 @@ public final class UiFormat
         if (ratio > 1.0D)
         {
             float hue = (float) ((1.0D / 3.0D + ratio - 1.0D) % 1.0D);
-            return 0xFF000000 | MathHelper.hsvToRgb(hue, 0.92F, 1.0F);
+            return 0xFF000000 | Mth.hsvToRgb(hue, 0.92F, 1.0F);
         }
 
         int red;

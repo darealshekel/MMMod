@@ -4,8 +4,8 @@ import com.mmm.sync.ScoreboardSourceResolver;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
 import java.nio.file.Path;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.storage.LevelResource;
 
 public final class WorldSessionContext
 {
@@ -20,7 +20,7 @@ public final class WorldSessionContext
     {
     }
 
-    public static void update(MinecraftClient client)
+    public static void update(Minecraft client)
     {
         WorldInfo info = resolve(client);
         maybeDebugResolvedWorld(info);
@@ -31,12 +31,12 @@ public final class WorldSessionContext
         currentWorldHost = info.host();
     }
 
-    public static WorldInfo resolve(MinecraftClient client)
+    public static WorldInfo resolve(Minecraft client)
     {
-        if (client.getCurrentServerEntry() != null)
+        if (client.getCurrentServer() != null)
         {
-            String address = client.getCurrentServerEntry().address;
-            String displayName = client.getCurrentServerEntry().name;
+            String address = client.getCurrentServer().ip;
+            String displayName = client.getCurrentServer().name;
             if (displayName == null || displayName.isBlank())
             {
                 displayName = "Multiplayer Server";
@@ -48,9 +48,9 @@ public final class WorldSessionContext
             return new WorldInfo(resolvedId, displayName.trim(), "multiplayer", host, "server");
         }
 
-        if (client.getServer() != null)
+        if (client.getSingleplayerServer() != null)
         {
-            String levelName = client.getServer().getSaveProperties().getLevelName();
+            String levelName = client.getSingleplayerServer().getWorldData().getLevelName();
             String worldKey = resolveSingleplayerWorldKey(client, levelName);
             return new WorldInfo(worldKey, levelName, "singleplayer", "", resolveSingleplayerSourceType(client));
         }
@@ -73,11 +73,11 @@ public final class WorldSessionContext
         return new WorldInfo(currentWorldId, currentWorldName, currentWorldKind, currentWorldHost, currentWorldSourceType);
     }
 
-    private static String resolveSingleplayerSourceType(MinecraftClient client)
+    private static String resolveSingleplayerSourceType(Minecraft client)
     {
         try
         {
-            return client.getServer() != null && client.getServer().getSaveProperties().isHardcore()
+            return client.getSingleplayerServer() != null && client.getSingleplayerServer().getWorldData().isHardcore()
                     ? "hsp"
                     : "ssp";
         }
@@ -120,11 +120,11 @@ public final class WorldSessionContext
         );
     }
 
-    private static String resolveSingleplayerWorldKey(MinecraftClient client, String levelName)
+    private static String resolveSingleplayerWorldKey(Minecraft client, String levelName)
     {
         try
         {
-            Path savePath = client.getServer().getSavePath(WorldSavePath.ROOT);
+            Path savePath = client.getSingleplayerServer().getWorldPath(LevelResource.ROOT);
             Path folderPath = savePath.getFileName();
             if (folderPath != null)
             {

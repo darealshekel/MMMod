@@ -6,7 +6,13 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.network.chat.Component;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
@@ -25,13 +31,6 @@ import com.mmm.config.value.IStringRepresentable;
 import com.mmm.config.value.ConfigColor;
 import com.mmm.config.value.ConfigOptionList;
 import com.mmm.util.MmmMessages;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.Text;
 
 public class MmmSettingsScreen extends CompatScreen
 {
@@ -68,12 +67,12 @@ public class MmmSettingsScreen extends CompatScreen
     private final List<ClickTarget> clickTargets = new ArrayList<>();
     private final List<ScrollTarget> scrollTargets = new ArrayList<>();
     private final List<SliderTarget> sliderTargets = new ArrayList<>();
-    private final Map<IConfigBase, TextFieldWidget> textFields = new IdentityHashMap<>();
+    private final Map<IConfigBase, EditBox> textFields = new IdentityHashMap<>();
     private final Map<SettingsSection, Integer> sectionY = new HashMap<>();
     private double scrollY = 0.0D;
     private int contentHeight = 0;
     private SliderTarget draggingSlider;
-    private TextFieldWidget searchField;
+    private EditBox searchField;
     private String searchQuery = "";
     private boolean suppressAutomaticSearchInput;
     private final long openedAtMs;
@@ -85,7 +84,7 @@ public class MmmSettingsScreen extends CompatScreen
 
     public MmmSettingsScreen(Screen parent, boolean openedFromHotkey)
     {
-        super(Text.literal("MMM Mod Settings"));
+        super(Component.literal("MMM Mod Settings"));
         this.parent = parent;
         this.suppressAutomaticSearchInput = openedFromHotkey;
         this.openedAtMs = System.currentTimeMillis();
@@ -96,20 +95,20 @@ public class MmmSettingsScreen extends CompatScreen
     protected void init()
     {
         MmmUi.ensureCursorVisible();
-        this.clearChildren();
+        this.clearWidgets();
         this.textFields.clear();
 
-        this.searchField = new TextFieldWidget(this.textRenderer, 0, 0, 220, FIELD_HEIGHT, Text.literal("Search settings"));
-        this.searchField.setDrawsBackground(false);
-        this.searchField.setEditableColor(TEXT);
+        this.searchField = new EditBox(this.font, 0, 0, 220, FIELD_HEIGHT, Component.literal("Search settings"));
+        this.searchField.setBordered(false);
+        this.searchField.setTextColor(TEXT);
         this.searchField.setMaxLength(64);
-        this.searchField.setPlaceholder(Text.literal("Search settings..."));
-        this.searchField.setText(this.searchQuery);
-        this.searchField.setChangedListener(value -> {
+        this.searchField.setHint(Component.literal("Search settings..."));
+        this.searchField.setValue(this.searchQuery);
+        this.searchField.setResponder(value -> {
             this.searchQuery = value;
             this.scrollY = 0.0D;
         });
-        this.addDrawableChild(this.searchField);
+        this.addRenderableWidget(this.searchField);
 
         for (SettingsSection section : this.sections)
         {
@@ -117,30 +116,30 @@ public class MmmSettingsScreen extends CompatScreen
             {
                 if (row.kind().usesTextField())
                 {
-                    TextFieldWidget field = new TextFieldWidget(this.textRenderer, 0, 0, CONTROL_WIDTH, FIELD_HEIGHT, Text.empty());
-                    field.setDrawsBackground(false);
+                    EditBox field = new EditBox(this.font, 0, 0, CONTROL_WIDTH, FIELD_HEIGHT, Component.empty());
+                    field.setBordered(false);
 
-                    field.setEditableColor(TEXT);
-                    field.setUneditableColor(MUTED);
+                    field.setTextColor(TEXT);
+                    field.setTextColorUneditable(MUTED);
                     field.setMaxLength(row.kind() == ControlKind.COLOR ? 9 : 64);
-                    field.setText(this.getConfigString(row.config()));
-                    field.setChangedListener(value -> this.commitTextValue(row, value));
+                    field.setValue(this.getConfigString(row.config()));
+                    field.setResponder(value -> this.commitTextValue(row, value));
                     this.textFields.put(row.config(), field);
-                    this.addDrawableChild(field);
+                    this.addRenderableWidget(field);
                 }
             }
         }
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.ensureCursorVisible();
         this.clickTargets.clear();
         this.scrollTargets.clear();
         this.sliderTargets.clear();
         this.sectionY.clear();
-        for (TextFieldWidget field : this.textFields.values())
+        for (EditBox field : this.textFields.values())
         {
             field.setVisible(false);
         }
@@ -160,7 +159,7 @@ public class MmmSettingsScreen extends CompatScreen
 
         context.enableScissor(viewportX, viewportY, viewportX + viewportW, viewportY + viewportH);
         this.drawMainContent(context, viewportX, viewportY, viewportW, mouseX, mouseY);
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
         context.disableScissor();
 
         this.drawScrollbar(context, viewportX + viewportW - 4, viewportY, viewportH);
@@ -256,19 +255,19 @@ public class MmmSettingsScreen extends CompatScreen
 
         if (keyCode == 256)
         {
-            if (this.searchField != null && this.searchField.isFocused() && this.searchField.getText().isBlank() == false)
+            if (this.searchField != null && this.searchField.isFocused() && this.searchField.getValue().isBlank() == false)
             {
-                this.searchField.setText("");
+                this.searchField.setValue("");
                 return true;
             }
-            this.close();
+            this.onClose();
             return true;
         }
 
         if (this.searchField != null
                 && this.searchField.isVisible()
                 && this.searchField.isFocused()
-                && this.searchField.keyPressed(new KeyInput(keyCode, scanCode, modifiers)))
+                && this.searchField.keyPressed(new KeyEvent(keyCode, scanCode, modifiers)))
         {
             return true;
         }
@@ -299,7 +298,7 @@ public class MmmSettingsScreen extends CompatScreen
         {
             return true;
         }
-        for (TextFieldWidget field : this.textFields.values())
+        for (EditBox field : this.textFields.values())
         {
             if (field.isFocused())
             {
@@ -311,34 +310,34 @@ public class MmmSettingsScreen extends CompatScreen
                 && (Character.isLetterOrDigit(chr) || Character.isWhitespace(chr)))
         {
             this.searchField.setFocused(true);
-            return this.searchField.charTyped(new CharInput(chr, modifiers));
+            return this.searchField.charTyped(new CharacterEvent(chr));
         }
         return false;
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
-        MinecraftClient.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().gui.setScreen(this.parent);
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
     }
 
-    private void drawTopBar(DrawContext context, int mouseX, int mouseY)
+    private void drawTopBar(GuiGraphicsExtractor context, int mouseX, int mouseY)
     {
         context.fill(0, 0, this.width, TOP_HEIGHT, MmmUi.menuSurface(TOP_BAR));
         MmmUi.drawBorder(context, 0, 0, this.width, TOP_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, MmmUi.accent());
-        MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 26, 10, 40, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, "MMM", 26, 10, 40, MmmUi.accent(), false);
 
         String status = this.syncStatusText();
         int statusColor = Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() ? GREEN : MUTED;
@@ -346,23 +345,23 @@ public class MmmSettingsScreen extends CompatScreen
         int statusLeft = this.width >= 620 ? this.width / 2 : 68;
         if (this.width >= 620)
         {
-            MmmUi.drawTextWithin(context, this.textRenderer, "Manual Mining Maniacs", 68, 10, Math.max(0, statusLeft - 80), TEXT, false);
+            MmmUi.drawTextWithin(context, this.font, "Manual Mining Maniacs", 68, 10, Math.max(0, statusLeft - 80), TEXT, false);
         }
-        MmmUi.drawTextRightWithin(context, this.textRenderer, status, closeX - 12, 10, Math.max(0, closeX - 12 - statusLeft), statusColor, false);
+        MmmUi.drawTextRightWithin(context, this.font, status, closeX - 12, 10, Math.max(0, closeX - 12 - statusLeft), statusColor, false);
         this.drawButtonShell(context, closeX, 8, 20, 20, "X", mouseX, mouseY, false);
-        this.clickTargets.add(new ClickTarget(closeX, 8, 20, 20, this::close));
+        this.clickTargets.add(new ClickTarget(closeX, 8, 20, 20, this::onClose));
     }
 
-    private void drawSidebar(DrawContext context, int mouseX, int mouseY)
+    private void drawSidebar(GuiGraphicsExtractor context, int mouseX, int mouseY)
     {
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
+        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SETTINGS");
     }
 
-    private void drawMainContent(DrawContext context, int x, int viewportY, int width, int mouseX, int mouseY)
+    private void drawMainContent(GuiGraphicsExtractor context, int x, int viewportY, int width, int mouseX, int mouseY)
     {
         int y = viewportY + 18 - (int) Math.round(this.scrollY);
-        MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD SETTINGS", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Configure how MMM Mod works in Minecraft", x, y + 16, width, MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, "MMM MOD SETTINGS", x, y, width, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, "Configure how MMM Mod works in Minecraft", x, y + 16, width, MUTED, false);
 
         int searchY = y + 34;
         int searchWidth = Math.min(260, width);
@@ -377,7 +376,7 @@ public class MmmSettingsScreen extends CompatScreen
             int clearX = x + searchWidth - 19;
             this.drawButtonShell(context, clearX, searchY, 18, FIELD_HEIGHT, "X", mouseX, mouseY, true);
             this.clickTargets.add(new ClickTarget(clearX, searchY, 18, FIELD_HEIGHT, () -> {
-                this.searchField.setText("");
+                this.searchField.setValue("");
                 this.searchField.setFocused(true);
             }));
         }
@@ -385,7 +384,7 @@ public class MmmSettingsScreen extends CompatScreen
         int gridY = y + CONTENT_HEADER_HEIGHT;
         if (this.visibleSections.isEmpty())
         {
-            MmmUi.drawTextWithin(context, this.textRenderer, "No settings match your search.", x, gridY + 8, width, MUTED, false);
+            MmmUi.drawTextWithin(context, this.font, "No settings match your search.", x, gridY + 8, width, MUTED, false);
             return;
         }
 
@@ -415,13 +414,13 @@ public class MmmSettingsScreen extends CompatScreen
         }
     }
 
-    private void drawSection(DrawContext context, VisibleSection visibleSection, int x, int y, int width, int height, int mouseX, int mouseY)
+    private void drawSection(GuiGraphicsExtractor context, VisibleSection visibleSection, int x, int y, int width, int height, int mouseX, int mouseY)
     {
         SettingsSection section = visibleSection.section();
         context.fill(x, y, x + width, y + height, MmmUi.menuSurface(CARD));
         MmmUi.drawBorder(context, x, y, width, height, BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, section.title(), x + CARD_PAD, y + 12, width - CARD_PAD * 2);
-        MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, MUTED, false);
+        MmmUi.drawSectionHeading(context, this.font, section.title(), x + CARD_PAD, y + 12, width - CARD_PAD * 2);
+        MmmUi.drawTextWithin(context, this.font, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, MUTED, false);
 
         int rowY = y + 48;
         for (SettingRow row : visibleSection.rows())
@@ -431,13 +430,13 @@ public class MmmSettingsScreen extends CompatScreen
         }
     }
 
-    private void drawSettingRow(DrawContext context, SettingRow row, int x, int y, int width, int mouseX, int mouseY)
+    private void drawSettingRow(GuiGraphicsExtractor context, SettingRow row, int x, int y, int width, int mouseX, int mouseY)
     {
         context.fill(x, y, x + width, y + 1, BORDER);
         if (row.kind() == ControlKind.HEADING)
         {
             context.fill(x, y + 8, x + 3, y + 24, MmmUi.accent());
-            MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x + 10, y + 12, width - 10, TEXT, false);
+            MmmUi.drawTextWithin(context, this.font, row.label(), x + 10, y + 12, width - 10, TEXT, false);
             return;
         }
         if (row.kind() == ControlKind.STATUS)
@@ -451,8 +450,8 @@ public class MmmSettingsScreen extends CompatScreen
         int controlX = resetX - controlWidth - 8;
         int controlY = y + 7;
         int labelW = Math.max(0, controlX - x - 8);
-        MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x, y + 7, labelW, TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x, y + 18, labelW, MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, row.label(), x, y + 7, labelW, TEXT, false);
+        MmmUi.drawTextWithin(context, this.font, row.description(), x, y + 18, labelW, MUTED, false);
 
         switch (row.kind())
         {
@@ -464,24 +463,24 @@ public class MmmSettingsScreen extends CompatScreen
             case ACTION -> this.drawActionButton(context, controlX, controlY, controlWidth, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
                 if ("Move HUD".equals(row.label()))
                 {
-                    MinecraftClient.getInstance().setScreen(new HudMoveScreen(this));
+                    Minecraft.getInstance().gui.setScreen(new HudMoveScreen(this));
                 }
                 else if ("Custom Sounds".equals(row.label()))
                 {
-                    MinecraftClient.getInstance().setScreen(new GoalSoundSettingsScreen(this));
+                    Minecraft.getInstance().gui.setScreen(new GoalSoundSettingsScreen(this));
                 }
                 else if ("Perimeter Block List".equals(row.label()))
                 {
-                    MinecraftClient.getInstance().setScreen(new PerimeterBlockListScreen(this));
+                    Minecraft.getInstance().gui.setScreen(new PerimeterBlockListScreen(this));
                 }
                 else if ("Sync Scoreboard".equals(row.label()))
                 {
-                    MinecraftClient.getInstance().setScreen(new SyncScoreboardScreen(this));
+                    Minecraft.getInstance().gui.setScreen(new SyncScoreboardScreen(this));
                 }
                 else if ("Generate Dev Run".equals(row.label()))
                 {
                     MmmMessages.actionbar("Generated preview mining run");
-                    MinecraftClient.getInstance().setScreen(new SummaryScreen(MiningStats.simulateDevFinishedSession(), this));
+                    Minecraft.getInstance().gui.setScreen(new SummaryScreen(MiningStats.simulateDevFinishedSession(), this));
                 }
             });
         }
@@ -497,7 +496,7 @@ public class MmmSettingsScreen extends CompatScreen
         }
     }
 
-    private void drawBooleanControl(DrawContext context, IConfigBase config, int x, int y, int width, int mouseX, int mouseY)
+    private void drawBooleanControl(GuiGraphicsExtractor context, IConfigBase config, int x, int y, int width, int mouseX, int mouseY)
     {
         boolean enabled = config instanceof IConfigBoolean booleanConfig && booleanConfig.getBooleanValue();
         boolean hovered = this.contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
@@ -506,8 +505,8 @@ public class MmmSettingsScreen extends CompatScreen
         context.fill(x, y, x + width, y + FIELD_HEIGHT, enabled ? fill : MmmUi.menuSurface(fill));
         MmmUi.drawBorder(context, x, y, width, FIELD_HEIGHT, border);
         String label = enabled ? "ON" : "OFF";
-        int labelW = this.textRenderer.getWidth(label);
-        context.drawText(this.textRenderer, Text.literal(label), x + (width - labelW) / 2, y + 6, enabled ? TEXT : MUTED, false);
+        int labelW = this.font.width(label);
+        context.text(this.font, Component.literal(label), x + (width - labelW) / 2, y + 6, enabled ? TEXT : MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, FIELD_HEIGHT, () -> {
             if (config instanceof IConfigBoolean booleanConfig)
             {
@@ -517,7 +516,7 @@ public class MmmSettingsScreen extends CompatScreen
         }));
     }
 
-    private void drawOptionControl(DrawContext context, IConfigBase config, int x, int y, int width, int mouseX, int mouseY)
+    private void drawOptionControl(GuiGraphicsExtractor context, IConfigBase config, int x, int y, int width, int mouseX, int mouseY)
     {
         String label = this.getConfigString(config);
         if (config instanceof ConfigOptionList optionList && optionList.getOptionListValue() instanceof IConfigOptionListEntry entry)
@@ -539,9 +538,9 @@ public class MmmSettingsScreen extends CompatScreen
         }));
     }
 
-    private void drawTextControl(DrawContext context, SettingRow row, int x, int y, int width, int mouseX, int mouseY)
+    private void drawTextControl(GuiGraphicsExtractor context, SettingRow row, int x, int y, int width, int mouseX, int mouseY)
     {
-        TextFieldWidget field = this.textFields.get(row.config());
+        EditBox field = this.textFields.get(row.config());
         if (field == null)
         {
             return;
@@ -569,12 +568,12 @@ public class MmmSettingsScreen extends CompatScreen
         field.setX(fieldX + 5);
         field.setY(y + 5);
         field.setWidth(Math.max(24, fieldW - 10));
-        field.setEditableColor(TEXT);
-        field.setUneditableColor(MUTED);
+        field.setTextColor(TEXT);
+        field.setTextColorUneditable(MUTED);
         MmmUi.fieldShell(context, fieldX, y, fieldW, FIELD_HEIGHT, field.isFocused());
     }
 
-    private void drawSliderControl(DrawContext context, IConfigBase config, int x, int y, int width, int mouseX, int mouseY)
+    private void drawSliderControl(GuiGraphicsExtractor context, IConfigBase config, int x, int y, int width, int mouseX, int mouseY)
     {
         double min;
         double max;
@@ -611,8 +610,8 @@ public class MmmSettingsScreen extends CompatScreen
         int thumbX = Math.max(x, Math.min(x + width - 4, x + fillWidth - 2));
         context.fill(thumbX, y + 3, thumbX + 4, y + FIELD_HEIGHT - 3, MmmUi.accent());
 
-        int valueWidth = this.textRenderer.getWidth(value);
-        context.drawText(this.textRenderer, Text.literal(value), x + Math.max(0, (width - valueWidth) / 2), y + 5, TEXT, true);
+        int valueWidth = this.font.width(value);
+        context.text(this.font, Component.literal(value), x + Math.max(0, (width - valueWidth) / 2), y + 5, TEXT, true);
         this.sliderTargets.add(new SliderTarget(x, y, width, FIELD_HEIGHT, config));
     }
 
@@ -642,9 +641,9 @@ public class MmmSettingsScreen extends CompatScreen
             return;
         }
 
-        MinecraftClient.getInstance().setScreen(new MmmColorEditorScreen(this, colorConfig, () -> this.syncField(config)));
+        Minecraft.getInstance().gui.setScreen(new MmmColorEditorScreen(this, colorConfig, () -> this.syncField(config)));
     }
-    private void drawActionButton(DrawContext context, int x, int y, int width, int height, String label, int mouseX, int mouseY, Runnable action)
+    private void drawActionButton(GuiGraphicsExtractor context, int x, int y, int width, int height, String label, int mouseX, int mouseY, Runnable action)
     {
         this.drawButtonShell(context, x, y, width, height, label, mouseX, mouseY, false);
         this.clickTargets.add(new ClickTarget(x, y, width, height, action));
@@ -655,19 +654,19 @@ public class MmmSettingsScreen extends CompatScreen
         return "Generate Dev Run".equals(row.label()) ? "RUN" : "OPEN";
     }
 
-    private void drawButtonShell(DrawContext context, int x, int y, int width, int height, String label, int mouseX, int mouseY, boolean subtle)
+    private void drawButtonShell(GuiGraphicsExtractor context, int x, int y, int width, int height, String label, int mouseX, int mouseY, boolean subtle)
     {
         boolean hovered = this.contains(mouseX, mouseY, x, y, width, height);
         int fill = subtle ? INSET : hovered ? MmmUi.accentHover() : INSET;
         int border = hovered ? MmmUi.accent() : BORDER_SOFT;
         context.fill(x, y, x + width, y + height, MmmUi.menuSurface(fill));
         MmmUi.drawBorder(context, x, y, width, height, border);
-        String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
-        int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 6, hovered ? TEXT : MUTED, false);
+        String clipped = MmmUi.truncate(this.font, label, width - 8);
+        int textX = x + Math.max(4, (width - this.font.width(clipped)) / 2);
+        context.text(this.font, Component.literal(clipped), textX, y + 6, hovered ? TEXT : MUTED, false);
     }
 
-    private void drawScrollbar(DrawContext context, int x, int y, int height)
+    private void drawScrollbar(GuiGraphicsExtractor context, int x, int y, int height)
     {
         int maxScroll = Math.max(0, this.contentHeight - height);
         if (maxScroll <= 0)
@@ -861,10 +860,10 @@ public class MmmSettingsScreen extends CompatScreen
 
     private void syncField(IConfigBase config)
     {
-        TextFieldWidget field = this.textFields.get(config);
+        EditBox field = this.textFields.get(config);
         if (field != null)
         {
-            field.setText(this.getConfigString(config));
+            field.setValue(this.getConfigString(config));
         }
     }
 
@@ -995,7 +994,7 @@ public class MmmSettingsScreen extends CompatScreen
         return CloudSyncManager.getStatusSummary().toUpperCase(Locale.ROOT);
     }
 
-    private void drawSyncStatusRow(DrawContext context, int x, int y, int width)
+    private void drawSyncStatusRow(GuiGraphicsExtractor context, int x, int y, int width)
     {
         String label = CloudSyncManager.getStatusLabel();
         int statusColor = switch (label)
@@ -1005,10 +1004,10 @@ public class MmmSettingsScreen extends CompatScreen
             case "Error", "Unavailable", "Wrong account" -> ERROR;
             default -> MUTED;
         };
-        int labelWidth = Math.min(width / 2, this.textRenderer.getWidth(label));
-        MmmUi.drawTextWithin(context, this.textRenderer, "Current Status", x, y + 7, Math.max(0, width - labelWidth - 12), TEXT, false);
-        MmmUi.drawTextRightWithin(context, this.textRenderer, label, x + width, y + 7, Math.max(0, width / 2), statusColor, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, CloudSyncManager.getStatusDetail(), x, y + 18, width, MUTED, false);
+        int labelWidth = Math.min(width / 2, this.font.width(label));
+        MmmUi.drawTextWithin(context, this.font, "Current Status", x, y + 7, Math.max(0, width - labelWidth - 12), TEXT, false);
+        MmmUi.drawTextRightWithin(context, this.font, label, x + width, y + 7, Math.max(0, width / 2), statusColor, false);
+        MmmUi.drawTextWithin(context, this.font, CloudSyncManager.getStatusDetail(), x, y + 18, width, MUTED, false);
     }
 
     private int parseHexColor(String value, int fallback)

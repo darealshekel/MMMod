@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 public final class PlayerDigsParser
 {
@@ -23,12 +23,12 @@ public final class PlayerDigsParser
     {
     }
 
-    public static PlayerDigsModel parse(MinecraftClient client)
+    public static PlayerDigsModel parse(Minecraft client)
     {
         return parse(client, ScoreboardReader.readObjectives(client));
     }
 
-    static PlayerDigsModel parse(MinecraftClient client, List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots)
+    static PlayerDigsModel parse(Minecraft client, List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots)
     {
         if (client == null || client.player == null)
         {

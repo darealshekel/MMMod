@@ -2,7 +2,10 @@ package com.mmm.hud;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
 import com.mmm.config.Configs;
 import com.mmm.config.Configs.HudAlignment;
 import com.mmm.config.FeatureToggle;
@@ -13,11 +16,6 @@ import com.mmm.tracker.GoalNotificationManager;
 import com.mmm.tracker.MiningStats;
 import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.text.Text;
 
 public final class MiningHudRenderer
 {
@@ -39,12 +37,12 @@ public final class MiningHudRenderer
     {
     }
 
-    public static void render(DrawContext context, MinecraftClient client)
+    public static void render(GuiGraphicsExtractor context, Minecraft client)
     {
         if (FeatureToggle.MMM_MINING_TRACKER.getBooleanValue() == false ||
             FeatureToggle.MMM_HUD.getBooleanValue() == false ||
             client.player == null ||
-            client.options.hudHidden)
+            client.gui.hud.isHidden())
         {
             return;
         }
@@ -72,9 +70,9 @@ public final class MiningHudRenderer
         int x = resolveHudX(client, scaledWidth);
         int y = resolveHudY(client, scaledHeight);
 
-        context.getMatrices().pushMatrix();
-        context.getMatrices().translate(x, y);
-        context.getMatrices().scale(scale, scale);
+        context.pose().pushMatrix();
+        context.pose().translate(x, y);
+        context.pose().scale(scale, scale);
 
         if (FeatureToggle.MMM_HUD_BOUNDING_BOX.getBooleanValue())
         {
@@ -92,15 +90,15 @@ public final class MiningHudRenderer
         if (showTitle)
         {
             String title = lines.getFirst().text();
-            int titleTextWidth = client.textRenderer.getWidth(title);
-            int syncIndicatorSize = client.textRenderer.fontHeight;
+            int titleTextWidth = client.font.width(title);
+            int syncIndicatorSize = client.font.lineHeight;
             int titleX = syncIndicatorSize + 4;
             if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
             {
                 drawLineBox(context, 0, drawY, titleX + titleTextWidth);
             }
             drawSyncIndicator(context, 0, drawY, syncIndicatorSize, syncHealthy ? SYNC_OK_COLOR : SYNC_FAIL_COLOR);
-            context.drawText(client.textRenderer, title, titleX, drawY, hudTitleColor(), Configs.useHudTextShadow());
+            context.text(client.font, title, titleX, drawY, hudTitleColor(), Configs.useHudTextShadow());
             drawY += lineHeight;
             firstContentLine = 1;
         }
@@ -109,9 +107,9 @@ public final class MiningHudRenderer
             HudLine line = lines.get(i);
             if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
             {
-                drawLineBox(context, 0, drawY, line.width(client.textRenderer));
+                drawLineBox(context, 0, drawY, line.width(client.font));
             }
-            line.draw(context, client.textRenderer, 0, drawY, Configs.useHudTextShadow());
+            line.draw(context, client.font, 0, drawY, Configs.useHudTextShadow());
             drawY += lineHeight;
         }
 
@@ -120,7 +118,7 @@ public final class MiningHudRenderer
             drawGoalProgress(context, client, 0, drawY + 2, width, dailyGoal);
         }
 
-        context.getMatrices().popMatrix();
+        context.pose().popMatrix();
     }
 
     private static List<HudLine> buildHudLines(boolean showTitle, boolean sessionPaused)
@@ -197,7 +195,7 @@ public final class MiningHudRenderer
         return lines;
     }
 
-    public static int[] getBounds(MinecraftClient client)
+    public static int[] getBounds(Minecraft client)
     {
         boolean showTitle = Configs.Generic.HUD_TITLE_VISIBLE.getBooleanValue();
         boolean sessionPaused = MiningStats.isSessionPaused();
@@ -214,7 +212,7 @@ public final class MiningHudRenderer
         return new int[] { x, y, x + scaledWidth, y + scaledHeight };
     }
 
-    private static HudFrame getHudFrame(MinecraftClient client, boolean showTitle, boolean sessionPaused)
+    private static HudFrame getHudFrame(Minecraft client, boolean showTitle, boolean sessionPaused)
     {
         long now = System.nanoTime();
         if (cachedFrame != null
@@ -228,7 +226,7 @@ public final class MiningHudRenderer
         List<HudLine> lines = List.copyOf(buildHudLines(showTitle, sessionPaused));
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
         boolean showDailyGoalBar = shouldShowDailyGoalBar(dailyGoal);
-        int lineHeight = client.textRenderer.fontHeight + 2;
+        int lineHeight = client.font.lineHeight + 2;
         int padding = 4;
         int width = Math.max(Math.max(getTextWidth(client, lines), getGoalHeaderWidth(client, dailyGoal, showDailyGoalBar)), 190);
         int extraHeight = showDailyGoalBar ? GOAL_BAR_EXTRA_HEIGHT : 0;
@@ -316,30 +314,30 @@ public final class MiningHudRenderer
             return builder.toString();
         }
 
-        int width(TextRenderer renderer)
+        int width(Font renderer)
         {
             int width = 0;
             for (HudSegment segment : this.segments)
             {
-                width += renderer.getWidth(segment.text());
+                width += renderer.width(segment.text());
             }
             return width;
         }
 
-        void draw(DrawContext context, TextRenderer renderer, int x, int y, boolean shadow)
+        void draw(GuiGraphicsExtractor context, Font renderer, int x, int y, boolean shadow)
         {
             int drawX = x;
             for (HudSegment segment : this.segments)
             {
-                context.drawText(renderer, segment.text(), drawX, y, segment.color(), shadow);
-                drawX += renderer.getWidth(segment.text());
+                context.text(renderer, segment.text(), drawX, y, segment.color(), shadow);
+                drawX += renderer.width(segment.text());
             }
         }
     }
 
-    private static int resolveHudX(MinecraftClient client, int scaledWidth)
+    private static int resolveHudX(Minecraft client, int scaledWidth)
     {
-        int maxX = Math.max(0, client.getWindow().getScaledWidth() - scaledWidth);
+        int maxX = Math.max(0, client.getWindow().getGuiScaledWidth() - scaledWidth);
         int rawX = Math.max(0, Math.min(Configs.Generic.HUD_X.getIntegerValue(), 820));
         double normalized = rawX / 820.0D;
         HudAlignment alignment = (HudAlignment) Configs.Generic.HUD_ALIGNMENT.getOptionListValue();
@@ -350,9 +348,9 @@ public final class MiningHudRenderer
         };
     }
 
-    private static int resolveHudY(MinecraftClient client, int scaledHeight)
+    private static int resolveHudY(Minecraft client, int scaledHeight)
     {
-        int maxY = Math.max(0, client.getWindow().getScaledHeight() - scaledHeight);
+        int maxY = Math.max(0, client.getWindow().getGuiScaledHeight() - scaledHeight);
         int rawY = Math.max(0, Math.min(Configs.Generic.HUD_Y.getIntegerValue(), 460));
         double normalized = rawY / 460.0D;
         HudAlignment alignment = (HudAlignment) Configs.Generic.HUD_ALIGNMENT.getOptionListValue();
@@ -363,14 +361,14 @@ public final class MiningHudRenderer
         };
     }
 
-    private static void drawLineBox(DrawContext context, int x, int y, int textWidth)
+    private static void drawLineBox(GuiGraphicsExtractor context, int x, int y, int textWidth)
     {
         context.fill(x - 4, y - 2, x + textWidth + 5, y + 11, Configs.getHudBackgroundColor());
         context.fill(x - 3, y - 1, x + textWidth + 4, y, HUD_NEUTRAL_BORDER_COLOR);
         MmmUi.drawBorder(context, x - 4, y - 2, textWidth + 9, 13, HUD_NEUTRAL_BORDER_COLOR);
     }
 
-    private static void drawSyncIndicator(DrawContext context, int x, int y, int size, int color)
+    private static void drawSyncIndicator(GuiGraphicsExtractor context, int x, int y, int size, int color)
     {
         context.fill(x, y, x + size, y + size, color);
         MmmUi.drawBorder(context, x, y, size, size, 0xAA000000);
@@ -384,20 +382,20 @@ public final class MiningHudRenderer
                 && progress.enabled();
     }
 
-    private static int getGoalHeaderWidth(MinecraftClient client, MiningStats.GoalProgress progress, boolean visible)
+    private static int getGoalHeaderWidth(Minecraft client, MiningStats.GoalProgress progress, boolean visible)
     {
         if (!visible || progress == null)
         {
             return 0;
         }
 
-        return client.textRenderer.getWidth("Daily Goal")
-                + client.textRenderer.getWidth(UiFormat.formatProgress(progress.current(), progress.target()))
-                + client.textRenderer.getWidth(UiFormat.formatGoalPercent(progress))
+        return client.font.width("Daily Goal")
+                + client.font.width(UiFormat.formatProgress(progress.current(), progress.target()))
+                + client.font.width(UiFormat.formatGoalPercent(progress))
                 + 16;
     }
 
-    private static void drawGoalProgress(DrawContext context, MinecraftClient client, int x, int y, int width, MiningStats.GoalProgress progress)
+    private static void drawGoalProgress(GuiGraphicsExtractor context, Minecraft client, int x, int y, int width, MiningStats.GoalProgress progress)
     {
         int fillColor = UiFormat.getGoalProgressColor(progress);
         int fillWidth = progress.target() <= 0L
@@ -406,11 +404,11 @@ public final class MiningHudRenderer
         String percentText = UiFormat.formatGoalPercent(progress);
         String progressText = UiFormat.formatProgress(progress.current(), progress.target());
 
-        context.drawText(client.textRenderer, Text.literal("Daily Goal"), x, y, hudTitleColor(), Configs.useHudTextShadow());
-        int progressX = x + Math.max(0, (width - client.textRenderer.getWidth(progressText)) / 2);
-        context.drawText(client.textRenderer, Text.literal(progressText), progressX, y, hudTextColor(), Configs.useHudTextShadow());
-        int percentX = x + width - client.textRenderer.getWidth(percentText);
-        context.drawText(client.textRenderer, Text.literal(percentText), percentX, y, fillColor, Configs.useHudTextShadow());
+        context.text(client.font, Component.literal("Daily Goal"), x, y, hudTitleColor(), Configs.useHudTextShadow());
+        int progressX = x + Math.max(0, (width - client.font.width(progressText)) / 2);
+        context.text(client.font, Component.literal(progressText), progressX, y, hudTextColor(), Configs.useHudTextShadow());
+        int percentX = x + width - client.font.width(percentText);
+        context.text(client.font, Component.literal(percentText), percentX, y, fillColor, Configs.useHudTextShadow());
 
         int barY = y + 11;
         context.fill(x, barY, x + width, barY + 6, GOAL_BAR_BG);
@@ -421,22 +419,22 @@ public final class MiningHudRenderer
         MmmUi.drawBorder(context, x, barY, width, 6, GOAL_BAR_BORDER);
     }
 
-    private static int getTextWidth(MinecraftClient client, List<String> lines)
+    private static int getTextWidth(Minecraft client, List<String> lines)
     {
         int width = 0;
         for (String line : lines)
         {
-            width = Math.max(width, client.textRenderer.getWidth(Text.literal(line)));
+            width = Math.max(width, client.font.width(Component.literal(line)));
         }
         return width;
     }
 
-    private static int getTextWidth(MinecraftClient client, Iterable<HudLine> lines)
+    private static int getTextWidth(Minecraft client, Iterable<HudLine> lines)
     {
         int width = 0;
         for (HudLine line : lines)
         {
-            width = Math.max(width, line.width(client.textRenderer));
+            width = Math.max(width, line.width(client.font));
         }
         return width;
     }

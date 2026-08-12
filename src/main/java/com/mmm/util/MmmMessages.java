@@ -1,7 +1,7 @@
 package com.mmm.util;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 
 public final class MmmMessages
 {
@@ -11,19 +11,19 @@ public final class MmmMessages
 
     public static void actionbar(String format, Object... args)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player != null)
         {
-            client.player.sendMessage(Text.literal(format.formatted(args)), true);
+            client.player.sendOverlayMessage(Component.literal(format.formatted(args)));
         }
     }
 
     public static void error(String message)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player != null)
         {
-            client.player.sendMessage(Text.literal(message), false);
+            client.player.sendSystemMessage(Component.literal(message));
         }
     }
 }

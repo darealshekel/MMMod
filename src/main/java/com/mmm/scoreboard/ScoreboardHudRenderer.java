@@ -1,16 +1,14 @@
 package com.mmm.scoreboard;
 
 import java.util.List;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.PlayerScoreEntry;
 import com.mmm.config.Configs;
 import com.mmm.config.Configs.ScoreboardPosition;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.scoreboard.ScoreboardEntry;
-import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.text.Text;
 
 public final class ScoreboardHudRenderer
 {
@@ -18,7 +16,7 @@ public final class ScoreboardHudRenderer
     private static final int NORMALIZED_HEIGHT = 460;
     private static final long LAYOUT_CACHE_NANOS = 50_000_000L;
 
-    private static ScoreboardObjective cachedObjective;
+    private static Objective cachedObjective;
     private static Layout cachedLayout;
     private static int cachedScreenWidth = -1;
     private static int cachedScreenHeight = -1;
@@ -28,49 +26,49 @@ public final class ScoreboardHudRenderer
     {
     }
 
-    public static Bounds render(DrawContext context, MinecraftClient client, ScoreboardObjective objective)
+    public static Bounds render(GuiGraphicsExtractor context, Minecraft client, Objective objective)
     {
         Layout layout = layout(client, objective);
-        TextRenderer renderer = client.textRenderer;
-        int bodyBackground = client.options.getTextBackgroundColor(
+        Font renderer = client.font;
+        int bodyBackground = client.options.getBackgroundColor(
                 (float) Configs.Generic.SCOREBOARD_BODY_OPACITY.getDoubleValue());
-        int titleBackground = client.options.getTextBackgroundColor(
+        int titleBackground = client.options.getBackgroundColor(
                 (float) Configs.Generic.SCOREBOARD_TITLE_OPACITY.getDoubleValue());
         int textColor = withAlpha(0xFFFFFF, Configs.Generic.SCOREBOARD_TEXT_OPACITY.getDoubleValue());
         int titleColor = withAlpha(0xFFFFFF, Configs.Generic.SCOREBOARD_TITLE_TEXT_OPACITY.getDoubleValue());
 
-        context.getMatrices().pushMatrix();
-        context.getMatrices().translate(layout.x(), layout.y());
-        context.getMatrices().scale(layout.scale(), layout.scale());
+        context.pose().pushMatrix();
+        context.pose().translate(layout.x(), layout.y());
+        context.pose().scale(layout.scale(), layout.scale());
         context.fill(0, 0, layout.panelWidth(), layout.titleHeight(), titleBackground);
         context.fill(0, layout.titleHeight(), layout.panelWidth(), layout.panelHeight(), bodyBackground);
-        context.drawText(renderer, layout.title(),
-                (layout.panelWidth() - renderer.getWidth(layout.title())) / 2, 1, titleColor, false);
+        context.text(renderer, layout.title(),
+                (layout.panelWidth() - renderer.width(layout.title())) / 2, 1, titleColor, false);
         for (int index = 0; index < layout.entries().size(); index++)
         {
             ScoreboardService.RenderEntry entry = layout.entries().get(index);
             int rowY = layout.titleHeight() + 1 + index * layout.rowHeight();
-            context.drawText(renderer, entry.name(), 2, rowY, textColor, false);
-            int scoreWidth = renderer.getWidth(entry.score());
+            context.text(renderer, entry.name(), 2, rowY, textColor, false);
+            int scoreWidth = renderer.width(entry.score());
             if (scoreWidth > 0)
             {
-                context.drawText(renderer, entry.score(), layout.panelWidth() - scoreWidth - 2, rowY, textColor, false);
+                context.text(renderer, entry.score(), layout.panelWidth() - scoreWidth - 2, rowY, textColor, false);
             }
         }
-        context.getMatrices().popMatrix();
+        context.pose().popMatrix();
         return layout.bounds();
     }
 
-    public static Bounds getBounds(MinecraftClient client, ScoreboardObjective objective)
+    public static Bounds getBounds(Minecraft client, Objective objective)
     {
         return layout(client, objective).bounds();
     }
 
-    public static void setPosition(MinecraftClient client, ScoreboardObjective objective, int requestedX, int requestedY)
+    public static void setPosition(Minecraft client, Objective objective, int requestedX, int requestedY)
     {
         Bounds bounds = getBounds(client, objective);
-        int maxX = Math.max(0, client.getWindow().getScaledWidth() - bounds.width());
-        int maxY = Math.max(0, client.getWindow().getScaledHeight() - bounds.height());
+        int maxX = Math.max(0, client.getWindow().getGuiScaledWidth() - bounds.width());
+        int maxY = Math.max(0, client.getWindow().getGuiScaledHeight() - bounds.height());
         int x = Math.max(0, Math.min(maxX, requestedX));
         int y = Math.max(0, Math.min(maxY, requestedY));
         int storedX = maxX == 0 ? 0 : (int) Math.round(x * (double) NORMALIZED_WIDTH / maxX);
@@ -87,11 +85,11 @@ public final class ScoreboardHudRenderer
         invalidateLayout();
     }
 
-    private static Layout layout(MinecraftClient client, ScoreboardObjective objective)
+    private static Layout layout(Minecraft client, Objective objective)
     {
         long now = System.nanoTime();
-        int currentScreenWidth = client.getWindow().getScaledWidth();
-        int currentScreenHeight = client.getWindow().getScaledHeight();
+        int currentScreenWidth = client.getWindow().getGuiScaledWidth();
+        int currentScreenHeight = client.getWindow().getGuiScaledHeight();
         if (cachedLayout != null
                 && cachedObjective == objective
                 && cachedScreenWidth == currentScreenWidth
@@ -101,7 +99,7 @@ public final class ScoreboardHudRenderer
             return cachedLayout;
         }
 
-        List<ScoreboardEntry> sortedEntries = ScoreboardService.getSortedEntries(objective);
+        List<PlayerScoreEntry> sortedEntries = ScoreboardService.getSortedEntries(objective);
         int pageSize = Configs.Generic.SCOREBOARD_MAX_ENTRIES.getIntegerValue();
         ScoreboardState.clampPage(sortedEntries.size(), Math.max(1, pageSize));
         int from = pageSize <= 0 ? 0 : Math.min(ScoreboardState.getPageOffset(), sortedEntries.size());
@@ -109,18 +107,18 @@ public final class ScoreboardHudRenderer
         List<ScoreboardService.RenderEntry> entries = ScoreboardService.getRenderEntries(
                 objective, sortedEntries, from, to);
 
-        TextRenderer renderer = client.textRenderer;
-        Text title = objective.getDisplayName();
-        int separatorWidth = renderer.getWidth(": ");
-        int contentWidth = renderer.getWidth(title);
+        Font renderer = client.font;
+        Component title = objective.getDisplayName();
+        int separatorWidth = renderer.width(": ");
+        int contentWidth = renderer.width(title);
         for (ScoreboardService.RenderEntry entry : entries)
         {
-            int scoreWidth = renderer.getWidth(entry.score());
+            int scoreWidth = renderer.width(entry.score());
             contentWidth = Math.max(contentWidth,
-                    renderer.getWidth(entry.name()) + (scoreWidth > 0 ? separatorWidth + scoreWidth : 0));
+                    renderer.width(entry.name()) + (scoreWidth > 0 ? separatorWidth + scoreWidth : 0));
         }
 
-        int rowHeight = renderer.fontHeight;
+        int rowHeight = renderer.lineHeight;
         int panelWidth = contentWidth + 6;
         int titleHeight = rowHeight + 2;
         int panelHeight = titleHeight + entries.size() * rowHeight + 2;
@@ -197,7 +195,7 @@ public final class ScoreboardHudRenderer
         }
     }
 
-    private record Layout(Text title, List<ScoreboardService.RenderEntry> entries, int rowHeight, int panelWidth,
+    private record Layout(Component title, List<ScoreboardService.RenderEntry> entries, int rowHeight, int panelWidth,
                           int titleHeight, int panelHeight, float scale, int x, int y, Bounds bounds)
     {
     }

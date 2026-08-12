@@ -7,17 +7,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.sounds.ChannelAccess;
+import net.minecraft.client.sounds.JOrbisAudioStream;
+import net.minecraft.client.sounds.SoundEngine;
+import net.minecraft.sounds.SoundSource;
 import com.mmm.MMM;
 import com.mmm.mixin.SoundManagerAccessor;
 import com.mmm.mixin.SoundSystemAccessor;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.sound.Channel;
-import net.minecraft.client.sound.OggAudioStream;
-import net.minecraft.client.sound.SoundEngine;
-import net.minecraft.client.sound.SoundSystem;
-import net.minecraft.sound.SoundCategory;
+import com.mojang.blaze3d.audio.Library;
 
 final class CustomGoalSoundPlayer
 {
@@ -27,7 +25,7 @@ final class CustomGoalSoundPlayer
 
     static boolean play(Path path)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.getSoundManager() == null || path == null || !Files.isRegularFile(path))
         {
             return false;
@@ -35,19 +33,19 @@ final class CustomGoalSoundPlayer
 
         try
         {
-            SoundSystem soundSystem = ((SoundManagerAccessor) client.getSoundManager()).mmm$getSoundSystem();
-            Channel channel = ((SoundSystemAccessor) soundSystem).mmm$getChannel();
-            float volume = client.options == null ? 1.0F : client.options.getSoundVolume(SoundCategory.MASTER);
+            SoundEngine soundSystem = ((SoundManagerAccessor) client.getSoundManager()).mmm$getSoundSystem();
+            ChannelAccess channel = ((SoundSystemAccessor) soundSystem).mmm$getChannel();
+            float volume = client.options == null ? 1.0F : client.options.getFinalSoundSourceVolume(SoundSource.MASTER);
 
             CompletableFuture.supplyAsync(() -> open(path))
-                    .thenAccept(stream -> channel.createSource(SoundEngine.RunMode.STREAMING)
+                    .thenAccept(stream -> channel.createHandle(Library.Pool.STREAMING)
                             .thenAccept(sourceManager -> {
                                 if (sourceManager == null)
                                 {
                                     closeQuietly(stream);
                                     return;
                                 }
-                                sourceManager.run(source -> {
+                                sourceManager.execute(source -> {
                                     try
                                     {
                                         source.setRelative(true);
@@ -55,13 +53,13 @@ final class CustomGoalSoundPlayer
                                         source.setLooping(false);
                                         source.setPitch(1.0F);
                                         source.setVolume(volume);
-                                        source.setStream(stream);
+                                        source.attachBufferStream(stream);
                                         source.play();
                                     }
                                     catch (RuntimeException exception)
                                     {
                                         closeQuietly(stream);
-                                        sourceManager.close();
+                                        sourceManager.release();
                                         MMM.LOGGER.warn("[MMM] Failed to start custom goal sound {}: {}", path, exception.getMessage());
                                     }
                                 });
@@ -84,14 +82,14 @@ final class CustomGoalSoundPlayer
         }
     }
 
-    private static OggAudioStream open(Path path)
+    private static JOrbisAudioStream open(Path path)
     {
         try
         {
             InputStream input = new BufferedInputStream(Files.newInputStream(path));
             try
             {
-                return new OggAudioStream(input);
+                return new JOrbisAudioStream(input);
             }
             catch (IOException | RuntimeException exception)
             {
@@ -105,7 +103,7 @@ final class CustomGoalSoundPlayer
         }
     }
 
-    private static void closeQuietly(OggAudioStream stream)
+    private static void closeQuietly(JOrbisAudioStream stream)
     {
         if (stream == null)
         {

@@ -2,17 +2,15 @@ package com.mmm.feature;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.levelgen.Heightmap;
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
-
-import net.minecraft.block.Block;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.Heightmap;
 
 public final class PerimeterWallDigHelper
 {
@@ -29,13 +27,13 @@ public final class PerimeterWallDigHelper
             return false;
         }
 
-        ClientWorld world = MinecraftClient.getInstance().world;
+        ClientLevel world = Minecraft.getInstance().level;
         if (world == null)
         {
             return false;
         }
 
-        BlockPos surfacePos = world.getTopPosition(Heightmap.Type.WORLD_SURFACE, pos).down();
+        BlockPos surfacePos = world.getHeightmapPos(Heightmap.Types.WORLD_SURFACE, pos).below();
         return OUTLINE_BLOCKS.contains(world.getBlockState(surfacePos).getBlock());
     }
 
@@ -62,8 +60,8 @@ public final class PerimeterWallDigHelper
     {
         try
         {
-            Identifier identifier = Identifier.of(name);
-            return Registries.BLOCK.containsId(identifier) ? Registries.BLOCK.get(identifier) : null;
+            Identifier identifier = Identifier.parse(name);
+            return BuiltInRegistries.BLOCK.containsKey(identifier) ? BuiltInRegistries.BLOCK.getValue(identifier) : null;
         }
         catch (Exception ignored)
         {

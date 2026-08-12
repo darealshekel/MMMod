@@ -2,24 +2,23 @@ package com.mmm.feature;
 
 import com.mmm.config.Configs;
 import com.mmm.mixin.ClientPlayerInteractionManagerAccessor;
-import com.mmm.mixin.WorldRendererAccessor;
 import com.mmm.render.Color4f;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.RenderLayers;
-import net.minecraft.client.render.VertexRendering;
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.player.BlockBreakingInfo;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.util.shape.VoxelShapes;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+import net.minecraft.client.renderer.state.level.BlockBreakingRenderState;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import org.joml.Matrix4f;
 
 public final class BreakingIndicatorRenderer
@@ -44,54 +43,53 @@ public final class BreakingIndicatorRenderer
         }
 
         initialized = true;
-        WorldRenderEvents.END_MAIN.register(context -> {
-            MatrixStack matrices = context.matrices();
-            if (matrices != null && context.worldState().cameraRenderState != null)
+        LevelRenderEvents.END_MAIN.register(context -> {
+            PoseStack matrices = context.poseStack();
+            if (matrices != null && context.levelState().cameraRenderState != null)
             {
-                render(MinecraftClient.getInstance(), matrices,
-                        context.worldState().cameraRenderState.pos, context.consumers());
+                render(Minecraft.getInstance(), matrices, context.levelState(),
+                        context.levelState().cameraRenderState.pos, context.submitNodeCollector());
             }
         });
     }
 
-    private static void render(MinecraftClient client,
-                               MatrixStack matrices,
-                               Vec3d camera,
-                               VertexConsumerProvider consumers)
+    private static void render(Minecraft client,
+                               PoseStack matrices,
+                               LevelRenderState levelRenderState,
+                               Vec3 camera,
+                               SubmitNodeCollector consumers)
     {
         if (!Configs.Generic.BREAKING_INDICATORS.getBooleanValue()
                 || client == null
-                || client.world == null
+                || client.level == null
                 || client.player == null
-                || client.interactionManager == null)
+                || client.gameMode == null)
         {
             return;
         }
 
-        int indicatorCount = collectIndicators(client);
+        int indicatorCount = collectIndicators(client, levelRenderState);
         if (indicatorCount == 0)
         {
             return;
         }
 
-        VertexConsumer fillConsumer = consumers.getBuffer(RenderLayers.debugQuads());
         for (int index = 0; index < indicatorCount; index++)
         {
-            renderFill(client, matrices, fillConsumer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
+            renderFill(client, matrices, consumers, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
         }
 
-        VertexConsumer lineConsumer = consumers.getBuffer(RenderLayers.lines());
         for (int index = 0; index < indicatorCount; index++)
         {
-            renderOutline(client, matrices, lineConsumer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
+            renderOutline(client, matrices, consumers, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
         }
     }
 
-    private static int collectIndicators(MinecraftClient client)
+    private static int collectIndicators(Minecraft client, LevelRenderState levelRenderState)
     {
         int indicatorCount = 0;
         ClientPlayerInteractionManagerAccessor interaction =
-                (ClientPlayerInteractionManagerAccessor) client.interactionManager;
+                (ClientPlayerInteractionManagerAccessor) client.gameMode;
         BlockPos ownPos = interaction.mmm$getCurrentBreakingPos();
         float ownProgress = Math.clamp(interaction.mmm$getCurrentBreakingProgress(), 0.0F, 1.0F);
         boolean breakingBlock = interaction.mmm$isBreakingBlock();
@@ -102,8 +100,8 @@ public final class BreakingIndicatorRenderer
             ownProgress = 0.0F;
         }
         else if ((ownPos == null || ownProgress <= 0.0F)
-                && client.options.attackKey.isPressed()
-                && client.crosshairTarget instanceof BlockHitResult hit
+                && client.options.keyAttack.isDown()
+                && client.hitResult instanceof BlockHitResult hit
                 && hit.getType() == HitResult.Type.BLOCK)
         {
             ownPos = hit.getBlockPos();
@@ -116,21 +114,21 @@ public final class BreakingIndicatorRenderer
             INDICATOR_PROGRESS[indicatorCount++] = ownProgress;
         }
 
-        for (BlockBreakingInfo info : ((WorldRendererAccessor) client.worldRenderer).mmm$getBlockBreakingInfos().values())
+        for (BlockBreakingRenderState info : levelRenderState.blockBreakingRenderStates)
         {
             if (indicatorCount >= MAX_INDICATORS)
             {
                 break;
             }
 
-            BlockPos pos = info.getPos();
-            int stage = info.getStage();
+            BlockPos pos = info.blockPos();
+            int stage = info.progress();
             if (pos == null || pos.equals(ownPos) || stage < 0 || stage > 9 || !isRenderable(client, pos))
             {
                 continue;
             }
 
-            if (client.player.squaredDistanceTo(Vec3d.ofCenter(pos)) <= MAX_RENDER_DISTANCE_SQUARED)
+            if (client.player.distanceToSqr(Vec3.atCenterOf(pos)) <= MAX_RENDER_DISTANCE_SQUARED)
             {
                 INDICATOR_POSITIONS[indicatorCount] = pos;
                 INDICATOR_PROGRESS[indicatorCount++] = (stage + 1) / 10.0F;
@@ -139,38 +137,39 @@ public final class BreakingIndicatorRenderer
         return indicatorCount;
     }
 
-    private static boolean isRenderable(MinecraftClient client, BlockPos pos)
+    private static boolean isRenderable(Minecraft client, BlockPos pos)
     {
-        if (pos == null || client.world == null)
+        if (pos == null || client.level == null)
         {
             return false;
         }
-        BlockState state = client.world.getBlockState(pos);
-        return !state.isAir() && !state.getOutlineShape(client.world, pos).isEmpty();
+        BlockState state = client.level.getBlockState(pos);
+        return !state.isAir() && !state.getShape(client.level, pos).isEmpty();
     }
 
-    private static void renderFill(MinecraftClient client,
-                                   MatrixStack matrices,
-                                   VertexConsumer buffer,
-                                   Vec3d camera,
+    private static void renderFill(Minecraft client,
+                                   PoseStack matrices,
+                                   SubmitNodeCollector consumers,
+                                   Vec3 camera,
                                    BlockPos pos,
                                    float progress)
     {
-        Box bounds = getBounds(client, camera, pos, progress);
+        AABB bounds = getBounds(client, camera, pos, progress);
         if (bounds == null)
         {
             return;
         }
         Color4f fill = colorForProgress(progress, 0.24F);
-        renderCameraFacingFaces(matrices, buffer, bounds, fill);
+        consumers.submitCustomGeometry(matrices, RenderTypes.debugQuads(),
+                (pose, buffer) -> renderCameraFacingFaces(pose, buffer, bounds, fill));
     }
 
-    private static void renderCameraFacingFaces(MatrixStack matrices,
+    private static void renderCameraFacingFaces(PoseStack.Pose pose,
                                                 VertexConsumer buffer,
-                                                Box box,
+                                                AABB box,
                                                 Color4f color)
     {
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
+        Matrix4f matrix = pose.pose();
         double centerX = (box.minX + box.maxX) * 0.5D;
         double centerY = (box.minY + box.maxY) * 0.5D;
         double centerZ = (box.minZ + box.maxZ) * 0.5D;
@@ -217,49 +216,47 @@ public final class BreakingIndicatorRenderer
                              double x4, double y4, double z4,
                              Color4f color)
     {
-        buffer.vertex(matrix, (float) x1, (float) y1, (float) z1).color(color.r, color.g, color.b, color.a);
-        buffer.vertex(matrix, (float) x2, (float) y2, (float) z2).color(color.r, color.g, color.b, color.a);
-        buffer.vertex(matrix, (float) x3, (float) y3, (float) z3).color(color.r, color.g, color.b, color.a);
-        buffer.vertex(matrix, (float) x4, (float) y4, (float) z4).color(color.r, color.g, color.b, color.a);
+        buffer.addVertex(matrix, (float) x1, (float) y1, (float) z1).setColor(color.r, color.g, color.b, color.a);
+        buffer.addVertex(matrix, (float) x2, (float) y2, (float) z2).setColor(color.r, color.g, color.b, color.a);
+        buffer.addVertex(matrix, (float) x3, (float) y3, (float) z3).setColor(color.r, color.g, color.b, color.a);
+        buffer.addVertex(matrix, (float) x4, (float) y4, (float) z4).setColor(color.r, color.g, color.b, color.a);
     }
 
-    private static void renderOutline(MinecraftClient client,
-                                      MatrixStack matrices,
-                                      VertexConsumer buffer,
-                                      Vec3d camera,
+    private static void renderOutline(Minecraft client,
+                                      PoseStack matrices,
+                                      SubmitNodeCollector consumers,
+                                      Vec3 camera,
                                       BlockPos pos,
                                       float progress)
     {
-        Box bounds = getBounds(client, camera, pos, progress);
+        AABB bounds = getBounds(client, camera, pos, progress);
         if (bounds == null)
         {
             return;
         }
         Color4f outline = colorForProgress(progress, 0.95F);
-        VertexRendering.drawOutline(
+        consumers.submitShapeOutline(
                 matrices,
-                buffer,
-                VoxelShapes.cuboid(bounds),
-                0.0D,
-                0.0D,
-                0.0D,
+                Shapes.create(bounds),
+                RenderTypes.lines(),
                 toArgb(outline),
-                1.0F
+                1.0F,
+                false
         );
     }
 
-    private static Box getBounds(MinecraftClient client, Vec3d camera, BlockPos pos, float progress)
+    private static AABB getBounds(Minecraft client, Vec3 camera, BlockPos pos, float progress)
     {
-        BlockState state = client.world.getBlockState(pos);
-        VoxelShape shape = state.getOutlineShape(client.world, pos);
+        BlockState state = client.level.getBlockState(pos);
+        VoxelShape shape = state.getShape(client.level, pos);
         if (state.isAir() || shape.isEmpty())
         {
             return null;
         }
-        return scaledBounds(shape.getBoundingBox(), pos, progress, camera.x, camera.y, camera.z);
+        return scaledBounds(shape.bounds(), pos, progress, camera.x, camera.y, camera.z);
     }
 
-    private static Box scaledBounds(Box local,
+    private static AABB scaledBounds(AABB local,
                                     BlockPos pos,
                                     double progress,
                                     double cameraX,
@@ -270,10 +267,10 @@ public final class BreakingIndicatorRenderer
         double centerX = pos.getX() + (local.minX + local.maxX) * 0.5D - cameraX;
         double centerY = pos.getY() + (local.minY + local.maxY) * 0.5D - cameraY;
         double centerZ = pos.getZ() + (local.minZ + local.maxZ) * 0.5D - cameraZ;
-        double halfX = local.getLengthX() * scale * 0.5D;
-        double halfY = local.getLengthY() * scale * 0.5D;
-        double halfZ = local.getLengthZ() * scale * 0.5D;
-        return new Box(
+        double halfX = local.getXsize() * scale * 0.5D;
+        double halfY = local.getYsize() * scale * 0.5D;
+        double halfZ = local.getZsize() * scale * 0.5D;
+        return new AABB(
                 centerX - halfX - BOX_EXPAND,
                 centerY - halfY - BOX_EXPAND,
                 centerZ - halfZ - BOX_EXPAND,

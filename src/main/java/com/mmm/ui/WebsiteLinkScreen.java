@@ -4,15 +4,14 @@ import java.util.List;
 
 import com.mmm.config.Configs;
 import com.mmm.sync.WebsiteLinkManager;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.OrderedText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Util;
 
 public class WebsiteLinkScreen extends CompatScreen
@@ -42,15 +41,15 @@ public class WebsiteLinkScreen extends CompatScreen
     private static final int COLOR_ERROR = MmmUi.ERROR;
 
     private final Screen parent;
-    private TextFieldWidget codeField;
-    private ButtonWidget openButton;
-    private ButtonWidget submitButton;
-    private ButtonWidget clearButton;
-    private ButtonWidget doneButton;
+    private EditBox codeField;
+    private Button openButton;
+    private Button submitButton;
+    private Button clearButton;
+    private Button doneButton;
 
     public WebsiteLinkScreen(Screen parent)
     {
-        super(Text.literal("Website Link"));
+        super(Component.literal("Website Link"));
         this.parent = parent;
     }
 
@@ -58,41 +57,41 @@ public class WebsiteLinkScreen extends CompatScreen
     protected void init()
     {
         ensureCursorVisible();
-        this.clearChildren();
+        this.clearWidgets();
 
         Layout layout = computeLayout();
         int contentInnerWidth = layout.linkWidth - CARD_PADDING * 2;
         int buttonWidth = (contentInnerWidth - CARD_GAP) / 2;
 
-        this.codeField = new TextFieldWidget(this.textRenderer, getCodeFieldX(layout) + FIELD_PAD_X, layout.linkY + 78 + FIELD_PAD_Y, getCodeFieldWidth(layout) - FIELD_PAD_X * 2, INPUT_HEIGHT, Text.empty());
+        this.codeField = new EditBox(this.font, getCodeFieldX(layout) + FIELD_PAD_X, layout.linkY + 78 + FIELD_PAD_Y, getCodeFieldWidth(layout) - FIELD_PAD_X * 2, INPUT_HEIGHT, Component.empty());
         this.codeField.setMaxLength(12);
-        this.codeField.setDrawsBackground(false);
+        this.codeField.setBordered(false);
 
-        this.codeField.setEditableColor(COLOR_VALUE);
-        this.codeField.setUneditableColor(COLOR_MUTED);
-        this.codeField.setChangedListener(text -> {
+        this.codeField.setTextColor(COLOR_VALUE);
+        this.codeField.setTextColorUneditable(COLOR_MUTED);
+        this.codeField.setResponder(text -> {
             String sanitized = text == null ? "" : text.toUpperCase().replaceAll("[^A-Z0-9]", "");
             if (!sanitized.equals(text))
             {
-                this.codeField.setText(sanitized);
+                this.codeField.setValue(sanitized);
                 return;
             }
             refreshState();
         });
-        this.codeField.setPlaceholder(Text.literal("ENTER WEBSITE CODE"));
-        this.addDrawableChild(this.codeField);
+        this.codeField.setHint(Component.literal("ENTER WEBSITE CODE"));
+        this.addRenderableWidget(this.codeField);
 
-        this.openButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Open Website"), button -> Util.getOperatingSystem().open(WEBSITE_LOGIN_URL))
-                .dimensions(layout.linkX + CARD_PADDING, layout.linkY + 108, buttonWidth, BUTTON_HEIGHT)
+        this.openButton = this.addRenderableWidget(Button.builder(Component.literal("Open Website"), button -> Util.getPlatform().openUri(WEBSITE_LOGIN_URL))
+                .bounds(layout.linkX + CARD_PADDING, layout.linkY + 108, buttonWidth, BUTTON_HEIGHT)
                 .build());
-        this.submitButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Link Account"), button -> submitCode())
-                .dimensions(layout.linkX + CARD_PADDING + buttonWidth + CARD_GAP, layout.linkY + 108, buttonWidth, BUTTON_HEIGHT)
+        this.submitButton = this.addRenderableWidget(Button.builder(Component.literal("Link Account"), button -> submitCode())
+                .bounds(layout.linkX + CARD_PADDING + buttonWidth + CARD_GAP, layout.linkY + 108, buttonWidth, BUTTON_HEIGHT)
                 .build());
-        this.clearButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Clear Link"), button -> clearPersistedLink())
-                .dimensions(layout.statusButtonX, layout.statusPrimaryButtonY, layout.statusButtonWidth, BUTTON_HEIGHT)
+        this.clearButton = this.addRenderableWidget(Button.builder(Component.literal("Clear Link"), button -> clearPersistedLink())
+                .bounds(layout.statusButtonX, layout.statusPrimaryButtonY, layout.statusButtonWidth, BUTTON_HEIGHT)
                 .build());
-        this.doneButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close())
-                .dimensions(layout.statusButtonX, layout.statusSecondaryButtonY, layout.statusButtonWidth, BUTTON_HEIGHT)
+        this.doneButton = this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose())
+                .bounds(layout.statusButtonX, layout.statusSecondaryButtonY, layout.statusButtonWidth, BUTTON_HEIGHT)
                 .build());
 
         refreshState();
@@ -100,14 +99,14 @@ public class WebsiteLinkScreen extends CompatScreen
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         ensureCursorVisible();
         Layout layout = computeLayout();
         updateWidgetBounds(layout);
 
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "WEBSITE_LINK");
+        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "WEBSITE_LINK");
         fillCard(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, COLOR_PANEL, COLOR_BORDER);
 
         drawHeader(context, layout);
@@ -116,14 +115,14 @@ public class WebsiteLinkScreen extends CompatScreen
         drawStatusCard(context, layout);
         drawCodeFieldShell(context);
 
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
 
-        if (this.codeField != null && this.codeField.getText().isBlank() && this.codeField.isFocused() == false)
+        if (this.codeField != null && this.codeField.getValue().isBlank() && this.codeField.isFocused() == false)
         {
-            String placeholder = MmmUi.truncate(this.textRenderer, "ENTER WEBSITE CODE", this.codeField.getWidth() - 10);
-            context.drawText(this.textRenderer, Text.literal(placeholder), this.codeField.getX(), this.codeField.getY(), COLOR_MUTED, false);
+            String placeholder = MmmUi.truncate(this.font, "ENTER WEBSITE CODE", this.codeField.getWidth() - 10);
+            context.text(this.font, Component.literal(placeholder), this.codeField.getX(), this.codeField.getY(), COLOR_MUTED, false);
         }
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        MmmUi.drawMmmTopBar(context, this.font, this.width);
     }
 
     @Override
@@ -138,25 +137,25 @@ public class WebsiteLinkScreen extends CompatScreen
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
-        MinecraftClient.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().gui.setScreen(this.parent);
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
     }
 
-    private void drawHeader(DrawContext context, Layout layout)
+    private void drawHeader(GuiGraphicsExtractor context, Layout layout)
     {
-        MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
+        MmmUi.drawTextWithin(context, this.font, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
         if (!layout.compact)
         {
             drawPill(context, layout.contentX, layout.headerY + 18, 126, 16, "Account Sync");
@@ -170,15 +169,15 @@ public class WebsiteLinkScreen extends CompatScreen
         }
     }
 
-    private void drawStepsCard(DrawContext context, Layout layout)
+    private void drawStepsCard(GuiGraphicsExtractor context, Layout layout)
     {
         if (layout.stepsHeight <= 0)
         {
             return;
         }
         fillCard(context, layout.stepsX, layout.stepsY, layout.stepsWidth, layout.stepsHeight, COLOR_CARD, COLOR_BORDER);
-        MmmUi.drawTextWithin(context, this.textRenderer, "How It Works", layout.stepsX + CARD_PADDING, layout.stepsY + 10, layout.stepsWidth - CARD_PADDING * 2, COLOR_VALUE, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Three direct actions. No filler controls.", layout.stepsX + CARD_PADDING, layout.stepsY + 23, layout.stepsWidth - CARD_PADDING * 2, COLOR_MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, "How It Works", layout.stepsX + CARD_PADDING, layout.stepsY + 10, layout.stepsWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.font, "Three direct actions. No filler controls.", layout.stepsX + CARD_PADDING, layout.stepsY + 23, layout.stepsWidth - CARD_PADDING * 2, COLOR_MUTED, false);
 
         int rowY = layout.stepsY + 46;
         int rowWidth = layout.stepsWidth - CARD_PADDING * 2;
@@ -198,17 +197,17 @@ public class WebsiteLinkScreen extends CompatScreen
         }
     }
 
-    private void drawLinkCard(DrawContext context, Layout layout)
+    private void drawLinkCard(GuiGraphicsExtractor context, Layout layout)
     {
         fillCard(context, layout.linkX, layout.linkY, layout.linkWidth, layout.linkHeight, COLOR_CARD_SOFT, COLOR_BORDER);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Link Code", layout.linkX + CARD_PADDING, layout.linkY + 10, layout.linkWidth - CARD_PADDING * 2, COLOR_VALUE, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Paste the code from the site and finish the account link from here.", layout.linkX + CARD_PADDING, layout.linkY + 23, layout.linkWidth - CARD_PADDING * 2, COLOR_MUTED, false);
-        context.drawText(this.textRenderer, Text.literal("Website"), layout.linkX + CARD_PADDING, layout.linkY + 46, COLOR_LABEL, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, WEBSITE_LOGIN_URL, layout.linkX + CARD_PADDING + 52, layout.linkY + 46, layout.linkWidth - CARD_PADDING * 2 - 52, MmmUi.accent(), false);
-        context.drawText(this.textRenderer, Text.literal("Website Code"), layout.linkX + CARD_PADDING, layout.linkY + 64, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.font, "Link Code", layout.linkX + CARD_PADDING, layout.linkY + 10, layout.linkWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.font, "Paste the code from the site and finish the account link from here.", layout.linkX + CARD_PADDING, layout.linkY + 23, layout.linkWidth - CARD_PADDING * 2, COLOR_MUTED, false);
+        context.text(this.font, Component.literal("Website"), layout.linkX + CARD_PADDING, layout.linkY + 46, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.font, WEBSITE_LOGIN_URL, layout.linkX + CARD_PADDING + 52, layout.linkY + 46, layout.linkWidth - CARD_PADDING * 2 - 52, MmmUi.accent(), false);
+        context.text(this.font, Component.literal("Website Code"), layout.linkX + CARD_PADDING, layout.linkY + 64, COLOR_LABEL, false);
     }
 
-    private void drawStatusCard(DrawContext context, Layout layout)
+    private void drawStatusCard(GuiGraphicsExtractor context, Layout layout)
     {
         WebsiteLinkManager.LinkState state = WebsiteLinkManager.getState();
         String persistedUser = WebsiteLinkManager.getPersistedUsername();
@@ -235,7 +234,7 @@ public class WebsiteLinkScreen extends CompatScreen
         };
 
         fillCard(context, layout.statusX, layout.statusY, layout.statusWidth, layout.statusHeight, COLOR_CARD_SOFT, COLOR_BORDER);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Saved Link", layout.statusX + CARD_PADDING, layout.statusY + 10, layout.statusWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.font, "Saved Link", layout.statusX + CARD_PADDING, layout.statusY + 10, layout.statusWidth - CARD_PADDING * 2, COLOR_VALUE, false);
         drawStatusChip(context, layout.statusX + CARD_PADDING, layout.statusY + 28, stateLabel, stateColor);
 
         int summaryY = layout.statusY + 52;
@@ -243,7 +242,7 @@ public class WebsiteLinkScreen extends CompatScreen
         fillCard(context, layout.statusX + CARD_PADDING, summaryY, layout.statusWidth - CARD_PADDING * 2, summaryHeight, COLOR_INSET, COLOR_BORDER_SOFT);
         if (layout.compact)
         {
-            MmmUi.drawTextWithin(context, this.textRenderer, statusLine, layout.statusX + CARD_PADDING + 8, summaryY + 10, layout.statusWidth - CARD_PADDING * 2 - 16, statusColor, false);
+            MmmUi.drawTextWithin(context, this.font, statusLine, layout.statusX + CARD_PADDING + 8, summaryY + 10, layout.statusWidth - CARD_PADDING * 2 - 16, statusColor, false);
         }
         else
         {
@@ -268,27 +267,27 @@ public class WebsiteLinkScreen extends CompatScreen
                 default -> COLOR_MUTED;
             };
             fillCard(context, layout.statusX + CARD_PADDING, summaryY + 72, layout.statusWidth - CARD_PADDING * 2, 54, COLOR_INSET, COLOR_BORDER_SOFT);
-            MmmUi.drawTextWithin(context, this.textRenderer, "Latest Status", layout.statusX + CARD_PADDING + 10, summaryY + 80, layout.statusWidth - CARD_PADDING * 2 - 20, COLOR_LABEL, false);
+            MmmUi.drawTextWithin(context, this.font, "Latest Status", layout.statusX + CARD_PADDING + 10, summaryY + 80, layout.statusWidth - CARD_PADDING * 2 - 20, COLOR_LABEL, false);
             drawWrappedText(context, state.detail(), layout.statusX + CARD_PADDING + 10, summaryY + 92, layout.statusWidth - CARD_PADDING * 2 - 20, detailColor);
         }
     }
 
-    private void drawMiniStep(DrawContext context, int x, int y, int width, String number, String title, String description)
+    private void drawMiniStep(GuiGraphicsExtractor context, int x, int y, int width, String number, String title, String description)
     {
         fillCard(context, x, y, width, 64, COLOR_INSET, COLOR_BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(number), x + 10, y + 10, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, title, x + 24, y + 10, width - 34, COLOR_VALUE, false);
+        context.text(this.font, Component.literal(number), x + 10, y + 10, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, title, x + 24, y + 10, width - 34, COLOR_VALUE, false);
         drawWrappedText(context, description, x + 10, y + 27, width - 20, COLOR_MUTED);
     }
 
-    private void drawCompactStep(DrawContext context, int x, int y, int width, String number, String title)
+    private void drawCompactStep(GuiGraphicsExtractor context, int x, int y, int width, String number, String title)
     {
         fillCard(context, x, y, width, 18, COLOR_INSET, COLOR_BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(number), x + 7, y + 5, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, title, x + 20, y + 5, width - 27, COLOR_VALUE, false);
+        context.text(this.font, Component.literal(number), x + 7, y + 5, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, title, x + 20, y + 5, width - 27, COLOR_VALUE, false);
     }
 
-    private void drawCodeFieldShell(DrawContext context)
+    private void drawCodeFieldShell(GuiGraphicsExtractor context)
     {
         if (this.codeField == null)
         {
@@ -302,32 +301,32 @@ public class WebsiteLinkScreen extends CompatScreen
         fillCard(context, x, y, width, height, COLOR_INSET, this.codeField.isFocused() ? MmmUi.accent() : COLOR_BORDER_SOFT);
     }
 
-    private void drawWrappedText(DrawContext context, String text, int x, int y, int maxWidth, int color)
+    private void drawWrappedText(GuiGraphicsExtractor context, String text, int x, int y, int maxWidth, int color)
     {
-        List<OrderedText> lines = this.textRenderer.wrapLines(Text.literal(text).setStyle(Style.EMPTY), maxWidth);
+        List<FormattedCharSequence> lines = this.font.split(Component.literal(text).setStyle(Style.EMPTY), maxWidth);
         int lineY = y;
-        for (OrderedText line : lines)
+        for (FormattedCharSequence line : lines)
         {
-            context.drawText(this.textRenderer, line, x, lineY, color, false);
+            context.text(this.font, line, x, lineY, color, false);
             lineY += 10;
         }
     }
 
-    private void drawPill(DrawContext context, int x, int y, int width, int height, String text)
+    private void drawPill(GuiGraphicsExtractor context, int x, int y, int width, int height, String text)
     {
         fillCard(context, x, y, width, height, COLOR_CARD, MmmUi.accent());
-        String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
-        context.drawText(this.textRenderer, Text.literal(clipped), x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2), y + 4, MmmUi.accent(), false);
+        String clipped = MmmUi.truncate(this.font, text, width - 8);
+        context.text(this.font, Component.literal(clipped), x + Math.max(4, (width - this.font.width(clipped)) / 2), y + 4, MmmUi.accent(), false);
     }
 
-    private void drawStatusChip(DrawContext context, int x, int y, String text, int borderColor)
+    private void drawStatusChip(GuiGraphicsExtractor context, int x, int y, String text, int borderColor)
     {
-        int width = this.textRenderer.getWidth(text) + 16;
+        int width = this.font.width(text) + 16;
         fillCard(context, x, y, width, 16, COLOR_INSET, borderColor);
-        MmmUi.drawTextWithin(context, this.textRenderer, text, x + 8, y + 4, width - 16, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.font, text, x + 8, y + 4, width - 16, COLOR_VALUE, false);
     }
 
-    private void fillCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
+    private void fillCard(GuiGraphicsExtractor context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
         MmmUi.card(context, x, y, width, height, fillColor, borderColor);
     }
@@ -381,16 +380,16 @@ public class WebsiteLinkScreen extends CompatScreen
 
     private void ensureCursorVisible()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.mouse != null)
+        Minecraft client = Minecraft.getInstance();
+        if (client != null && client.mouseHandler != null)
         {
-            client.mouse.unlockCursor();
+            client.mouseHandler.releaseMouse();
         }
     }
 
     private void submitCode()
     {
-        WebsiteLinkManager.claimCode(this.codeField.getText());
+        WebsiteLinkManager.claimCode(this.codeField.getValue());
         refreshState();
     }
 
@@ -413,7 +412,7 @@ public class WebsiteLinkScreen extends CompatScreen
     {
         if (this.submitButton != null)
         {
-            this.submitButton.active = this.codeField != null && this.codeField.getText().trim().length() >= 6;
+            this.submitButton.active = this.codeField != null && this.codeField.getValue().trim().length() >= 6;
         }
         if (this.clearButton != null)
         {

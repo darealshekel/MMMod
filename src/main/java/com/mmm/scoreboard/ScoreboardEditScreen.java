@@ -7,48 +7,47 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.permissions.Permission;
+import net.minecraft.server.permissions.PermissionLevel;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.PlayerScoreEntry;
 import com.mmm.ui.MmmUi;
 
 import com.mmm.util.MmmMessages;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.command.permission.Permission;
-import net.minecraft.command.permission.PermissionLevel;
-import net.minecraft.scoreboard.ScoreboardEntry;
-import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.text.Text;
 
 public final class ScoreboardEditScreen extends CompatScreen
 {
     private static final int ROW_HEIGHT = 30;
 
     private final Screen parent;
-    private final ScoreboardObjective objective;
+    private final Objective objective;
     private final List<RowModel> rows = new ArrayList<>();
     private final List<RowWidgets> rowWidgets = new ArrayList<>();
-    private ButtonWidget addButton;
-    private ButtonWidget sortButton;
-    private ButtonWidget directionButton;
-    private ButtonWidget saveButton;
-    private ButtonWidget backButton;
+    private Button addButton;
+    private Button sortButton;
+    private Button directionButton;
+    private Button saveButton;
+    private Button backButton;
     private SortMode sortMode = SortMode.SCORE;
     private boolean descending = true;
     private double scrollY;
     private int contentHeight;
     private String error = "";
 
-    public ScoreboardEditScreen(Screen parent, ScoreboardObjective objective)
+    public ScoreboardEditScreen(Screen parent, Objective objective)
     {
-        super(Text.literal("Edit Scoreboard"));
+        super(Component.literal("Edit Scoreboard"));
         this.parent = parent;
         this.objective = objective;
-        for (ScoreboardEntry entry : objective.getScoreboard().getScoreboardEntries(objective))
+        for (PlayerScoreEntry entry : objective.getScoreboard().listPlayerScores(objective))
         {
-            if (!entry.hidden())
+            if (!entry.isHidden())
             {
                 this.rows.add(new RowModel(entry.owner(), entry.value()));
             }
@@ -60,34 +59,47 @@ public final class ScoreboardEditScreen extends CompatScreen
     protected void init()
     {
         MmmUi.ensureCursorVisible();
-        this.clearChildren();
+        this.clearWidgets();
         this.rowWidgets.clear();
-        this.addButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Add Row"), ignored -> this.addRow())
-                .dimensions(0, 0, 76, 18).build());
-        this.sortButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Sort: " + this.sortMode.label), ignored -> this.cycleSort())
-                .dimensions(0, 0, 96, 18).build());
-        this.directionButton = this.addDrawableChild(ButtonWidget.builder(Text.literal(this.descending ? "Descending" : "Ascending"), ignored -> this.toggleDirection())
-                .dimensions(0, 0, 82, 18).build());
-        this.saveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Save"), ignored -> this.save())
-                .dimensions(0, 0, 70, 18).build());
-        this.backButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), ignored -> this.close())
-                .dimensions(0, 0, 70, 18).build());
+        this.addButton = this.addRenderableWidget(Button.builder(Component.literal("Add Row"), ignored -> this.addRow())
+                .bounds(0, 0, 76, 18).build());
+        this.sortButton = this.addRenderableWidget(Button.builder(Component.literal("Sort: " + this.sortMode.label), ignored -> this.cycleSort())
+                .bounds(0, 0, 96, 18).build());
+        this.directionButton = this.addRenderableWidget(Button.builder(Component.literal(this.descending ? "Descending" : "Ascending"), ignored -> this.toggleDirection())
+                .bounds(0, 0, 82, 18).build());
+        this.saveButton = this.addRenderableWidget(Button.builder(Component.literal("Save"), ignored -> this.save())
+                .bounds(0, 0, 70, 18).build());
+        this.backButton = this.addRenderableWidget(Button.builder(Component.literal("Back"), ignored -> this.onClose())
+                .bounds(0, 0, 70, 18).build());
         this.saveButton.active = this.hasEditPermission();
 
         for (int index = 0; index < this.rows.size(); index++)
         {
             RowModel model = this.rows.get(index);
-            TextFieldWidget name = new TextFieldWidget(this.textRenderer, 0, 0, 160, 18, Text.literal("Player name"));
+            EditBox name = new EditBox(this.font, 0, 0, 160, 18, Component.literal("Player name"));
             name.setMaxLength(40);
-            name.setText(model.name);
-            name.setChangedListener(value -> model.name = value);
-            this.addDrawableChild(name);
+            name.setValue(model.name);
+            name.setResponder(value -> model.name = value);
+            this.addRenderableWidget(name);
 
-            TextFieldWidget score = new TextFieldWidget(this.textRenderer, 0, 0, 100, 18, Text.literal("Score"));
+            EditBox score = new EditBox(this.font, 0, 0, 100, 18, Component.literal("Score"));
             score.setMaxLength(11);
-            score.setTextPredicate(value -> value.isEmpty() || value.equals("-") || value.matches("-?\\d{0,10}"));
-            score.setText(Integer.toString(model.score));
-            score.setChangedListener(value -> {
+            String[] lastValidScore = { Integer.toString(model.score) };
+            boolean[] correctingScore = { false };
+            score.setValue(lastValidScore[0]);
+            score.setResponder(value -> {
+                if (correctingScore[0])
+                {
+                    return;
+                }
+                if (!(value.isEmpty() || value.equals("-") || value.matches("-?\\d{0,10}")))
+                {
+                    correctingScore[0] = true;
+                    score.setValue(lastValidScore[0]);
+                    correctingScore[0] = false;
+                    return;
+                }
+                lastValidScore[0] = value;
                 try
                 {
                     model.score = value.isBlank() || value.equals("-") ? 0 : Integer.parseInt(value);
@@ -96,43 +108,43 @@ public final class ScoreboardEditScreen extends CompatScreen
                 {
                 }
             });
-            this.addDrawableChild(score);
+            this.addRenderableWidget(score);
 
             int capturedIndex = index;
-            ButtonWidget delete = this.addDrawableChild(ButtonWidget.builder(Text.literal("Delete"), ignored -> this.deleteRow(capturedIndex))
-                    .dimensions(0, 0, 58, 18).build());
+            Button delete = this.addRenderableWidget(Button.builder(Component.literal("Delete"), ignored -> this.deleteRow(capturedIndex))
+                    .bounds(0, 0, 58, 18).build());
             this.rowWidgets.add(new RowWidgets(name, score, delete));
         }
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
+        MmmUi.drawMmmTopBar(context, this.font, this.width);
         int x = MmmUi.contentLeft(this.width);
         int y = MmmUi.TOP_BAR_HEIGHT;
         int width = MmmUi.contentWidth(this.width);
         int height = Math.max(1, this.height - y - MmmUi.pagePad(this.width));
         context.enableScissor(x, y, x + width, y + height);
         this.drawContent(context, x, y, width, height);
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
         context.disableScissor();
     }
 
-    private void drawContent(DrawContext context, int x, int viewportY, int width, int viewportHeight)
+    private void drawContent(GuiGraphicsExtractor context, int x, int viewportY, int width, int viewportHeight)
     {
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
-        MmmUi.drawTextWithin(context, this.textRenderer, "EDIT SCOREBOARD", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, this.objective.getDisplayName().getString(), x, y + 16, width, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.font, "EDIT SCOREBOARD", x, y, width, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, this.objective.getDisplayName().getString(), x, y + 16, width, MmmUi.TEXT, false);
         String helper = this.saveButton.active
                 ? "Changes are sent as vanilla scoreboard commands."
                 : "Operator permission level 2 is required to save.";
-        MmmUi.drawTextWithin(context, this.textRenderer, helper, x, y + 30, width, this.saveButton.active ? MmmUi.MUTED : 0xFFFF5965, false);
+        MmmUi.drawTextWithin(context, this.font, helper, x, y + 30, width, this.saveButton.active ? MmmUi.MUTED : 0xFFFF5965, false);
         if (!this.error.isBlank())
         {
-            MmmUi.drawTextWithin(context, this.textRenderer, this.error, x, y + 43, width, 0xFFFF5965, false);
+            MmmUi.drawTextWithin(context, this.font, this.error, x, y + 43, width, 0xFFFF5965, false);
         }
         y += 60;
 
@@ -142,25 +154,25 @@ public final class ScoreboardEditScreen extends CompatScreen
         int directionW = Math.min(86, Math.max(68, width / 5));
         int saveW = Math.min(70, Math.max(50, width / 7));
         int backW = Math.min(70, Math.max(50, width / 7));
-        this.addButton.setDimensionsAndPosition(addW, 18, x, y);
-        this.sortButton.setDimensionsAndPosition(sortW, 18, x + addW + gap, y);
-        this.directionButton.setDimensionsAndPosition(directionW, 18, x + addW + sortW + gap * 2, y);
-        this.saveButton.setDimensionsAndPosition(saveW, 18, x + width - backW - saveW - gap, y);
-        this.backButton.setDimensionsAndPosition(backW, 18, x + width - backW, y);
+        this.addButton.setRectangle(addW, 18, x, y);
+        this.sortButton.setRectangle(sortW, 18, x + addW + gap, y);
+        this.directionButton.setRectangle(directionW, 18, x + addW + sortW + gap * 2, y);
+        this.saveButton.setRectangle(saveW, 18, x + width - backW - saveW - gap, y);
+        this.backButton.setRectangle(backW, 18, x + width - backW, y);
         this.setToolbarVisible(y + 18 >= viewportY && y <= viewportY + viewportHeight);
         y += 28;
 
         int deleteW = 58;
         int scoreW = Math.min(112, Math.max(76, width / 4));
         int nameW = Math.max(80, width - scoreW - deleteW - 16);
-        MmmUi.drawTextWithin(context, this.textRenderer, "PLAYER / HOLDER", x + 5, y, nameW, MmmUi.MUTED, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "SCORE", x + nameW + 10, y, scoreW, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, "PLAYER / HOLDER", x + 5, y, nameW, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, "SCORE", x + nameW + 10, y, scoreW, MmmUi.MUTED, false);
         y += 14;
 
         if (this.rows.isEmpty())
         {
             MmmUi.card(context, x, y, width, 46, MmmUi.CARD, MmmUi.BORDER);
-            MmmUi.drawTextWithin(context, this.textRenderer, "No rows. Use Add Row to create one.", x + 10, y + 17, width - 20, MmmUi.MUTED, false);
+            MmmUi.drawTextWithin(context, this.font, "No rows. Use Add Row to create one.", x + 10, y + 17, width - 20, MmmUi.MUTED, false);
             this.contentHeight = y + 58 - viewportY + (int) Math.round(this.scrollY);
             return;
         }
@@ -169,9 +181,9 @@ public final class ScoreboardEditScreen extends CompatScreen
         {
             RowWidgets widgets = this.rowWidgets.get(index);
             MmmUi.card(context, x, y, width, ROW_HEIGHT - 3, MmmUi.CARD, MmmUi.BORDER);
-            widgets.name.setDimensionsAndPosition(nameW, 18, x + 4, y + 4);
-            widgets.score.setDimensionsAndPosition(scoreW, 18, x + nameW + 8, y + 4);
-            widgets.delete.setDimensionsAndPosition(deleteW, 18, x + width - deleteW - 4, y + 4);
+            widgets.name.setRectangle(nameW, 18, x + 4, y + 4);
+            widgets.score.setRectangle(scoreW, 18, x + nameW + 8, y + 4);
+            widgets.delete.setRectangle(deleteW, 18, x + width - deleteW - 4, y + 4);
             boolean visible = y + ROW_HEIGHT >= viewportY && y <= viewportY + viewportHeight;
             widgets.setVisible(visible);
             y += ROW_HEIGHT;
@@ -183,7 +195,7 @@ public final class ScoreboardEditScreen extends CompatScreen
     {
         this.rows.add(new RowModel("", 0));
         this.error = "";
-        this.clearAndInit();
+        this.rebuildWidgets();
         this.scrollY = Math.max(0, this.contentHeight);
     }
 
@@ -193,23 +205,23 @@ public final class ScoreboardEditScreen extends CompatScreen
         {
             this.rows.remove(index);
             this.error = "";
-            this.clearAndInit();
+            this.rebuildWidgets();
         }
     }
 
     private void cycleSort()
     {
         this.sortMode = this.sortMode.next();
-        this.sortButton.setMessage(Text.literal("Sort: " + this.sortMode.label));
+        this.sortButton.setMessage(Component.literal("Sort: " + this.sortMode.label));
         this.sortRows();
-        this.clearAndInit();
+        this.rebuildWidgets();
     }
 
     private void toggleDirection()
     {
         this.descending = !this.descending;
         this.sortRows();
-        this.clearAndInit();
+        this.rebuildWidgets();
     }
 
     private void sortRows()
@@ -228,10 +240,10 @@ public final class ScoreboardEditScreen extends CompatScreen
 
     private boolean hasEditPermission()
     {
-        return this.client != null
-                && this.client.player != null
-                && this.client.player.getPermissions()
-                .hasPermission(new Permission.Level(PermissionLevel.GAMEMASTERS));
+        return this.minecraft != null
+                && this.minecraft.player != null
+                && this.minecraft.player.permissions()
+                .hasPermission(new Permission.HasCommandLevel(PermissionLevel.GAMEMASTERS));
     }
 
     private void save()
@@ -263,9 +275,9 @@ public final class ScoreboardEditScreen extends CompatScreen
         }
 
         Map<String, Integer> current = new LinkedHashMap<>();
-        for (ScoreboardEntry entry : this.objective.getScoreboard().getScoreboardEntries(this.objective))
+        for (PlayerScoreEntry entry : this.objective.getScoreboard().listPlayerScores(this.objective))
         {
-            if (!entry.hidden())
+            if (!entry.isHidden())
             {
                 current.put(entry.owner(), entry.value());
             }
@@ -276,7 +288,7 @@ public final class ScoreboardEditScreen extends CompatScreen
         {
             if (!desired.containsKey(name))
             {
-                this.client.player.networkHandler.sendChatCommand(
+                this.minecraft.player.connection.sendCommand(
                         "scoreboard players reset " + commandToken(name) + " " + commandToken(this.objective.getName()));
                 changes++;
             }
@@ -285,7 +297,7 @@ public final class ScoreboardEditScreen extends CompatScreen
         {
             if (!entry.getValue().equals(current.get(entry.getKey())))
             {
-                this.client.player.networkHandler.sendChatCommand(
+                this.minecraft.player.connection.sendCommand(
                         "scoreboard players set " + commandToken(entry.getKey()) + " "
                                 + commandToken(this.objective.getName()) + " " + entry.getValue());
                 changes++;
@@ -293,7 +305,7 @@ public final class ScoreboardEditScreen extends CompatScreen
         }
         ScoreboardState.resetPage();
         MmmMessages.actionbar(changes == 0 ? "No scoreboard changes to save" : "Sent %d scoreboard changes", changes);
-        this.close();
+        this.onClose();
     }
 
     private static String commandToken(String value)
@@ -334,19 +346,19 @@ public final class ScoreboardEditScreen extends CompatScreen
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
-        MinecraftClient.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().gui.setScreen(this.parent);
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
     }
 
@@ -362,7 +374,7 @@ public final class ScoreboardEditScreen extends CompatScreen
         }
     }
 
-    private record RowWidgets(TextFieldWidget name, TextFieldWidget score, ButtonWidget delete)
+    private record RowWidgets(EditBox name, EditBox score, Button delete)
     {
         private void setVisible(boolean visible)
         {

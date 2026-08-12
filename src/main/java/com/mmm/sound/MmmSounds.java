@@ -1,17 +1,17 @@
 package com.mmm.sound;
 
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.util.Identifier;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvent;
 
 public final class MmmSounds
 {
-    public static final Identifier GOAL_SUCCESS_ID = Identifier.of("mmm", "goal_success");
-    public static final Identifier GOAL_COMPLETE_ID = Identifier.of("mmm", "goal_complete");
+    public static final Identifier GOAL_SUCCESS_ID = Identifier.fromNamespaceAndPath("mmm", "goal_success");
+    public static final Identifier GOAL_COMPLETE_ID = Identifier.fromNamespaceAndPath("mmm", "goal_complete");
 
-    public static final SoundEvent GOAL_SUCCESS = SoundEvent.of(GOAL_SUCCESS_ID);
-    public static final SoundEvent GOAL_COMPLETE = SoundEvent.of(GOAL_COMPLETE_ID);
+    public static final SoundEvent GOAL_SUCCESS = SoundEvent.createVariableRangeEvent(GOAL_SUCCESS_ID);
+    public static final SoundEvent GOAL_COMPLETE = SoundEvent.createVariableRangeEvent(GOAL_COMPLETE_ID);
 
     private MmmSounds()
     {
@@ -19,7 +19,7 @@ public final class MmmSounds
 
     public static void register()
     {
-        Registry.register(Registries.SOUND_EVENT, GOAL_SUCCESS_ID, GOAL_SUCCESS);
-        Registry.register(Registries.SOUND_EVENT, GOAL_COMPLETE_ID, GOAL_COMPLETE);
+        Registry.register(BuiltInRegistries.SOUND_EVENT, GOAL_SUCCESS_ID, GOAL_SUCCESS);
+        Registry.register(BuiltInRegistries.SOUND_EVENT, GOAL_COMPLETE_ID, GOAL_COMPLETE);
     }
 }

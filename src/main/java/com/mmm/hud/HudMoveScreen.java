@@ -7,12 +7,11 @@ import com.mmm.config.Configs.HudAlignment;
 import com.mmm.timer.MmmTimerState;
 import com.mmm.timer.TimerHudRenderer;
 import com.mmm.ui.MmmUi;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 
 public class HudMoveScreen extends CompatScreen
 {
@@ -24,7 +23,7 @@ public class HudMoveScreen extends CompatScreen
 
     public HudMoveScreen(Screen parent)
     {
-        super(Text.literal("HUD"));
+        super(Component.literal("HUD"));
         this.parent = parent;
     }
 
@@ -33,25 +32,25 @@ public class HudMoveScreen extends CompatScreen
     {
         MmmUi.ensureCursorVisible();
         ControlLayout layout = this.controlLayout();
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("-"), button -> adjustScale(-0.05D)).dimensions(layout.x() + 12, layout.y() + layout.height() - 28, 22, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("+"), button -> adjustScale(0.05D)).dimensions(layout.x() + 38, layout.y() + layout.height() - 28, 22, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Reset"), button -> {
+        this.addRenderableWidget(Button.builder(Component.literal("-"), button -> adjustScale(-0.05D)).bounds(layout.x() + 12, layout.y() + layout.height() - 28, 22, 20).build());
+        this.addRenderableWidget(Button.builder(Component.literal("+"), button -> adjustScale(0.05D)).bounds(layout.x() + 38, layout.y() + layout.height() - 28, 22, 20).build());
+        this.addRenderableWidget(Button.builder(Component.literal("Reset"), button -> {
             TimerHudRenderer.resetLayout();
             Configs.Generic.HUD_X.resetToDefault();
             Configs.Generic.HUD_Y.resetToDefault();
             Configs.Generic.HUD_SCALE.resetToDefault();
             Configs.saveToFile();
-        }).dimensions(layout.x() + layout.width() - 150, layout.y() + layout.height() - 28, 64, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(layout.x() + layout.width() - 80, layout.y() + layout.height() - 28, 64, 20).build());
+        }).bounds(layout.x() + layout.width() - 150, layout.y() + layout.height() - 28, 64, 20).build());
+        this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose()).bounds(layout.x() + layout.width() - 80, layout.y() + layout.height() - 28, 64, 20).build());
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.ensureCursorVisible();
         context.fill(0, 0, this.width, this.height, 0x22050505);
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client != null)
         {
             MiningHudRenderer.render(context, client);
@@ -66,7 +65,7 @@ public class HudMoveScreen extends CompatScreen
         }
 
         drawControls(context, mouseX, mouseY);
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
     @Override
@@ -98,7 +97,7 @@ public class HudMoveScreen extends CompatScreen
             rowY += 25;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null)
         {
             return false;
@@ -124,7 +123,7 @@ public class HudMoveScreen extends CompatScreen
     {
         if (this.dragging)
         {
-            MinecraftClient client = MinecraftClient.getInstance();
+            Minecraft client = Minecraft.getInstance();
             if (client != null)
             {
                 int actualX = (int) mouseX - this.dragOffsetX;
@@ -163,30 +162,30 @@ public class HudMoveScreen extends CompatScreen
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
         Configs.saveToFile();
         MmmTimerState.save();
-        MinecraftClient.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().gui.setScreen(this.parent);
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
     }
 
-    private void drawControls(DrawContext context, int mouseX, int mouseY)
+    private void drawControls(GuiGraphicsExtractor context, int mouseX, int mouseY)
     {
         ControlLayout layout = this.controlLayout();
         MmmUi.card(context, layout.x(), layout.y(), layout.width(), layout.height(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "MOVE HUD", layout.x() + 12, layout.y() + 12, layout.width() - 24);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Drag modules. Scroll or +/- to resize selected.", layout.x() + 12, layout.y() + 28, layout.width() - 24, MmmUi.MUTED, false);
+        MmmUi.drawSectionHeading(context, this.font, "MOVE HUD", layout.x() + 12, layout.y() + 12, layout.width() - 24);
+        MmmUi.drawTextWithin(context, this.font, "Drag modules. Scroll or +/- to resize selected.", layout.x() + 12, layout.y() + 28, layout.width() - 24, MmmUi.MUTED, false);
 
         int rowY = layout.y() + 48;
         for (HudModuleId module : movableModules())
@@ -196,22 +195,22 @@ public class HudMoveScreen extends CompatScreen
             int border = active ? MmmUi.accent() : MmmUi.BORDER_SOFT;
             context.fill(layout.x() + 12, rowY, layout.x() + layout.width() - 12, rowY + 20, rowFill);
             MmmUi.drawBorder(context, layout.x() + 12, rowY, layout.width() - 24, 20, border);
-            MmmUi.drawTextWithin(context, this.textRenderer, module.label(), layout.x() + 20, rowY + 6, layout.width() - 94, active ? MmmUi.TEXT : MmmUi.MUTED, false);
+            MmmUi.drawTextWithin(context, this.font, module.label(), layout.x() + 20, rowY + 6, layout.width() - 94, active ? MmmUi.TEXT : MmmUi.MUTED, false);
             if (module != HudModuleId.MAIN)
             {
                 String visibility = TimerHudRenderer.isVisible(module) ? "ON" : "OFF";
                 int toggleX = layout.x() + layout.width() - 58;
                 MmmUi.drawBorder(context, toggleX, rowY + 3, 38, 14, TimerHudRenderer.isVisible(module) ? MmmUi.accent() : MmmUi.BORDER_SOFT);
-                MmmUi.drawTextWithin(context, this.textRenderer, visibility, toggleX + 8, rowY + 6, 26, TimerHudRenderer.isVisible(module) ? MmmUi.TEXT : MmmUi.MUTED, false);
+                MmmUi.drawTextWithin(context, this.font, visibility, toggleX + 8, rowY + 6, 26, TimerHudRenderer.isVisible(module) ? MmmUi.TEXT : MmmUi.MUTED, false);
             }
             rowY += 25;
         }
 
         String size = "Size: " + Math.round(getSelectedScale() * 100D) + "%";
-        MmmUi.drawTextWithin(context, this.textRenderer, size, layout.x() + 70, layout.y() + layout.height() - 22, 90, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, size, layout.x() + 70, layout.y() + layout.height() - 22, 90, MmmUi.accent(), false);
     }
 
-    private void drawModuleBounds(DrawContext context, MinecraftClient client)
+    private void drawModuleBounds(GuiGraphicsExtractor context, Minecraft client)
     {
         for (HudModuleId module : movableModules())
         {
@@ -248,13 +247,13 @@ public class HudMoveScreen extends CompatScreen
         };
     }
 
-    private void setMainHudPosition(MinecraftClient client, int actualX, int actualY)
+    private void setMainHudPosition(Minecraft client, int actualX, int actualY)
     {
         int[] bounds = MiningHudRenderer.getBounds(client);
         int width = bounds[2] - bounds[0];
         int height = bounds[3] - bounds[1];
-        int maxX = Math.max(1, client.getWindow().getScaledWidth() - width);
-        int maxY = Math.max(1, client.getWindow().getScaledHeight() - height);
+        int maxX = Math.max(1, client.getWindow().getGuiScaledWidth() - width);
+        int maxY = Math.max(1, client.getWindow().getGuiScaledHeight() - height);
         int clampedX = Math.max(0, Math.min(maxX, actualX));
         int clampedY = Math.max(0, Math.min(maxY, actualY));
         HudAlignment alignment = (HudAlignment) Configs.Generic.HUD_ALIGNMENT.getOptionListValue();

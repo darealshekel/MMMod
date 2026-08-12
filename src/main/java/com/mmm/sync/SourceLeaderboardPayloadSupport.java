@@ -3,7 +3,7 @@ package com.mmm.sync;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 final class SourceLeaderboardPayloadSupport
 {
@@ -11,7 +11,7 @@ final class SourceLeaderboardPayloadSupport
     {
     }
 
-    static FilterResult filterEntries(MinecraftClient client, List<SourceLeaderboardEntry> entries)
+    static FilterResult filterEntries(Minecraft client, List<SourceLeaderboardEntry> entries)
     {
         List<SourceLeaderboardEntry> validEntries = entries == null
                 ? List.of()

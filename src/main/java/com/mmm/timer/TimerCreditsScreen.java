@@ -5,22 +5,20 @@ import com.mmm.ui.CompatScreen;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import com.mmm.config.Configs;
 import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
-
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
 
 public class TimerCreditsScreen extends CompatScreen
 {
@@ -29,12 +27,12 @@ public class TimerCreditsScreen extends CompatScreen
 
     public TimerCreditsScreen(Screen parent)
     {
-        super(Text.literal("MMM Timer Complete"));
+        super(Component.literal("MMM Timer Complete"));
         this.parent = parent;
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.ensureCursorVisible();
         context.fill(0, 0, this.width, this.height, 0xF0050505);
@@ -49,8 +47,8 @@ public class TimerCreditsScreen extends CompatScreen
         context.fill(x - 4, y - 4, x + panelW + 4, y + panelH + 4, glow);
         MmmUi.card(context, x, y, panelW, panelH, MmmUi.CARD, MmmUi.BORDER);
         context.fill(x + 14, y + 16, x + 18, y + 36, MmmUi.RED);
-        context.drawText(this.textRenderer, Text.literal("TIMER COMPLETE"), x + 28, y + 16, Configs.getHudTitleColor(), false);
-        context.drawText(this.textRenderer, Text.literal(MmmTimerState.formatTime(MmmTimerState.getDurationMs()) + " run finished"), x + 28, y + 31, MmmUi.MUTED, false);
+        context.text(this.font, Component.literal("TIMER COMPLETE"), x + 28, y + 16, Configs.getHudTitleColor(), false);
+        context.text(this.font, Component.literal(MmmTimerState.formatTime(MmmTimerState.getDurationMs()) + " run finished"), x + 28, y + 31, MmmUi.MUTED, false);
 
         int statsY = y + 58;
         drawStat(context, x + 18, statsY, "Blocks", UiFormat.formatCompact(MmmTimerState.getBlocksBroken()));
@@ -58,11 +56,11 @@ public class TimerCreditsScreen extends CompatScreen
 
         List<MmmTimerState.BlockCount> top = MmmTimerState.getTopBlocks().stream().limit(5).toList();
         int listY = statsY + 46;
-        context.drawText(this.textRenderer, Text.literal("TOP BLOCKS"), x + 18, listY, Configs.getHudTextColor(), false);
+        context.text(this.font, Component.literal("TOP BLOCKS"), x + 18, listY, Configs.getHudTextColor(), false);
         listY += 18;
         if (top.isEmpty())
         {
-            context.drawText(this.textRenderer, Text.literal("No blocks mined during this timer."), x + 18, listY, MmmUi.INACTIVE, false);
+            context.text(this.font, Component.literal("No blocks mined during this timer."), x + 18, listY, MmmUi.INACTIVE, false);
         }
         else
         {
@@ -72,15 +70,15 @@ public class TimerCreditsScreen extends CompatScreen
                 int rowY = listY + i * 24;
                 context.fill(x + 18, rowY - 3, x + panelW - 18, rowY + 19, MmmUi.INSET);
                 MmmUi.drawBorder(context, x + 18, rowY - 3, panelW - 36, 22, MmmUi.BORDER_SOFT);
-                context.drawText(this.textRenderer, Text.literal("#" + (i + 1)), x + 26, rowY + 4, MmmUi.RED, false);
-                context.drawItem(getCachedIcon(entry.id()), x + 50, rowY);
-                context.drawText(this.textRenderer, Text.literal(blockName(entry.id())), x + 72, rowY + 5, Configs.getHudTextColor(), false);
+                context.text(this.font, Component.literal("#" + (i + 1)), x + 26, rowY + 4, MmmUi.RED, false);
+                context.item(getCachedIcon(entry.id()), x + 50, rowY);
+                context.text(this.font, Component.literal(blockName(entry.id())), x + 72, rowY + 5, Configs.getHudTextColor(), false);
                 String count = UiFormat.formatCompact(entry.count());
-                context.drawText(this.textRenderer, Text.literal(count), x + panelW - 28 - this.textRenderer.getWidth(count), rowY + 5, Configs.getHudNumberColor(), false);
+                context.text(this.font, Component.literal(count), x + panelW - 28 - this.font.width(count), rowY + 5, Configs.getHudNumberColor(), false);
             }
         }
 
-        context.drawText(this.textRenderer, Text.literal("ESC to close"), x + panelW - 18 - this.textRenderer.getWidth("ESC to close"), y + panelH - 22, MmmUi.MUTED, false);
+        context.text(this.font, Component.literal("ESC to close"), x + panelW - 18 - this.font.width("ESC to close"), y + panelH - 22, MmmUi.MUTED, false);
     }
 
     @Override
@@ -88,31 +86,31 @@ public class TimerCreditsScreen extends CompatScreen
     {
         if (keyCode == 256)
         {
-            this.close();
+            this.onClose();
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
         MmmTimerState.dismissCredits();
-        MinecraftClient.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().gui.setScreen(this.parent);
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
-    private void drawStat(DrawContext context, int x, int y, String label, String value)
+    private void drawStat(GuiGraphicsExtractor context, int x, int y, String label, String value)
     {
         int width = 176;
         MmmUi.card(context, x, y, width, 34, MmmUi.INSET, MmmUi.BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(label), x + 8, y + 7, MmmUi.MUTED, false);
-        context.drawText(this.textRenderer, Text.literal(value), x + width - 8 - this.textRenderer.getWidth(value), y + 18, Configs.getHudNumberColor(), false);
+        context.text(this.font, Component.literal(label), x + 8, y + 7, MmmUi.MUTED, false);
+        context.text(this.font, Component.literal(value), x + width - 8 - this.font.width(value), y + 18, Configs.getHudNumberColor(), false);
     }
 
     private static String blockName(String id)
@@ -141,7 +139,7 @@ public class TimerCreditsScreen extends CompatScreen
         {
             return Blocks.STONE;
         }
-        Block block = Registries.BLOCK.get(identifier);
+        Block block = BuiltInRegistries.BLOCK.getValue(identifier);
         return block == null ? Blocks.STONE : block;
     }
 }

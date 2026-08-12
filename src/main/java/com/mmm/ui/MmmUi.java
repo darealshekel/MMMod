@@ -1,7 +1,13 @@
 package com.mmm.ui;
 
 import java.util.List;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.util.FormattedCharSequence;
 import com.mmm.Reference;
 import com.mmm.config.Configs;
 import com.mmm.gui.GuiConfigs;
@@ -9,14 +15,6 @@ import com.mmm.hud.SessionHistoryScreen;
 import com.mmm.hud.SummaryScreen;
 import com.mmm.scoreboard.ScoreboardScreen;
 import com.mmm.tracker.MiningStats;
-
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.OrderedText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
 
 public final class MmmUi
 {
@@ -63,17 +61,17 @@ public final class MmmUi
 
     public static void ensureCursorVisible()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.mouse != null)
+        Minecraft client = Minecraft.getInstance();
+        if (client != null && client.mouseHandler != null)
         {
-            client.mouse.unlockCursor();
+            client.mouseHandler.releaseMouse();
         }
     }
 
     public static boolean shouldPauseGame()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        return client != null && client.isInSingleplayer();
+        Minecraft client = Minecraft.getInstance();
+        return client != null && client.isLocalServer();
     }
 
     public static int accent()
@@ -129,7 +127,7 @@ public final class MmmUi
         return withAlpha(color, alpha);
     }
 
-    public static void backdrop(DrawContext context, int width, int height)
+    public static void backdrop(GuiGraphicsExtractor context, int width, int height)
     {
         context.fill(0, 0, width, height, menuSurface(OVERLAY));
     }
@@ -196,7 +194,7 @@ public final class MmmUi
         return sidebarMetrics(screenHeight).showFooter();
     }
 
-    public static void drawMmmScreensSidebar(DrawContext context, TextRenderer renderer, int width, int height, int mouseX, int mouseY, String activeId)
+    public static void drawMmmScreensSidebar(GuiGraphicsExtractor context, Font renderer, int width, int height, int mouseX, int mouseY, String activeId)
     {
         drawMmmTopBar(context, renderer, width);
         int sidebarWidth = sidebarWidth(width);
@@ -232,13 +230,13 @@ public final class MmmUi
         }
     }
 
-    public static void drawMmmTopBar(DrawContext context, TextRenderer renderer, int width)
+    public static void drawMmmTopBar(GuiGraphicsExtractor context, Font renderer, int width)
     {
         context.fill(0, 0, width, TOP_BAR_HEIGHT, menuSurface(0xF0060606));
         MmmUi.drawBorder(context, 0, 0, width, TOP_BAR_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, accent());
         drawTextWithin(context, renderer, "MMM", 26, 10, 40, accent(), false);
-        int versionWidth = renderer.getWidth(Reference.MOD_VERSION);
+        int versionWidth = renderer.width(Reference.MOD_VERSION);
         int versionSpace = width >= 300 ? versionWidth + 24 : 0;
         int brandWidth = Math.max(0, width - 68 - versionSpace - 12);
         if (brandWidth >= 72)
@@ -279,66 +277,66 @@ public final class MmmUi
         return false;
     }
 
-    public static void drawSectionHeading(DrawContext context, TextRenderer renderer, String title, int x, int y, int maxWidth)
+    public static void drawSectionHeading(GuiGraphicsExtractor context, Font renderer, String title, int x, int y, int maxWidth)
     {
-        int textHeight = renderer.fontHeight;
+        int textHeight = renderer.lineHeight;
         context.fill(x, y, x + 4, y + textHeight, accent());
         drawTextWithin(context, renderer, title, x + 12, y, maxWidth - 12, TEXT, false);
     }
 
-    public static void card(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
+    public static void card(GuiGraphicsExtractor context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
         context.fill(x, y, x + width, y + height, menuSurface(fillColor));
         MmmUi.drawBorder(context, x, y, width, height, borderColor);
     }
 
-    public static void drawBorder(DrawContext context, int x, int y, int width, int height, int color)
+    public static void drawBorder(GuiGraphicsExtractor context, int x, int y, int width, int height, int color)
     {
-        context.drawStrokedRectangle(x, y, width, height, color);
+        context.outline(x, y, width, height, color);
     }
 
-    public static void fieldShell(DrawContext context, int x, int y, int width, int height, boolean focused)
+    public static void fieldShell(GuiGraphicsExtractor context, int x, int y, int width, int height, boolean focused)
     {
         card(context, x, y, width, height, INSET, focused ? accent() : BORDER_SOFT);
     }
 
-    public static void pill(DrawContext context, TextRenderer renderer, int x, int y, int width, int height, String text)
+    public static void pill(GuiGraphicsExtractor context, Font renderer, int x, int y, int width, int height, String text)
     {
         card(context, x, y, width, height, CARD, accent());
         String clipped = truncate(renderer, text, width - 8);
-        int textX = x + Math.max(4, (width - renderer.getWidth(clipped)) / 2);
-        context.drawText(renderer, Text.literal(clipped), textX, y + 4, accent(), false);
+        int textX = x + Math.max(4, (width - renderer.width(clipped)) / 2);
+        context.text(renderer, Component.literal(clipped), textX, y + 4, accent(), false);
     }
 
-    public static void statusChip(DrawContext context, TextRenderer renderer, int x, int y, String text, int borderColor)
+    public static void statusChip(GuiGraphicsExtractor context, Font renderer, int x, int y, String text, int borderColor)
     {
-        int width = renderer.getWidth(text) + 14;
+        int width = renderer.width(text) + 14;
         card(context, x, y, width, 16, INSET, borderColor);
         drawTextWithin(context, renderer, text, x + 7, y + 4, width - 14, TEXT, false);
     }
 
-    public static void wrappedText(DrawContext context, TextRenderer renderer, String text, int x, int y, int maxWidth, int color)
+    public static void wrappedText(GuiGraphicsExtractor context, Font renderer, String text, int x, int y, int maxWidth, int color)
     {
-        List<OrderedText> lines = renderer.wrapLines(Text.literal(text).setStyle(Style.EMPTY), maxWidth);
+        List<FormattedCharSequence> lines = renderer.split(Component.literal(text).setStyle(Style.EMPTY), maxWidth);
         int lineY = y;
-        for (OrderedText line : lines)
+        for (FormattedCharSequence line : lines)
         {
-            context.drawText(renderer, line, x, lineY, color, false);
+            context.text(renderer, line, x, lineY, color, false);
             lineY += 10;
         }
     }
 
-    public static void drawTextWithin(DrawContext context, TextRenderer renderer, String value, int x, int y, int maxWidth, int color, boolean shadow)
+    public static void drawTextWithin(GuiGraphicsExtractor context, Font renderer, String value, int x, int y, int maxWidth, int color, boolean shadow)
     {
         if (maxWidth <= 0)
         {
             return;
         }
 
-        context.drawText(renderer, Text.literal(truncate(renderer, value, maxWidth)), x, y, color, shadow);
+        context.text(renderer, Component.literal(truncate(renderer, value, maxWidth)), x, y, color, shadow);
     }
 
-    public static void drawTextRightWithin(DrawContext context, TextRenderer renderer, String value, int rightX, int y, int maxWidth, int color, boolean shadow)
+    public static void drawTextRightWithin(GuiGraphicsExtractor context, Font renderer, String value, int rightX, int y, int maxWidth, int color, boolean shadow)
     {
         if (maxWidth <= 0)
         {
@@ -346,10 +344,10 @@ public final class MmmUi
         }
 
         String clipped = truncate(renderer, value, maxWidth);
-        context.drawText(renderer, Text.literal(clipped), rightX - renderer.getWidth(clipped), y, color, shadow);
+        context.text(renderer, Component.literal(clipped), rightX - renderer.width(clipped), y, color, shadow);
     }
 
-    public static String truncate(TextRenderer renderer, String value, int maxWidth)
+    public static String truncate(Font renderer, String value, int maxWidth)
     {
         if (value == null)
         {
@@ -359,23 +357,23 @@ public final class MmmUi
         {
             return "";
         }
-        if (renderer.getWidth(value) <= maxWidth)
+        if (renderer.width(value) <= maxWidth)
         {
             return value;
         }
 
         String ellipsis = "...";
-        if (renderer.getWidth(ellipsis) > maxWidth)
+        if (renderer.width(ellipsis) > maxWidth)
         {
             return "";
         }
 
         String trimmed = value;
-        while (trimmed.length() > 1 && renderer.getWidth(trimmed + ellipsis) > maxWidth)
+        while (trimmed.length() > 1 && renderer.width(trimmed + ellipsis) > maxWidth)
         {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
-        if (renderer.getWidth(trimmed + ellipsis) > maxWidth)
+        if (renderer.width(trimmed + ellipsis) > maxWidth)
         {
             return ellipsis;
         }
@@ -384,7 +382,7 @@ public final class MmmUi
 
     private static void openSidebarRoute(Screen current, Screen parent, SidebarRoute route)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null)
         {
             return;
@@ -393,14 +391,14 @@ public final class MmmUi
         Screen routeParent = parent != null ? parent : current;
         switch (route)
         {
-            case SETTINGS -> client.setScreen(new MmmSettingsScreen(routeParent));
-            case HOTKEYS -> client.setScreen(new GuiConfigs(routeParent));
-            case PROJECTS -> client.setScreen(new ProjectManagerScreen(routeParent));
-            case PROFILE -> client.setScreen(new PlayerProfileScreen(routeParent));
-            case WEBSITE_LINK -> client.setScreen(new WebsiteLinkScreen(routeParent));
-            case HISTORY -> client.setScreen(new SessionHistoryScreen(routeParent));
-            case SUMMARY -> client.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), routeParent));
-            case SCOREBOARD -> client.setScreen(new ScoreboardScreen(routeParent));
+            case SETTINGS -> client.gui.setScreen(new MmmSettingsScreen(routeParent));
+            case HOTKEYS -> client.gui.setScreen(new GuiConfigs(routeParent));
+            case PROJECTS -> client.gui.setScreen(new ProjectManagerScreen(routeParent));
+            case PROFILE -> client.gui.setScreen(new PlayerProfileScreen(routeParent));
+            case WEBSITE_LINK -> client.gui.setScreen(new WebsiteLinkScreen(routeParent));
+            case HISTORY -> client.gui.setScreen(new SessionHistoryScreen(routeParent));
+            case SUMMARY -> client.gui.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), routeParent));
+            case SCOREBOARD -> client.gui.setScreen(new ScoreboardScreen(routeParent));
         }
     }
 

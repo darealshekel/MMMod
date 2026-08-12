@@ -8,18 +8,18 @@ import com.mmm.config.Hotkeys;
 import com.mmm.hotkey.HotkeyChordCapture;
 import com.mmm.hotkey.MmmHotkey;
 import com.mmm.ui.MmmUi;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 public final class GuiConfigs extends CompatScreen
@@ -38,7 +38,7 @@ public final class GuiConfigs extends CompatScreen
     private int listTop;
     private int listBottom;
     private MmmHotkey capturing;
-    private TextFieldWidget searchField;
+    private EditBox searchField;
     private String searchQuery = "";
 
     public GuiConfigs()
@@ -48,7 +48,7 @@ public final class GuiConfigs extends CompatScreen
 
     public GuiConfigs(Screen parent)
     {
-        super(Text.literal("Hotkeys"));
+        super(Component.literal("Hotkeys"));
         this.parent = parent;
     }
 
@@ -61,55 +61,55 @@ public final class GuiConfigs extends CompatScreen
     protected void init()
     {
         MmmUi.ensureCursorVisible();
-        this.clearChildren();
-        this.searchField = new TextFieldWidget(this.textRenderer, 0, 0, SEARCH_WIDTH - 10, SEARCH_HEIGHT, Text.literal("Search hotkeys"));
-        this.searchField.setDrawsBackground(false);
-        this.searchField.setEditableColor(MmmUi.TEXT);
-        this.searchField.setUneditableColor(MmmUi.MUTED);
+        this.clearWidgets();
+        this.searchField = new EditBox(this.font, 0, 0, SEARCH_WIDTH - 10, SEARCH_HEIGHT, Component.literal("Search hotkeys"));
+        this.searchField.setBordered(false);
+        this.searchField.setTextColor(MmmUi.TEXT);
+        this.searchField.setTextColorUneditable(MmmUi.MUTED);
         this.searchField.setMaxLength(64);
-        this.searchField.setPlaceholder(Text.literal("Search hotkeys..."));
-        this.searchField.setText(this.searchQuery);
-        this.searchField.setChangedListener(value -> {
+        this.searchField.setHint(Component.literal("Search hotkeys..."));
+        this.searchField.setValue(this.searchQuery);
+        this.searchField.setResponder(value -> {
             this.searchQuery = value;
             this.scrollOffset = 0;
         });
-        this.addDrawableChild(this.searchField);
+        this.addRenderableWidget(this.searchField);
 
         this.listTop = MmmUi.TOP_BAR_HEIGHT + 62;
         this.listBottom = this.height - 10;
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         // MMM draws its own opaque background; suppress Minecraft's menu blur.
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
         Configs.saveToFile();
-        if (this.client != null)
+        if (this.minecraft != null)
         {
-            this.client.setScreen(this.parent);
+            this.minecraft.gui.setScreen(this.parent);
         }
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "HOTKEYS");
+        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "HOTKEYS");
         int left = MmmUi.contentLeft(this.width);
         int contentWidth = MmmUi.contentWidth(this.width);
         int listWidth = Math.max(1, Math.min(contentWidth, MAX_LIST_WIDTH));
-        context.drawText(this.textRenderer, Text.literal("HOTKEYS"), left + 8, MmmUi.TOP_BAR_HEIGHT + 10, MmmUi.accent(), false);
+        context.text(this.font, Component.literal("HOTKEYS"), left + 8, MmmUi.TOP_BAR_HEIGHT + 10, MmmUi.accent(), false);
 
         this.rowTargets.clear();
         int searchX = left + 8;
@@ -127,9 +127,9 @@ public final class GuiConfigs extends CompatScreen
             boolean clearHovered = inside(mouseX, mouseY, clearX, searchY, 18, SEARCH_HEIGHT);
             MmmUi.card(context, clearX, searchY, 18, SEARCH_HEIGHT, clearHovered ? MmmUi.accentHover() : MmmUi.INSET,
                     clearHovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
-            MmmUi.drawTextWithin(context, this.textRenderer, "X", clearX + 6, searchY + 6, 8, MmmUi.TEXT, false);
+            MmmUi.drawTextWithin(context, this.font, "X", clearX + 6, searchY + 6, 8, MmmUi.TEXT, false);
             this.rowTargets.add(new RowTarget(clearX, searchY, 18, SEARCH_HEIGHT, () -> {
-                this.searchField.setText("");
+                this.searchField.setValue("");
                 this.searchField.setFocused(true);
             }));
         }
@@ -156,7 +156,7 @@ public final class GuiConfigs extends CompatScreen
 
         if (rows.isEmpty())
         {
-            MmmUi.drawTextWithin(context, this.textRenderer, "No hotkeys match your search.", left + 16, top + 12,
+            MmmUi.drawTextWithin(context, this.font, "No hotkeys match your search.", left + 16, top + 12,
                     listWidth - 32, MmmUi.MUTED, false);
         }
 
@@ -169,17 +169,17 @@ public final class GuiConfigs extends CompatScreen
             context.fill(trackX, top, trackX + 2, bottom, MmmUi.SCROLLBAR_TRACK);
             context.fill(trackX, thumbY, trackX + 2, thumbY + thumbHeight, MmmUi.scrollbarThumb());
         }
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
     }
 
-    private void drawRow(DrawContext context, Row row, int x, int y, int width, int mouseX, int mouseY)
+    private void drawRow(GuiGraphicsExtractor context, Row row, int x, int y, int width, int mouseX, int mouseY)
     {
         MmmUi.card(context, x, y, width, ROW_HEIGHT, MmmUi.CARD, MmmUi.BORDER_SOFT);
         int hotkeyWidth = Math.min(HOTKEY_WIDTH, Math.max(60, width / 5));
         int hotkeyX = x + width - hotkeyWidth - 10;
         int labelWidth = Math.max(40, hotkeyX - x - 20);
-        MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x + 9, y + 5, labelWidth, MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x + 9, y + 17, labelWidth, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, row.label(), x + 9, y + 5, labelWidth, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.font, row.description(), x + 9, y + 17, labelWidth, MmmUi.MUTED, false);
 
         String hotkeyStorage = this.capturing == row.hotkey()
                 ? (this.chordCapture.isEmpty()
@@ -194,7 +194,7 @@ public final class GuiConfigs extends CompatScreen
         boolean hotkeyHovered = inside(mouseX, mouseY, hotkeyX, y + 7, hotkeyWidth, 18);
         MmmUi.card(context, hotkeyX, y + 7, hotkeyWidth, 18, MmmUi.INSET,
                 hotkeyHovered || this.capturing == row.hotkey() ? MmmUi.accent() : MmmUi.BORDER_SOFT);
-        MmmUi.drawTextWithin(context, this.textRenderer, hotkeyLabel, hotkeyX + 5, y + 12, hotkeyWidth - 10, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.font, hotkeyLabel, hotkeyX + 5, y + 12, hotkeyWidth - 10, MmmUi.TEXT, false);
         this.rowTargets.add(new RowTarget(hotkeyX, y + 7, hotkeyWidth, 18, () -> beginCapture(row.hotkey())));
     }
 
@@ -284,17 +284,17 @@ public final class GuiConfigs extends CompatScreen
 
         if (keyCode == GLFW.GLFW_KEY_ESCAPE)
         {
-            if (this.searchField != null && !this.searchField.getText().isBlank())
+            if (this.searchField != null && !this.searchField.getValue().isBlank())
             {
-                this.searchField.setText("");
+                this.searchField.setValue("");
                 return true;
             }
-            this.close();
+            this.onClose();
             return true;
         }
 
         if (this.searchField != null && this.searchField.isFocused()
-                && this.searchField.keyPressed(new KeyInput(keyCode, scanCode, 0)))
+                && this.searchField.keyPressed(new KeyEvent(keyCode, scanCode, 0)))
         {
             return true;
         }
@@ -332,7 +332,7 @@ public final class GuiConfigs extends CompatScreen
                 && (Character.isLetterOrDigit(chr) || Character.isWhitespace(chr)))
         {
             this.searchField.setFocused(true);
-            return this.searchField.charTyped(new CharInput(chr, modifiers));
+            return this.searchField.charTyped(new CharacterEvent(chr));
         }
         return false;
     }
@@ -386,7 +386,7 @@ public final class GuiConfigs extends CompatScreen
 
     private static String keyName(int keyCode, int scanCode)
     {
-        String key = InputUtil.fromKeyCode(new KeyInput(keyCode, scanCode, 0)).getTranslationKey();
+        String key = InputConstants.getKey(new KeyEvent(keyCode, scanCode, 0)).getName();
         if (key.startsWith("key.keyboard."))
         {
             key = key.substring("key.keyboard.".length());

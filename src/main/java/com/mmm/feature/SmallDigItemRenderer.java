@@ -2,13 +2,11 @@ package com.mmm.feature;
 
 import com.mmm.config.Configs;
 import com.mmm.util.BlockBreakdownCatalog;
-
-import net.minecraft.block.Block;
-import net.minecraft.client.render.model.json.Transformation;
-import net.minecraft.item.ItemDisplayContext;
-import net.minecraft.item.BlockItem;
-import net.minecraft.item.ItemStack;
-
+import net.minecraft.client.resources.model.cuboid.ItemTransform;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 import org.joml.Vector3f;
 
 public final class SmallDigItemRenderer
@@ -61,7 +59,7 @@ public final class SmallDigItemRenderer
         return ACTIVE_SCALE.get();
     }
 
-    public static Transformation applyActiveScale(Transformation transform)
+    public static ItemTransform applyActiveScale(ItemTransform transform)
     {
         float scale = getActiveScale();
         if (transform == null || scale >= 1.0F)
@@ -70,7 +68,7 @@ public final class SmallDigItemRenderer
         }
 
         Vector3f scaled = new Vector3f(scale, scale, scale);
-        return new Transformation(transform.rotation(), transform.translation(), scaled);
+        return new ItemTransform(transform.rotation(), transform.translation(), scaled);
     }
 
     private static boolean isScaledContext(ItemDisplayContext displayContext)

@@ -2,7 +2,7 @@ package com.mmm.hotkey;
 
 import com.mmm.config.FeatureToggle;
 import com.mmm.config.Hotkeys;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 public final class MmmHotkeyManager
 {
@@ -10,7 +10,7 @@ public final class MmmHotkeyManager
     {
     }
 
-    public static void tick(MinecraftClient client)
+    public static void tick(Minecraft client)
     {
         for (MmmHotkey hotkey : Hotkeys.HOTKEY_LIST)
         {
@@ -22,7 +22,7 @@ public final class MmmHotkeyManager
         }
     }
 
-    public static void onKeyEvent(MinecraftClient client, int keyCode, int scanCode, int action)
+    public static void onKeyEvent(Minecraft client, int keyCode, int scanCode, int action)
     {
         for (MmmHotkey hotkey : Hotkeys.HOTKEY_LIST)
         {

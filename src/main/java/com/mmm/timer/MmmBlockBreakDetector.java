@@ -3,16 +3,14 @@ package com.mmm.timer;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import com.mmm.config.FeatureToggle;
 import com.mmm.tracker.MiningStats;
 import com.mmm.util.BlockBreakdownCatalog;
-
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.GameMode;
 
 public final class MmmBlockBreakDetector
 {
@@ -30,13 +28,13 @@ public final class MmmBlockBreakDetector
             return;
         }
 
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (isSurvivalMiningMode(client) == false || client.world == null)
+        Minecraft client = Minecraft.getInstance();
+        if (isSurvivalMiningMode(client) == false || client.level == null)
         {
             return;
         }
 
-        BlockState state = client.world.getBlockState(pos);
+        BlockState state = client.level.getBlockState(pos);
         if (state == null || state.isAir())
         {
             return;
@@ -48,12 +46,12 @@ public final class MmmBlockBreakDetector
             return;
         }
 
-        trackedBlocks.put(pos.toImmutable(), new TrackedBlock(block, state, System.currentTimeMillis()));
+        trackedBlocks.put(pos.immutable(), new TrackedBlock(block, state, System.currentTimeMillis()));
     }
 
-    public static void onClientTick(MinecraftClient client)
+    public static void onClientTick(Minecraft client)
     {
-        if (client == null || client.world == null || client.player == null || trackedBlocks.isEmpty())
+        if (client == null || client.level == null || client.player == null || trackedBlocks.isEmpty())
         {
             return;
         }
@@ -71,7 +69,7 @@ public final class MmmBlockBreakDetector
                 continue;
             }
 
-            if (client.world.getBlockState(pos).isAir())
+            if (client.level.getBlockState(pos).isAir())
             {
                 MiningStats.recordBlockMined(tracked.block(), pos, tracked.state());
                 iterator.remove();
@@ -84,15 +82,15 @@ public final class MmmBlockBreakDetector
         trackedBlocks.clear();
     }
 
-    private static boolean isSurvivalMiningMode(MinecraftClient client)
+    private static boolean isSurvivalMiningMode(Minecraft client)
     {
-        if (client == null || client.player == null || client.interactionManager == null)
+        if (client == null || client.player == null || client.gameMode == null)
         {
             return false;
         }
 
-        GameMode gameMode = client.interactionManager.getCurrentGameMode();
-        return gameMode == GameMode.SURVIVAL && client.player.isCreative() == false && client.player.isSpectator() == false;
+        GameType gameMode = client.gameMode.getPlayerMode();
+        return gameMode == GameType.SURVIVAL && client.player.isCreative() == false && client.player.isSpectator() == false;
     }
 
     private record TrackedBlock(Block block, BlockState state, long createdAtMs) {}

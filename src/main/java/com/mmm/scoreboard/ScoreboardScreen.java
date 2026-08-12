@@ -6,7 +6,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import com.mmm.config.Configs;
 import com.mmm.ui.MmmUi;
 
@@ -18,10 +21,6 @@ import com.mmm.config.value.IConfigOptionListEntry;
 import com.mmm.config.value.IConfigResettable;
 import com.mmm.config.value.ConfigOptionList;
 import com.mmm.util.MmmMessages;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.text.Text;
 
 public final class ScoreboardScreen extends CompatScreen
 {
@@ -44,7 +43,7 @@ public final class ScoreboardScreen extends CompatScreen
 
     public ScoreboardScreen(Screen parent)
     {
-        super(Text.literal("Scoreboard"));
+        super(Component.literal("Scoreboard"));
         this.parent = parent;
     }
 
@@ -52,7 +51,7 @@ public final class ScoreboardScreen extends CompatScreen
     protected void init()
     {
         MmmUi.ensureCursorVisible();
-        this.clearChildren();
+        this.clearWidgets();
         this.sections.clear();
 
         this.sections.add(new Section("DISPLAY", "Choose what the sidebar shows.", List.of(
@@ -65,7 +64,7 @@ public final class ScoreboardScreen extends CompatScreen
                 this.toggle("Short Scores", "Display large values as 100k or 2.5M.", Configs.Generic.SCOREBOARD_SCORE_ABBREVIATED))));
 
         this.sections.add(new Section("LAYOUT", "Control row order, size, and position.", List.of(
-                this.action("Move Scoreboard", "Drag and resize the live sidebar.", () -> this.client.setScreen(new ScoreboardMoveScreen(this))),
+                this.action("Move Scoreboard", "Drag and resize the live sidebar.", () -> this.minecraft.gui.setScreen(new ScoreboardMoveScreen(this))),
                 this.option("Sort Rows", "Sort by score or player name.", Configs.Generic.SCOREBOARD_SORTING),
                 this.slider("Rows Per Page", "Maximum rows visible at once.", Configs.Generic.SCOREBOARD_MAX_ENTRIES, ValueStyle.INTEGER),
                 this.option("Position", "Anchor the sidebar to either side.", Configs.Generic.SCOREBOARD_POSITION),
@@ -86,19 +85,19 @@ public final class ScoreboardScreen extends CompatScreen
                 this.action("Next Page", "Move forward through long scoreboards.", this::nextPage),
                 this.action("Export Current", "Save this objective as a CSV file.", this::exportCurrent),
                 this.action("Record Snapshot", "Keep this objective for a combined export.", this::recordCurrent),
-                this.action("Manage Records", "Reorder, remove, or export saved snapshots.", () -> this.client.setScreen(new ScoreboardRecordsScreen(this))),
+                this.action("Manage Records", "Reorder, remove, or export saved snapshots.", () -> this.minecraft.gui.setScreen(new ScoreboardRecordsScreen(this))),
                 this.action("Edit Scores", "Edit rows when the server grants permission.", this::openEditor))));
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.ensureCursorVisible();
         this.clickTargets.clear();
         this.sliderTargets.clear();
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
+        MmmUi.drawMmmTopBar(context, this.font, this.width);
 
         int viewportX = MmmUi.contentLeft(this.width);
         int viewportY = TOP_HEIGHT;
@@ -106,16 +105,16 @@ public final class ScoreboardScreen extends CompatScreen
         int viewportH = Math.max(1, this.height - viewportY - MmmUi.pagePad(this.width));
         context.enableScissor(viewportX, viewportY, viewportX + viewportW, viewportY + viewportH);
         this.layoutAndDraw(context, viewportX, viewportY, viewportW, viewportH, mouseX, mouseY);
-        super.render(context, mouseX, mouseY, delta);
+        super.extractRenderState(context, mouseX, mouseY, delta);
         context.disableScissor();
         this.drawScrollbar(context, viewportX + viewportW - 3, viewportY, viewportH);
     }
 
-    private void layoutAndDraw(DrawContext context, int x, int viewportY, int width, int viewportH, int mouseX, int mouseY)
+    private void layoutAndDraw(GuiGraphicsExtractor context, int x, int viewportY, int width, int viewportH, int mouseX, int mouseY)
     {
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
-        MmmUi.drawTextWithin(context, this.textRenderer, "SCOREBOARD", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Tune the vanilla sidebar and work with its live data.", x, y + 16, width, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, "SCOREBOARD", x, y, width, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, "Tune the vanilla sidebar and work with its live data.", x, y + 16, width, MmmUi.MUTED, false);
         y += 46;
 
         boolean twoColumns = width >= TWO_COLUMN_MIN_WIDTH;
@@ -142,11 +141,11 @@ public final class ScoreboardScreen extends CompatScreen
         this.contentHeight = Math.max(leftY, rightY) - viewportY + (int) Math.round(this.scrollY);
     }
 
-    private void drawSection(DrawContext context, Section section, int x, int y, int width, int height, int viewportY, int viewportH, int mouseX, int mouseY)
+    private void drawSection(GuiGraphicsExtractor context, Section section, int x, int y, int width, int height, int viewportY, int viewportH, int mouseX, int mouseY)
     {
         MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, section.title(), x + CARD_PAD, y + 12, width - CARD_PAD * 2);
-        MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, MmmUi.MUTED, false);
+        MmmUi.drawSectionHeading(context, this.font, section.title(), x + CARD_PAD, y + 12, width - CARD_PAD * 2);
+        MmmUi.drawTextWithin(context, this.font, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, MmmUi.MUTED, false);
 
         int rowY = y + CARD_HEADER;
         for (ControlRow row : section.rows())
@@ -157,7 +156,7 @@ public final class ScoreboardScreen extends CompatScreen
         }
     }
 
-    private void drawControlRow(DrawContext context, ControlRow row, int x, int y, int width,
+    private void drawControlRow(GuiGraphicsExtractor context, ControlRow row, int x, int y, int width,
                                 int viewportY, int viewportH, int mouseX, int mouseY)
     {
         context.fill(x, y, x + width, y + 1, MmmUi.BORDER_SOFT);
@@ -170,8 +169,8 @@ public final class ScoreboardScreen extends CompatScreen
         int controlY = y + 7;
         int labelW = Math.max(30, controlX - x - 8);
 
-        MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x, y + 7, labelW, MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x, y + 18, labelW, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, row.label(), x, y + 7, labelW, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.font, row.description(), x, y + 18, labelW, MmmUi.MUTED, false);
 
         switch (row.kind())
         {
@@ -191,7 +190,7 @@ public final class ScoreboardScreen extends CompatScreen
         }
     }
 
-    private void drawBooleanControl(DrawContext context, IConfigBase config, int x, int y, int width,
+    private void drawBooleanControl(GuiGraphicsExtractor context, IConfigBase config, int x, int y, int width,
                                     int mouseX, int mouseY, boolean visible)
     {
         boolean enabled = config instanceof IConfigBoolean booleanConfig && booleanConfig.getBooleanValue();
@@ -199,8 +198,8 @@ public final class ScoreboardScreen extends CompatScreen
         context.fill(x, y, x + width, y + FIELD_HEIGHT, enabled ? MmmUi.accent() : MmmUi.INSET);
         MmmUi.drawBorder(context, x, y, width, FIELD_HEIGHT, hovered || enabled ? MmmUi.accent() : MmmUi.BORDER_SOFT);
         String label = enabled ? "ON" : "OFF";
-        int labelX = x + Math.max(4, (width - this.textRenderer.getWidth(label)) / 2);
-        context.drawText(this.textRenderer, Text.literal(label), labelX, y + 6,
+        int labelX = x + Math.max(4, (width - this.font.width(label)) / 2);
+        context.text(this.font, Component.literal(label), labelX, y + 6,
                 enabled ? MmmUi.TEXT : MmmUi.MUTED, false);
         if (visible)
         {
@@ -214,7 +213,7 @@ public final class ScoreboardScreen extends CompatScreen
         }
     }
 
-    private void drawOptionControl(DrawContext context, IConfigBase config, int x, int y, int width,
+    private void drawOptionControl(GuiGraphicsExtractor context, IConfigBase config, int x, int y, int width,
                                    int mouseX, int mouseY, boolean visible)
     {
         String label = config instanceof ConfigOptionList optionList
@@ -233,7 +232,7 @@ public final class ScoreboardScreen extends CompatScreen
         }
     }
 
-    private void drawSliderControl(DrawContext context, IConfigBase config, ValueStyle style, int x, int y, int width,
+    private void drawSliderControl(GuiGraphicsExtractor context, IConfigBase config, ValueStyle style, int x, int y, int width,
                                    int mouseX, int mouseY, boolean visible)
     {
         double min;
@@ -267,15 +266,15 @@ public final class ScoreboardScreen extends CompatScreen
         context.fill(thumbX, y + 3, thumbX + 4, y + FIELD_HEIGHT - 3, MmmUi.accent());
 
         String value = formatValue(current, style);
-        int valueX = x + Math.max(0, (width - this.textRenderer.getWidth(value)) / 2);
-        context.drawText(this.textRenderer, Text.literal(value), valueX, y + 5, MmmUi.TEXT, true);
+        int valueX = x + Math.max(0, (width - this.font.width(value)) / 2);
+        context.text(this.font, Component.literal(value), valueX, y + 5, MmmUi.TEXT, true);
         if (visible)
         {
             this.sliderTargets.add(new SliderTarget(x, y, width, FIELD_HEIGHT, config));
         }
     }
 
-    private void drawActionControl(DrawContext context, ControlRow row, int x, int y, int width,
+    private void drawActionControl(GuiGraphicsExtractor context, ControlRow row, int x, int y, int width,
                                    int mouseX, int mouseY, boolean visible)
     {
         this.drawButtonShell(context, x, y, width, FIELD_HEIGHT, row.label(), mouseX, mouseY, false);
@@ -285,15 +284,15 @@ public final class ScoreboardScreen extends CompatScreen
         }
     }
 
-    private void drawButtonShell(DrawContext context, int x, int y, int width, int height, String label,
+    private void drawButtonShell(GuiGraphicsExtractor context, int x, int y, int width, int height, String label,
                                  int mouseX, int mouseY, boolean subtle)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
         context.fill(x, y, x + width, y + height, subtle ? MmmUi.INSET : hovered ? MmmUi.accentHover() : MmmUi.INSET);
         MmmUi.drawBorder(context, x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
-        String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
-        int labelX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), labelX, y + 6,
+        String clipped = MmmUi.truncate(this.font, label, width - 8);
+        int labelX = x + Math.max(4, (width - this.font.width(clipped)) / 2);
+        context.text(this.font, Component.literal(clipped), labelX, y + 6,
                 hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
     }
 
@@ -389,8 +388,8 @@ public final class ScoreboardScreen extends CompatScreen
 
     private void openEditor()
     {
-        ScoreboardService.getSidebarObjective(MinecraftClient.getInstance())
-                .ifPresentOrElse(objective -> this.client.setScreen(new ScoreboardEditScreen(this, objective)),
+        ScoreboardService.getSidebarObjective(Minecraft.getInstance())
+                .ifPresentOrElse(objective -> this.minecraft.gui.setScreen(new ScoreboardEditScreen(this, objective)),
                         () -> MmmMessages.actionbar("No scoreboard is available to edit"));
     }
 
@@ -457,7 +456,7 @@ public final class ScoreboardScreen extends CompatScreen
         return true;
     }
 
-    private void drawScrollbar(DrawContext context, int x, int y, int height)
+    private void drawScrollbar(GuiGraphicsExtractor context, int x, int y, int height)
     {
         int maxScroll = Math.max(0, this.contentHeight - height);
         if (maxScroll <= 0)
@@ -472,26 +471,26 @@ public final class ScoreboardScreen extends CompatScreen
     }
 
     @Override
-    public void close()
+    public void onClose()
     {
-        MinecraftClient.getInstance().setScreen(this.parent);
+        Minecraft.getInstance().gui.setScreen(this.parent);
     }
 
     @Override
-    public boolean shouldPause()
+    public boolean isPauseScreen()
     {
         return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
     }
 
-    private static Text optionText(ConfigOptionList config)
+    private static Component optionText(ConfigOptionList config)
     {
         return config.getOptionListValue() instanceof IConfigOptionListEntry entry
-                ? Text.literal(entry.getDisplayName()) : Text.literal(config.getStringValue());
+                ? Component.literal(entry.getDisplayName()) : Component.literal(config.getStringValue());
     }
 
     private static String formatValue(double current, ValueStyle style)

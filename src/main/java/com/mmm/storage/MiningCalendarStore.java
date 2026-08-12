@@ -17,7 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 /** Cross-version, UUID-scoped local history of accepted valid block breaks. */
 public final class MiningCalendarStore
@@ -168,9 +168,9 @@ public final class MiningCalendarStore
 
     private static void activateCurrentPlayer()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         String playerKey = client != null && client.player != null
-                ? client.player.getUuidAsString()
+                ? client.player.getStringUUID()
                 : activePlayerKey;
         activatePlayer(playerKey);
     }

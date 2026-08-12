@@ -9,13 +9,12 @@ import com.mmm.tags.TierTagManager;
 import com.mmm.timer.MmmBlockBreakDetector;
 import com.mmm.timer.MmmTimerState;
 import com.mmm.timer.TimerCreditsScreen;
-
+import net.minecraft.client.Minecraft;
 import com.mmm.hotkey.MmmHotkeyManager;
-import net.minecraft.client.MinecraftClient;
 
 public class ClientTickHandler
 {
-    public void onClientTick(MinecraftClient mc)
+    public void onClientTick(Minecraft mc)
     {
         if (mc == null)
         {
@@ -30,17 +29,17 @@ public class ClientTickHandler
         PublicChatClient.onClientTick(mc);
         TierTagManager.onClientTick(mc);
 
-        if (MmmTimerState.consumeCreditsPending() && mc.currentScreen == null)
+        if (MmmTimerState.consumeCreditsPending() && mc.gui.screen() == null)
         {
-            mc.setScreen(new TimerCreditsScreen(null));
+            mc.gui.setScreen(new TimerCreditsScreen(null));
             return;
         }
 
         SessionData pending = WorldLoadListener.consumePendingSummary();
-        if (pending != null && mc.player == null && mc.world == null)
+        if (pending != null && mc.player == null && mc.level == null)
         {
             String worldName = WorldLoadListener.consumePendingSummaryName();
-            mc.setScreen(SummaryScreen.worldExit(pending, mc.currentScreen, worldName));
+            mc.gui.setScreen(SummaryScreen.worldExit(pending, mc.gui.screen(), worldName));
             return;
         }
     }

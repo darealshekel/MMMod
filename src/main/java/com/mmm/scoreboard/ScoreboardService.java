@@ -21,16 +21,16 @@ import com.mmm.config.Configs.ScoreboardSorting;
 import com.mmm.tags.TierTagManager;
 
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
-import net.minecraft.scoreboard.ScoreboardEntry;
-import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.scoreboard.Team;
-import net.minecraft.scoreboard.number.NumberFormat;
-import net.minecraft.scoreboard.number.StyledNumberFormat;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.numbers.NumberFormat;
+import net.minecraft.network.chat.numbers.StyledFormat;
+import net.minecraft.world.scores.DisplaySlot;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.PlayerScoreEntry;
+import net.minecraft.world.scores.PlayerTeam;
+import net.minecraft.world.scores.Scoreboard;
 
 public final class ScoreboardService
 {
@@ -42,53 +42,53 @@ public final class ScoreboardService
     {
     }
 
-    public static Optional<ScoreboardObjective> getSidebarObjective(MinecraftClient client)
+    public static Optional<Objective> getSidebarObjective(Minecraft client)
     {
-        if (client == null || client.world == null || client.player == null)
+        if (client == null || client.level == null || client.player == null)
         {
             return Optional.empty();
         }
 
-        Scoreboard scoreboard = client.world.getScoreboard();
-        ScoreboardObjective objective = null;
-        Team team = scoreboard.getScoreHolderTeam(client.player.getNameForScoreboard());
+        Scoreboard scoreboard = client.level.getScoreboard();
+        Objective objective = null;
+        PlayerTeam team = scoreboard.getPlayersTeam(client.player.getScoreboardName());
         if (team != null)
         {
-            ScoreboardDisplaySlot teamSlot = ScoreboardDisplaySlot.fromFormatting(team.getColor());
+            DisplaySlot teamSlot = team.getColor().map(color -> color.displaySlot()).orElse(null);
             if (teamSlot != null)
             {
-                objective = scoreboard.getObjectiveForSlot(teamSlot);
+                objective = scoreboard.getDisplayObjective(teamSlot);
             }
         }
         if (objective == null)
         {
-            objective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+            objective = scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR);
         }
         return Optional.ofNullable(objective);
     }
 
-    public static List<ScoreboardEntry> getSortedEntries(ScoreboardObjective objective)
+    public static List<PlayerScoreEntry> getSortedEntries(Objective objective)
     {
         if (objective == null)
         {
             return List.of();
         }
 
-        List<ScoreboardEntry> entries = new ArrayList<>(objective.getScoreboard().getScoreboardEntries(objective));
-        entries.removeIf(ScoreboardEntry::hidden);
+        List<PlayerScoreEntry> entries = new ArrayList<>(objective.getScoreboard().listPlayerScores(objective));
+        entries.removeIf(PlayerScoreEntry::isHidden);
         entries.sort(comparator());
         return entries;
     }
 
-    public static List<RenderEntry> getRenderEntries(ScoreboardObjective objective)
+    public static List<RenderEntry> getRenderEntries(Objective objective)
     {
-        List<ScoreboardEntry> entries = getSortedEntries(objective);
+        List<PlayerScoreEntry> entries = getSortedEntries(objective);
         return getRenderEntries(objective, entries, 0, entries.size());
     }
 
     public static List<RenderEntry> getRenderEntries(
-            ScoreboardObjective objective,
-            List<ScoreboardEntry> sortedEntries,
+            Objective objective,
+            List<PlayerScoreEntry> sortedEntries,
             int fromIndex,
             int toIndex)
     {
@@ -100,42 +100,42 @@ public final class ScoreboardService
         int from = Math.max(0, Math.min(fromIndex, sortedEntries.size()));
         int to = Math.max(from, Math.min(toIndex, sortedEntries.size()));
         Scoreboard scoreboard = objective.getScoreboard();
-        NumberFormat numberFormat = objective.getNumberFormatOr(StyledNumberFormat.RED);
+        NumberFormat numberFormat = objective.numberFormatOrDefault(StyledFormat.SIDEBAR_DEFAULT);
         List<RenderEntry> rows = new ArrayList<>(to - from);
         for (int index = from; index < to; index++)
         {
-            ScoreboardEntry entry = sortedEntries.get(index);
-            Team team = scoreboard.getScoreHolderTeam(entry.owner());
-            MutableText name = Team.decorateName(team, entry.name());
-            MutableText tierName = TierTagManager.decorateName(entry.owner(), name);
+            PlayerScoreEntry entry = sortedEntries.get(index);
+            PlayerTeam team = scoreboard.getPlayersTeam(entry.owner());
+            MutableComponent name = PlayerTeam.formatNameForTeam(team, entry.ownerName());
+            MutableComponent tierName = TierTagManager.decorateName(entry.owner(), name);
             if (tierName != null)
             {
                 name = tierName;
             }
-            Text score = formatScore(entry, numberFormat);
+            Component score = formatScore(entry, numberFormat);
             rows.add(new RenderEntry(entry.owner(), name, score, entry.value()));
         }
         return rows;
     }
 
-    public static Text formatScore(ScoreboardEntry entry, NumberFormat numberFormat)
+    public static Component formatScore(PlayerScoreEntry entry, NumberFormat numberFormat)
     {
         if (!Configs.Generic.SCOREBOARD_SCORES_VISIBLE.getBooleanValue())
         {
-            return Text.empty();
+            return Component.empty();
         }
-        MutableText vanilla = entry.formatted(numberFormat);
+        MutableComponent vanilla = entry.formatValue(numberFormat);
         if (!vanilla.getString().equals(Integer.toString(entry.value())))
         {
             return vanilla;
         }
         if (Configs.Generic.SCOREBOARD_SCORE_ABBREVIATED.getBooleanValue())
         {
-            return Text.literal(formatAbbreviated(entry.value())).setStyle(vanilla.getStyle());
+            return Component.literal(formatAbbreviated(entry.value())).setStyle(vanilla.getStyle());
         }
         if (Configs.Generic.SCOREBOARD_SCORE_COMMAS.getBooleanValue())
         {
-            return Text.literal(COMMA_FORMAT.format(entry.value())).setStyle(vanilla.getStyle());
+            return Component.literal(COMMA_FORMAT.format(entry.value())).setStyle(vanilla.getStyle());
         }
         return vanilla;
     }
@@ -151,14 +151,14 @@ public final class ScoreboardService
         {
             return false;
         }
-        Optional<ScoreboardObjective> objective = getSidebarObjective(MinecraftClient.getInstance());
+        Optional<Objective> objective = getSidebarObjective(Minecraft.getInstance());
         int count = objective.map(value -> getSortedEntries(value).size()).orElse(0);
         return ScoreboardState.pageDown(count, Configs.Generic.SCOREBOARD_MAX_ENTRIES.getIntegerValue());
     }
 
     public static ScoreboardState.Snapshot recordCurrent() throws IOException
     {
-        ScoreboardObjective objective = getSidebarObjective(MinecraftClient.getInstance())
+        Objective objective = getSidebarObjective(Minecraft.getInstance())
                 .orElseThrow(() -> new IOException("No sidebar scoreboard is visible"));
         List<ScoreboardState.SnapshotRow> rows = getSortedEntries(objective).stream()
                 .map(entry -> new ScoreboardState.SnapshotRow(entry.owner(), entry.value()))
@@ -171,7 +171,7 @@ public final class ScoreboardService
 
     public static Path exportCurrent() throws IOException
     {
-        ScoreboardObjective objective = getSidebarObjective(MinecraftClient.getInstance())
+        Objective objective = getSidebarObjective(Minecraft.getInstance())
                 .orElseThrow(() -> new IOException("No sidebar scoreboard is visible"));
         Path target = exportDirectory().resolve(safeFileName(objective.getName()) + ".csv");
         try (BufferedWriter writer = Files.newBufferedWriter(target, StandardCharsets.UTF_8,
@@ -179,7 +179,7 @@ public final class ScoreboardService
         {
             writer.write("Player,Score");
             writer.newLine();
-            for (ScoreboardEntry entry : getSortedEntries(objective))
+            for (PlayerScoreEntry entry : getSortedEntries(objective))
             {
                 writer.write(csv(entry.owner()));
                 writer.write(',');
@@ -260,19 +260,19 @@ public final class ScoreboardService
         return (value < 0 ? "-" : "") + formatted + ABBREVIATION_SUFFIXES[suffix];
     }
 
-    private static Comparator<ScoreboardEntry> comparator()
+    private static Comparator<PlayerScoreEntry> comparator()
     {
         ScoreboardSorting sorting = (ScoreboardSorting) Configs.Generic.SCOREBOARD_SORTING.getOptionListValue();
-        Comparator<ScoreboardEntry> byName = Comparator.comparing(
-                entry -> entry.name().getString(), String.CASE_INSENSITIVE_ORDER);
+        Comparator<PlayerScoreEntry> byName = Comparator.comparing(
+                entry -> entry.ownerName().getString(), String.CASE_INSENSITIVE_ORDER);
         return switch (sorting)
         {
-            case SCORE_DESCENDING -> Comparator.comparingInt(ScoreboardEntry::value).reversed()
-                    .thenComparing(ScoreboardEntry::owner, String.CASE_INSENSITIVE_ORDER);
-            case SCORE_ASCENDING -> Comparator.comparingInt(ScoreboardEntry::value)
-                    .thenComparing(ScoreboardEntry::owner, String.CASE_INSENSITIVE_ORDER);
-            case NAME_DESCENDING -> byName.reversed().thenComparingInt(ScoreboardEntry::value);
-            case NAME_ASCENDING -> byName.thenComparingInt(ScoreboardEntry::value);
+            case SCORE_DESCENDING -> Comparator.comparingInt(PlayerScoreEntry::value).reversed()
+                    .thenComparing(PlayerScoreEntry::owner, String.CASE_INSENSITIVE_ORDER);
+            case SCORE_ASCENDING -> Comparator.comparingInt(PlayerScoreEntry::value)
+                    .thenComparing(PlayerScoreEntry::owner, String.CASE_INSENSITIVE_ORDER);
+            case NAME_DESCENDING -> byName.reversed().thenComparingInt(PlayerScoreEntry::value);
+            case NAME_ASCENDING -> byName.thenComparingInt(PlayerScoreEntry::value);
         };
     }
 
@@ -295,7 +295,7 @@ public final class ScoreboardService
         return '"' + safe.replace("\"", "\"\"") + '"';
     }
 
-    public record RenderEntry(String owner, Text name, Text score, int value)
+    public record RenderEntry(String owner, Component name, Component score, int value)
     {
     }
 

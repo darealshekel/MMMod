@@ -1,21 +1,21 @@
 package com.mmm.ui;
 
-import net.minecraft.client.gui.Click;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
-import net.minecraft.text.Text;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
 
 /** Bridges the typed 1.21.11 input API to MMM's version-neutral screen callbacks. */
 public abstract class CompatScreen extends Screen
 {
-    protected CompatScreen(Text title)
+    protected CompatScreen(Component title)
     {
         super(title);
     }
 
     @Override
-    public boolean mouseClicked(Click click, boolean doubleClick)
+    public boolean mouseClicked(MouseButtonEvent click, boolean doubleClick)
     {
         return this.mouseClicked(click.x(), click.y(), click.button()) || super.mouseClicked(click, doubleClick);
     }
@@ -26,7 +26,7 @@ public abstract class CompatScreen extends Screen
     }
 
     @Override
-    public boolean mouseDragged(Click click, double deltaX, double deltaY)
+    public boolean mouseDragged(MouseButtonEvent click, double deltaX, double deltaY)
     {
         return this.mouseDragged(click.x(), click.y(), click.button(), deltaX, deltaY)
                 || super.mouseDragged(click, deltaX, deltaY);
@@ -38,7 +38,7 @@ public abstract class CompatScreen extends Screen
     }
 
     @Override
-    public boolean mouseReleased(Click click)
+    public boolean mouseReleased(MouseButtonEvent click)
     {
         return this.mouseReleased(click.x(), click.y(), click.button()) || super.mouseReleased(click);
     }
@@ -49,7 +49,7 @@ public abstract class CompatScreen extends Screen
     }
 
     @Override
-    public boolean keyPressed(KeyInput input)
+    public boolean keyPressed(KeyEvent input)
     {
         return this.keyPressed(input.key(), input.scancode(), input.modifiers()) || super.keyPressed(input);
     }
@@ -60,7 +60,7 @@ public abstract class CompatScreen extends Screen
     }
 
     @Override
-    public boolean keyReleased(KeyInput input)
+    public boolean keyReleased(KeyEvent input)
     {
         return this.keyReleased(input.key(), input.scancode(), input.modifiers()) || super.keyReleased(input);
     }
@@ -71,11 +71,11 @@ public abstract class CompatScreen extends Screen
     }
 
     @Override
-    public boolean charTyped(CharInput input)
+    public boolean charTyped(CharacterEvent input)
     {
         int codepoint = input.codepoint();
         boolean handled = codepoint <= Character.MAX_VALUE
-                && this.charTyped((char)codepoint, input.modifiers());
+                && this.charTyped((char)codepoint, 0);
         return handled || super.charTyped(input);
     }
 
