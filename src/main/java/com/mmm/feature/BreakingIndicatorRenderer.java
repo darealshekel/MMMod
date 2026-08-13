@@ -23,7 +23,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.shape.VoxelShape;
-import org.joml.Matrix4f;
+import net.minecraft.util.math.Matrix4f;
 
 public final class BreakingIndicatorRenderer
 {
@@ -82,16 +82,17 @@ public final class BreakingIndicatorRenderer
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         try
         {
-            RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+            RenderSystem.setShader(GameRenderer::getPositionColorShader);
             BufferBuilder fillBuffer = Tessellator.getInstance().getBuffer();
             fillBuffer.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
             for (int index = 0; index < indicatorCount; index++)
             {
                 renderFill(client, matrices, fillBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
             }
-            BufferRenderer.drawWithGlobalProgram(fillBuffer.end());
+            fillBuffer.end();
+            BufferRenderer.draw(fillBuffer);
 
-            RenderSystem.setShader(GameRenderer::getRenderTypeLinesProgram);
+            RenderSystem.setShader(GameRenderer::getRenderTypeLinesShader);
             RenderSystem.lineWidth(2.0F);
             BufferBuilder lineBuffer = Tessellator.getInstance().getBuffer();
             lineBuffer.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
@@ -99,7 +100,8 @@ public final class BreakingIndicatorRenderer
             {
                 renderOutline(client, matrices, lineBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
             }
-            BufferRenderer.drawWithGlobalProgram(lineBuffer.end());
+            lineBuffer.end();
+            BufferRenderer.draw(lineBuffer);
         }
         finally
         {
@@ -128,7 +130,7 @@ public final class BreakingIndicatorRenderer
             ownProgress = 0.0F;
         }
         else if ((ownPos == null || ownProgress <= 0.0F)
-                && client.options.attackKey.isPressed()
+                && client.options.keyAttack.isPressed()
                 && client.crosshairTarget instanceof BlockHitResult hit
                 && hit.getType() == HitResult.Type.BLOCK)
         {
@@ -196,7 +198,7 @@ public final class BreakingIndicatorRenderer
                                                 Box box,
                                                 Color4f color)
     {
-        Matrix4f matrix = matrices.peek().getPositionMatrix();
+        Matrix4f matrix = matrices.peek().getModel();
         double centerX = (box.minX + box.maxX) * 0.5D;
         double centerY = (box.minY + box.maxY) * 0.5D;
         double centerZ = (box.minZ + box.maxZ) * 0.5D;
@@ -243,10 +245,10 @@ public final class BreakingIndicatorRenderer
                              double x4, double y4, double z4,
                              Color4f color)
     {
-        buffer.vertex(matrix, (float) x1, (float) y1, (float) z1).color(color.r, color.g, color.b, color.a);
-        buffer.vertex(matrix, (float) x2, (float) y2, (float) z2).color(color.r, color.g, color.b, color.a);
-        buffer.vertex(matrix, (float) x3, (float) y3, (float) z3).color(color.r, color.g, color.b, color.a);
-        buffer.vertex(matrix, (float) x4, (float) y4, (float) z4).color(color.r, color.g, color.b, color.a);
+        buffer.vertex(matrix, (float) x1, (float) y1, (float) z1).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(matrix, (float) x2, (float) y2, (float) z2).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(matrix, (float) x3, (float) y3, (float) z3).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(matrix, (float) x4, (float) y4, (float) z4).color(color.r, color.g, color.b, color.a).next();
     }
 
     private static void renderOutline(MinecraftClient client,

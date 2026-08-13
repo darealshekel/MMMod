@@ -25,7 +25,7 @@ class AtomicJsonStorageTest
 
         AtomicJsonStorage.write(target, value, true);
 
-        JsonObject stored = JsonParser.parseString(Files.readString(target)).getAsJsonObject();
+        JsonObject stored = new JsonParser().parse(Files.readString(target)).getAsJsonObject();
         assertEquals(35_000, stored.get("dailyGoal").getAsInt());
     }
 
@@ -42,9 +42,9 @@ class AtomicJsonStorageTest
         AtomicJsonStorage.write(target, first, true);
         AtomicJsonStorage.write(target, second, true);
 
-        JsonObject backup = JsonParser.parseString(Files.readString(AtomicJsonStorage.backupPath(target))).getAsJsonObject();
+        JsonObject backup = new JsonParser().parse(Files.readString(AtomicJsonStorage.backupPath(target))).getAsJsonObject();
         assertEquals(1, backup.get("value").getAsInt());
-        assertEquals(2, JsonParser.parseString(Files.readString(target)).getAsJsonObject().get("value").getAsInt());
+        assertEquals(2, new JsonParser().parse(Files.readString(target)).getAsJsonObject().get("value").getAsInt());
     }
 
     @Test
@@ -83,8 +83,8 @@ class AtomicJsonStorageTest
 
         AtomicJsonStorage.write(target, third, true);
 
-        assertEquals(1, JsonParser.parseString(Files.readString(AtomicJsonStorage.backupPath(target))).getAsJsonObject().get("value").getAsInt());
-        assertEquals(3, JsonParser.parseString(Files.readString(target)).getAsJsonObject().get("value").getAsInt());
+        assertEquals(1, new JsonParser().parse(Files.readString(AtomicJsonStorage.backupPath(target))).getAsJsonObject().get("value").getAsInt());
+        assertEquals(3, new JsonParser().parse(Files.readString(target)).getAsJsonObject().get("value").getAsInt());
     }
     @Test
     void migrationBackupIsCreatedOnlyOnce()

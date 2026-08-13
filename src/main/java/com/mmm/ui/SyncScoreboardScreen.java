@@ -5,12 +5,13 @@ import com.mmm.util.UiFormat;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-public final class SyncScoreboardScreen extends Screen
+public final class SyncScoreboardScreen extends MmmScreen
 {
     private static final int ROW_HEIGHT = 42;
     private static final int ROW_GAP = 5;
@@ -21,7 +22,7 @@ public final class SyncScoreboardScreen extends Screen
 
     public SyncScoreboardScreen(Screen parent)
     {
-        super(Text.literal("Sync Scoreboard"));
+        super(new net.minecraft.text.LiteralText("Sync Scoreboard"));
         this.parent = parent;
     }
 
@@ -112,7 +113,7 @@ public final class SyncScoreboardScreen extends Screen
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
         MmmUi.card(context, x, y, width, height, hovered ? MmmUi.accentHover() : MmmUi.INSET,
                 hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(label),
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(label),
                 x + Math.max(3, (width - this.textRenderer.getWidth(label)) / 2), y + 6,
                 hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, height, action));

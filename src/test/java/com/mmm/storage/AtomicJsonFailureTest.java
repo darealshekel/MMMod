@@ -33,7 +33,7 @@ class AtomicJsonFailureTest
         invalidReplacement.addProperty("weeklyBlocksMined", 0L);
         assertThrows(IOException.class, () -> AtomicJsonStorage.write(target, invalidReplacement, true));
 
-        JsonObject stored = JsonParser.parseString(Files.readString(target)).getAsJsonObject();
+        JsonObject stored = new JsonParser().parse(Files.readString(target)).getAsJsonObject();
         assertEquals(456_789L, stored.get("weeklyBlocksMined").getAsLong());
     }
 }

@@ -12,7 +12,7 @@ import com.mmm.tracker.MiningStats;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.text.OrderedText;
@@ -302,7 +302,7 @@ public final class MmmUi
         card(context, x, y, width, height, CARD, accent());
         String clipped = truncate(renderer, text, width - 8);
         int textX = x + Math.max(4, (width - renderer.getWidth(clipped)) / 2);
-        context.drawText(renderer, Text.literal(clipped), textX, y + 4, accent(), false);
+        context.drawText(renderer, new net.minecraft.text.LiteralText(clipped), textX, y + 4, accent(), false);
     }
 
     public static void statusChip(DrawContext context, TextRenderer renderer, int x, int y, String text, int borderColor)
@@ -314,7 +314,7 @@ public final class MmmUi
 
     public static void wrappedText(DrawContext context, TextRenderer renderer, String text, int x, int y, int maxWidth, int color)
     {
-        List<OrderedText> lines = renderer.wrapLines(Text.literal(text).setStyle(Style.EMPTY), maxWidth);
+        List<OrderedText> lines = renderer.wrapLines(new net.minecraft.text.LiteralText(text).setStyle(Style.EMPTY), maxWidth);
         int lineY = y;
         for (OrderedText line : lines)
         {
@@ -330,7 +330,7 @@ public final class MmmUi
             return;
         }
 
-        context.drawText(renderer, Text.literal(truncate(renderer, value, maxWidth)), x, y, color, shadow);
+        context.drawText(renderer, new net.minecraft.text.LiteralText(truncate(renderer, value, maxWidth)), x, y, color, shadow);
     }
 
     public static void drawTextRightWithin(DrawContext context, TextRenderer renderer, String value, int rightX, int y, int maxWidth, int color, boolean shadow)
@@ -341,7 +341,7 @@ public final class MmmUi
         }
 
         String clipped = truncate(renderer, value, maxWidth);
-        context.drawText(renderer, Text.literal(clipped), rightX - renderer.getWidth(clipped), y, color, shadow);
+        context.drawText(renderer, new net.minecraft.text.LiteralText(clipped), rightX - renderer.getWidth(clipped), y, color, shadow);
     }
 
     public static String truncate(TextRenderer renderer, String value, int maxWidth)
@@ -420,8 +420,8 @@ public final class MmmUi
     public static void positionWidget(ClickableWidget widget, int width, int x, int y)
     {
         widget.setWidth(width);
-        widget.setX(x);
-        widget.setY(y);
+        widget.x = x;
+        widget.y = y;
     }
 
     private enum SidebarRoute

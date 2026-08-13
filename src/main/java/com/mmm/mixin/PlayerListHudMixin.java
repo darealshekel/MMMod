@@ -8,7 +8,10 @@ import com.mmm.tracker.MiningStats;
 import com.mmm.tags.TierTagManager;
 import com.mmm.util.UiFormat;
 
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawableHelper;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.gui.hud.PlayerListHud;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.scoreboard.Scoreboard;
@@ -48,16 +51,16 @@ public abstract class PlayerListHudMixin
             method = "render",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/DrawContext;fill(IIIII)V"))
-    private void mmm$renderTransparentTabBackground(DrawContext context, int x1, int y1, int x2, int y2, int color)
+                    target = "Lnet/minecraft/client/gui/hud/PlayerListHud;fill(Lnet/minecraft/client/util/math/MatrixStack;IIIII)V"))
+    private void mmm$renderTransparentTabBackground(MatrixStack matrices, int x1, int y1, int x2, int y2, int color)
     {
         if (!Configs.Generic.TRANSPARENT_TAB.getBooleanValue())
         {
-            context.fill(x1, y1, x2, y2, color);
+            DrawableHelper.fill(matrices, x1, y1, x2, y2, color);
         }
     }
     @Inject(method = "render", at = @At("HEAD"))
-    private void mmm$addDailyGoalToPlayerList(DrawContext context, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)
+    private void mmm$addDailyGoalToPlayerList(MatrixStack matrices, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)
     {
         if (!FeatureToggle.MMM_MINING_TRACKER.getBooleanValue()
                 || !FeatureToggle.MMM_DAILY_GOAL.getBooleanValue())
@@ -73,20 +76,20 @@ public abstract class PlayerListHudMixin
 
         String value = String.format(Locale.US, "%,d/%,d", Math.max(0L, progress.current()), Math.max(0L, progress.target()));
         int goalColor = UiFormat.getGoalProgressColor(progress) & 0x00FFFFFF;
-        MutableText goalLine = Text.literal("Daily Goal: ").formatted(Formatting.GRAY)
-                .append(Text.literal(value).formatted(Formatting.WHITE))
-                .append(Text.literal("  " + UiFormat.formatGoalPercent(progress))
+        MutableText goalLine = new net.minecraft.text.LiteralText("Daily Goal: ").formatted(Formatting.GRAY)
+                .append(new net.minecraft.text.LiteralText(value).formatted(Formatting.WHITE))
+                .append(new net.minecraft.text.LiteralText("  " + UiFormat.formatGoalPercent(progress))
                         .styled(style -> style.withColor(goalColor)));
 
         this.mmm$originalFooter = this.footer;
         this.footer = this.mmm$originalFooter == null
                 ? goalLine
-                : Text.empty().append(this.mmm$originalFooter).append(Text.literal("\n")).append(goalLine);
+                : new net.minecraft.text.LiteralText("").append(this.mmm$originalFooter).append(new net.minecraft.text.LiteralText("\n")).append(goalLine);
         this.mmm$goalFooterAdded = true;
     }
 
     @Inject(method = "render", at = @At("RETURN"))
-    private void mmm$restorePlayerListHeader(DrawContext context, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)
+    private void mmm$restorePlayerListHeader(MatrixStack matrices, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)
     {
         if (this.mmm$goalFooterAdded)
         {

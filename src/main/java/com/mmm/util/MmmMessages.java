@@ -14,7 +14,7 @@ public final class MmmMessages
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null)
         {
-            client.player.sendMessage(Text.literal(format.formatted(args)), true);
+            client.player.sendMessage(new net.minecraft.text.LiteralText(format.formatted(args)), true);
         }
     }
 
@@ -23,7 +23,7 @@ public final class MmmMessages
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player != null)
         {
-            client.player.sendMessage(Text.literal(message), false);
+            client.player.sendMessage(new net.minecraft.text.LiteralText(message), false);
         }
     }
 }

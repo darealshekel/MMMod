@@ -12,12 +12,13 @@ import java.util.List;
 import com.mmm.sound.GoalSoundLibrary;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
+import com.mmm.compat.ButtonWidget;
 import net.minecraft.text.Text;
 
-public class GoalSoundSettingsScreen extends Screen
+public class GoalSoundSettingsScreen extends MmmScreen
 {
     private static final int BUTTON_HEIGHT = 20;
     private static final int GAP = 8;
@@ -34,7 +35,7 @@ public class GoalSoundSettingsScreen extends Screen
 
     public GoalSoundSettingsScreen(Screen parent)
     {
-        super(Text.literal("Milestone Sounds"));
+        super(new net.minecraft.text.LiteralText("Milestone Sounds"));
         this.parent = parent;
     }
 
@@ -48,21 +49,21 @@ public class GoalSoundSettingsScreen extends Screen
 
         for (int threshold : GoalSoundLibrary.MILESTONES)
         {
-            ButtonWidget button = ButtonWidget.builder(Text.empty(), ignored -> this.selectThreshold(threshold))
+            ButtonWidget button = ButtonWidget.builder(new net.minecraft.text.LiteralText(""), ignored -> this.selectThreshold(threshold))
                     .dimensions(0, 0, 1, BUTTON_HEIGHT)
                     .build();
             this.thresholdButtons.add(this.addDrawableChild(button));
         }
-        this.chooseButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Choose OGG"), ignored -> this.chooseSound())
+        this.chooseButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Choose OGG"), ignored -> this.chooseSound())
                 .dimensions(0, 0, 1, BUTTON_HEIGHT)
                 .build());
-        this.previewButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Preview"), ignored -> GoalSoundLibrary.play(this.selectedThreshold))
+        this.previewButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Preview"), ignored -> GoalSoundLibrary.play(this.selectedThreshold))
                 .dimensions(0, 0, 1, BUTTON_HEIGHT)
                 .build());
-        this.resetButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Use Default"), ignored -> this.resetSound())
+        this.resetButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Use Default"), ignored -> this.resetSound())
                 .dimensions(0, 0, 1, BUTTON_HEIGHT)
                 .build());
-        this.doneButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), ignored -> this.close())
+        this.doneButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Done"), ignored -> this.close())
                 .dimensions(0, 0, 1, BUTTON_HEIGHT)
                 .build());
         this.updateBounds(layout);
@@ -216,7 +217,7 @@ public class GoalSoundSettingsScreen extends Screen
         {
             int threshold = GoalSoundLibrary.MILESTONES.get(index);
             String label = threshold == this.selectedThreshold ? "[ " + threshold + "% ]" : threshold + "%";
-            this.thresholdButtons.get(index).setMessage(Text.literal(label));
+            this.thresholdButtons.get(index).setMessage(new net.minecraft.text.LiteralText(label));
         }
         if (this.resetButton != null)
         {

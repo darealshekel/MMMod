@@ -11,14 +11,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
+import com.mmm.compat.TextFieldWidget;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-public final class GuiConfigs extends Screen
+public final class GuiConfigs extends MmmScreen
 {
     private static final int ROW_HEIGHT = 32;
     private static final int ROW_GAP = 4;
@@ -44,7 +45,7 @@ public final class GuiConfigs extends Screen
 
     public GuiConfigs(Screen parent)
     {
-        super(Text.literal("Hotkeys"));
+        super(new net.minecraft.text.LiteralText("Hotkeys"));
         this.parent = parent;
     }
 
@@ -58,12 +59,12 @@ public final class GuiConfigs extends Screen
     {
         MmmUi.ensureCursorVisible();
         this.clearChildren();
-        this.searchField = new TextFieldWidget(this.textRenderer, 0, 0, SEARCH_WIDTH - 10, SEARCH_HEIGHT, Text.literal("Search hotkeys"));
+        this.searchField = new TextFieldWidget(this.textRenderer, 0, 0, SEARCH_WIDTH - 10, SEARCH_HEIGHT, new net.minecraft.text.LiteralText("Search hotkeys"));
         this.searchField.setDrawsBackground(false);
         this.searchField.setEditableColor(MmmUi.TEXT);
         this.searchField.setUneditableColor(MmmUi.MUTED);
         this.searchField.setMaxLength(64);
-        this.searchField.setPlaceholder(Text.literal("Search hotkeys..."));
+        this.searchField.setPlaceholder(new net.minecraft.text.LiteralText("Search hotkeys..."));
         this.searchField.setText(this.searchQuery);
         this.searchField.setChangedListener(value -> {
             this.searchQuery = value;
@@ -105,7 +106,7 @@ public final class GuiConfigs extends Screen
         int left = MmmUi.contentLeft(this.width);
         int contentWidth = MmmUi.contentWidth(this.width);
         int listWidth = Math.max(1, Math.min(contentWidth, MAX_LIST_WIDTH));
-        context.drawText(this.textRenderer, Text.literal("HOTKEYS"), left + 8, MmmUi.TOP_BAR_HEIGHT + 10, MmmUi.accent(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("HOTKEYS"), left + 8, MmmUi.TOP_BAR_HEIGHT + 10, MmmUi.accent(), false);
 
         this.rowTargets.clear();
         int searchX = left + 8;

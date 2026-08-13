@@ -12,14 +12,15 @@ import com.mmm.compat.ScoreboardCompat.Entry;
 
 import com.mmm.util.MmmMessages;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
+import com.mmm.compat.ButtonWidget;
+import com.mmm.compat.TextFieldWidget;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.text.Text;
 
-public final class ScoreboardEditScreen extends Screen
+public final class ScoreboardEditScreen extends MmmScreen
 {
     private static final int ROW_HEIGHT = 30;
 
@@ -40,7 +41,7 @@ public final class ScoreboardEditScreen extends Screen
 
     public ScoreboardEditScreen(Screen parent, ScoreboardObjective objective)
     {
-        super(Text.literal("Edit Scoreboard"));
+        super(new net.minecraft.text.LiteralText("Edit Scoreboard"));
         this.parent = parent;
         this.objective = objective;
         for (Entry entry : ScoreboardCompat.entries(objective))
@@ -59,28 +60,28 @@ public final class ScoreboardEditScreen extends Screen
         MmmUi.ensureCursorVisible();
         this.clearChildren();
         this.rowWidgets.clear();
-        this.addButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Add Row"), ignored -> this.addRow())
+        this.addButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Add Row"), ignored -> this.addRow())
                 .dimensions(0, 0, 76, 18).build());
-        this.sortButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Sort: " + this.sortMode.label), ignored -> this.cycleSort())
+        this.sortButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Sort: " + this.sortMode.label), ignored -> this.cycleSort())
                 .dimensions(0, 0, 96, 18).build());
-        this.directionButton = this.addDrawableChild(ButtonWidget.builder(Text.literal(this.descending ? "Descending" : "Ascending"), ignored -> this.toggleDirection())
+        this.directionButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText(this.descending ? "Descending" : "Ascending"), ignored -> this.toggleDirection())
                 .dimensions(0, 0, 82, 18).build());
-        this.saveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Save"), ignored -> this.save())
+        this.saveButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Save"), ignored -> this.save())
                 .dimensions(0, 0, 70, 18).build());
-        this.backButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), ignored -> this.close())
+        this.backButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Back"), ignored -> this.close())
                 .dimensions(0, 0, 70, 18).build());
         this.saveButton.active = this.client != null && this.client.player != null && this.client.player.hasPermissionLevel(2);
 
         for (int index = 0; index < this.rows.size(); index++)
         {
             RowModel model = this.rows.get(index);
-            TextFieldWidget name = new TextFieldWidget(this.textRenderer, 0, 0, 160, 18, Text.literal("Player name"));
+            TextFieldWidget name = new TextFieldWidget(this.textRenderer, 0, 0, 160, 18, new net.minecraft.text.LiteralText("Player name"));
             name.setMaxLength(40);
             name.setText(model.name);
             name.setChangedListener(value -> model.name = value);
             this.addDrawableChild(name);
 
-            TextFieldWidget score = new TextFieldWidget(this.textRenderer, 0, 0, 100, 18, Text.literal("Score"));
+            TextFieldWidget score = new TextFieldWidget(this.textRenderer, 0, 0, 100, 18, new net.minecraft.text.LiteralText("Score"));
             score.setMaxLength(11);
             score.setTextPredicate(value -> value.isEmpty() || value.equals("-") || value.matches("-?\\d{0,10}"));
             score.setText(Integer.toString(model.score));
@@ -96,7 +97,7 @@ public final class ScoreboardEditScreen extends Screen
             this.addDrawableChild(score);
 
             int capturedIndex = index;
-            ButtonWidget delete = this.addDrawableChild(ButtonWidget.builder(Text.literal("Delete"), ignored -> this.deleteRow(capturedIndex))
+            ButtonWidget delete = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Delete"), ignored -> this.deleteRow(capturedIndex))
                     .dimensions(0, 0, 58, 18).build());
             this.rowWidgets.add(new RowWidgets(name, score, delete));
         }
@@ -197,7 +198,7 @@ public final class ScoreboardEditScreen extends Screen
     private void cycleSort()
     {
         this.sortMode = this.sortMode.next();
-        this.sortButton.setMessage(Text.literal("Sort: " + this.sortMode.label));
+        this.sortButton.setMessage(new net.minecraft.text.LiteralText("Sort: " + this.sortMode.label));
         this.sortRows();
         this.clearAndInit();
     }
@@ -265,8 +266,8 @@ public final class ScoreboardEditScreen extends Screen
         {
             if (!desired.containsKey(name))
             {
-                this.client.player.networkHandler.sendChatCommand(
-                        "scoreboard players reset " + commandToken(name) + " " + commandToken(this.objective.getName()));
+                this.client.player.sendChatMessage(
+                        "/scoreboard players reset " + commandToken(name) + " " + commandToken(this.objective.getName()));
                 changes++;
             }
         }
@@ -274,8 +275,8 @@ public final class ScoreboardEditScreen extends Screen
         {
             if (!entry.getValue().equals(current.get(entry.getKey())))
             {
-                this.client.player.networkHandler.sendChatCommand(
-                        "scoreboard players set " + commandToken(entry.getKey()) + " "
+                this.client.player.sendChatMessage(
+                        "/scoreboard players set " + commandToken(entry.getKey()) + " "
                                 + commandToken(this.objective.getName()) + " " + entry.getValue());
                 changes++;
             }

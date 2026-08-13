@@ -9,13 +9,14 @@ import com.mmm.util.UiFormat;
 import java.util.Comparator;
 import java.util.Map;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
+import com.mmm.compat.ButtonWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Util;
 
-public class PlayerProfileScreen extends Screen
+public class PlayerProfileScreen extends MmmScreen
 {
     private static final String WEBSITE_BASE_URL = "https://www.mmmaniacs.com/player/";
     private static final int PANEL_PADDING = 18;
@@ -27,7 +28,7 @@ public class PlayerProfileScreen extends Screen
 
     public PlayerProfileScreen(Screen parent)
     {
-        super(Text.literal("Player Profile"));
+        super(new net.minecraft.text.LiteralText("Player Profile"));
         this.parent = parent;
     }
 
@@ -38,12 +39,12 @@ public class PlayerProfileScreen extends Screen
         WebsiteProfileTotals.refresh(false);
         this.clearChildren();
         Layout layout = computeLayout();
-        ButtonWidget profileButton = ButtonWidget.builder(Text.literal("Open Website Profile"), button -> openWebsiteProfile())
+        ButtonWidget profileButton = ButtonWidget.builder(new net.minecraft.text.LiteralText("Open Website Profile"), button -> openWebsiteProfile())
                 .dimensions(layout.panelRight - 196, layout.headerY - 2, 118, BUTTON_HEIGHT)
                 .build();
         profileButton.active = hasProfileName();
         this.addDrawableChild(profileButton);
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close())
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Done"), button -> close())
                 .dimensions(layout.panelRight - 70, layout.headerY - 2, 60, BUTTON_HEIGHT)
                 .build());
     }
@@ -220,10 +221,10 @@ public class PlayerProfileScreen extends Screen
             return;
         }
         int drawX = x + width - CARD_PADDING - numberWidth - suffixWidth;
-        context.drawText(this.textRenderer, Text.literal(number), drawX, y, Configs.getHudNumberColor(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(number), drawX, y, Configs.getHudNumberColor(), false);
         if (suffix.isEmpty() == false)
         {
-            context.drawText(this.textRenderer, Text.literal(suffix), drawX + numberWidth, y, MmmUi.TEXT, false);
+            context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(suffix), drawX + numberWidth, y, MmmUi.TEXT, false);
         }
     }
 
@@ -247,11 +248,11 @@ public class PlayerProfileScreen extends Screen
             return;
         }
         int drawX = x + width - CARD_PADDING - totalWidth;
-        context.drawText(this.textRenderer, Text.literal(leftText), drawX, y, Configs.getHudNumberColor(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(leftText), drawX, y, Configs.getHudNumberColor(), false);
         drawX += this.textRenderer.getWidth(leftText);
-        context.drawText(this.textRenderer, Text.literal(separator), drawX, y, MmmUi.TEXT, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(separator), drawX, y, MmmUi.TEXT, false);
         drawX += this.textRenderer.getWidth(separator);
-        context.drawText(this.textRenderer, Text.literal(rightText), drawX, y, Configs.getHudNumberColor(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(rightText), drawX, y, Configs.getHudNumberColor(), false);
     }
 
     private String syncLabel()

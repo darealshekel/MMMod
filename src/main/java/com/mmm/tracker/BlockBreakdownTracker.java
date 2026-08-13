@@ -8,7 +8,7 @@ import java.util.Map;
 import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket;
-import net.minecraft.registry.Registries;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.stat.Stats;
 
 public final class BlockBreakdownTracker
@@ -67,7 +67,7 @@ public final class BlockBreakdownTracker
         }
 
         Map<String, Long> minedBlocks = new LinkedHashMap<>();
-        for (Block block : Registries.BLOCK)
+        for (Block block : Registry.BLOCK)
         {
             int count = client.player.getStatHandler().getStat(Stats.MINED, block);
             if (count <= 0)
@@ -75,7 +75,7 @@ public final class BlockBreakdownTracker
                 continue;
             }
 
-            String blockId = Registries.BLOCK.getId(block).toString();
+            String blockId = Registry.BLOCK.getId(block).toString();
             if (BlockBreakdownCatalog.isValid(blockId))
             {
                 minedBlocks.put(blockId, (long) count);

@@ -131,7 +131,7 @@ public final class PublicChatClient
                         }
                         try
                         {
-                            JsonObject body = JsonParser.parseString(response.body()).getAsJsonObject();
+                            JsonObject body = new JsonParser().parse(response.body()).getAsJsonObject();
                             if (body.has("ok") == false
                                     || body.get("ok").isJsonPrimitive() == false
                                     || body.get("ok").getAsBoolean() == false
@@ -314,7 +314,7 @@ public final class PublicChatClient
                 {
                     if (data.isEmpty() == false)
                     {
-                        JsonObject event = JsonParser.parseString(data.toString()).getAsJsonObject();
+                        JsonObject event = new JsonParser().parse(data.toString()).getAsJsonObject();
                         if ("chat".equals(eventName))
                         {
                             handleChatEvent(event);
@@ -399,9 +399,9 @@ public final class PublicChatClient
             {
                 return;
             }
-            MutableText message = Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
-                    .append(Text.literal(username).styled(style -> style.withColor(MmmUi.accent() & 0x00FFFFFF)))
-                    .append(Text.literal(": " + messageText).formatted(Formatting.WHITE));
+            MutableText message = new net.minecraft.text.LiteralText("[MMM] ").formatted(Formatting.DARK_GRAY)
+                    .append(new net.minecraft.text.LiteralText(username).styled(style -> style.withColor(MmmUi.accent() & 0x00FFFFFF)))
+                    .append(new net.minecraft.text.LiteralText(": " + messageText).formatted(Formatting.WHITE));
             client.player.sendMessage(message, false);
         });
     }
@@ -427,13 +427,13 @@ public final class PublicChatClient
                 case 100 -> " completed today's goal";
                 default -> " pushed today's goal further";
             };
-            MutableText message = Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
-                    .append(Text.literal(username).formatted(Formatting.WHITE))
-                    .append(Text.literal(milestoneMessage + " (").formatted(Formatting.GRAY))
-                    .append(Text.literal(threshold + "% - ").styled(style -> style.withColor(color)))
-                    .append(Text.literal(String.format(Locale.US, "%,d / %,d", current, target))
+            MutableText message = new net.minecraft.text.LiteralText("[MMM] ").formatted(Formatting.DARK_GRAY)
+                    .append(new net.minecraft.text.LiteralText(username).formatted(Formatting.WHITE))
+                    .append(new net.minecraft.text.LiteralText(milestoneMessage + " (").formatted(Formatting.GRAY))
+                    .append(new net.minecraft.text.LiteralText(threshold + "% - ").styled(style -> style.withColor(color)))
+                    .append(new net.minecraft.text.LiteralText(String.format(Locale.US, "%,d / %,d", current, target))
                             .styled(style -> style.withColor(color)))
-                    .append(Text.literal(" blocks).").formatted(Formatting.GRAY));
+                    .append(new net.minecraft.text.LiteralText(" blocks).").formatted(Formatting.GRAY));
             client.player.sendMessage(message, false);
         });
     }
@@ -448,8 +448,8 @@ public final class PublicChatClient
         client.execute(() -> {
             if (client.player != null)
             {
-                client.player.sendMessage(Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
-                        .append(Text.literal(detail).formatted(Formatting.RED)), false);
+                client.player.sendMessage(new net.minecraft.text.LiteralText("[MMM] ").formatted(Formatting.DARK_GRAY)
+                        .append(new net.minecraft.text.LiteralText(detail).formatted(Formatting.RED)), false);
             }
         });
     }
@@ -500,7 +500,7 @@ public final class PublicChatClient
     {
         try
         {
-            JsonObject body = JsonParser.parseString(rawBody).getAsJsonObject();
+            JsonObject body = new JsonParser().parse(rawBody).getAsJsonObject();
             String error = stringValue(body, "error");
             if (error.isBlank() == false)
             {

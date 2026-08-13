@@ -6,16 +6,17 @@ import com.mmm.config.Configs;
 import com.mmm.sync.WebsiteLinkManager;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
+import com.mmm.compat.ButtonWidget;
+import com.mmm.compat.TextFieldWidget;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Util;
 
-public class WebsiteLinkScreen extends Screen
+public class WebsiteLinkScreen extends MmmScreen
 {
     private static final String WEBSITE_LOGIN_URL = "https://www.mmmaniacs.com/login";
     private static final int PANEL_MARGIN = 20;
@@ -50,7 +51,7 @@ public class WebsiteLinkScreen extends Screen
 
     public WebsiteLinkScreen(Screen parent)
     {
-        super(Text.literal("Website Link"));
+        super(new net.minecraft.text.LiteralText("Website Link"));
         this.parent = parent;
     }
 
@@ -64,7 +65,7 @@ public class WebsiteLinkScreen extends Screen
         int contentInnerWidth = layout.linkWidth - CARD_PADDING * 2;
         int buttonWidth = (contentInnerWidth - CARD_GAP) / 2;
 
-        this.codeField = new TextFieldWidget(this.textRenderer, getCodeFieldX(layout) + FIELD_PAD_X, layout.linkY + 78 + FIELD_PAD_Y, getCodeFieldWidth(layout) - FIELD_PAD_X * 2, INPUT_HEIGHT, Text.empty());
+        this.codeField = new TextFieldWidget(this.textRenderer, getCodeFieldX(layout) + FIELD_PAD_X, layout.linkY + 78 + FIELD_PAD_Y, getCodeFieldWidth(layout) - FIELD_PAD_X * 2, INPUT_HEIGHT, new net.minecraft.text.LiteralText(""));
         this.codeField.setMaxLength(12);
         this.codeField.setDrawsBackground(false);
 
@@ -79,19 +80,19 @@ public class WebsiteLinkScreen extends Screen
             }
             refreshState();
         });
-        this.codeField.setPlaceholder(Text.literal("ENTER WEBSITE CODE"));
+        this.codeField.setPlaceholder(new net.minecraft.text.LiteralText("ENTER WEBSITE CODE"));
         this.addDrawableChild(this.codeField);
 
-        this.openButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Open Website"), button -> Util.getOperatingSystem().open(WEBSITE_LOGIN_URL))
+        this.openButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Open Website"), button -> Util.getOperatingSystem().open(WEBSITE_LOGIN_URL))
                 .dimensions(layout.linkX + CARD_PADDING, layout.linkY + 108, buttonWidth, BUTTON_HEIGHT)
                 .build());
-        this.submitButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Link Account"), button -> submitCode())
+        this.submitButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Link Account"), button -> submitCode())
                 .dimensions(layout.linkX + CARD_PADDING + buttonWidth + CARD_GAP, layout.linkY + 108, buttonWidth, BUTTON_HEIGHT)
                 .build());
-        this.clearButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Clear Link"), button -> clearPersistedLink())
+        this.clearButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Clear Link"), button -> clearPersistedLink())
                 .dimensions(layout.statusButtonX, layout.statusPrimaryButtonY, layout.statusButtonWidth, BUTTON_HEIGHT)
                 .build());
-        this.doneButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close())
+        this.doneButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Done"), button -> close())
                 .dimensions(layout.statusButtonX, layout.statusSecondaryButtonY, layout.statusButtonWidth, BUTTON_HEIGHT)
                 .build());
 
@@ -121,7 +122,7 @@ public class WebsiteLinkScreen extends Screen
         if (this.codeField != null && this.codeField.getText().isBlank() && this.codeField.isFocused() == false)
         {
             String placeholder = MmmUi.truncate(this.textRenderer, "ENTER WEBSITE CODE", this.codeField.getWidth() - 10);
-            context.drawText(this.textRenderer, Text.literal(placeholder), this.codeField.getX(), this.codeField.getY(), COLOR_MUTED, false);
+            context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(placeholder), this.codeField.getX(), this.codeField.getY(), COLOR_MUTED, false);
         }
         MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
     }
@@ -203,9 +204,9 @@ public class WebsiteLinkScreen extends Screen
         fillCard(context, layout.linkX, layout.linkY, layout.linkWidth, layout.linkHeight, COLOR_CARD_SOFT, COLOR_BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, "Link Code", layout.linkX + CARD_PADDING, layout.linkY + 10, layout.linkWidth - CARD_PADDING * 2, COLOR_VALUE, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Paste the code from the site and finish the account link from here.", layout.linkX + CARD_PADDING, layout.linkY + 23, layout.linkWidth - CARD_PADDING * 2, COLOR_MUTED, false);
-        context.drawText(this.textRenderer, Text.literal("Website"), layout.linkX + CARD_PADDING, layout.linkY + 46, COLOR_LABEL, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("Website"), layout.linkX + CARD_PADDING, layout.linkY + 46, COLOR_LABEL, false);
         MmmUi.drawTextWithin(context, this.textRenderer, WEBSITE_LOGIN_URL, layout.linkX + CARD_PADDING + 52, layout.linkY + 46, layout.linkWidth - CARD_PADDING * 2 - 52, MmmUi.accent(), false);
-        context.drawText(this.textRenderer, Text.literal("Website Code"), layout.linkX + CARD_PADDING, layout.linkY + 64, COLOR_LABEL, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("Website Code"), layout.linkX + CARD_PADDING, layout.linkY + 64, COLOR_LABEL, false);
     }
 
     private void drawStatusCard(DrawContext context, Layout layout)
@@ -276,7 +277,7 @@ public class WebsiteLinkScreen extends Screen
     private void drawMiniStep(DrawContext context, int x, int y, int width, String number, String title, String description)
     {
         fillCard(context, x, y, width, 64, COLOR_INSET, COLOR_BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(number), x + 10, y + 10, MmmUi.accent(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(number), x + 10, y + 10, MmmUi.accent(), false);
         MmmUi.drawTextWithin(context, this.textRenderer, title, x + 24, y + 10, width - 34, COLOR_VALUE, false);
         drawWrappedText(context, description, x + 10, y + 27, width - 20, COLOR_MUTED);
     }
@@ -284,7 +285,7 @@ public class WebsiteLinkScreen extends Screen
     private void drawCompactStep(DrawContext context, int x, int y, int width, String number, String title)
     {
         fillCard(context, x, y, width, 18, COLOR_INSET, COLOR_BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(number), x + 7, y + 5, MmmUi.accent(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(number), x + 7, y + 5, MmmUi.accent(), false);
         MmmUi.drawTextWithin(context, this.textRenderer, title, x + 20, y + 5, width - 27, COLOR_VALUE, false);
     }
 
@@ -304,7 +305,7 @@ public class WebsiteLinkScreen extends Screen
 
     private void drawWrappedText(DrawContext context, String text, int x, int y, int maxWidth, int color)
     {
-        List<OrderedText> lines = this.textRenderer.wrapLines(Text.literal(text).setStyle(Style.EMPTY), maxWidth);
+        List<OrderedText> lines = this.textRenderer.wrapLines(new net.minecraft.text.LiteralText(text).setStyle(Style.EMPTY), maxWidth);
         int lineY = y;
         for (OrderedText line : lines)
         {
@@ -317,7 +318,7 @@ public class WebsiteLinkScreen extends Screen
     {
         fillCard(context, x, y, width, height, COLOR_CARD, MmmUi.accent());
         String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
-        context.drawText(this.textRenderer, Text.literal(clipped), x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2), y + 4, MmmUi.accent(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(clipped), x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2), y + 4, MmmUi.accent(), false);
     }
 
     private void drawStatusChip(DrawContext context, int x, int y, String text, int borderColor)

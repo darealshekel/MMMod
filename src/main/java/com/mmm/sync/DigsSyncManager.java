@@ -344,7 +344,7 @@ public final class DigsSyncManager
         }
         try
         {
-            JsonObject response = com.google.gson.JsonParser.parseString(responseBody).getAsJsonObject();
+            JsonObject response = new com.google.gson.JsonParser().parse(responseBody).getAsJsonObject();
             return response.has("daily_mining_synced") && response.get("daily_mining_synced").getAsBoolean();
         }
         catch (Exception ignored)

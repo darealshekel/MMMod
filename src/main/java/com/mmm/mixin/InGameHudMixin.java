@@ -8,9 +8,10 @@ import com.mmm.util.UiFormat;
 import com.mojang.blaze3d.systems.RenderSystem;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -39,8 +40,9 @@ public abstract class InGameHudMixin
     }
 
     @Inject(method = "renderExperienceBar", at = @At("HEAD"), cancellable = true)
-    private void mmm$renderDailyGoalExperienceBar(DrawContext context, int x, CallbackInfo ci)
+    private void mmm$renderDailyGoalExperienceBar(MatrixStack matrices, int x, CallbackInfo ci)
     {
+        DrawContext context = new DrawContext(this.client, matrices);
         MiningStats.GoalProgress progress = mmm$getVisibleGoalProgress();
         if (progress == null)
         {
@@ -76,7 +78,7 @@ public abstract class InGameHudMixin
 
         if (Configs.Generic.SHOW_GOAL_PERCENT.getBooleanValue()
                 && this.client.player != null && this.client.interactionManager != null
-                && this.client.player.getJumpingMount() == null && this.client.interactionManager.hasExperienceBar())
+                && !this.client.player.hasVehicle() && this.client.interactionManager.hasExperienceBar())
         {
             String percent = UiFormat.formatGoalPercent(progress);
             int textX = (context.getScaledWindowWidth() - this.client.textRenderer.getWidth(percent)) / 2;
@@ -87,7 +89,7 @@ public abstract class InGameHudMixin
             context.drawText(this.client.textRenderer, percent, textX - 1, textY, 0x000000, false);
             context.drawText(this.client.textRenderer, percent, textX, textY + 1, 0x000000, false);
             context.drawText(this.client.textRenderer, percent, textX, textY - 1, 0x000000, false);
-            context.drawText(this.client.textRenderer, Text.literal(percent), textX, textY, goalColor, false);
+            context.drawText(this.client.textRenderer, new net.minecraft.text.LiteralText(percent), textX, textY, goalColor, false);
         }
         ci.cancel();
     }
@@ -119,7 +121,7 @@ public abstract class InGameHudMixin
                 || !FeatureToggle.MMM_HUD_GOAL_PROGRESS.getBooleanValue()
                 || client == null
                 || client.options == null
-                || (!Configs.Generic.ALWAYS_OVERRIDE_XP_BAR.getBooleanValue() && !client.options.playerListKey.isPressed()))
+                || (!Configs.Generic.ALWAYS_OVERRIDE_XP_BAR.getBooleanValue() && !client.options.keyPlayerList.isPressed()))
         {
             return null;
         }

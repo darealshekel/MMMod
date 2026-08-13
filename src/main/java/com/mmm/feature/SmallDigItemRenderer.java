@@ -5,13 +5,13 @@ import com.mmm.util.BlockBreakdownCatalog;
 
 import net.minecraft.block.Block;
 import net.minecraft.client.render.model.json.Transformation;
-import net.minecraft.client.render.model.json.ModelTransformationMode;
+import net.minecraft.client.render.model.json.ModelTransformation;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.MiningToolItem;
 import net.minecraft.item.ShearsItem;
 
-import org.joml.Vector3f;
+import net.minecraft.util.math.Vec3f;
 
 public final class SmallDigItemRenderer
 {
@@ -21,7 +21,7 @@ public final class SmallDigItemRenderer
     {
     }
 
-    public static float getScale(ItemStack stack, ModelTransformationMode displayContext)
+    public static float getScale(ItemStack stack, ModelTransformation.Mode displayContext)
     {
         if (!Configs.Generic.SMALL_DIG_ITEMS.getBooleanValue() || stack == null || stack.isEmpty())
         {
@@ -47,10 +47,10 @@ public final class SmallDigItemRenderer
 
         float handScale = (float) Configs.Generic.SMALL_DIG_ITEM_SCALE.getDoubleValue();
         float groundScale = Math.max(0.05F, handScale * 0.5F);
-        return displayContext == ModelTransformationMode.GROUND ? groundScale : handScale;
+        return displayContext == ModelTransformation.Mode.GROUND ? groundScale : handScale;
     }
 
-    public static void begin(ItemStack stack, ModelTransformationMode displayContext)
+    public static void begin(ItemStack stack, ModelTransformation.Mode displayContext)
     {
         begin(getScale(stack, displayContext));
     }
@@ -78,16 +78,16 @@ public final class SmallDigItemRenderer
             return transform;
         }
 
-        Vector3f scaled = new Vector3f(scale, scale, scale);
+        Vec3f scaled = new Vec3f(scale, scale, scale);
         return new Transformation(transform.rotation, transform.translation, scaled);
     }
 
-    private static boolean isScaledContext(ModelTransformationMode displayContext)
+    private static boolean isScaledContext(ModelTransformation.Mode displayContext)
     {
-        return displayContext == ModelTransformationMode.GROUND ||
-                displayContext == ModelTransformationMode.FIRST_PERSON_LEFT_HAND ||
-                displayContext == ModelTransformationMode.FIRST_PERSON_RIGHT_HAND ||
-                displayContext == ModelTransformationMode.THIRD_PERSON_LEFT_HAND ||
-                displayContext == ModelTransformationMode.THIRD_PERSON_RIGHT_HAND;
+        return displayContext == ModelTransformation.Mode.GROUND ||
+                displayContext == ModelTransformation.Mode.FIRST_PERSON_LEFT_HAND ||
+                displayContext == ModelTransformation.Mode.FIRST_PERSON_RIGHT_HAND ||
+                displayContext == ModelTransformation.Mode.THIRD_PERSON_LEFT_HAND ||
+                displayContext == ModelTransformation.Mode.THIRD_PERSON_RIGHT_HAND;
     }
 }

@@ -7,7 +7,7 @@ import com.mmm.config.Configs.ScoreboardPosition;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import com.mmm.compat.ScoreboardCompat.Entry;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.text.Text;

@@ -15,7 +15,7 @@ import com.mmm.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.text.Text;
 
 public final class MiningHudRenderer
@@ -99,7 +99,7 @@ public final class MiningHudRenderer
                 drawLineBox(context, 0, drawY, titleX + titleTextWidth);
             }
             drawSyncIndicator(context, 0, drawY, syncIndicatorSize, syncHealthy ? SYNC_OK_COLOR : SYNC_FAIL_COLOR);
-            context.drawText(client.textRenderer, Text.literal(title), titleX, drawY, hudTitleColor(), Configs.useHudTextShadow());
+            context.drawText(client.textRenderer, new net.minecraft.text.LiteralText(title), titleX, drawY, hudTitleColor(), Configs.useHudTextShadow());
             drawY += lineHeight;
             firstContentLine = 1;
         }
@@ -330,7 +330,7 @@ public final class MiningHudRenderer
             int drawX = x;
             for (HudSegment segment : this.segments)
             {
-                context.drawText(renderer, Text.literal(segment.text()), drawX, y, segment.color(), shadow);
+                context.drawText(renderer, new net.minecraft.text.LiteralText(segment.text()), drawX, y, segment.color(), shadow);
                 drawX += renderer.getWidth(segment.text());
             }
         }
@@ -405,11 +405,11 @@ public final class MiningHudRenderer
         String percentText = UiFormat.formatGoalPercent(progress);
         String progressText = UiFormat.formatProgress(progress.current(), progress.target());
 
-        context.drawText(client.textRenderer, Text.literal("Daily Goal"), x, y, hudTitleColor(), Configs.useHudTextShadow());
+        context.drawText(client.textRenderer, new net.minecraft.text.LiteralText("Daily Goal"), x, y, hudTitleColor(), Configs.useHudTextShadow());
         int progressX = x + Math.max(0, (width - client.textRenderer.getWidth(progressText)) / 2);
-        context.drawText(client.textRenderer, Text.literal(progressText), progressX, y, hudTextColor(), Configs.useHudTextShadow());
+        context.drawText(client.textRenderer, new net.minecraft.text.LiteralText(progressText), progressX, y, hudTextColor(), Configs.useHudTextShadow());
         int percentX = x + width - client.textRenderer.getWidth(percentText);
-        context.drawText(client.textRenderer, Text.literal(percentText), percentX, y, fillColor, Configs.useHudTextShadow());
+        context.drawText(client.textRenderer, new net.minecraft.text.LiteralText(percentText), percentX, y, fillColor, Configs.useHudTextShadow());
 
         int barY = y + 11;
         context.fill(x, barY, x + width, barY + 6, GOAL_BAR_BG);
@@ -425,7 +425,7 @@ public final class MiningHudRenderer
         int width = 0;
         for (String line : lines)
         {
-            width = Math.max(width, client.textRenderer.getWidth(Text.literal(line)));
+            width = Math.max(width, client.textRenderer.getWidth(new net.minecraft.text.LiteralText(line)));
         }
         return width;
     }

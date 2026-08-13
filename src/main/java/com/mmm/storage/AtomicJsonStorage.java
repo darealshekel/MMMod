@@ -43,7 +43,7 @@ public final class AtomicJsonStorage
 
             try
             {
-                JsonElement parsed = JsonParser.parseString(Files.readString(candidate, StandardCharsets.UTF_8));
+                JsonElement parsed = new JsonParser().parse(Files.readString(candidate, StandardCharsets.UTF_8));
                 if (parsed != null && parsed.isJsonObject())
                 {
                     return new ReadResult(parsed.getAsJsonObject(), candidate, candidate.equals(backup));
@@ -119,7 +119,7 @@ public final class AtomicJsonStorage
     {
         try
         {
-            JsonElement parsed = JsonParser.parseString(Files.readString(path, StandardCharsets.UTF_8));
+            JsonElement parsed = new JsonParser().parse(Files.readString(path, StandardCharsets.UTF_8));
             return parsed != null && parsed.isJsonObject();
         }
         catch (RuntimeException | IOException ignored)

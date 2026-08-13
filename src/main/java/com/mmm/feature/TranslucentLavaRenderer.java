@@ -8,6 +8,8 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.imageio.ImageIO;
 
@@ -26,7 +28,7 @@ public final class TranslucentLavaRenderer
     private static final int RELOAD_DEBOUNCE_TICKS = 4;
     private static final int STARTUP_DELAY_TICKS = 20;
     private static final int RECONCILE_INTERVAL_TICKS = 100;
-    private static final int RESOURCE_PACK_FORMAT = 15;
+    private static final int RESOURCE_PACK_FORMAT = 7;
     private static final String PACK_DIRECTORY_NAME = "MMM-Translucent-Lava";
     private static final String PACK_ID = "file/" + PACK_DIRECTORY_NAME;
     private static final String RESOURCE_ROOT = "/assets/mmm/translucent_lava/";
@@ -99,7 +101,7 @@ public final class TranslucentLavaRenderer
         {
             boolean shouldEnable = isEnabled();
             int opacity = net.minecraft.util.math.MathHelper.clamp(Configs.Generic.LAVA_OPACITY.getIntegerValue(), 10, 100);
-            Path packDirectory = client.getResourcePackDir().resolve(PACK_DIRECTORY_NAME);
+            Path packDirectory = client.getResourcePackDir().toPath().resolve(PACK_DIRECTORY_NAME);
             boolean contentChanged = shouldEnable && ensureGeneratedPack(packDirectory, opacity);
 
             ResourcePackManager manager = client.getResourcePackManager();
@@ -108,6 +110,7 @@ public final class TranslucentLavaRenderer
                 manager.scanPacks();
             }
 
+            List<String> enabled = new ArrayList<>(manager.getEnabledNames());
             boolean stateChanged;
             if (shouldEnable)
             {
@@ -116,21 +119,26 @@ public final class TranslucentLavaRenderer
                     MMM.LOGGER.warn("[MMM] Generated translucent lava pack was not discovered at {}", packDirectory);
                     return;
                 }
-                stateChanged = manager.getEnabledNames().contains(PACK_ID) == false && manager.enable(PACK_ID);
+                stateChanged = enabled.contains(PACK_ID) == false;
+                if (stateChanged)
+                {
+                    enabled.add(PACK_ID);
+                }
             }
             else
             {
-                stateChanged = manager.getEnabledNames().contains(PACK_ID) && manager.disable(PACK_ID);
+                stateChanged = enabled.remove(PACK_ID);
             }
 
             if (stateChanged)
             {
-                client.options.refreshResourcePacks(manager);
-                lastAppliedOpacity = shouldEnable ? opacity : -1;
-                return;
+                manager.setEnabledProfiles(enabled);
+                client.options.resourcePacks.clear();
+                client.options.resourcePacks.addAll(enabled);
+                client.options.write();
             }
 
-            if (contentChanged == false)
+            if (contentChanged == false && stateChanged == false)
             {
                 lastAppliedOpacity = shouldEnable ? opacity : -1;
                 return;

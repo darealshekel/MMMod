@@ -5,9 +5,8 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
-import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.fabricmc.fabric.api.client.command.v1.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v1.FabricClientCommandSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import com.mmm.config.Configs;
@@ -22,16 +21,14 @@ public final class MmmClientCommands
 
     public static void register()
     {
-        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
-            dispatcher.register(ClientCommandManager.literal("mmm")
-                    .then(buildTimerCommand())
-                    .then(buildScoreboardCommand()));
-            dispatcher.register(ClientCommandManager.literal("sbhelper")
-                    .then(ClientCommandManager.literal("maxDisplayCount")
-                            .then(ClientCommandManager.argument("count", IntegerArgumentType.integer(0, 100))
-                                    .executes(context -> setScoreboardRows(context,
-                                            IntegerArgumentType.getInteger(context, "count"))))));
-        });
+        ClientCommandManager.DISPATCHER.register(ClientCommandManager.literal("mmm")
+                .then(buildTimerCommand())
+                .then(buildScoreboardCommand()));
+        ClientCommandManager.DISPATCHER.register(ClientCommandManager.literal("sbhelper")
+                .then(ClientCommandManager.literal("maxDisplayCount")
+                        .then(ClientCommandManager.argument("count", IntegerArgumentType.integer(0, 100))
+                                .executes(context -> setScoreboardRows(context,
+                                        IntegerArgumentType.getInteger(context, "count"))))));
     }
 
     private static LiteralArgumentBuilder<FabricClientCommandSource> buildScoreboardCommand()
@@ -177,6 +174,6 @@ public final class MmmClientCommands
 
     private static void feedback(CommandContext<FabricClientCommandSource> context, Formatting color, String message)
     {
-        context.getSource().sendFeedback(Text.literal("[MMM] ").formatted(color).append(Text.literal(message).formatted(Formatting.WHITE)));
+        context.getSource().sendFeedback(new net.minecraft.text.LiteralText("[MMM] ").formatted(color).append(new net.minecraft.text.LiteralText(message).formatted(Formatting.WHITE)));
     }
 }

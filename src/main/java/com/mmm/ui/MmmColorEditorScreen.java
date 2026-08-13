@@ -3,13 +3,14 @@ package com.mmm.ui;
 import com.mmm.config.Configs;
 import com.mmm.config.value.ConfigColor;
 import java.awt.Color;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
+import com.mmm.compat.ButtonWidget;
+import com.mmm.compat.TextFieldWidget;
 import net.minecraft.text.Text;
 
-public final class MmmColorEditorScreen extends Screen
+public final class MmmColorEditorScreen extends MmmScreen
 {
     private static final int PANEL_WIDTH = 260;
     private static final int PANEL_HEIGHT = 218;
@@ -28,7 +29,7 @@ public final class MmmColorEditorScreen extends Screen
 
     public MmmColorEditorScreen(Screen parent, ConfigColor config, Runnable onClose)
     {
-        super(Text.literal("Color Picker"));
+        super(new net.minecraft.text.LiteralText("Color Picker"));
         this.parent = parent;
         this.config = config;
         this.onClose = onClose == null ? () -> {} : onClose;
@@ -40,12 +41,12 @@ public final class MmmColorEditorScreen extends Screen
     {
         this.panelX = (this.width - PANEL_WIDTH) / 2;
         this.panelY = (this.height - PANEL_HEIGHT) / 2;
-        this.hexField = new TextFieldWidget(this.textRenderer, this.panelX + 18, this.panelY + 166, 150, 20, Text.literal("Hex color"));
+        this.hexField = new TextFieldWidget(this.textRenderer, this.panelX + 18, this.panelY + 166, 150, 20, new net.minecraft.text.LiteralText("Hex color"));
         this.hexField.setMaxLength(9);
         this.hexField.setText(formatColor());
         this.hexField.setChangedListener(this::onHexChanged);
         this.addDrawableChild(this.hexField);
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("DONE"), button -> close())
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("DONE"), button -> close())
                 .dimensions(this.panelX + 176, this.panelY + 166, 66, 20).build());
     }
 
@@ -56,7 +57,7 @@ public final class MmmColorEditorScreen extends Screen
         context.fill(this.panelX, this.panelY, this.panelX + PANEL_WIDTH, this.panelY + PANEL_HEIGHT, 0xFF090909);
         context.drawBorder(this.panelX, this.panelY, PANEL_WIDTH, PANEL_HEIGHT, 0xFF2A2A2A);
         context.fill(this.panelX + 14, this.panelY + 14, this.panelX + 18, this.panelY + 28, MmmUi.accent());
-        context.drawText(this.textRenderer, Text.literal("CUSTOM COLOR"), this.panelX + 26, this.panelY + 17, 0xFFF5F5F5, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("CUSTOM COLOR"), this.panelX + 26, this.panelY + 17, 0xFFF5F5F5, false);
 
         int colorX = this.panelX + 18;
         int colorY = this.panelY + 40;

@@ -153,7 +153,7 @@ public final class WebsiteLinkManager
     {
         try
         {
-            JsonObject object = JsonParser.parseString(body).getAsJsonObject();
+            JsonObject object = new JsonParser().parse(body).getAsJsonObject();
             if (object.has("username") && object.get("username").isJsonPrimitive())
             {
                 return object.get("username").getAsString();
@@ -171,7 +171,7 @@ public final class WebsiteLinkManager
     {
         try
         {
-            JsonObject object = JsonParser.parseString(body).getAsJsonObject();
+            JsonObject object = new JsonParser().parse(body).getAsJsonObject();
             if (object.has("syncToken") && object.get("syncToken").isJsonPrimitive())
             {
                 return object.get("syncToken").getAsString().trim();

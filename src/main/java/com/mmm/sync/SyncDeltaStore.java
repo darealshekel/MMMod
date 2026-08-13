@@ -118,7 +118,7 @@ final class SyncDeltaStore
         JsonObject previous = AETERNUM_LEADERBOARDS.get(key);
         if (previous == null || previous.has("entries") == false || previous.get("entries").isJsonArray() == false)
         {
-            JsonObject full = fullPayload.deepCopy();
+            JsonObject full = com.mmm.compat.GsonCompat.copy(fullPayload);
             full.addProperty("mode", "full");
             return full;
         }
@@ -145,7 +145,7 @@ final class SyncDeltaStore
             JsonObject previousRow = previousRows.get(usernameKey);
             if (previousRow == null || GSON.toJson(previousRow).equals(GSON.toJson(row)) == false)
             {
-                changedRows.add(row.deepCopy());
+                changedRows.add(com.mmm.compat.GsonCompat.copy(row));
             }
         }
 
@@ -248,7 +248,7 @@ final class SyncDeltaStore
         String mode = stringValue(payload, "mode");
         JsonObject next = "delta".equals(mode)
                 ? mergeAeternumLeaderboardSnapshot(AETERNUM_LEADERBOARDS.get(key), payload)
-                : payload.deepCopy();
+                : com.mmm.compat.GsonCompat.copy(payload);
         next.remove("mode");
         AETERNUM_LEADERBOARDS.put(key, next);
         markSectionSynced(key, GSON.toJson(next));
@@ -256,7 +256,7 @@ final class SyncDeltaStore
 
     private static JsonObject mergeAeternumLeaderboardSnapshot(JsonObject previous, JsonObject delta)
     {
-        JsonObject next = previous == null ? copyLeaderboardEnvelope(delta) : previous.deepCopy();
+        JsonObject next = previous == null ? copyLeaderboardEnvelope(delta) : com.mmm.compat.GsonCompat.copy(previous);
         copyIfPresent(delta, next, "server_name");
         copyIfPresent(delta, next, "objective_title");
         copyIfPresent(delta, next, "captured_at");
@@ -278,7 +278,7 @@ final class SyncDeltaStore
                 String usernameKey = stringValue(row, "username").toLowerCase(java.util.Locale.ROOT);
                 if (usernameKey.isBlank() == false)
                 {
-                    rows.put(usernameKey, row.deepCopy());
+                    rows.put(usernameKey, com.mmm.compat.GsonCompat.copy(row));
                 }
             }
         }
@@ -330,7 +330,7 @@ final class SyncDeltaStore
             String usernameKey = stringValue(row, "username").toLowerCase(java.util.Locale.ROOT);
             if (usernameKey.isBlank() == false)
             {
-                rows.put(usernameKey, row.deepCopy());
+                rows.put(usernameKey, com.mmm.compat.GsonCompat.copy(row));
             }
         }
         return rows;
@@ -346,7 +346,7 @@ final class SyncDeltaStore
 
     private static JsonObject withMode(JsonObject fullBreakdown, String mode)
     {
-        JsonObject copy = fullBreakdown.deepCopy();
+        JsonObject copy = com.mmm.compat.GsonCompat.copy(fullBreakdown);
         copy.addProperty("mode", mode);
         return copy;
     }
@@ -486,7 +486,7 @@ final class SyncDeltaStore
     {
         if (from.has(key))
         {
-            to.add(key, from.get(key).deepCopy());
+            to.add(key, com.mmm.compat.GsonCompat.copy(from.get(key)));
         }
     }
 
@@ -535,7 +535,7 @@ final class SyncDeltaStore
                 {
                     if (entry.getValue().isJsonObject())
                     {
-                        AETERNUM_LEADERBOARDS.put(entry.getKey(), entry.getValue().getAsJsonObject().deepCopy());
+                        AETERNUM_LEADERBOARDS.put(entry.getKey(), com.mmm.compat.GsonCompat.copy(entry.getValue().getAsJsonObject()));
                     }
                 }
             }
@@ -603,7 +603,7 @@ final class SyncDeltaStore
             JsonObject leaderboards = new JsonObject();
             for (Map.Entry<String, JsonObject> entry : AETERNUM_LEADERBOARDS.entrySet())
             {
-                leaderboards.add(entry.getKey(), entry.getValue().deepCopy());
+                leaderboards.add(entry.getKey(), com.mmm.compat.GsonCompat.copy(entry.getValue()));
             }
             root.add("aeternumLeaderboards", leaderboards);
 

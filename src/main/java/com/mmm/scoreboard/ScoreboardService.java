@@ -120,16 +120,16 @@ public final class ScoreboardService
     {
         if (!Configs.Generic.SCOREBOARD_SCORES_VISIBLE.getBooleanValue())
         {
-            return Text.empty();
+            return new net.minecraft.text.LiteralText("");
         }
-        MutableText vanilla = Text.literal(Integer.toString(entry.value())).formatted(Formatting.RED);
+        MutableText vanilla = new net.minecraft.text.LiteralText(Integer.toString(entry.value())).formatted(Formatting.RED);
         if (Configs.Generic.SCOREBOARD_SCORE_ABBREVIATED.getBooleanValue())
         {
-            return Text.literal(formatAbbreviated(entry.value())).setStyle(vanilla.getStyle());
+            return new net.minecraft.text.LiteralText(formatAbbreviated(entry.value())).setStyle(vanilla.getStyle());
         }
         if (Configs.Generic.SCOREBOARD_SCORE_COMMAS.getBooleanValue())
         {
-            return Text.literal(COMMA_FORMAT.format(entry.value())).setStyle(vanilla.getStyle());
+            return new net.minecraft.text.LiteralText(COMMA_FORMAT.format(entry.value())).setStyle(vanilla.getStyle());
         }
         return vanilla;
     }

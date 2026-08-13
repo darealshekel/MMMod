@@ -112,11 +112,11 @@ public final class TierTagManager
         }
 
         String displayName = knownNames.getOrDefault(normalized, username);
-        MutableText decorated = Text.empty().setStyle(original.getStyle());
-        decorated.append(Text.literal(PlayerTagPayload.formatBlocks(tag.totalBlocks()))
+        MutableText decorated = new net.minecraft.text.LiteralText("").setStyle(original.getStyle());
+        decorated.append(new net.minecraft.text.LiteralText(PlayerTagPayload.formatBlocks(tag.totalBlocks()))
                 .styled(style -> style.withColor(tag.colorRgb())));
-        decorated.append(Text.literal(" | ").styled(style -> style.withColor(0x777777)));
-        decorated.append(Text.literal(displayName)
+        decorated.append(new net.minecraft.text.LiteralText(" | ").styled(style -> style.withColor(0x777777)));
+        decorated.append(new net.minecraft.text.LiteralText(displayName)
                 .setStyle(original.getStyle().withColor(0xFFFFFF)));
         return decorated;
     }
@@ -130,6 +130,34 @@ public final class TierTagManager
         Collection<String> names = knownNames.values();
         String username = PlayerTagPayload.findKnownUsername(original.getString(), names);
         return username.isBlank() ? null : decorateName(username, original);
+    }
+
+    public static MutableText decorateChatLine(Text original)
+    {
+        if (original == null || !Configs.Generic.TIER_NAME_TAGS.getBooleanValue())
+        {
+            return null;
+        }
+        String raw = original.getString();
+        String username = PlayerTagPayload.findKnownUsername(raw, knownNames.values());
+        if (username.isBlank())
+        {
+            return null;
+        }
+        PlayerTagData tag = tags.get(PlayerTagPayload.normalize(username));
+        int start = raw.indexOf(username);
+        if (tag == null || start < 0)
+        {
+            return null;
+        }
+
+        MutableText line = new net.minecraft.text.LiteralText(raw.substring(0, start)).setStyle(original.getStyle());
+        line.append(new net.minecraft.text.LiteralText(PlayerTagPayload.formatBlocks(tag.totalBlocks()))
+                .styled(style -> style.withColor(tag.colorRgb())));
+        line.append(new net.minecraft.text.LiteralText(" | ").styled(style -> style.withColor(0x777777)));
+        line.append(new net.minecraft.text.LiteralText(username).setStyle(original.getStyle().withColor(0xFFFFFF)));
+        line.append(new net.minecraft.text.LiteralText(raw.substring(start + username.length())).setStyle(original.getStyle()));
+        return line;
     }
 
     private static void addValidName(Map<String, String> names, String name)

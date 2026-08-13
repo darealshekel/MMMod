@@ -15,16 +15,17 @@ import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
+import com.mmm.compat.ButtonWidget;
 import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 
-public class SessionHistoryScreen extends Screen
+public class SessionHistoryScreen extends MmmScreen
 {
     private static final int M = 20;
     private static final int P = 18;
@@ -78,7 +79,7 @@ public class SessionHistoryScreen extends Screen
 
     public SessionHistoryScreen(Screen parent)
     {
-        super(Text.literal("Session History"));
+        super(new net.minecraft.text.LiteralText("Session History"));
         this.parent = parent;
         this.worlds = SessionHistory.getWorldHistories();
         applyWorldSelection(resolveInitialWorldIndex(), false);
@@ -91,7 +92,7 @@ public class SessionHistoryScreen extends Screen
         this.openedAtMs = System.currentTimeMillis();
         ensureCursorVisible();
         Layout l = layout();
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(l.panelRight - 74, l.headerY - 2, 64, BH).build());
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Done"), button -> close()).dimensions(l.panelRight - 74, l.headerY - 2, 64, BH).build());
     }
 
     @Override
@@ -105,7 +106,7 @@ public class SessionHistoryScreen extends Screen
         MmmUi.backdrop(context, this.width, this.height);
         MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "HISTORY");
         card(context, l.panelX, l.panelY, l.panelWidth, l.panelHeight, PANEL, BORDER);
-        context.drawText(this.textRenderer, Text.literal("Session History"), l.contentX, l.headerY, TEXT, true);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("Session History"), l.contentX, l.headerY, TEXT, true);
         if (!l.compact)
         {
             pill(context, l.contentX, l.headerY + 18, Math.min(220, l.contentWidth / 2), 16, this.worldName);
@@ -228,7 +229,7 @@ public class SessionHistoryScreen extends Screen
 
             String label = truncate(world.displayName(), tabWidth - 14);
             int color = selected ? TEXT : LABEL;
-            context.drawText(this.textRenderer, Text.literal(label), tabX + Math.max(5, (tabWidth - this.textRenderer.getWidth(label)) / 2), y + 7, color, false);
+            context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(label), tabX + Math.max(5, (tabWidth - this.textRenderer.getWidth(label)) / 2), y + 7, color, false);
         }
     }
 
@@ -333,7 +334,7 @@ public class SessionHistoryScreen extends Screen
         int viewportWidth = width - SBW - 6;
         context.fill(x, y, x + width, y + height, INSET);
         context.drawBorder(x, y, width, height, BORDER_SOFT);
-        if (this.sessions.isEmpty()) { context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Mine some blocks and your history will show up here"), x + width / 2, y + height / 2 - 4, MUTED); return; }
+        if (this.sessions.isEmpty()) { context.drawCenteredTextWithShadow(this.textRenderer, new net.minecraft.text.LiteralText("Mine some blocks and your history will show up here"), x + width / 2, y + height / 2 - 4, MUTED); return; }
         int visibleRows = getVisibleRows(l);
         this.listScroll = Math.max(0, Math.min(this.listScroll, Math.max(0, this.sessions.size() - visibleRows)));
         context.enableScissor(x, y, x + viewportWidth, y + height);
@@ -391,7 +392,7 @@ public class SessionHistoryScreen extends Screen
     }
     private void drawBreakdown(DrawContext context, int x, int y, int width, SessionData session, int mouseX, int mouseY)
     {
-        context.drawText(this.textRenderer, Text.literal("Block Breakdown"), x, y, TEXT, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("Block Breakdown"), x, y, TEXT, false);
         int cardY = y + 14;
         card(context, x, cardY, width, BREAKDOWN_HEIGHT, SOFT, BORDER_SOFT);
         List<Map.Entry<String, Long>> entries = new ArrayList<>(session.blockBreakdown.entrySet());
@@ -416,8 +417,8 @@ public class SessionHistoryScreen extends Screen
                 String count = UiFormat.formatCompact(entry.getValue());
                 int countWidth = this.textRenderer.getWidth(count);
                 String name = truncate(resolveName(entry.getKey()), Math.max(40, viewportWidth - countWidth - 8));
-                context.drawText(this.textRenderer, Text.literal(name), listX, rowY, LABEL, false);
-                context.drawText(this.textRenderer, Text.literal(count), listX + viewportWidth - countWidth - 2, rowY, Configs.getHudNumberColor(), false);
+                context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(name), listX, rowY, LABEL, false);
+                context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(count), listX + viewportWidth - countWidth - 2, rowY, Configs.getHudNumberColor(), false);
             }
             rowY += 14;
         }
@@ -440,7 +441,7 @@ public class SessionHistoryScreen extends Screen
 
         if (s.miningRateBuckets.isEmpty())
         {
-            c.drawCenteredTextWithShadow(this.textRenderer, Text.literal("No graph data saved for this run"), plotX + plotW / 2, plotY + plotH / 2 - 4, MUTED);
+            c.drawCenteredTextWithShadow(this.textRenderer, new net.minecraft.text.LiteralText("No graph data saved for this run"), plotX + plotW / 2, plotY + plotH / 2 - 4, MUTED);
             drawGraphAxes(c, plotX, plotY, plotW, plotH, axisLeft, axisMax, s);
             return null;
         }
@@ -536,15 +537,15 @@ public class SessionHistoryScreen extends Screen
         int startWidth = this.textRenderer.getWidth(startLabel);
         int middleWidth = this.textRenderer.getWidth(middleLabel);
         int endWidth = this.textRenderer.getWidth(endLabel);
-        c.drawText(this.textRenderer, Text.literal(startLabel), plotX, labelY, MUTED, false);
-        c.drawText(this.textRenderer, Text.literal(endLabel), plotX + plotW - endWidth, labelY, MUTED, false);
+        c.drawText(this.textRenderer, new net.minecraft.text.LiteralText(startLabel), plotX, labelY, MUTED, false);
+        c.drawText(this.textRenderer, new net.minecraft.text.LiteralText(endLabel), plotX + plotW - endWidth, labelY, MUTED, false);
 
         int middleX = plotX + (plotW - middleWidth) / 2;
         int startRight = plotX + startWidth + 6;
         int endLeft = plotX + plotW - endWidth - 6;
         if (middleX >= startRight && middleX + middleWidth <= endLeft)
         {
-            c.drawText(this.textRenderer, Text.literal(middleLabel), middleX, labelY, MUTED, false);
+            c.drawText(this.textRenderer, new net.minecraft.text.LiteralText(middleLabel), middleX, labelY, MUTED, false);
         }
     }
     private void drawRateTick(DrawContext c, int plotX, int plotY, int plotH, int axisLeft, int step, double value, int color)
@@ -610,7 +611,7 @@ public class SessionHistoryScreen extends Screen
     }
     private void row(DrawContext c,int lx,int rx,int y,String label,String value){ int width=rx-lx; int valueWidth=Math.min(this.textRenderer.getWidth(value), Math.max(32, width/2)); MmmUi.drawTextWithin(c,this.textRenderer,label,lx,y,Math.max(0,width-valueWidth-8),LABEL,false); MmmUi.drawTextRightWithin(c,this.textRenderer,value,rx,y,valueWidth,TEXT,false); }
     private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ int tw=w-C*2; card(c,x,y,w,h,SOFT,BORDER_SOFT); MmmUi.drawTextWithin(c,this.textRenderer,l,x+C,y+9,tw,LABEL,false); int valueColor=inactiveValueColor(v)==INACTIVE?INACTIVE:Configs.getHudNumberColor(); MmmUi.drawTextWithin(c,this.textRenderer,v,x+C,y+24,tw,valueColor,false); MmmUi.drawTextWithin(c,this.textRenderer,s,x+C,y+38,tw,MUTED,false); }
-    private void pill(DrawContext c,int x,int y,int w,int h,String t){ String clipped=MmmUi.truncate(this.textRenderer,t,w-8); card(c,x,y,w,h,CARD,MmmUi.accent()); c.drawText(this.textRenderer, Text.literal(clipped), x+Math.max(4,(w-this.textRenderer.getWidth(clipped))/2), y+4, MmmUi.accent(), false); }
+    private void pill(DrawContext c,int x,int y,int w,int h,String t){ String clipped=MmmUi.truncate(this.textRenderer,t,w-8); card(c,x,y,w,h,CARD,MmmUi.accent()); c.drawText(this.textRenderer, new net.minecraft.text.LiteralText(clipped), x+Math.max(4,(w-this.textRenderer.getWidth(clipped))/2), y+4, MmmUi.accent(), false); }
     private void card(DrawContext c,int x,int y,int w,int h,int fill,int border){ MmmUi.card(c,x,y,w,h,fill,border); }
     private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); c.fill(x+1,ty,x+SBW-1,ty+th,MmmUi.scrollbarThumb()); }
     private void drawDetailBar(DrawContext c,Layout l,int mx,int my){ int max=Math.max(0,getDetailContentHeight()-(l.contentHeight-40)); if(max<=0) return; int x=l.detailX+l.detailWidth-C-SBW,y=l.contentY+28,h=l.contentHeight-40,th=Math.max(SBM,Math.min(h,(int)Math.round((h/(double)getDetailContentHeight())*h))), off=(int)Math.round((this.detailScroll/(double)max)*(h-th)); simpleBar(c,x,y,h,th,off,this.draggingDetail||isOverDetailBar(mx,my)); }
@@ -645,7 +646,7 @@ public class SessionHistoryScreen extends Screen
     private static int inactiveValueColor(String value){ String text=value==null?"":value.trim(); return "--".equals(text)||"Paused".equals(text)||"00:00:00".equals(text)?INACTIVE:TEXT; }
     private SessionData getSelected(){ return this.selectedIndex>=0&&this.selectedIndex<this.sessions.size()?this.sessions.get(this.selectedIndex):null; }
     private String getTopBlock(SessionData session){ String id=null; long count=0L; for(Map.Entry<String,Long> e:session.blockBreakdown.entrySet()) if(e.getValue()>count){ id=e.getKey(); count=e.getValue(); } return id==null?"No breakdown":resolveName(id)+" ("+UiFormat.formatCompact(count)+")"; }
-    private String resolveName(String id){ try{ Identifier i=Identifier.tryParse(id); if(i!=null){ var b=net.minecraft.registry.Registries.BLOCK.get(i); if(b!=null) return b.getName().getString(); } }catch(Exception ignored){} return id; }
+    private String resolveName(String id){ try{ Identifier i=Identifier.tryParse(id); if(i!=null){ var b=net.minecraft.util.registry.Registry.BLOCK.get(i); if(b!=null) return b.getName().getString(); } }catch(Exception ignored){} return id; }
     private String truncate(String value,int maxWidth){ return MmmUi.truncate(this.textRenderer, value, maxWidth); }
     private Layout layout(){ boolean compact=this.height<400||MmmUi.contentWidth(this.width)<540; int padding=compact?8:P, availableWidth=Math.max(1,MmmUi.contentWidth(this.width)-M), topY=MmmUi.TOP_BAR_HEIGHT+10, availableHeight=Math.max(1,this.height-topY-12); int panelWidth=Math.min(840,availableWidth), panelHeight=Math.min(560,availableHeight), panelX=MmmUi.centerContentX(this.width,panelWidth), panelY=topY+Math.max(0,(availableHeight-panelHeight)/2), contentX=panelX+padding, contentWidth=Math.max(1,panelWidth-padding*2), headerY=panelY+padding, contentY=headerY+(compact?42:88), overviewY=headerY+(compact?18:58), leftWidth=Math.max(48,(contentWidth-G)/2), detailX=contentX+leftWidth+G, detailWidth=Math.max(48,contentWidth-leftWidth-G), contentHeight=Math.max(1,panelY+panelHeight-padding-contentY); return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight,compact); }
     private record Layout(int panelX,int panelY,int panelWidth,int panelHeight,int panelRight,int contentX,int contentWidth,int headerY,int overviewY,int contentY,int leftWidth,int detailX,int detailWidth,int contentHeight,boolean compact){ private Layout move(int delta){ return new Layout(panelX,panelY+delta,panelWidth,panelHeight,panelRight,contentX,contentWidth,headerY+delta,overviewY+delta,contentY+delta,leftWidth,detailX,detailWidth,contentHeight,compact); } }

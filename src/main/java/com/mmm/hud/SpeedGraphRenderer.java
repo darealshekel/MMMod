@@ -6,7 +6,7 @@ import com.mmm.ui.MmmUi;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 
 public final class SpeedGraphRenderer
 {

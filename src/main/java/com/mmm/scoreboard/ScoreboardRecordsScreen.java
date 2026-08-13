@@ -11,12 +11,13 @@ import com.mmm.ui.MmmUi;
 
 import com.mmm.util.MmmMessages;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
+import com.mmm.compat.ButtonWidget;
 import net.minecraft.text.Text;
 
-public final class ScoreboardRecordsScreen extends Screen
+public final class ScoreboardRecordsScreen extends MmmScreen
 {
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")
             .withZone(ZoneId.systemDefault());
@@ -32,7 +33,7 @@ public final class ScoreboardRecordsScreen extends Screen
 
     public ScoreboardRecordsScreen(Screen parent)
     {
-        super(Text.literal("Recorded Scoreboards"));
+        super(new net.minecraft.text.LiteralText("Recorded Scoreboards"));
         this.parent = parent;
     }
 
@@ -42,22 +43,22 @@ public final class ScoreboardRecordsScreen extends Screen
         MmmUi.ensureCursorVisible();
         this.clearChildren();
         this.rowButtons.clear();
-        this.recordButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Record Current"), ignored -> this.recordCurrent())
+        this.recordButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Record Current"), ignored -> this.recordCurrent())
                 .dimensions(0, 0, 120, 18).build());
-        this.exportButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Export All"), ignored -> this.exportAll())
+        this.exportButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Export All"), ignored -> this.exportAll())
                 .dimensions(0, 0, 100, 18).build());
-        this.closeButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), ignored -> this.close())
+        this.closeButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Back"), ignored -> this.close())
                 .dimensions(0, 0, 70, 18).build());
 
         List<ScoreboardState.Snapshot> snapshots = ScoreboardState.getSnapshots();
         for (int index = 0; index < snapshots.size(); index++)
         {
             int capturedIndex = index;
-            ButtonWidget up = this.addDrawableChild(ButtonWidget.builder(Text.literal("Up"), ignored -> this.move(capturedIndex, -1))
+            ButtonWidget up = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Up"), ignored -> this.move(capturedIndex, -1))
                     .dimensions(0, 0, 42, 18).build());
-            ButtonWidget down = this.addDrawableChild(ButtonWidget.builder(Text.literal("Down"), ignored -> this.move(capturedIndex, 1))
+            ButtonWidget down = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Down"), ignored -> this.move(capturedIndex, 1))
                     .dimensions(0, 0, 48, 18).build());
-            ButtonWidget delete = this.addDrawableChild(ButtonWidget.builder(Text.literal("Delete"), ignored -> this.remove(capturedIndex))
+            ButtonWidget delete = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Delete"), ignored -> this.remove(capturedIndex))
                     .dimensions(0, 0, 58, 18).build());
             up.active = index > 0;
             down.active = index + 1 < snapshots.size();

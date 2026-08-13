@@ -167,7 +167,7 @@ public final class PendingSyncQueue
             QueuedSyncItem existing = replaceExisting ? findByTypeAndKey(type, dedupeKey) : null;
             if (existing != null)
             {
-                existing.payload = payload == null ? new JsonObject() : payload.deepCopy();
+                existing.payload = payload == null ? new JsonObject() : com.mmm.compat.GsonCompat.copy(payload);
                 existing.triggerReason = normalizeTrigger(triggerReason);
                 changedItem = existing.copy();
                 replaced = true;

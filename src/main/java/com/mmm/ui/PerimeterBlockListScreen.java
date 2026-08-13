@@ -5,15 +5,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.registry.Registries;
+import com.mmm.compat.TextFieldWidget;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-public final class PerimeterBlockListScreen extends Screen
+public final class PerimeterBlockListScreen extends MmmScreen
 {
     private static final int ROW_HEIGHT = 30;
     private static final int ROW_GAP = 4;
@@ -28,7 +29,7 @@ public final class PerimeterBlockListScreen extends Screen
 
     public PerimeterBlockListScreen(Screen parent)
     {
-        super(Text.literal("Perimeter Block List"));
+        super(new net.minecraft.text.LiteralText("Perimeter Block List"));
         this.parent = parent;
         this.blocks.addAll(Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST.getStrings());
     }
@@ -38,11 +39,11 @@ public final class PerimeterBlockListScreen extends Screen
     {
         MmmUi.ensureCursorVisible();
         this.clearChildren();
-        this.blockField = new TextFieldWidget(this.textRenderer, 0, 0, 180, FIELD_HEIGHT, Text.literal("Block ID"));
+        this.blockField = new TextFieldWidget(this.textRenderer, 0, 0, 180, FIELD_HEIGHT, new net.minecraft.text.LiteralText("Block ID"));
         this.blockField.setDrawsBackground(false);
         this.blockField.setEditableColor(MmmUi.TEXT);
         this.blockField.setMaxLength(128);
-        this.blockField.setPlaceholder(Text.literal("minecraft:netherrack"));
+        this.blockField.setPlaceholder(new net.minecraft.text.LiteralText("minecraft:netherrack"));
         this.addDrawableChild(this.blockField);
     }
 
@@ -165,7 +166,7 @@ public final class PerimeterBlockListScreen extends Screen
         {
             String normalized = value.trim().toLowerCase(Locale.ROOT);
             Identifier identifier = new Identifier(normalized.contains(":") ? normalized : "minecraft:" + normalized);
-            return Registries.BLOCK.containsId(identifier) ? identifier.toString() : null;
+            return Registry.BLOCK.containsId(identifier) ? identifier.toString() : null;
         }
         catch (RuntimeException ignored)
         {
@@ -177,7 +178,7 @@ public final class PerimeterBlockListScreen extends Screen
     {
         try
         {
-            return Registries.BLOCK.get(new Identifier(canonical)).getName().getString();
+            return Registry.BLOCK.get(new Identifier(canonical)).getName().getString();
         }
         catch (RuntimeException ignored)
         {
@@ -198,7 +199,7 @@ public final class PerimeterBlockListScreen extends Screen
         context.fill(x, y, x + width, y + height, hovered ? MmmUi.accentHover() : MmmUi.INSET);
         context.drawBorder(x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
         int textX = x + Math.max(3, (width - this.textRenderer.getWidth(label)) / 2);
-        context.drawText(this.textRenderer, Text.literal(label), textX, y + 6, hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(label), textX, y + 6, hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, height, action));
     }
 

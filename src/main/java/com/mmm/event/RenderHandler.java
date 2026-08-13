@@ -6,7 +6,7 @@ import com.mmm.hud.SpeedGraphRenderer;
 import com.mmm.timer.TimerHudRenderer;
 import com.mmm.tracker.MiningSpeedTracker;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 
 public final class RenderHandler
 {

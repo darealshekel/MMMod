@@ -115,7 +115,7 @@ public final class WebsiteProfileTotals
     {
         try
         {
-            return JsonParser.parseString(body).getAsJsonObject();
+            return new JsonParser().parse(body).getAsJsonObject();
         }
         catch (Exception e)
         {

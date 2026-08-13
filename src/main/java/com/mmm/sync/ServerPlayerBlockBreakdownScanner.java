@@ -13,7 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.registry.Registries;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.util.Identifier;
 
 public final class ServerPlayerBlockBreakdownScanner
@@ -125,7 +125,7 @@ public final class ServerPlayerBlockBreakdownScanner
 
         String statBlockName = normalized.substring(MINED_CRITERION_PREFIX.length());
         Identifier identifier = resolveStatIdentifier(statBlockName);
-        if (identifier == null || !Registries.BLOCK.containsId(identifier))
+        if (identifier == null || !Registry.BLOCK.containsId(identifier))
         {
             return null;
         }
@@ -135,7 +135,7 @@ public final class ServerPlayerBlockBreakdownScanner
     private static Identifier resolveStatIdentifier(String statBlockName)
     {
         Identifier direct = Identifier.tryParse(statBlockName);
-        if (direct != null && Registries.BLOCK.containsId(direct))
+        if (direct != null && Registry.BLOCK.containsId(direct))
         {
             return direct;
         }

@@ -19,7 +19,7 @@ public final class ScoreboardCompat
             return List.of();
         }
         return objective.getScoreboard().getAllPlayerScores(objective).stream()
-                .map(score -> new Entry(score.getPlayerName(), Text.literal(score.getPlayerName()), score.getScore()))
+                .map(score -> new Entry(score.getPlayerName(), new net.minecraft.text.LiteralText(score.getPlayerName()), score.getScore()))
                 .toList();
     }
 

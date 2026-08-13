@@ -136,7 +136,7 @@ public final class GoalNotificationManager
                     progress.current(),
                     progress.target()
             );
-            client.player.sendMessage(Text.literal(message).styled(style -> style.withColor(color)), false);
+            client.player.sendMessage(new net.minecraft.text.LiteralText(message).styled(style -> style.withColor(color)), false);
         }
     }
 

@@ -478,7 +478,7 @@ public final class SyncQueueManager
     {
         try
         {
-            JsonObject object = JsonParser.parseString(body).getAsJsonObject();
+            JsonObject object = new JsonParser().parse(body).getAsJsonObject();
             for (String key : new String[] {"error", "message", "reason"})
             {
                 if (object.has(key) && object.get(key).isJsonPrimitive())
@@ -594,7 +594,7 @@ public final class SyncQueueManager
 
         try
         {
-            JsonObject source = JsonParser.parseString(body).getAsJsonObject();
+            JsonObject source = new JsonParser().parse(body).getAsJsonObject();
             JsonObject safe = new JsonObject();
             for (String key : new String[] {"ok", "status", "code", "synced", "daily_mining_synced", "accepted_public_totals", "source_sync_accepted", "sync_skipped", "reason", "next_sync_at", "error", "message"})
             {

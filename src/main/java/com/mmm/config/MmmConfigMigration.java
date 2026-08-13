@@ -30,7 +30,7 @@ final class MmmConfigMigration
         }
         try
         {
-            JsonElement parsed = JsonParser.parseString(content);
+            JsonElement parsed = new JsonParser().parse(content);
             return parsed.isJsonObject() ? parsed.getAsJsonObject() : null;
         }
         catch (RuntimeException ignored)
@@ -65,8 +65,8 @@ final class MmmConfigMigration
 
     static JsonObject mergeMissingValues(JsonObject currentRoot, JsonObject legacyRoot)
     {
-        JsonObject merged = currentRoot == null ? new JsonObject() : currentRoot.deepCopy();
-        JsonObject legacy = legacyRoot == null ? new JsonObject() : legacyRoot.deepCopy();
+        JsonObject merged = currentRoot == null ? new JsonObject() : copy(currentRoot).getAsJsonObject();
+        JsonObject legacy = legacyRoot == null ? new JsonObject() : copy(legacyRoot).getAsJsonObject();
         migrateLegacyFeatureToggleSections(merged);
         migrateLegacyFeatureToggleSections(legacy);
 
@@ -101,7 +101,7 @@ final class MmmConfigMigration
         {
             if (target.has(entry.getKey()) == false)
             {
-                target.add(entry.getKey(), entry.getValue().deepCopy());
+                target.add(entry.getKey(), copy(entry.getValue()));
             }
         }
         targetRoot.add(sectionName, target);
@@ -123,12 +123,17 @@ final class MmmConfigMigration
                     JsonElement value = legacy.get(toggle.getLegacyConfigName());
                     if (value != null)
                     {
-                        migrated.add(toggle.getName(), value.deepCopy());
+                        migrated.add(toggle.getName(), copy(value));
                     }
                 }
             }
         }
 
         root.add(sectionName, migrated);
+    }
+
+    static JsonElement copy(JsonElement value)
+    {
+        return new JsonParser().parse(value.toString());
     }
 }

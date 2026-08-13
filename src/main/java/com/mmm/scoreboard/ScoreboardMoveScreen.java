@@ -6,13 +6,14 @@ import com.mmm.config.Configs;
 import com.mmm.ui.MmmUi;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
+import com.mmm.compat.ButtonWidget;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.text.Text;
 
-public final class ScoreboardMoveScreen extends Screen
+public final class ScoreboardMoveScreen extends MmmScreen
 {
     private final Screen parent;
     private boolean dragging;
@@ -21,7 +22,7 @@ public final class ScoreboardMoveScreen extends Screen
 
     public ScoreboardMoveScreen(Screen parent)
     {
-        super(Text.literal("Move Scoreboard"));
+        super(new net.minecraft.text.LiteralText("Move Scoreboard"));
         this.parent = parent;
     }
 
@@ -30,13 +31,13 @@ public final class ScoreboardMoveScreen extends Screen
     {
         MmmUi.ensureCursorVisible();
         ControlLayout layout = this.controlLayout();
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("-"), ignored -> this.adjustScale(-0.05D))
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("-"), ignored -> this.adjustScale(-0.05D))
                 .dimensions(layout.x() + 12, layout.y() + layout.height() - 28, 22, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("+"), ignored -> this.adjustScale(0.05D))
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("+"), ignored -> this.adjustScale(0.05D))
                 .dimensions(layout.x() + 38, layout.y() + layout.height() - 28, 22, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Reset"), ignored -> this.resetLayout())
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Reset"), ignored -> this.resetLayout())
                 .dimensions(layout.x() + layout.width() - 150, layout.y() + layout.height() - 28, 64, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), ignored -> this.close())
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Done"), ignored -> this.close())
                 .dimensions(layout.x() + layout.width() - 80, layout.y() + layout.height() - 28, 64, 20).build());
     }
 
@@ -57,7 +58,7 @@ public final class ScoreboardMoveScreen extends Screen
         else
         {
             int messageWidth = this.textRenderer.getWidth("No sidebar scoreboard is visible.");
-            context.drawText(this.textRenderer, Text.literal("No sidebar scoreboard is visible."),
+            context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("No sidebar scoreboard is visible."),
                     Math.max(8, (this.width - messageWidth) / 2), Math.max(96, this.height / 2), MmmUi.MUTED, false);
         }
 

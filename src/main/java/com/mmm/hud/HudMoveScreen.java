@@ -7,12 +7,13 @@ import com.mmm.timer.TimerHudRenderer;
 import com.mmm.ui.MmmUi;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
+import com.mmm.compat.ButtonWidget;
 import net.minecraft.text.Text;
 
-public class HudMoveScreen extends Screen
+public class HudMoveScreen extends MmmScreen
 {
     private final Screen parent;
     private HudModuleId selected = HudModuleId.MAIN;
@@ -22,7 +23,7 @@ public class HudMoveScreen extends Screen
 
     public HudMoveScreen(Screen parent)
     {
-        super(Text.literal("HUD"));
+        super(new net.minecraft.text.LiteralText("HUD"));
         this.parent = parent;
     }
 
@@ -31,16 +32,16 @@ public class HudMoveScreen extends Screen
     {
         MmmUi.ensureCursorVisible();
         ControlLayout layout = this.controlLayout();
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("-"), button -> adjustScale(-0.05D)).dimensions(layout.x() + 12, layout.y() + layout.height() - 28, 22, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("+"), button -> adjustScale(0.05D)).dimensions(layout.x() + 38, layout.y() + layout.height() - 28, 22, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Reset"), button -> {
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("-"), button -> adjustScale(-0.05D)).dimensions(layout.x() + 12, layout.y() + layout.height() - 28, 22, 20).build());
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("+"), button -> adjustScale(0.05D)).dimensions(layout.x() + 38, layout.y() + layout.height() - 28, 22, 20).build());
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Reset"), button -> {
             TimerHudRenderer.resetLayout();
             Configs.Generic.HUD_X.resetToDefault();
             Configs.Generic.HUD_Y.resetToDefault();
             Configs.Generic.HUD_SCALE.resetToDefault();
             Configs.saveToFile();
         }).dimensions(layout.x() + layout.width() - 150, layout.y() + layout.height() - 28, 64, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(layout.x() + layout.width() - 80, layout.y() + layout.height() - 28, 64, 20).build());
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Done"), button -> close()).dimensions(layout.x() + layout.width() - 80, layout.y() + layout.height() - 28, 64, 20).build());
     }
 
     @Override

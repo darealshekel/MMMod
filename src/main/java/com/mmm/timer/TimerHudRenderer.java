@@ -15,11 +15,11 @@ import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -339,17 +339,17 @@ public final class TimerHudRenderer
 
     private static void drawText(DrawContext context, TextRenderer renderer, String text, int x, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), x, y, color, Configs.useHudTextShadow());
+        context.drawText(renderer, new net.minecraft.text.LiteralText(text), x, y, color, Configs.useHudTextShadow());
     }
 
     private static void drawTextShadow(DrawContext context, TextRenderer renderer, String text, int x, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), x, y, color, Configs.useHudTextShadow());
+        context.drawText(renderer, new net.minecraft.text.LiteralText(text), x, y, color, Configs.useHudTextShadow());
     }
 
     private static void drawTextRight(DrawContext context, TextRenderer renderer, String text, int rightX, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), rightX - renderer.getWidth(text), y, color, Configs.useHudTextShadow());
+        context.drawText(renderer, new net.minecraft.text.LiteralText(text), rightX - renderer.getWidth(text), y, color, Configs.useHudTextShadow());
     }
 
     private static int rawWidth(HudModuleId module)
@@ -441,7 +441,7 @@ public final class TimerHudRenderer
 
     private static boolean isPlayerListOpen(MinecraftClient client)
     {
-        return client != null && client.options != null && client.options.playerListKey.isPressed();
+        return client != null && client.options != null && client.options.keyPlayerList.isPressed();
     }
 
     private static String blockName(String id)
@@ -470,7 +470,7 @@ public final class TimerHudRenderer
         {
             return Blocks.STONE;
         }
-        Block block = Registries.BLOCK.get(identifier);
+        Block block = Registry.BLOCK.get(identifier);
         return block == null ? Blocks.STONE : block;
     }
 

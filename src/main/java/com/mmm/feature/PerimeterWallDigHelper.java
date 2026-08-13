@@ -9,7 +9,7 @@ import com.mmm.config.FeatureToggle;
 import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
-import net.minecraft.registry.Registries;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.Heightmap;
@@ -63,7 +63,7 @@ public final class PerimeterWallDigHelper
         try
         {
             Identifier identifier = new Identifier(name);
-            return Registries.BLOCK.containsId(identifier) ? Registries.BLOCK.get(identifier) : null;
+            return Registry.BLOCK.containsId(identifier) ? Registry.BLOCK.get(identifier) : null;
         }
         catch (Exception ignored)
         {

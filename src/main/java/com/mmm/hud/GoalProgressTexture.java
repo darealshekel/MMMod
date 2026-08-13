@@ -7,12 +7,11 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.ColorHelper;
 
 public final class GoalProgressTexture
 {
     private static final Identifier VANILLA_TEXTURE = new Identifier("textures/gui/icons.png");
-    private static final Identifier COLORED_TEXTURE = Identifier.of("mmm", "dynamic/goal_progress");
+    private static final Identifier COLORED_TEXTURE = new Identifier("mmm", "dynamic/goal_progress");
 
     private static NativeImageBackedTexture texture;
     private static int[] alpha;
@@ -55,7 +54,7 @@ public final class GoalProgressTexture
 
     private static void load(MinecraftClient client) throws IOException
     {
-        try (InputStream stream = client.getResourceManager().open(VANILLA_TEXTURE);
+        try (InputStream stream = client.getResourceManager().getResource(VANILLA_TEXTURE).getInputStream();
              NativeImage source = NativeImage.read(stream))
         {
             width = 182;
@@ -69,9 +68,9 @@ public final class GoalProgressTexture
                 {
                     int index = y * width + x;
                     int pixel = source.getColor(x, y + 69);
-                    alpha[index] = ColorHelper.Abgr.getAlpha(pixel);
-                    int brightestChannel = Math.max(ColorHelper.Abgr.getRed(pixel),
-                            Math.max(ColorHelper.Abgr.getGreen(pixel), ColorHelper.Abgr.getBlue(pixel)));
+                    alpha[index] = (pixel >>> 24) & 0xFF;
+                    int brightestChannel = Math.max(pixel & 0xFF,
+                            Math.max((pixel >>> 8) & 0xFF, (pixel >>> 16) & 0xFF));
                     brightness[index] = brightestChannel / 255.0F;
                 }
             }
@@ -98,11 +97,11 @@ public final class GoalProgressTexture
             {
                 int index = y * width + x;
                 float shade = brightness[index];
-                image.setColor(x, y, ColorHelper.Abgr.getAbgr(
-                        alpha[index],
-                        Math.round(blue * shade),
-                        Math.round(green * shade),
-                        Math.round(red * shade)));
+                int shadedRed = Math.round(red * shade);
+                int shadedGreen = Math.round(green * shade);
+                int shadedBlue = Math.round(blue * shade);
+                image.setColor(x, y, (alpha[index] << 24) | (shadedBlue << 16)
+                        | (shadedGreen << 8) | shadedRed);
             }
         }
         texture.upload();

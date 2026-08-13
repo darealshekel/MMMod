@@ -2,7 +2,6 @@ package com.mmm.sync;
 
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.compat.ScoreboardCompat;
-import java.util.Base64;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -234,13 +233,13 @@ public final class SourceScanManager
             return null;
         }
 
-        byte[] favicon = serverInfo.getFavicon();
-        if (favicon == null || favicon.length == 0)
+        String favicon = serverInfo.getIcon();
+        if (favicon == null || favicon.isBlank())
         {
             return null;
         }
 
-        return "data:image/png;base64," + Base64.getEncoder().encodeToString(favicon);
+        return favicon.startsWith("data:") ? favicon : "data:image/png;base64," + favicon;
     }
 
     private static long resolvePlayerTotalDigs(String username,

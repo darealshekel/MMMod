@@ -35,7 +35,7 @@ class TranslucentLavaRendererTest
 
         assertTrue(TranslucentLavaRenderer.ensureGeneratedPack(packDirectory, 45));
         assertFalse(TranslucentLavaRenderer.ensureGeneratedPack(packDirectory, 45));
-        assertTrue(Files.readString(packDirectory.resolve("pack.mcmeta")).contains("\"pack_format\": 15"));
+        assertTrue(Files.readString(packDirectory.resolve("pack.mcmeta")).contains("\"pack_format\": 7"));
 
         BufferedImage image = ImageIO.read(packDirectory
                 .resolve("assets/minecraft/textures/block/lava_still.png")

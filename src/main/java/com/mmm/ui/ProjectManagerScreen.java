@@ -8,14 +8,15 @@ import com.mmm.tracker.MiningStats;
 import com.mmm.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
+import com.mmm.compat.ButtonWidget;
+import com.mmm.compat.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 
-public class ProjectManagerScreen extends Screen
+public class ProjectManagerScreen extends MmmScreen
 {
     private static final int PANEL_MARGIN = 20;
     private static final int PANEL_PADDING = 18;
@@ -51,7 +52,7 @@ public class ProjectManagerScreen extends Screen
 
     public ProjectManagerScreen(Screen parent)
     {
-        super(Text.literal("Projects"));
+        super(new net.minecraft.text.LiteralText("Projects"));
         this.parent = parent;
     }
 
@@ -66,14 +67,14 @@ public class ProjectManagerScreen extends Screen
         Layout layout = computeLayout();
         this.nameField = createField(getDetailFieldX(layout), getDetailFieldY(layout), getDetailFieldWidth(layout), 64);
 
-        this.applyButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Apply Changes"), button ->
+        this.applyButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Apply Changes"), button ->
         {
             applyCurrentEdits();
             Configs.saveToFile();
             MinecraftClient.getInstance().setScreen(new ProjectManagerScreen(this.parent));
         }).dimensions(layout.detailX + CARD_PADDING, getApplyButtonY(layout), layout.detailWidth - CARD_PADDING * 2, BUTTON_HEIGHT).build());
 
-        this.setActiveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Set Active"), button ->
+        this.setActiveButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Set Active"), button ->
         {
             applyCurrentEdits();
             ProjectEntry selected = getSelectedProject();
@@ -85,7 +86,7 @@ public class ProjectManagerScreen extends Screen
             }
         }).dimensions(layout.detailX + CARD_PADDING, getSetActiveButtonY(layout), layout.detailWidth - CARD_PADDING * 2, BUTTON_HEIGHT).build());
 
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("New Project"), button ->
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("New Project"), button ->
         {
             applyCurrentEdits();
             ProjectEntry entry = Configs.createProject("Project " + (Configs.PROJECTS.size() + 1));
@@ -95,8 +96,8 @@ public class ProjectManagerScreen extends Screen
             MinecraftClient.getInstance().setScreen(new ProjectManagerScreen(this.parent));
         }).dimensions(getFooterButtonX(layout, true), getFooterButtonY(layout), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
 
-        this.deleteButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Remove"), button -> handleDelete()).dimensions(getFooterButtonX(layout, false), getFooterButtonY(layout), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(layout.panelRight - 74, layout.headerY - 2, 64, BUTTON_HEIGHT).build());
+        this.deleteButton = this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Remove"), button -> handleDelete()).dimensions(getFooterButtonX(layout, false), getFooterButtonY(layout), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Done"), button -> close()).dimensions(layout.panelRight - 74, layout.headerY - 2, 64, BUTTON_HEIGHT).build());
 
         populateFields();
         refreshButtons();
@@ -310,7 +311,7 @@ public class ProjectManagerScreen extends Screen
 
         int detailX = layout.detailX + CARD_PADDING;
         int detailWidth = layout.detailWidth - CARD_PADDING * 2;
-        context.drawText(this.textRenderer, Text.literal("Project Name"), detailX, layout.detailY + (layout.compact ? 24 : 34), COLOR_LABEL, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("Project Name"), detailX, layout.detailY + (layout.compact ? 24 : 34), COLOR_LABEL, false);
 
         if (!layout.compact)
         {
@@ -378,7 +379,7 @@ public class ProjectManagerScreen extends Screen
 
     private TextFieldWidget createField(int x, int y, int width, int maxLength)
     {
-        TextFieldWidget field = new TextFieldWidget(this.textRenderer, x + FIELD_PAD_X, y + FIELD_PAD_Y, width - FIELD_PAD_X * 2, 20, Text.empty());
+        TextFieldWidget field = new TextFieldWidget(this.textRenderer, x + FIELD_PAD_X, y + FIELD_PAD_Y, width - FIELD_PAD_X * 2, 20, new net.minecraft.text.LiteralText(""));
         field.setMaxLength(maxLength);
         field.setDrawsBackground(false);
 
@@ -475,7 +476,7 @@ public class ProjectManagerScreen extends Screen
         if (this.deleteButton != null)
         {
             this.deleteButton.active = hasSelected && Configs.PROJECTS.size() > 1;
-            this.deleteButton.setMessage(Text.literal(this.deleteConfirm ? "Confirm Delete" : "Remove"));
+            this.deleteButton.setMessage(new net.minecraft.text.LiteralText(this.deleteConfirm ? "Confirm Delete" : "Remove"));
         }
         if (this.setActiveButton != null)
         {
@@ -541,7 +542,7 @@ public class ProjectManagerScreen extends Screen
         fillCard(context, x, y, width, height, fillColor, borderColor);
         String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
         int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, MmmUi.accent(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(clipped), textX, y + 4, MmmUi.accent(), false);
     }
 
     private void fillCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)

@@ -5,9 +5,10 @@ import com.mmm.scoreboard.ScoreboardHudRenderer;
 import com.mmm.scoreboard.ScoreboardMoveScreen;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
 import net.minecraft.scoreboard.ScoreboardObjective;
+import net.minecraft.client.util.math.MatrixStack;
 
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,10 +23,10 @@ public abstract class ScoreboardInGameHudMixin
     @Shadow @Final private MinecraftClient client;
 
     @Inject(
-            method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V",
+            method = "renderScoreboardSidebar(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/scoreboard/ScoreboardObjective;)V",
             at = @At("HEAD"),
             cancellable = true)
-    private void mmm$renderConfiguredScoreboard(DrawContext context, ScoreboardObjective objective, CallbackInfo ci)
+    private void mmm$renderConfiguredScoreboard(MatrixStack matrices, ScoreboardObjective objective, CallbackInfo ci)
     {
         ci.cancel();
         if (!Configs.Generic.SCOREBOARD_VISIBLE.getBooleanValue()
@@ -33,6 +34,6 @@ public abstract class ScoreboardInGameHudMixin
         {
             return;
         }
-        ScoreboardHudRenderer.render(context, this.client, objective);
+        ScoreboardHudRenderer.render(new DrawContext(this.client, matrices), this.client, objective);
     }
 }

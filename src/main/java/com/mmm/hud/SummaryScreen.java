@@ -18,19 +18,20 @@ import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
+import com.mmm.compat.ButtonWidget;
+import com.mmm.compat.TextFieldWidget;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.Identifier;
 
-public class SummaryScreen extends Screen
+public class SummaryScreen extends MmmScreen
 {
     private static final int PANEL_MARGIN = 20;
     private static final int PANEL_PADDING = 18;
@@ -82,7 +83,7 @@ public class SummaryScreen extends Screen
 
     private SummaryScreen(SessionData session, Screen parent, String worldName, String heading, boolean showChrome)
     {
-        super(Text.literal(heading));
+        super(new net.minecraft.text.LiteralText(heading));
         this.session = session;
         this.parent = parent;
         this.worldName = worldName;
@@ -105,7 +106,7 @@ public class SummaryScreen extends Screen
         buildBreakdownEntries();
 
         Layout layout = computeLayout();
-        this.searchField = new TextFieldWidget(this.textRenderer, layout.breakdownX + CARD_PADDING, layout.breakdownY + 28, layout.breakdownWidth - CARD_PADDING * 2, SEARCH_HEIGHT, Text.empty());
+        this.searchField = new TextFieldWidget(this.textRenderer, layout.breakdownX + CARD_PADDING, layout.breakdownY + 28, layout.breakdownWidth - CARD_PADDING * 2, SEARCH_HEIGHT, new net.minecraft.text.LiteralText(""));
         this.searchField.setMaxLength(64);
         this.searchField.setDrawsBackground(false);
 
@@ -115,12 +116,12 @@ public class SummaryScreen extends Screen
         this.addDrawableChild(this.searchField);
 
         int actionY = layout.headerY;
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Copy"), button ->
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Copy"), button ->
         {
             MinecraftClient.getInstance().keyboard.setClipboard(buildShareText());
             clipboardMessageVisible = true;
         }).dimensions(layout.panelRight - 148, actionY - 2, 64, BUTTON_HEIGHT).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(layout.panelRight - 74, actionY - 2, 64, BUTTON_HEIGHT).build());
+        this.addDrawableChild(ButtonWidget.builder(new net.minecraft.text.LiteralText("Done"), button -> close()).dimensions(layout.panelRight - 74, actionY - 2, 64, BUTTON_HEIGHT).build());
 
         refreshFilteredEntries();
     }
@@ -155,12 +156,12 @@ public class SummaryScreen extends Screen
         {
             String placeholder = MmmUi.truncate(this.textRenderer, SEARCH_PLACEHOLDER, this.searchField.getWidth() - 12);
             int placeholderX = this.searchField.getX() + 6;
-            context.drawText(this.textRenderer, Text.literal(placeholder), placeholderX, this.searchField.getY() + 6, COLOR_MUTED, false);
+            context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(placeholder), placeholderX, this.searchField.getY() + 6, COLOR_MUTED, false);
         }
 
         if (this.clipboardMessageVisible)
         {
-            context.drawText(this.textRenderer, Text.literal("Summary copied to clipboard."), animatedLayout.breakdownX, animatedLayout.panelBottom - 14, COLOR_SUCCESS, false);
+            context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("Summary copied to clipboard."), animatedLayout.breakdownX, animatedLayout.panelBottom - 14, COLOR_SUCCESS, false);
         }
         if (this.showChrome)
         {
@@ -296,7 +297,7 @@ public class SummaryScreen extends Screen
         MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
         if (progress.enabled() == false)
         {
-            context.drawText(this.textRenderer, Text.literal("Disabled"), layout.goalX + CARD_PADDING, layout.goalY + 32, COLOR_MUTED, false);
+            context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("Disabled"), layout.goalX + CARD_PADDING, layout.goalY + 32, COLOR_MUTED, false);
             return;
         }
 
@@ -339,7 +340,7 @@ public class SummaryScreen extends Screen
         int drawY = listY + 6 - this.breakdownScrollOffset;
         if (this.filteredEntries.isEmpty())
         {
-            context.drawText(this.textRenderer, Text.literal("No matching blocks found."), listX + 8, drawY + 4, COLOR_MUTED, false);
+            context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("No matching blocks found."), listX + 8, drawY + 4, COLOR_MUTED, false);
         }
         else
         {
@@ -368,8 +369,8 @@ public class SummaryScreen extends Screen
         int nameWidth = Math.max(40, countX - (x + 24) - 8);
         String blockName = truncateToWidth(this.textRenderer, entry.name(), nameWidth);
 
-        context.drawText(this.textRenderer, Text.literal(blockName), x + 22, y + 6, COLOR_VALUE, false);
-        context.drawText(this.textRenderer, Text.literal(countText), countX, y + 6, Configs.getHudNumberColor(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(blockName), x + 22, y + 6, COLOR_VALUE, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(countText), countX, y + 6, Configs.getHudNumberColor(), false);
     }
 
     private void drawMiningRateGraph(DrawContext context, int x, int y, int width, int height, float animation)
@@ -385,7 +386,7 @@ public class SummaryScreen extends Screen
 
         if (rates.isEmpty())
         {
-            context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Mine blocks to build a pace graph"), x + width / 2, y + height / 2 - 4, COLOR_MUTED);
+            context.drawCenteredTextWithShadow(this.textRenderer, new net.minecraft.text.LiteralText("Mine blocks to build a pace graph"), x + width / 2, y + height / 2 - 4, COLOR_MUTED);
             return;
         }
 
@@ -451,14 +452,14 @@ public class SummaryScreen extends Screen
         }
 
         String maxLabel = UiFormat.formatCompact(Math.round(maxRate)) + "/hr";
-        context.drawText(this.textRenderer, Text.literal(maxLabel), x + 4, y + 4, COLOR_LABEL, false);
-        context.drawText(this.textRenderer, Text.literal("0"), x + 4, chartBottom - 8, COLOR_MUTED, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(maxLabel), x + 4, y + 4, COLOR_LABEL, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("0"), x + 4, chartBottom - 8, COLOR_MUTED, false);
 
         String startLabel = "0m";
         String endLabel = formatGraphTimeLabel(Math.max(1, rates.size()) * 60L);
         int endWidth = this.textRenderer.getWidth(endLabel);
-        context.drawText(this.textRenderer, Text.literal(startLabel), x, y + height - 10, COLOR_MUTED, false);
-        context.drawText(this.textRenderer, Text.literal(endLabel), x + width - endWidth, y + height - 10, COLOR_MUTED, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(startLabel), x, y + height - 10, COLOR_MUTED, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(endLabel), x + width - endWidth, y + height - 10, COLOR_MUTED, false);
     }
 
     private void drawStatCard(DrawContext context, int x, int y, int width, int height, String label, String value, String suffix)
@@ -509,7 +510,7 @@ public class SummaryScreen extends Screen
         fillRoundedCard(context, x, y, width, height, fillColor, borderColor);
         String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
         int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, MmmUi.accent(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(clipped), textX, y + 4, MmmUi.accent(), false);
     }
 
     private void fillRoundedCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
@@ -826,7 +827,7 @@ public class SummaryScreen extends Screen
             return Blocks.STONE;
         }
 
-        Block block = Registries.BLOCK.get(identifier);
+        Block block = Registry.BLOCK.get(identifier);
         return block == null ? Blocks.STONE : block;
     }
 

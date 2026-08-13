@@ -11,6 +11,8 @@ import com.mmm.timer.MmmTimerState;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.minecraft.client.MinecraftClient;
+import com.mmm.compat.DrawContext;
 
 public final class InitHandler
 {
@@ -30,6 +32,7 @@ public final class InitHandler
             worldListener.pollWorldChange(client);
             tickHandler.onClientTick(client);
         });
-        HudRenderCallback.EVENT.register((drawContext, tickCounter) -> RenderHandler.renderHud(drawContext));
+        HudRenderCallback.EVENT.register((matrices, tickDelta) ->
+                RenderHandler.renderHud(new DrawContext(MinecraftClient.getInstance(), matrices)));
     }
 }

@@ -25,12 +25,13 @@ import com.mmm.config.value.ConfigColor;
 import com.mmm.config.value.ConfigOptionList;
 import com.mmm.util.MmmMessages;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
+import com.mmm.compat.TextFieldWidget;
 import net.minecraft.text.Text;
 
-public class MmmSettingsScreen extends Screen
+public class MmmSettingsScreen extends MmmScreen
 {
     private static final int BG = 0xFF050505;
     private static final int TOP_BAR = 0xF0060606;
@@ -78,7 +79,7 @@ public class MmmSettingsScreen extends Screen
 
     public MmmSettingsScreen(Screen parent, boolean openedFromHotkey)
     {
-        super(Text.literal("MMM Mod Settings"));
+        super(new net.minecraft.text.LiteralText("MMM Mod Settings"));
         this.parent = parent;
         this.suppressAutomaticSearchInput = openedFromHotkey;
         this.openedAtMs = System.currentTimeMillis();
@@ -92,11 +93,11 @@ public class MmmSettingsScreen extends Screen
         this.clearChildren();
         this.textFields.clear();
 
-        this.searchField = new TextFieldWidget(this.textRenderer, 0, 0, 220, FIELD_HEIGHT, Text.literal("Search settings"));
+        this.searchField = new TextFieldWidget(this.textRenderer, 0, 0, 220, FIELD_HEIGHT, new net.minecraft.text.LiteralText("Search settings"));
         this.searchField.setDrawsBackground(false);
         this.searchField.setEditableColor(TEXT);
         this.searchField.setMaxLength(64);
-        this.searchField.setPlaceholder(Text.literal("Search settings..."));
+        this.searchField.setPlaceholder(new net.minecraft.text.LiteralText("Search settings..."));
         this.searchField.setText(this.searchQuery);
         this.searchField.setChangedListener(value -> {
             this.searchQuery = value;
@@ -110,7 +111,7 @@ public class MmmSettingsScreen extends Screen
             {
                 if (row.kind().usesTextField())
                 {
-                    TextFieldWidget field = new TextFieldWidget(this.textRenderer, 0, 0, CONTROL_WIDTH, FIELD_HEIGHT, Text.empty());
+                    TextFieldWidget field = new TextFieldWidget(this.textRenderer, 0, 0, CONTROL_WIDTH, FIELD_HEIGHT, new net.minecraft.text.LiteralText(""));
                     field.setDrawsBackground(false);
 
                     field.setEditableColor(TEXT);
@@ -498,7 +499,7 @@ public class MmmSettingsScreen extends Screen
         context.drawBorder(x, y, width, FIELD_HEIGHT, border);
         String label = enabled ? "ON" : "OFF";
         int labelW = this.textRenderer.getWidth(label);
-        context.drawText(this.textRenderer, Text.literal(label), x + (width - labelW) / 2, y + 6, enabled ? TEXT : MUTED, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(label), x + (width - labelW) / 2, y + 6, enabled ? TEXT : MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, FIELD_HEIGHT, () -> {
             if (config instanceof IConfigBoolean booleanConfig)
             {
@@ -604,7 +605,7 @@ public class MmmSettingsScreen extends Screen
         context.fill(thumbX, y + 3, thumbX + 4, y + FIELD_HEIGHT - 3, MmmUi.accent());
 
         int valueWidth = this.textRenderer.getWidth(value);
-        context.drawText(this.textRenderer, Text.literal(value), x + Math.max(0, (width - valueWidth) / 2), y + 5, TEXT, true);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(value), x + Math.max(0, (width - valueWidth) / 2), y + 5, TEXT, true);
         this.sliderTargets.add(new SliderTarget(x, y, width, FIELD_HEIGHT, config));
     }
 
@@ -656,7 +657,7 @@ public class MmmSettingsScreen extends Screen
         context.drawBorder(x, y, width, height, border);
         String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
         int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 6, hovered ? TEXT : MUTED, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(clipped), textX, y + 6, hovered ? TEXT : MUTED, false);
     }
 
     private void drawScrollbar(DrawContext context, int x, int y, int height)

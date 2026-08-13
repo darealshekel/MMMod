@@ -5,18 +5,18 @@ import com.mmm.social.PublicChatClient;
 import com.mmm.sync.WebsiteLinkManager;
 import com.mmm.ui.MmmUi;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -52,15 +52,16 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     }
 
     @Inject(method = "render", at = @At("TAIL"))
-    private void mmm$renderChannelTabs(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci)
+    private void mmm$renderChannelTabs(MatrixStack matrices, int mouseX, int mouseY, float delta, CallbackInfo ci)
     {
         if (this.chatField == null)
         {
             return;
         }
 
-        int x = this.chatField.getX();
-        int y = Math.max(1, this.chatField.getY() - TAB_HEIGHT - 2);
+        DrawContext context = new DrawContext(MinecraftClient.getInstance(), matrices);
+        int x = this.chatField.x;
+        int y = Math.max(1, this.chatField.y - TAB_HEIGHT - 2);
         mmm$drawTab(context, false, MINECRAFT_CHANNEL_LABEL, x, y, mouseX, mouseY);
         x += mmm$tabWidth(MINECRAFT_CHANNEL_LABEL);
         mmm$drawTab(context, true, MMM_CHANNEL_LABEL, x, y, mouseX, mouseY);
@@ -75,8 +76,8 @@ public abstract class ScoreboardChatScreenMixin extends Screen
             return;
         }
 
-        int x = this.chatField.getX();
-        int y = Math.max(1, this.chatField.getY() - TAB_HEIGHT - 2);
+        int x = this.chatField.x;
+        int y = Math.max(1, this.chatField.y - TAB_HEIGHT - 2);
         int minecraftWidth = mmm$tabWidth(MINECRAFT_CHANNEL_LABEL);
         if (mmm$isInside(mouseX, mouseY, x, y, minecraftWidth, TAB_HEIGHT))
         {
@@ -93,15 +94,32 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         }
     }
 
-    @Inject(method = "sendMessage(Ljava/lang/String;Z)Z", at = @At("HEAD"), cancellable = true)
-    private void mmm$sendPublicMessage(String message, boolean addToHistory, CallbackInfoReturnable<Boolean> cir)
+    @Redirect(
+            method = "keyPressed",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screen/ChatScreen;sendMessage(Ljava/lang/String;)V"),
+            require = 0)
+    private void mmm$routeChatMessage(ChatScreen screen, String message)
     {
         if (mmm$publicChannelSelected == false)
         {
+            if (Configs.Generic.SCOREBOARD_DEFAULT_TEAM_CHAT.getBooleanValue())
+            {
+                if (message.startsWith("#"))
+                {
+                    screen.sendMessage(message.length() == 1 ? message : message.substring(1));
+                }
+                else
+                {
+                    screen.sendMessage("/teammsg " + message);
+                }
+            }
+            else
+            {
+                screen.sendMessage(message);
+            }
             return;
         }
 
-        cir.setReturnValue(true);
         String normalized = message == null ? "" : message.trim();
         if (normalized.isBlank())
         {
@@ -115,31 +133,12 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         }
         if (WebsiteLinkManager.isCurrentPlayerLinked() == false)
         {
-            client.player.sendMessage(Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
-                    .append(Text.literal("Website link required.").formatted(Formatting.RED)), false);
+            client.player.sendMessage(new net.minecraft.text.LiteralText("[MMM] ").formatted(Formatting.DARK_GRAY)
+                    .append(new net.minecraft.text.LiteralText("Website link required.").formatted(Formatting.RED)), false);
             return;
         }
 
         PublicChatClient.sendMessage(normalized);
-    }
-
-    @Redirect(
-            method = "sendMessage",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/network/ClientPlayNetworkHandler;sendChatMessage(Ljava/lang/String;)V"),
-            require = 0)
-    private void mmm$routeDefaultTeamChat(ClientPlayNetworkHandler networkHandler, String message)
-    {
-        if (!Configs.Generic.SCOREBOARD_DEFAULT_TEAM_CHAT.getBooleanValue())
-        {
-            networkHandler.sendChatMessage(message);
-            return;
-        }
-        if (message.startsWith("#"))
-        {
-            networkHandler.sendChatMessage(message.length() == 1 ? message : message.substring(1));
-            return;
-        }
-        networkHandler.sendChatCommand("teammsg " + message);
     }
 
     private void mmm$drawTab(DrawContext context, boolean publicChannel, String label,

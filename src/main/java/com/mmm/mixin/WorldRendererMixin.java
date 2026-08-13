@@ -68,19 +68,20 @@ public abstract class WorldRendererMixin
         float red = ((color >>> 16) & 0xFF) / 255.0F;
         float green = ((color >>> 8) & 0xFF) / 255.0F;
         float blue = (color & 0xFF) / 255.0F;
-        WorldRenderer.drawShapeOutline(
-                matrices,
-                vertexConsumer,
-                state.getOutlineShape(this.client.world, pos, ShapeContext.of(entity)),
-                pos.getX() - cameraX,
-                pos.getY() - cameraY,
-                pos.getZ() - cameraZ,
-                red,
-                green,
-                blue,
-                alpha,
-                true
-        );
+        state.getOutlineShape(this.client.world, pos, ShapeContext.of(entity)).forEachBox(
+                (minX, minY, minZ, maxX, maxY, maxZ) -> WorldRenderer.drawBox(
+                        matrices,
+                        vertexConsumer,
+                        pos.getX() - cameraX + minX,
+                        pos.getY() - cameraY + minY,
+                        pos.getZ() - cameraZ + minZ,
+                        pos.getX() - cameraX + maxX,
+                        pos.getY() - cameraY + maxY,
+                        pos.getZ() - cameraZ + maxZ,
+                        red,
+                        green,
+                        blue,
+                        alpha));
         ci.cancel();
     }
 }

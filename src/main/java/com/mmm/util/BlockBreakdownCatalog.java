@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Set;
 
 import net.minecraft.block.Block;
-import net.minecraft.registry.Registries;
+import net.minecraft.util.registry.Registry;
 
 public final class BlockBreakdownCatalog
 {
@@ -122,7 +122,7 @@ public final class BlockBreakdownCatalog
         {
             return "";
         }
-        return Registries.BLOCK.getId(block).toString();
+        return Registry.BLOCK.getId(block).toString();
     }
 
     public static Map<String, Long> sanitize(Map<String, Long> breakdown)

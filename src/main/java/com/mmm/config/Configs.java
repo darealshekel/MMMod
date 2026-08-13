@@ -581,7 +581,7 @@ public class Configs
         {
             for (LegacyConfigCandidate candidate : findMigrationCandidates(configFile.toPath()))
             {
-                JsonObject beforeMerge = primaryRoot == null ? new JsonObject() : primaryRoot.deepCopy();
+                JsonObject beforeMerge = primaryRoot == null ? new JsonObject() : MmmConfigMigration.copy(primaryRoot).getAsJsonObject();
                 primaryRoot = MmmConfigMigration.mergeMissingValues(primaryRoot, candidate.root());
                 boolean candidateImported = primaryRoot.equals(beforeMerge) == false;
                 importedLegacy |= candidateImported;

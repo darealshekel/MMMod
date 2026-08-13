@@ -1,12 +1,12 @@
 {
   "required": true,
   "package": "com.mmm.mixin",
-  "compatibilityLevel": "JAVA_17",
+  "compatibilityLevel": "JAVA_16",
   "client": [
     "ClientPlayNetworkHandlerMixin",
     "ClientPlayerInteractionManagerAccessor",
     "ClientPlayerInteractionManagerMixin",
-    "DecorationParameterMixin",
+    "ChatHudMixin",
     "HeldItemRendererMixin",
     "InGameHudMixin",
     "KeyboardMixin",

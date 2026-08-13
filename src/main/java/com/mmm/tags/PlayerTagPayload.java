@@ -20,7 +20,7 @@ public final class PlayerTagPayload
         Map<String, PlayerTagData> tags = new HashMap<>();
         try
         {
-            JsonObject root = JsonParser.parseString(body).getAsJsonObject();
+            JsonObject root = new JsonParser().parse(body).getAsJsonObject();
             if (!root.has("tags") || !root.get("tags").isJsonArray())
             {
                 return Map.of();
@@ -55,7 +55,7 @@ public final class PlayerTagPayload
         Map<String, PlayerTagData> tags = new HashMap<>();
         try
         {
-            JsonObject root = JsonParser.parseString(body).getAsJsonObject();
+            JsonObject root = new JsonParser().parse(body).getAsJsonObject();
             if (!root.has("rows") || !root.get("rows").isJsonArray())
             {
                 return Map.of();
@@ -91,7 +91,7 @@ public final class PlayerTagPayload
     {
         try
         {
-            JsonObject root = JsonParser.parseString(body).getAsJsonObject();
+            JsonObject root = new JsonParser().parse(body).getAsJsonObject();
             String username = stringValue(root, "name").trim();
             if (!isMinecraftUsername(username))
             {
@@ -206,7 +206,7 @@ public final class PlayerTagPayload
     {
         try
         {
-            JsonObject root = JsonParser.parseString(body).getAsJsonObject();
+            JsonObject root = new JsonParser().parse(body).getAsJsonObject();
             return root.has(key) && root.get(key).isJsonArray();
         }
         catch (Exception ignored)

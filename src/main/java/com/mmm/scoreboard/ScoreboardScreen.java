@@ -17,11 +17,12 @@ import com.mmm.config.value.IConfigResettable;
 import com.mmm.config.value.ConfigOptionList;
 import com.mmm.util.MmmMessages;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
-public final class ScoreboardScreen extends Screen
+public final class ScoreboardScreen extends MmmScreen
 {
     private static final int TOP_HEIGHT = MmmUi.TOP_BAR_HEIGHT;
     private static final int GAP = 12;
@@ -42,7 +43,7 @@ public final class ScoreboardScreen extends Screen
 
     public ScoreboardScreen(Screen parent)
     {
-        super(Text.literal("Scoreboard"));
+        super(new net.minecraft.text.LiteralText("Scoreboard"));
         this.parent = parent;
     }
 
@@ -199,7 +200,7 @@ public final class ScoreboardScreen extends Screen
         context.drawBorder(x, y, width, FIELD_HEIGHT, hovered || enabled ? MmmUi.accent() : MmmUi.BORDER_SOFT);
         String label = enabled ? "ON" : "OFF";
         int labelX = x + Math.max(4, (width - this.textRenderer.getWidth(label)) / 2);
-        context.drawText(this.textRenderer, Text.literal(label), labelX, y + 6,
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(label), labelX, y + 6,
                 enabled ? MmmUi.TEXT : MmmUi.MUTED, false);
         if (visible)
         {
@@ -267,7 +268,7 @@ public final class ScoreboardScreen extends Screen
 
         String value = formatValue(current, style);
         int valueX = x + Math.max(0, (width - this.textRenderer.getWidth(value)) / 2);
-        context.drawText(this.textRenderer, Text.literal(value), valueX, y + 5, MmmUi.TEXT, true);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(value), valueX, y + 5, MmmUi.TEXT, true);
         if (visible)
         {
             this.sliderTargets.add(new SliderTarget(x, y, width, FIELD_HEIGHT, config));
@@ -292,7 +293,7 @@ public final class ScoreboardScreen extends Screen
         context.drawBorder(x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
         String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
         int labelX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), labelX, y + 6,
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(clipped), labelX, y + 6,
                 hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
     }
 
@@ -490,7 +491,7 @@ public final class ScoreboardScreen extends Screen
     private static Text optionText(ConfigOptionList config)
     {
         IConfigOptionListEntry entry = config.getOptionListValue();
-        return entry == null ? Text.literal(config.getStringValue()) : Text.literal(entry.getDisplayName());
+        return entry == null ? new net.minecraft.text.LiteralText(config.getStringValue()) : new net.minecraft.text.LiteralText(entry.getDisplayName());
     }
 
     private static String formatValue(double current, ValueStyle style)

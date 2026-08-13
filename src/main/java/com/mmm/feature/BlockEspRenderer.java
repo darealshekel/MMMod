@@ -20,6 +20,7 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.Matrix4f;
 import net.minecraft.util.shape.VoxelShape;
 
 public final class BlockEspRenderer
@@ -92,18 +93,20 @@ public final class BlockEspRenderer
         RenderSystem.depthMask(false);
         try
         {
-            RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+            RenderSystem.setShader(GameRenderer::getPositionColorShader);
             BufferBuilder fillBuffer = Tessellator.getInstance().getBuffer();
             fillBuffer.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
-            WorldRenderer.renderFilledBox(matrices, fillBuffer, minX, minY, minZ, maxX, maxY, maxZ, fill.r, fill.g, fill.b, fill.a);
-            BufferRenderer.drawWithGlobalProgram(fillBuffer.end());
+            renderFilledBox(matrices.peek().getModel(), fillBuffer, minX, minY, minZ, maxX, maxY, maxZ, fill);
+            fillBuffer.end();
+            BufferRenderer.draw(fillBuffer);
 
-            RenderSystem.setShader(GameRenderer::getRenderTypeLinesProgram);
+            RenderSystem.setShader(GameRenderer::getRenderTypeLinesShader);
             RenderSystem.lineWidth(1.0F);
             BufferBuilder lineBuffer = Tessellator.getInstance().getBuffer();
             lineBuffer.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
             WorldRenderer.drawBox(matrices, lineBuffer, minX, minY, minZ, maxX, maxY, maxZ, outline.r, outline.g, outline.b, outline.a);
-            BufferRenderer.drawWithGlobalProgram(lineBuffer.end());
+            lineBuffer.end();
+            BufferRenderer.draw(lineBuffer);
         }
         finally
         {
@@ -114,6 +117,30 @@ public final class BlockEspRenderer
             RenderSystem.disableBlend();
             matrices.pop();
         }
+    }
+
+    private static void renderFilledBox(Matrix4f matrix, BufferBuilder buffer,
+                                        double minX, double minY, double minZ,
+                                        double maxX, double maxY, double maxZ,
+                                        Color4f color)
+    {
+        quad(buffer, matrix, minX, minY, minZ, maxX, minY, minZ, maxX, maxY, minZ, minX, maxY, minZ, color);
+        quad(buffer, matrix, maxX, minY, maxZ, minX, minY, maxZ, minX, maxY, maxZ, maxX, maxY, maxZ, color);
+        quad(buffer, matrix, minX, minY, maxZ, minX, minY, minZ, minX, maxY, minZ, minX, maxY, maxZ, color);
+        quad(buffer, matrix, maxX, minY, minZ, maxX, minY, maxZ, maxX, maxY, maxZ, maxX, maxY, minZ, color);
+        quad(buffer, matrix, minX, minY, maxZ, maxX, minY, maxZ, maxX, minY, minZ, minX, minY, minZ, color);
+        quad(buffer, matrix, minX, maxY, minZ, maxX, maxY, minZ, maxX, maxY, maxZ, minX, maxY, maxZ, color);
+    }
+
+    private static void quad(BufferBuilder buffer, Matrix4f matrix,
+                             double x1, double y1, double z1, double x2, double y2, double z2,
+                             double x3, double y3, double z3, double x4, double y4, double z4,
+                             Color4f color)
+    {
+        buffer.vertex(matrix, (float) x1, (float) y1, (float) z1).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(matrix, (float) x2, (float) y2, (float) z2).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(matrix, (float) x3, (float) y3, (float) z3).color(color.r, color.g, color.b, color.a).next();
+        buffer.vertex(matrix, (float) x4, (float) y4, (float) z4).color(color.r, color.g, color.b, color.a).next();
     }
 
     private static Color4f getCurrentColor()

@@ -387,7 +387,7 @@ public final class MiningStats
         boolean pauseRequested = client.isInSingleplayer()
                 && client.currentScreen != null
                 && (client.currentScreen instanceof GameMenuScreen
-                || client.currentScreen.shouldPause());
+                || client.currentScreen.isPauseScreen());
         if (pauseRequested)
         {
             if (sessionPaused == false)

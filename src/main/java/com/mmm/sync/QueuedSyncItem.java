@@ -31,7 +31,7 @@ final class QueuedSyncItem
         item.type = type;
         item.dedupeKey = dedupeKey == null ? "" : dedupeKey;
         item.triggerReason = sanitizeTrigger(triggerReason);
-        item.payload = payload == null ? new JsonObject() : payload.deepCopy();
+        item.payload = payload == null ? new JsonObject() : com.mmm.compat.GsonCompat.copy(payload);
         item.createdAtMs = now;
         item.retryCount = 0;
         item.lastRetryAtMs = 0L;
@@ -56,7 +56,7 @@ final class QueuedSyncItem
         item.type = this.type;
         item.dedupeKey = this.dedupeKey;
         item.triggerReason = this.triggerReason == null ? "legacy queue item" : this.triggerReason;
-        item.payload = this.payload == null ? null : this.payload.deepCopy();
+        item.payload = this.payload == null ? null : com.mmm.compat.GsonCompat.copy(this.payload);
         item.createdAtMs = this.createdAtMs;
         item.retryCount = this.retryCount;
         item.lastRetryAtMs = this.lastRetryAtMs;

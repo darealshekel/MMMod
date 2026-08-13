@@ -11,23 +11,24 @@ import com.mmm.util.UiFormat;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
+import com.mmm.compat.MmmScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
-public class TimerCreditsScreen extends Screen
+public class TimerCreditsScreen extends MmmScreen
 {
     private static final Map<String, ItemStack> ICON_CACHE = new LinkedHashMap<>();
     private final Screen parent;
 
     public TimerCreditsScreen(Screen parent)
     {
-        super(Text.literal("MMM Timer Complete"));
+        super(new net.minecraft.text.LiteralText("MMM Timer Complete"));
         this.parent = parent;
     }
 
@@ -47,8 +48,8 @@ public class TimerCreditsScreen extends Screen
         context.fill(x - 4, y - 4, x + panelW + 4, y + panelH + 4, glow);
         MmmUi.card(context, x, y, panelW, panelH, MmmUi.CARD, MmmUi.BORDER);
         context.fill(x + 14, y + 16, x + 18, y + 36, MmmUi.RED);
-        context.drawText(this.textRenderer, Text.literal("TIMER COMPLETE"), x + 28, y + 16, Configs.getHudTitleColor(), false);
-        context.drawText(this.textRenderer, Text.literal(MmmTimerState.formatTime(MmmTimerState.getDurationMs()) + " run finished"), x + 28, y + 31, MmmUi.MUTED, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("TIMER COMPLETE"), x + 28, y + 16, Configs.getHudTitleColor(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(MmmTimerState.formatTime(MmmTimerState.getDurationMs()) + " run finished"), x + 28, y + 31, MmmUi.MUTED, false);
 
         int statsY = y + 58;
         drawStat(context, x + 18, statsY, "Blocks", UiFormat.formatCompact(MmmTimerState.getBlocksBroken()));
@@ -56,11 +57,11 @@ public class TimerCreditsScreen extends Screen
 
         List<MmmTimerState.BlockCount> top = MmmTimerState.getTopBlocks().stream().limit(5).toList();
         int listY = statsY + 46;
-        context.drawText(this.textRenderer, Text.literal("TOP BLOCKS"), x + 18, listY, Configs.getHudTextColor(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("TOP BLOCKS"), x + 18, listY, Configs.getHudTextColor(), false);
         listY += 18;
         if (top.isEmpty())
         {
-            context.drawText(this.textRenderer, Text.literal("No blocks mined during this timer."), x + 18, listY, MmmUi.INACTIVE, false);
+            context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("No blocks mined during this timer."), x + 18, listY, MmmUi.INACTIVE, false);
         }
         else
         {
@@ -70,15 +71,15 @@ public class TimerCreditsScreen extends Screen
                 int rowY = listY + i * 24;
                 context.fill(x + 18, rowY - 3, x + panelW - 18, rowY + 19, MmmUi.INSET);
                 context.drawBorder(x + 18, rowY - 3, panelW - 36, 22, MmmUi.BORDER_SOFT);
-                context.drawText(this.textRenderer, Text.literal("#" + (i + 1)), x + 26, rowY + 4, MmmUi.RED, false);
+                context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("#" + (i + 1)), x + 26, rowY + 4, MmmUi.RED, false);
                 context.drawItem(getCachedIcon(entry.id()), x + 50, rowY);
-                context.drawText(this.textRenderer, Text.literal(blockName(entry.id())), x + 72, rowY + 5, Configs.getHudTextColor(), false);
+                context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(blockName(entry.id())), x + 72, rowY + 5, Configs.getHudTextColor(), false);
                 String count = UiFormat.formatCompact(entry.count());
-                context.drawText(this.textRenderer, Text.literal(count), x + panelW - 28 - this.textRenderer.getWidth(count), rowY + 5, Configs.getHudNumberColor(), false);
+                context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(count), x + panelW - 28 - this.textRenderer.getWidth(count), rowY + 5, Configs.getHudNumberColor(), false);
             }
         }
 
-        context.drawText(this.textRenderer, Text.literal("ESC to close"), x + panelW - 18 - this.textRenderer.getWidth("ESC to close"), y + panelH - 22, MmmUi.MUTED, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText("ESC to close"), x + panelW - 18 - this.textRenderer.getWidth("ESC to close"), y + panelH - 22, MmmUi.MUTED, false);
     }
 
     @Override
@@ -109,8 +110,8 @@ public class TimerCreditsScreen extends Screen
     {
         int width = 176;
         MmmUi.card(context, x, y, width, 34, MmmUi.INSET, MmmUi.BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(label), x + 8, y + 7, MmmUi.MUTED, false);
-        context.drawText(this.textRenderer, Text.literal(value), x + width - 8 - this.textRenderer.getWidth(value), y + 18, Configs.getHudNumberColor(), false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(label), x + 8, y + 7, MmmUi.MUTED, false);
+        context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(value), x + width - 8 - this.textRenderer.getWidth(value), y + 18, Configs.getHudNumberColor(), false);
     }
 
     private static String blockName(String id)
@@ -139,7 +140,7 @@ public class TimerCreditsScreen extends Screen
         {
             return Blocks.STONE;
         }
-        Block block = Registries.BLOCK.get(identifier);
+        Block block = Registry.BLOCK.get(identifier);
         return block == null ? Blocks.STONE : block;
     }
 }

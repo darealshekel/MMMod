@@ -298,7 +298,7 @@ public final class CloudSyncManager
 
         try
         {
-            JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
+            JsonObject root = new JsonParser().parse(responseBody).getAsJsonObject();
             return root.has(key) && root.get(key).isJsonPrimitive() && root.get(key).getAsBoolean();
         }
         catch (Exception ignored)
@@ -364,7 +364,7 @@ public final class CloudSyncManager
         }
         try
         {
-            return JsonParser.parseString(responseBody).getAsJsonObject();
+            return new JsonParser().parse(responseBody).getAsJsonObject();
         }
         catch (Exception ignored)
         {
@@ -1029,7 +1029,7 @@ public final class CloudSyncManager
 
         try
         {
-            JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
+            JsonObject root = new JsonParser().parse(responseBody).getAsJsonObject();
             if (root.has("source_sync_accepted")
                     && root.get("source_sync_accepted").isJsonPrimitive()
                     && root.get("source_sync_accepted").getAsBoolean())
@@ -1065,7 +1065,7 @@ public final class CloudSyncManager
 
         try
         {
-            JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
+            JsonObject root = new JsonParser().parse(responseBody).getAsJsonObject();
             boolean changed = false;
 
             JsonObject syncPolicy = getObject(root, "sync_policy");
@@ -1288,7 +1288,7 @@ public final class CloudSyncManager
         if (sourceLeaderboards.size() > 0)
         {
             payload.add("source_leaderboards", sourceLeaderboards);
-            payload.add("source_leaderboard", sourceLeaderboards.get(0).deepCopy());
+            payload.add("source_leaderboard", com.mmm.compat.GsonCompat.copy(sourceLeaderboards.get(0)));
         }
 
         JsonObject playerTotalDigs = buildPlayerTotalDigs(client, worldInfo, sourceEvidence);
@@ -1615,8 +1615,8 @@ public final class CloudSyncManager
         evidence.addProperty("player_total_digs", scan.playerTotalDigs());
         evidence.addProperty("compatible", scan.compatible());
         evidence.addProperty("confidence", scan.confidence());
-        evidence.add("sample_sidebar_lines", sampleLines.deepCopy());
-        evidence.add("detected_stat_fields", detectedFields.deepCopy());
+        evidence.add("sample_sidebar_lines", com.mmm.compat.GsonCompat.copy(sampleLines));
+        evidence.add("detected_stat_fields", com.mmm.compat.GsonCompat.copy(detectedFields));
         object.add("raw_scan_evidence", evidence);
 
         return object;
@@ -1838,7 +1838,7 @@ public final class CloudSyncManager
 
         try
         {
-            JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
+            JsonObject root = new JsonParser().parse(responseBody).getAsJsonObject();
             if (root.has("sessions") && root.get("sessions").isJsonArray())
             {
                 JsonArray sessions = root.getAsJsonArray("sessions");
@@ -2107,7 +2107,7 @@ public final class CloudSyncManager
         if (leaderboard == null && payload.has("source_leaderboards") && payload.get("source_leaderboards").isJsonArray())
         {
             JsonArray leaderboards = payload.getAsJsonArray("source_leaderboards");
-            if (leaderboards.isEmpty() == false && leaderboards.get(0).isJsonObject())
+            if (leaderboards.size() > 0 && leaderboards.get(0).isJsonObject())
             {
                 leaderboard = leaderboards.get(0).getAsJsonObject();
             }
