@@ -11,7 +11,7 @@ import net.minecraft.util.math.ColorHelper;
 
 public final class GoalProgressTexture
 {
-    private static final Identifier VANILLA_TEXTURE = Identifier.ofVanilla("textures/gui/sprites/hud/experience_bar_progress.png");
+    private static final Identifier VANILLA_TEXTURE = new Identifier("textures/gui/icons.png");
     private static final Identifier COLORED_TEXTURE = Identifier.of("mmm", "dynamic/goal_progress");
 
     private static NativeImageBackedTexture texture;
@@ -58,8 +58,8 @@ public final class GoalProgressTexture
         try (InputStream stream = client.getResourceManager().open(VANILLA_TEXTURE);
              NativeImage source = NativeImage.read(stream))
         {
-            width = source.getWidth();
-            height = source.getHeight();
+            width = 182;
+            height = 5;
             alpha = new int[width * height];
             brightness = new float[width * height];
 
@@ -68,7 +68,7 @@ public final class GoalProgressTexture
                 for (int x = 0; x < width; x++)
                 {
                     int index = y * width + x;
-                    int pixel = source.getColor(x, y);
+                    int pixel = source.getColor(x, y + 69);
                     alpha[index] = ColorHelper.Abgr.getAlpha(pixel);
                     int brightestChannel = Math.max(ColorHelper.Abgr.getRed(pixel),
                             Math.max(ColorHelper.Abgr.getGreen(pixel), ColorHelper.Abgr.getBlue(pixel)));

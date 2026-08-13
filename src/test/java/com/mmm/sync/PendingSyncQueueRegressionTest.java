@@ -61,7 +61,7 @@ class PendingSyncQueueRegressionTest
             await(() -> retryCount(queue) == 1 && queue.snapshot().flushActive() == false);
 
             assertEquals(1, queue.snapshot().queueSize());
-            assertTrue(queue.snapshotItemsForTests().getFirst().nextRetryAtMs > System.currentTimeMillis());
+            assertTrue(queue.snapshotItemsForTests().get(0).nextRetryAtMs > System.currentTimeMillis());
         }
         finally
         {
@@ -97,7 +97,7 @@ class PendingSyncQueueRegressionTest
             queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, "same", payload(1), true, "first");
             queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, "same", payload(2), true, "second");
 
-            QueuedSyncItem item = queue.snapshotItemsForTests().getFirst();
+            QueuedSyncItem item = queue.snapshotItemsForTests().get(0);
             assertEquals(1, queue.snapshot().queueSize());
             assertEquals(2, item.payload.get("value").getAsInt());
             assertEquals("second", item.triggerReason);
@@ -144,7 +144,7 @@ class PendingSyncQueueRegressionTest
         try
         {
             second.initialize();
-            QueuedSyncItem restored = second.snapshotItemsForTests().getFirst();
+            QueuedSyncItem restored = second.snapshotItemsForTests().get(0);
             assertEquals(1, second.snapshot().queueSize());
             assertEquals("saved session", restored.triggerReason);
             assertTrue(restored.isValid());
@@ -173,7 +173,7 @@ class PendingSyncQueueRegressionTest
         {
             recovered.initialize();
             assertEquals(1, recovered.snapshot().queueSize());
-            assertEquals("first", recovered.snapshotItemsForTests().getFirst().dedupeKey);
+            assertEquals("first", recovered.snapshotItemsForTests().get(0).dedupeKey);
         }
         finally
         {
@@ -198,7 +198,7 @@ class PendingSyncQueueRegressionTest
                 && item.payload.get("minecraft_uuid").getAsString().equals("current-account") == false);
         assertEquals(1, removed);
         assertEquals(1, first.snapshot().queueSize());
-        assertEquals("current-account", first.snapshotItemsForTests().getFirst().payload.get("minecraft_uuid").getAsString());
+        assertEquals("current-account", first.snapshotItemsForTests().get(0).payload.get("minecraft_uuid").getAsString());
         first.shutdown();
 
         PendingSyncQueue second = new PendingSyncQueue(store, item -> SyncSendResult.success(200, "{}"), new PendingSyncQueue.Listener() {});
@@ -206,7 +206,7 @@ class PendingSyncQueueRegressionTest
         {
             second.initialize();
             assertEquals(1, second.snapshot().queueSize());
-            assertEquals("current-account", second.snapshotItemsForTests().getFirst().payload.get("minecraft_uuid").getAsString());
+            assertEquals("current-account", second.snapshotItemsForTests().get(0).payload.get("minecraft_uuid").getAsString());
         }
         finally
         {
@@ -234,7 +234,7 @@ class PendingSyncQueueRegressionTest
     {
         return queue.snapshotItemsForTests().isEmpty()
                 ? 0
-                : queue.snapshotItemsForTests().getFirst().retryCount;
+                : queue.snapshotItemsForTests().get(0).retryCount;
     }
 
     private static void await(BooleanSupplier condition)

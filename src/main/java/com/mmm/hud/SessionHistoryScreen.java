@@ -119,7 +119,7 @@ public class SessionHistoryScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         if (isInBreakdown(mouseX, mouseY))
         {
@@ -136,7 +136,7 @@ public class SessionHistoryScreen extends Screen
             setListScroll(this.listScroll + (verticalAmount < 0 ? 1 : -1));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, verticalAmount);
     }
 
     @Override
@@ -197,7 +197,7 @@ public class SessionHistoryScreen extends Screen
     @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers){ if(keyCode==256){close(); return true;} if(keyCode==264||keyCode==341){moveSelection(1); return true;} if(keyCode==265||keyCode==328){moveSelection(-1); return true;} return super.keyPressed(keyCode, scanCode, modifiers); }
     @Override public void close(){ MinecraftClient.getInstance().setScreen(this.parent); }
     @Override public boolean shouldPause(){ return MmmUi.shouldPauseGame(); }
-    @Override public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta){}
+    @Override public void renderBackground(DrawContext context){}
 
     private void ensureCursorVisible(){ MinecraftClient client=MinecraftClient.getInstance(); if(client!=null&&client.mouse!=null) client.mouse.unlockCursor(); }
 

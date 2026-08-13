@@ -26,7 +26,7 @@ public final class TranslucentLavaRenderer
     private static final int RELOAD_DEBOUNCE_TICKS = 4;
     private static final int STARTUP_DELAY_TICKS = 20;
     private static final int RECONCILE_INTERVAL_TICKS = 100;
-    private static final int RESOURCE_PACK_FORMAT = 34;
+    private static final int RESOURCE_PACK_FORMAT = 15;
     private static final String PACK_DIRECTORY_NAME = "MMM-Translucent-Lava";
     private static final String PACK_ID = "file/" + PACK_DIRECTORY_NAME;
     private static final String RESOURCE_ROOT = "/assets/mmm/translucent_lava/";
@@ -67,8 +67,8 @@ public final class TranslucentLavaRenderer
             {
                 reconcileTicks = 0;
                 ResourcePackManager manager = client.getResourcePackManager();
-                boolean packEnabled = manager.getEnabledIds().contains(PACK_ID);
-                int configuredOpacity = Math.clamp(Configs.Generic.LAVA_OPACITY.getIntegerValue(), 10, 100);
+                boolean packEnabled = manager.getEnabledNames().contains(PACK_ID);
+                int configuredOpacity = net.minecraft.util.math.MathHelper.clamp(Configs.Generic.LAVA_OPACITY.getIntegerValue(), 10, 100);
                 if (packEnabled != isEnabled() || (packEnabled && configuredOpacity != lastAppliedOpacity))
                 {
                     pendingReloadTicks = 0;
@@ -89,7 +89,7 @@ public final class TranslucentLavaRenderer
 
     static int alphaFromPercent(int percent)
     {
-        int clampedPercent = Math.clamp(percent, 10, 100);
+        int clampedPercent = net.minecraft.util.math.MathHelper.clamp(percent, 10, 100);
         return Math.round(clampedPercent * 255.0F / 100.0F);
     }
 
@@ -98,7 +98,7 @@ public final class TranslucentLavaRenderer
         try
         {
             boolean shouldEnable = isEnabled();
-            int opacity = Math.clamp(Configs.Generic.LAVA_OPACITY.getIntegerValue(), 10, 100);
+            int opacity = net.minecraft.util.math.MathHelper.clamp(Configs.Generic.LAVA_OPACITY.getIntegerValue(), 10, 100);
             Path packDirectory = client.getResourcePackDir().resolve(PACK_DIRECTORY_NAME);
             boolean contentChanged = shouldEnable && ensureGeneratedPack(packDirectory, opacity);
 
@@ -116,11 +116,11 @@ public final class TranslucentLavaRenderer
                     MMM.LOGGER.warn("[MMM] Generated translucent lava pack was not discovered at {}", packDirectory);
                     return;
                 }
-                stateChanged = manager.getEnabledIds().contains(PACK_ID) == false && manager.enable(PACK_ID);
+                stateChanged = manager.getEnabledNames().contains(PACK_ID) == false && manager.enable(PACK_ID);
             }
             else
             {
-                stateChanged = manager.getEnabledIds().contains(PACK_ID) && manager.disable(PACK_ID);
+                stateChanged = manager.getEnabledNames().contains(PACK_ID) && manager.disable(PACK_ID);
             }
 
             if (stateChanged)

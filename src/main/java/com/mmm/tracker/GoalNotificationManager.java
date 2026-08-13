@@ -12,7 +12,7 @@ import com.mmm.sound.GoalSoundLibrary;
 import com.mmm.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.component.DataComponentTypes;
+import net.minecraft.enchantment.Enchantments;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -117,7 +117,7 @@ public final class GoalNotificationManager
             ItemStack stack = new ItemStack(pickaxe);
             if (milestone > 100)
             {
-                stack.set(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
+                stack.addEnchantment(Enchantments.UNBREAKING, 1);
             }
             client.execute(() -> client.gameRenderer.showFloatingItem(stack));
         }

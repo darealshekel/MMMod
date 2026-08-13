@@ -82,7 +82,7 @@ public final class GuiConfigs extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
         // MMM draws its own opaque background; suppress Minecraft's menu blur.
     }
@@ -245,7 +245,7 @@ public final class GuiConfigs extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         this.scrollOffset = Math.max(0, this.scrollOffset - (int) Math.signum(verticalAmount) * 32);
         return true;

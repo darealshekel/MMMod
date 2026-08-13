@@ -13,8 +13,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import com.mmm.util.MmmDebugLogger;
+import com.mmm.compat.ScoreboardCompat.Entry;
 import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.scoreboard.ScoreboardEntry;
 
 public final class ScoreboardParser
 {
@@ -70,7 +70,7 @@ public final class ScoreboardParser
     {
     }
 
-    static Candidate parse(String currentUsername, String serverName, ScoreboardObjective objective, Collection<ScoreboardEntry> entries)
+    static Candidate parse(String currentUsername, String serverName, ScoreboardObjective objective, Collection<Entry> entries)
     {
         if (objective == null || entries == null || entries.isEmpty())
         {
@@ -239,10 +239,10 @@ public final class ScoreboardParser
         );
     }
 
-    private static ScoreboardLine toLine(ScoreboardEntry entry)
+    private static ScoreboardLine toLine(Entry entry)
     {
         String owner = clean(entry.owner());
-        String raw = entry.display() != null ? entry.display().getString() : entry.name().getString();
+        String raw = entry.name().getString();
         if (raw == null || raw.isBlank())
         {
             raw = owner;
@@ -800,7 +800,7 @@ public final class ScoreboardParser
         }
     }
 
-    record ObjectiveRows(ScoreboardObjective objective, Collection<ScoreboardEntry> entries)
+    record ObjectiveRows(ScoreboardObjective objective, Collection<Entry> entries)
     {
     }
 

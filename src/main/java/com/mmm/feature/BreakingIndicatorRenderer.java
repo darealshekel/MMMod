@@ -16,7 +16,7 @@ import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.player.BlockBreakingInfo;
+import net.minecraft.client.render.BlockBreakingInfo;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
@@ -83,10 +83,8 @@ public final class BreakingIndicatorRenderer
         try
         {
             RenderSystem.setShader(GameRenderer::getPositionColorProgram);
-            BufferBuilder fillBuffer = Tessellator.getInstance().begin(
-                    VertexFormat.DrawMode.QUADS,
-                    VertexFormats.POSITION_COLOR
-            );
+            BufferBuilder fillBuffer = Tessellator.getInstance().getBuffer();
+            fillBuffer.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
             for (int index = 0; index < indicatorCount; index++)
             {
                 renderFill(client, matrices, fillBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
@@ -95,10 +93,8 @@ public final class BreakingIndicatorRenderer
 
             RenderSystem.setShader(GameRenderer::getRenderTypeLinesProgram);
             RenderSystem.lineWidth(2.0F);
-            BufferBuilder lineBuffer = Tessellator.getInstance().begin(
-                    VertexFormat.DrawMode.LINES,
-                    VertexFormats.LINES
-            );
+            BufferBuilder lineBuffer = Tessellator.getInstance().getBuffer();
+            lineBuffer.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
             for (int index = 0; index < indicatorCount; index++)
             {
                 renderOutline(client, matrices, lineBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
@@ -123,7 +119,7 @@ public final class BreakingIndicatorRenderer
         ClientPlayerInteractionManagerAccessor interaction =
                 (ClientPlayerInteractionManagerAccessor) client.interactionManager;
         BlockPos ownPos = interaction.mmm$getCurrentBreakingPos();
-        float ownProgress = Math.clamp(interaction.mmm$getCurrentBreakingProgress(), 0.0F, 1.0F);
+        float ownProgress = net.minecraft.util.math.MathHelper.clamp(interaction.mmm$getCurrentBreakingProgress(), 0.0F, 1.0F);
         boolean breakingBlock = interaction.mmm$isBreakingBlock();
 
         if (!breakingBlock)
@@ -300,13 +296,13 @@ public final class BreakingIndicatorRenderer
                                     double cameraY,
                                     double cameraZ)
     {
-        double scale = Math.max(MIN_VISIBLE_SCALE, Math.clamp(progress, 0.0D, 1.0D));
+        double scale = Math.max(MIN_VISIBLE_SCALE, net.minecraft.util.math.MathHelper.clamp(progress, 0.0D, 1.0D));
         double centerX = pos.getX() + (local.minX + local.maxX) * 0.5D - cameraX;
         double centerY = pos.getY() + (local.minY + local.maxY) * 0.5D - cameraY;
         double centerZ = pos.getZ() + (local.minZ + local.maxZ) * 0.5D - cameraZ;
-        double halfX = local.getLengthX() * scale * 0.5D;
-        double halfY = local.getLengthY() * scale * 0.5D;
-        double halfZ = local.getLengthZ() * scale * 0.5D;
+        double halfX = local.getXLength() * scale * 0.5D;
+        double halfY = local.getYLength() * scale * 0.5D;
+        double halfZ = local.getZLength() * scale * 0.5D;
         return new Box(
                 centerX - halfX - BOX_EXPAND,
                 centerY - halfY - BOX_EXPAND,
@@ -327,12 +323,12 @@ public final class BreakingIndicatorRenderer
                 Configs.Generic.BREAKING_INDICATOR_END_HEX_COLOR.getStringValue(),
                 Configs.Generic.DEFAULT_BREAKING_INDICATOR_END_HEX_COLOR
         );
-        float amount = Math.clamp(progress, 0.0F, 1.0F);
+        float amount = net.minecraft.util.math.MathHelper.clamp(progress, 0.0F, 1.0F);
         int alpha = interpolate((start >>> 24) & 0xFF, (end >>> 24) & 0xFF, amount);
         int red = interpolate((start >>> 16) & 0xFF, (end >>> 16) & 0xFF, amount);
         int green = interpolate((start >>> 8) & 0xFF, (end >>> 8) & 0xFF, amount);
         int blue = interpolate(start & 0xFF, end & 0xFF, amount);
-        alpha = Math.clamp(Math.round(alpha * alphaMultiplier), 0, 255);
+        alpha = net.minecraft.util.math.MathHelper.clamp(Math.round(alpha * alphaMultiplier), 0, 255);
         return Color4f.fromColor((alpha << 24) | (red << 16) | (green << 8) | blue);
     }
 

@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.mmm.ui.MmmUi;
+import com.mmm.compat.ScoreboardCompat;
+import com.mmm.compat.ScoreboardCompat.Entry;
 
 import com.mmm.util.MmmMessages;
 import net.minecraft.client.MinecraftClient;
@@ -14,7 +16,6 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.text.Text;
 
@@ -42,7 +43,7 @@ public final class ScoreboardEditScreen extends Screen
         super(Text.literal("Edit Scoreboard"));
         this.parent = parent;
         this.objective = objective;
-        for (ScoreboardEntry entry : objective.getScoreboard().getScoreboardEntries(objective))
+        for (Entry entry : ScoreboardCompat.entries(objective))
         {
             if (!entry.hidden())
             {
@@ -138,11 +139,11 @@ public final class ScoreboardEditScreen extends Screen
         int directionW = Math.min(86, Math.max(68, width / 5));
         int saveW = Math.min(70, Math.max(50, width / 7));
         int backW = Math.min(70, Math.max(50, width / 7));
-        this.addButton.setDimensionsAndPosition(addW, 18, x, y);
-        this.sortButton.setDimensionsAndPosition(sortW, 18, x + addW + gap, y);
-        this.directionButton.setDimensionsAndPosition(directionW, 18, x + addW + sortW + gap * 2, y);
-        this.saveButton.setDimensionsAndPosition(saveW, 18, x + width - backW - saveW - gap, y);
-        this.backButton.setDimensionsAndPosition(backW, 18, x + width - backW, y);
+        MmmUi.positionWidget(this.addButton, addW, x, y);
+        MmmUi.positionWidget(this.sortButton, sortW, x + addW + gap, y);
+        MmmUi.positionWidget(this.directionButton, directionW, x + addW + sortW + gap * 2, y);
+        MmmUi.positionWidget(this.saveButton, saveW, x + width - backW - saveW - gap, y);
+        MmmUi.positionWidget(this.backButton, backW, x + width - backW, y);
         this.setToolbarVisible(y + 18 >= viewportY && y <= viewportY + viewportHeight);
         y += 28;
 
@@ -165,9 +166,9 @@ public final class ScoreboardEditScreen extends Screen
         {
             RowWidgets widgets = this.rowWidgets.get(index);
             MmmUi.card(context, x, y, width, ROW_HEIGHT - 3, MmmUi.CARD, MmmUi.BORDER);
-            widgets.name.setDimensionsAndPosition(nameW, 18, x + 4, y + 4);
-            widgets.score.setDimensionsAndPosition(scoreW, 18, x + nameW + 8, y + 4);
-            widgets.delete.setDimensionsAndPosition(deleteW, 18, x + width - deleteW - 4, y + 4);
+            MmmUi.positionWidget(widgets.name, nameW, x + 4, y + 4);
+            MmmUi.positionWidget(widgets.score, scoreW, x + nameW + 8, y + 4);
+            MmmUi.positionWidget(widgets.delete, deleteW, x + width - deleteW - 4, y + 4);
             boolean visible = y + ROW_HEIGHT >= viewportY && y <= viewportY + viewportHeight;
             widgets.setVisible(visible);
             y += ROW_HEIGHT;
@@ -251,7 +252,7 @@ public final class ScoreboardEditScreen extends Screen
         }
 
         Map<String, Integer> current = new LinkedHashMap<>();
-        for (ScoreboardEntry entry : this.objective.getScoreboard().getScoreboardEntries(this.objective))
+        for (Entry entry : ScoreboardCompat.entries(this.objective))
         {
             if (!entry.hidden())
             {
@@ -313,7 +314,7 @@ public final class ScoreboardEditScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         int viewportHeight = Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT - MmmUi.pagePad(this.width));
         int maxScroll = Math.max(0, this.contentHeight - viewportHeight);
@@ -334,7 +335,7 @@ public final class ScoreboardEditScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

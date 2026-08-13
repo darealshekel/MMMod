@@ -114,7 +114,7 @@ public class GoalSoundSettingsScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 
@@ -236,10 +236,10 @@ public class GoalSoundSettingsScreen extends Screen
         }
 
         int actionWidth = (layout.contentWidth() - GAP * 2) / 3;
-        this.chooseButton.setDimensionsAndPosition(actionWidth, BUTTON_HEIGHT, layout.contentX(), layout.actionY());
-        this.previewButton.setDimensionsAndPosition(actionWidth, BUTTON_HEIGHT, layout.contentX() + actionWidth + GAP, layout.actionY());
-        this.resetButton.setDimensionsAndPosition(actionWidth, BUTTON_HEIGHT, layout.contentX() + (actionWidth + GAP) * 2, layout.actionY());
-        this.doneButton.setDimensionsAndPosition(64, BUTTON_HEIGHT, layout.panelX() + layout.panelWidth() - 76, layout.panelY() + 10);
+        MmmUi.positionWidget(this.chooseButton, actionWidth, layout.contentX(), layout.actionY());
+        MmmUi.positionWidget(this.previewButton, actionWidth, layout.contentX() + actionWidth + GAP, layout.actionY());
+        MmmUi.positionWidget(this.resetButton, actionWidth, layout.contentX() + (actionWidth + GAP) * 2, layout.actionY());
+        MmmUi.positionWidget(this.doneButton, 64, layout.panelX() + layout.panelWidth() - 76, layout.panelY() + 10);
     }
 
     private Layout layout()

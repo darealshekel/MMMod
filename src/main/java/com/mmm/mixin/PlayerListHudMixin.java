@@ -13,8 +13,6 @@ import net.minecraft.client.gui.hud.PlayerListHud;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.scoreboard.ReadableScoreboardScore;
-import net.minecraft.scoreboard.number.NumberFormat;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -44,27 +42,6 @@ public abstract class PlayerListHudMixin
         {
             cir.setReturnValue(decorated);
         }
-    }
-
-    @Redirect(
-            method = "render",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/scoreboard/ReadableScoreboardScore;getFormattedScore(Lnet/minecraft/scoreboard/ReadableScoreboardScore;Lnet/minecraft/scoreboard/number/NumberFormat;)Lnet/minecraft/text/MutableText;"))
-    private MutableText mmm$formatTabListScore(ReadableScoreboardScore score, NumberFormat numberFormat)
-    {
-        if (score == null)
-        {
-            return Text.empty();
-        }
-
-        MutableText vanilla = ReadableScoreboardScore.getFormattedScore(score, numberFormat);
-        if (!Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS.getBooleanValue()
-                || !vanilla.getString().equals(Integer.toString(score.getScore())))
-        {
-            return vanilla;
-        }
-        return Text.literal(String.format(Locale.US, "%,d", score.getScore())).setStyle(vanilla.getStyle());
     }
 
     @Redirect(

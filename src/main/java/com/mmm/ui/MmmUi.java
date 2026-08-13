@@ -14,6 +14,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.text.OrderedText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
@@ -414,6 +415,13 @@ public final class MmmUi
 
     private record SidebarMetrics(int titleY, int startY, int rowHeight, int rowGap, boolean showFooter)
     {
+    }
+
+    public static void positionWidget(ClickableWidget widget, int width, int x, int y)
+    {
+        widget.setWidth(width);
+        widget.setX(x);
+        widget.setY(y);
     }
 
     private enum SidebarRoute

@@ -164,7 +164,7 @@ public final class PerimeterBlockListScreen extends Screen
         try
         {
             String normalized = value.trim().toLowerCase(Locale.ROOT);
-            Identifier identifier = Identifier.of(normalized.contains(":") ? normalized : "minecraft:" + normalized);
+            Identifier identifier = new Identifier(normalized.contains(":") ? normalized : "minecraft:" + normalized);
             return Registries.BLOCK.containsId(identifier) ? identifier.toString() : null;
         }
         catch (RuntimeException ignored)
@@ -177,7 +177,7 @@ public final class PerimeterBlockListScreen extends Screen
     {
         try
         {
-            return Registries.BLOCK.get(Identifier.of(canonical)).getName().getString();
+            return Registries.BLOCK.get(new Identifier(canonical)).getName().getString();
         }
         catch (RuntimeException ignored)
         {
@@ -224,7 +224,7 @@ public final class PerimeterBlockListScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         Layout layout = layout();
         if (mouseY >= layout.listTop() && mouseY < layout.statusY())
@@ -233,7 +233,7 @@ public final class PerimeterBlockListScreen extends Screen
             this.scrollOffset = Math.max(0, Math.min(maxScroll, this.scrollOffset - (int) Math.signum(verticalAmount)));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, verticalAmount);
     }
 
     @Override
@@ -265,7 +265,7 @@ public final class PerimeterBlockListScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

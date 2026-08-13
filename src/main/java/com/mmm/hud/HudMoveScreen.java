@@ -154,7 +154,7 @@ public class HudMoveScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         adjustScale(verticalAmount > 0 ? 0.05D : -0.05D);
         return true;
@@ -175,7 +175,7 @@ public class HudMoveScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

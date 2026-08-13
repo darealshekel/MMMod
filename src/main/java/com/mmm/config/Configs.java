@@ -468,7 +468,7 @@ public class Configs
 
         if (activeProjectId == null || activeProjectId.isBlank() || getActiveProject() == null)
         {
-            activeProjectId = PROJECTS.getFirst().id;
+            activeProjectId = PROJECTS.get(0).id;
         }
 
         dailyProgress = Math.max(0L, dailyProgress);
@@ -802,7 +802,7 @@ public class Configs
                 return project;
             }
         }
-        return PROJECTS.isEmpty() ? null : PROJECTS.getFirst();
+        return PROJECTS.isEmpty() ? null : PROJECTS.get(0);
     }
 
     public static ProjectEntry createProject(String name)

@@ -93,13 +93,15 @@ public final class BlockEspRenderer
         try
         {
             RenderSystem.setShader(GameRenderer::getPositionColorProgram);
-            BufferBuilder fillBuffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+            BufferBuilder fillBuffer = Tessellator.getInstance().getBuffer();
+            fillBuffer.begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
             WorldRenderer.renderFilledBox(matrices, fillBuffer, minX, minY, minZ, maxX, maxY, maxZ, fill.r, fill.g, fill.b, fill.a);
             BufferRenderer.drawWithGlobalProgram(fillBuffer.end());
 
             RenderSystem.setShader(GameRenderer::getRenderTypeLinesProgram);
             RenderSystem.lineWidth(1.0F);
-            BufferBuilder lineBuffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
+            BufferBuilder lineBuffer = Tessellator.getInstance().getBuffer();
+            lineBuffer.begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
             WorldRenderer.drawBox(matrices, lineBuffer, minX, minY, minZ, maxX, maxY, maxZ, outline.r, outline.g, outline.b, outline.a);
             BufferRenderer.drawWithGlobalProgram(lineBuffer.end());
         }
@@ -154,10 +156,10 @@ public final class BlockEspRenderer
     public static int getCurrentOutlineColor(MinecraftClient client)
     {
         Color4f color = Color4f.fromColor(getCurrentColor(), Configs.getBlockEspOpacity());
-        int alpha = Math.clamp(Math.round(color.a * 255.0F), 0, 255);
-        int red = Math.clamp(Math.round(color.r * 255.0F), 0, 255);
-        int green = Math.clamp(Math.round(color.g * 255.0F), 0, 255);
-        int blue = Math.clamp(Math.round(color.b * 255.0F), 0, 255);
+        int alpha = net.minecraft.util.math.MathHelper.clamp(Math.round(color.a * 255.0F), 0, 255);
+        int red = net.minecraft.util.math.MathHelper.clamp(Math.round(color.r * 255.0F), 0, 255);
+        int green = net.minecraft.util.math.MathHelper.clamp(Math.round(color.g * 255.0F), 0, 255);
+        int blue = net.minecraft.util.math.MathHelper.clamp(Math.round(color.b * 255.0F), 0, 255);
         return (alpha << 24) | (red << 16) | (green << 8) | blue;
     }
 }

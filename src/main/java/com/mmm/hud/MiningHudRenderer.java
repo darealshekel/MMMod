@@ -90,7 +90,7 @@ public final class MiningHudRenderer
         int firstContentLine = 0;
         if (showTitle)
         {
-            String title = lines.getFirst().text();
+            String title = lines.get(0).text();
             int titleTextWidth = client.textRenderer.getWidth(title);
             int syncIndicatorSize = client.textRenderer.fontHeight;
             int titleX = syncIndicatorSize + 4;

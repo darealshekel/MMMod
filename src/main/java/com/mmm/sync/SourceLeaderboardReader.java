@@ -3,6 +3,7 @@ package com.mmm.sync;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
 import com.mmm.storage.WorldSessionContext;
+import com.mmm.compat.ScoreboardCompat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -11,7 +12,6 @@ import java.util.Locale;
 import java.util.Map;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
 import net.minecraft.scoreboard.ScoreboardObjective;
 
 public final class SourceLeaderboardReader
@@ -57,7 +57,7 @@ public final class SourceLeaderboardReader
                     username,
                     detectedServerName,
                     selected,
-                    scoreboard.getScoreboardEntries(selected));
+                    ScoreboardCompat.entries(selected));
             if (selectedCandidate == null || selectedCandidate.snapshot().isValid() == false)
             {
                 debug("Skipping source sync because the selected scoreboard is not a valid mining leaderboard.");
@@ -74,14 +74,14 @@ public final class SourceLeaderboardReader
         }
 
         List<ScoreboardParser.Candidate> candidates = new ArrayList<>();
-        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(Scoreboard.SIDEBAR_DISPLAY_SLOT_ID);
         if (SyncScoreboardSelector.isEligible(sidebar))
         {
             addCandidate(candidates, ScoreboardParser.parse(
                     username,
                     detectedServerName,
                     sidebar,
-                    scoreboard.getScoreboardEntries(sidebar)));
+                    ScoreboardCompat.entries(sidebar)));
         }
 
         for (ScoreboardObjective objective : scoreboard.getObjectives())
@@ -94,7 +94,7 @@ public final class SourceLeaderboardReader
                     username,
                     detectedServerName,
                     objective,
-                    scoreboard.getScoreboardEntries(objective)));
+                    ScoreboardCompat.entries(objective)));
         }
 
         if (candidates.isEmpty())
