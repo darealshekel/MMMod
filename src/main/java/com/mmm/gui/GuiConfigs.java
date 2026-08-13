@@ -127,7 +127,7 @@ public final class GuiConfigs extends MmmScreen
             MmmUi.drawTextWithin(context, this.textRenderer, "X", clearX + 6, searchY + 6, 8, MmmUi.TEXT, false);
             this.rowTargets.add(new RowTarget(clearX, searchY, 18, SEARCH_HEIGHT, () -> {
                 this.searchField.setText("");
-                this.searchField.setFocused(true);
+                this.searchField.setWidgetFocused(true);
             }));
         }
 
@@ -328,7 +328,7 @@ public final class GuiConfigs extends MmmScreen
         if (this.searchField != null
                 && (Character.isLetterOrDigit(chr) || Character.isWhitespace(chr)))
         {
-            this.searchField.setFocused(true);
+            this.searchField.setWidgetFocused(true);
             return this.searchField.charTyped(chr, modifiers);
         }
         return false;

@@ -136,7 +136,7 @@ public final class PerimeterBlockListScreen extends MmmScreen
         this.blocks.add(canonical);
         persist();
         this.blockField.setText("");
-        this.blockField.setFocused(true);
+        this.blockField.setWidgetFocused(true);
         this.scrollOffset = Math.max(0, this.blocks.size() - visibleRows(layout()));
         setStatus("Added " + blockName(canonical) + ".", false);
     }

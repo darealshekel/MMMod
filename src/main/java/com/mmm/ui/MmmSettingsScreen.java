@@ -303,7 +303,7 @@ public class MmmSettingsScreen extends MmmScreen
                 && this.searchField.isVisible()
                 && (Character.isLetterOrDigit(chr) || Character.isWhitespace(chr)))
         {
-            this.searchField.setFocused(true);
+            this.searchField.setWidgetFocused(true);
             return this.searchField.charTyped(chr, modifiers);
         }
         return false;
@@ -371,7 +371,7 @@ public class MmmSettingsScreen extends MmmScreen
             this.drawButtonShell(context, clearX, searchY, 18, FIELD_HEIGHT, "X", mouseX, mouseY, true);
             this.clickTargets.add(new ClickTarget(clearX, searchY, 18, FIELD_HEIGHT, () -> {
                 this.searchField.setText("");
-                this.searchField.setFocused(true);
+                this.searchField.setWidgetFocused(true);
             }));
         }
 

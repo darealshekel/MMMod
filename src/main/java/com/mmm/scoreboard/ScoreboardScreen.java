@@ -181,7 +181,7 @@ public final class ScoreboardScreen extends MmmScreen
         }
 
         IConfigResettable resettable = (IConfigResettable) row.config();
-        if (visible && resettable.isModified())
+        if (visible && resettable != null && resettable.isModified())
         {
             this.drawButtonShell(context, resetX, controlY, RESET_WIDTH, FIELD_HEIGHT, "R", mouseX, mouseY, true);
             this.clickTargets.add(new ClickTarget(resetX, controlY, RESET_WIDTH, FIELD_HEIGHT, () -> {

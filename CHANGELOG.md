@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.18.1 for Minecraft 1.17.1 - 2026-08-14
+
+### Added
+
+- Added the Minecraft 1.17.1 release.
+
+### Fixed
+
+- Fixed a crash when typing in MMMod text fields.
+- Fixed a crash when opening the Scoreboard screen.
+
 ## 1.0.18.1 - 2026-07-29
 
 ### Added

@@ -33,9 +33,9 @@ public class TextFieldWidget extends net.minecraft.client.gui.widget.TextFieldWi
         this.placeholder = placeholder;
     }
 
-    public void setFocused(boolean focused)
+    public void setWidgetFocused(boolean focused)
     {
-        setTextFieldFocused(focused);
+        super.setFocused(focused);
     }
 
     @Override
