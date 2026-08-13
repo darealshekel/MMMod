@@ -47,7 +47,7 @@ public abstract class PlayerListHudMixin
             method = "extractRenderState",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/world/scores/ReadOnlyScoreInfo;formatValue(Lnet/minecraft/network/chat/numbers/NumberFormat;)Lnet/minecraft/network/chat/MutableComponent;"))
+                    target = "Lnet/minecraft/world/scores/ReadOnlyScoreInfo;safeFormatValue(Lnet/minecraft/world/scores/ReadOnlyScoreInfo;Lnet/minecraft/network/chat/numbers/NumberFormat;)Lnet/minecraft/network/chat/MutableComponent;"))
     private MutableComponent mmm$formatTabListScore(ReadOnlyScoreInfo score, NumberFormat numberFormat)
     {
         if (score == null)
@@ -55,7 +55,7 @@ public abstract class PlayerListHudMixin
             return Component.empty();
         }
 
-        MutableComponent vanilla = score.formatValue(numberFormat);
+        MutableComponent vanilla = ReadOnlyScoreInfo.safeFormatValue(score, numberFormat);
         if (!Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS.getBooleanValue()
                 || !vanilla.getString().equals(Integer.toString(score.value())))
         {

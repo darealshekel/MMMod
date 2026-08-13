@@ -54,7 +54,7 @@ public final class ScoreboardService
         PlayerTeam team = scoreboard.getPlayersTeam(client.player.getScoreboardName());
         if (team != null)
         {
-            DisplaySlot teamSlot = team.getColor().map(color -> color.displaySlot()).orElse(null);
+            DisplaySlot teamSlot = DisplaySlot.teamColorToSlot(team.getColor());
             if (teamSlot != null)
             {
                 objective = scoreboard.getDisplayObjective(teamSlot);

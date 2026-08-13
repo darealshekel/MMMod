@@ -391,14 +391,14 @@ public final class MmmUi
         Screen routeParent = parent != null ? parent : current;
         switch (route)
         {
-            case SETTINGS -> client.gui.setScreen(new MmmSettingsScreen(routeParent));
-            case HOTKEYS -> client.gui.setScreen(new GuiConfigs(routeParent));
-            case PROJECTS -> client.gui.setScreen(new ProjectManagerScreen(routeParent));
-            case PROFILE -> client.gui.setScreen(new PlayerProfileScreen(routeParent));
-            case WEBSITE_LINK -> client.gui.setScreen(new WebsiteLinkScreen(routeParent));
-            case HISTORY -> client.gui.setScreen(new SessionHistoryScreen(routeParent));
-            case SUMMARY -> client.gui.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), routeParent));
-            case SCOREBOARD -> client.gui.setScreen(new ScoreboardScreen(routeParent));
+            case SETTINGS -> client.setScreen(new MmmSettingsScreen(routeParent));
+            case HOTKEYS -> client.setScreen(new GuiConfigs(routeParent));
+            case PROJECTS -> client.setScreen(new ProjectManagerScreen(routeParent));
+            case PROFILE -> client.setScreen(new PlayerProfileScreen(routeParent));
+            case WEBSITE_LINK -> client.setScreen(new WebsiteLinkScreen(routeParent));
+            case HISTORY -> client.setScreen(new SessionHistoryScreen(routeParent));
+            case SUMMARY -> client.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), routeParent));
+            case SCOREBOARD -> client.setScreen(new ScoreboardScreen(routeParent));
         }
     }
 

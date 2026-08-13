@@ -48,7 +48,7 @@ public final class TimerHudRenderer
 
     public static void render(GuiGraphicsExtractor context, Minecraft client)
     {
-        if (client == null || client.player == null || client.gui.hud.isHidden())
+        if (client == null || client.player == null || client.options.hideGui)
         {
             return;
         }

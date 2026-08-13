@@ -68,7 +68,7 @@ public class ProjectManagerScreen extends CompatScreen
         {
             applyCurrentEdits();
             Configs.saveToFile();
-            Minecraft.getInstance().gui.setScreen(new ProjectManagerScreen(this.parent));
+            Minecraft.getInstance().setScreen(new ProjectManagerScreen(this.parent));
         }).bounds(layout.detailX + CARD_PADDING, getApplyButtonY(layout), layout.detailWidth - CARD_PADDING * 2, BUTTON_HEIGHT).build());
 
         this.setActiveButton = this.addRenderableWidget(Button.builder(Component.literal("Set Active"), button ->
@@ -79,7 +79,7 @@ public class ProjectManagerScreen extends CompatScreen
             {
                 Configs.activeProjectId = selected.id;
                 Configs.saveToFile();
-                Minecraft.getInstance().gui.setScreen(new ProjectManagerScreen(this.parent));
+                Minecraft.getInstance().setScreen(new ProjectManagerScreen(this.parent));
             }
         }).bounds(layout.detailX + CARD_PADDING, getSetActiveButtonY(layout), layout.detailWidth - CARD_PADDING * 2, BUTTON_HEIGHT).build());
 
@@ -90,7 +90,7 @@ public class ProjectManagerScreen extends CompatScreen
             this.selectedIndex = Configs.PROJECTS.indexOf(entry);
             Configs.activeProjectId = entry.id;
             Configs.saveToFile();
-            Minecraft.getInstance().gui.setScreen(new ProjectManagerScreen(this.parent));
+            Minecraft.getInstance().setScreen(new ProjectManagerScreen(this.parent));
         }).bounds(getFooterButtonX(layout, true), getFooterButtonY(layout), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
 
         this.deleteButton = this.addRenderableWidget(Button.builder(Component.literal("Remove"), button -> handleDelete()).bounds(getFooterButtonX(layout, false), getFooterButtonY(layout), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
@@ -205,7 +205,7 @@ public class ProjectManagerScreen extends CompatScreen
     {
         applyCurrentEdits();
         Configs.saveToFile();
-        Minecraft.getInstance().gui.setScreen(this.parent);
+        Minecraft.getInstance().setScreen(this.parent);
     }
 
     @Override
@@ -515,7 +515,7 @@ public class ProjectManagerScreen extends CompatScreen
         }
         this.deleteConfirm = false;
         Configs.saveToFile();
-        Minecraft.getInstance().gui.setScreen(new ProjectManagerScreen(this.parent));
+        Minecraft.getInstance().setScreen(new ProjectManagerScreen(this.parent));
     }
 
     private void drawStatusChip(GuiGraphicsExtractor context, int x, int y, String label, int accentColor)

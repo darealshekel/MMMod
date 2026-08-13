@@ -8,7 +8,7 @@ import com.mmm.util.UiFormat;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.contextualbar.ExperienceBar;
+import net.minecraft.client.gui.contextualbar.ExperienceBarRenderer;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 import org.spongepowered.asm.mixin.Mixin;
@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(ExperienceBar.class)
+@Mixin(ExperienceBarRenderer.class)
 public abstract class ExperienceBarMixin
 {
     @Unique private static final Identifier mmm$experienceBarBackground =

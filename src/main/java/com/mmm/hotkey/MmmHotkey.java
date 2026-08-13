@@ -98,7 +98,7 @@ public final class MmmHotkey
         boolean triggerEdge = finalActionKey == null
                 ? allRequiredKeysDown && !this.wasDown
                 : finalActionNewlyPressed;
-        if (client.gui.screen() == null && allRequiredKeysDown && triggerEdge)
+        if (client.screen == null && allRequiredKeysDown && triggerEdge)
         {
             this.callback.run();
         }
@@ -132,7 +132,7 @@ public final class MmmHotkey
             this.previousKeyStates.put(eventToken, false);
             return;
         }
-        if (action != GLFW.GLFW_PRESS || client.gui.screen() != null)
+        if (action != GLFW.GLFW_PRESS || client.screen != null)
         {
             return;
         }

@@ -29,9 +29,9 @@ public class ClientTickHandler
         PublicChatClient.onClientTick(mc);
         TierTagManager.onClientTick(mc);
 
-        if (MmmTimerState.consumeCreditsPending() && mc.gui.screen() == null)
+        if (MmmTimerState.consumeCreditsPending() && mc.screen == null)
         {
-            mc.gui.setScreen(new TimerCreditsScreen(null));
+            mc.setScreen(new TimerCreditsScreen(null));
             return;
         }
 
@@ -39,7 +39,7 @@ public class ClientTickHandler
         if (pending != null && mc.player == null && mc.level == null)
         {
             String worldName = WorldLoadListener.consumePendingSummaryName();
-            mc.gui.setScreen(SummaryScreen.worldExit(pending, mc.gui.screen(), worldName));
+            mc.setScreen(SummaryScreen.worldExit(pending, mc.screen, worldName));
             return;
         }
     }

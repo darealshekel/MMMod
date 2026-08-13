@@ -195,7 +195,7 @@ public class SessionHistoryScreen extends CompatScreen
     @Override public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY){ if(draggingBreakdown){dragBreakdown(mouseY); return true;} if(draggingDetail){dragDetail(mouseY); return true;} if(draggingList){dragList(mouseY); return true;} return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY); }
     @Override public boolean mouseReleased(double mouseX, double mouseY, int button){ if(button==0){draggingList=false; draggingDetail=false; draggingBreakdown=false;} return super.mouseReleased(mouseX, mouseY, button); }
     @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers){ if(keyCode==256){onClose(); return true;} if(keyCode==264||keyCode==341){moveSelection(1); return true;} if(keyCode==265||keyCode==328){moveSelection(-1); return true;} return super.keyPressed(keyCode, scanCode, modifiers); }
-    @Override public void onClose(){ Minecraft.getInstance().gui.setScreen(this.parent); }
+    @Override public void onClose(){ Minecraft.getInstance().setScreen(this.parent); }
     @Override public boolean isPauseScreen(){ return MmmUi.shouldPauseGame(); }
     @Override public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta){}
 

@@ -17,7 +17,7 @@ public abstract class MmmPressableWidgetMixin
     private void mmm$renderMmmButton(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta, CallbackInfo ci)
     {
         Minecraft client = Minecraft.getInstance();
-        Screen screen = client == null ? null : client.gui.screen();
+        Screen screen = client == null ? null : client.screen;
         if (screen == null || !screen.getClass().getName().startsWith("com.mmm."))
         {
             return;

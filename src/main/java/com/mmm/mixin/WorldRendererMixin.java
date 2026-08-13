@@ -5,14 +5,12 @@ import com.mmm.feature.BlockEspRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.ShapeRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.state.level.BlockOutlineRenderState;
 import net.minecraft.client.renderer.state.level.LevelRenderState;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.level.border.WorldBorder;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -34,9 +32,10 @@ public abstract class WorldRendererMixin
         }
     }
 
-    @Inject(method = "submitBlockOutline", at = @At("HEAD"), cancellable = true)
-    private void mmm$renderCustomBlockEspOutline(PoseStack matrices,
-                                                 SubmitNodeCollector submitNodeCollector,
+    @Inject(method = "renderBlockOutline", at = @At("HEAD"), cancellable = true)
+    private void mmm$renderCustomBlockEspOutline(MultiBufferSource.BufferSource bufferSource,
+                                                 PoseStack matrices,
+                                                 boolean translucent,
                                                  LevelRenderState worldRenderState,
                                                  CallbackInfo ci)
     {
@@ -46,41 +45,27 @@ public abstract class WorldRendererMixin
             return;
         }
 
-        HitResult hitResult = client.hitResult;
-        if (!(hitResult instanceof BlockHitResult blockHitResult) || hitResult.getType() == HitResult.Type.MISS)
-        {
-            return;
-        }
-
-        BlockPos pos = blockHitResult.getBlockPos();
-        WorldBorder border = client.level.getWorldBorder();
-        if (!border.isWithinBounds(pos))
-        {
-            ci.cancel();
-            return;
-        }
-
         BlockOutlineRenderState outlineRenderState = worldRenderState == null ? null : worldRenderState.blockOutlineRenderState;
-        if (outlineRenderState == null)
+        if (outlineRenderState == null || outlineRenderState.isTranslucent() != translucent)
         {
-            ci.cancel();
             return;
         }
 
         Vec3 cameraPos = worldRenderState.cameraRenderState != null && worldRenderState.cameraRenderState.pos != null
                 ? worldRenderState.cameraRenderState.pos
                 : new Vec3(0.0D, 0.0D, 0.0D);
-        matrices.pushPose();
-        matrices.translate(pos.getX() - cameraPos.x, pos.getY() - cameraPos.y, pos.getZ() - cameraPos.z);
-        submitNodeCollector.submitShapeOutline(
+        float lineWidth = client.gameRenderer.getGameRenderState().windowRenderState.appropriateLineWidth;
+        ShapeRenderer.renderShape(
                 matrices,
+                bufferSource.getBuffer(RenderTypes.lines()),
                 outlineRenderState.shape(),
-                RenderTypes.lines(),
+                outlineRenderState.pos().getX() - cameraPos.x,
+                outlineRenderState.pos().getY() - cameraPos.y,
+                outlineRenderState.pos().getZ() - cameraPos.z,
                 BlockEspRenderer.getCurrentOutlineColor(client),
-                1.0F,
-                outlineRenderState.isTranslucent()
+                lineWidth
         );
-        matrices.popPose();
+        bufferSource.endLastBatch();
         ci.cancel();
     }
 }

@@ -130,7 +130,7 @@ public final class ScoreboardMoveScreen extends CompatScreen
     public void onClose()
     {
         Configs.saveToFile();
-        Minecraft.getInstance().gui.setScreen(this.parent);
+        Minecraft.getInstance().setScreen(this.parent);
     }
 
     @Override

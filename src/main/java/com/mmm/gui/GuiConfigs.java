@@ -97,7 +97,7 @@ public final class GuiConfigs extends CompatScreen
         Configs.saveToFile();
         if (this.minecraft != null)
         {
-            this.minecraft.gui.setScreen(this.parent);
+            this.minecraft.setScreen(this.parent);
         }
     }
 

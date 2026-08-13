@@ -25,13 +25,13 @@ public class HeldItemRendererMixin
     @Shadow
     private ItemStack offHandItem;
 
-    @ModifyVariable(method = "submitArmWithItem", at = @At("HEAD"), argsOnly = true, ordinal = 2)
+    @ModifyVariable(method = "renderArmWithItem", at = @At("HEAD"), argsOnly = true, ordinal = 2)
     private float mmm$staticMiningToolSwingProgress(float swingProgress)
     {
         return mmm$shouldKeepMiningToolStatic() ? 0.0F : swingProgress;
     }
 
-    @ModifyVariable(method = "submitArmWithItem", at = @At("HEAD"), argsOnly = true, ordinal = 3)
+    @ModifyVariable(method = "renderArmWithItem", at = @At("HEAD"), argsOnly = true, ordinal = 3)
     private float mmm$staticMiningToolEquipProgress(float equipProgress)
     {
         return mmm$shouldKeepMiningToolStatic() ? 0.0F : equipProgress;

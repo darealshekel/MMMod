@@ -3,6 +3,7 @@ package com.mmm.feature;
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.render.Color4f;
+import com.mmm.render.ShapeOutlineSubmitter;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
@@ -87,14 +88,9 @@ public final class BlockEspRenderer
         consumers.submitCustomGeometry(matrices, RenderTypes.debugQuads(),
                 (pose, fillConsumer) -> drawFilledBox(pose, fillConsumer,
                         minX, minY, minZ, maxX, maxY, maxZ, fill));
-        consumers.submitShapeOutline(
-                matrices,
+        ShapeOutlineSubmitter.submit(consumers, matrices,
                 Shapes.create(new AABB(minX, minY, minZ, maxX, maxY, maxZ)),
-                RenderTypes.lines(),
-                toArgb(outline),
-                1.0F,
-                false
-        );
+                toArgb(outline));
     }
 
     private static void drawFilledBox(PoseStack.Pose pose,

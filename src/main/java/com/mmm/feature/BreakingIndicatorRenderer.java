@@ -3,6 +3,7 @@ package com.mmm.feature;
 import com.mmm.config.Configs;
 import com.mmm.mixin.ClientPlayerInteractionManagerAccessor;
 import com.mmm.render.Color4f;
+import com.mmm.render.ShapeOutlineSubmitter;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
@@ -235,14 +236,7 @@ public final class BreakingIndicatorRenderer
             return;
         }
         Color4f outline = colorForProgress(progress, 0.95F);
-        consumers.submitShapeOutline(
-                matrices,
-                Shapes.create(bounds),
-                RenderTypes.lines(),
-                toArgb(outline),
-                1.0F,
-                false
-        );
+        ShapeOutlineSubmitter.submit(consumers, matrices, Shapes.create(bounds), toArgb(outline));
     }
 
     private static AABB getBounds(Minecraft client, Vec3 camera, BlockPos pos, float progress)

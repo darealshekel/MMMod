@@ -64,7 +64,7 @@ public final class ScoreboardScreen extends CompatScreen
                 this.toggle("Short Scores", "Display large values as 100k or 2.5M.", Configs.Generic.SCOREBOARD_SCORE_ABBREVIATED))));
 
         this.sections.add(new Section("LAYOUT", "Control row order, size, and position.", List.of(
-                this.action("Move Scoreboard", "Drag and resize the live sidebar.", () -> this.minecraft.gui.setScreen(new ScoreboardMoveScreen(this))),
+                this.action("Move Scoreboard", "Drag and resize the live sidebar.", () -> this.minecraft.setScreen(new ScoreboardMoveScreen(this))),
                 this.option("Sort Rows", "Sort by score or player name.", Configs.Generic.SCOREBOARD_SORTING),
                 this.slider("Rows Per Page", "Maximum rows visible at once.", Configs.Generic.SCOREBOARD_MAX_ENTRIES, ValueStyle.INTEGER),
                 this.option("Position", "Anchor the sidebar to either side.", Configs.Generic.SCOREBOARD_POSITION),
@@ -85,7 +85,7 @@ public final class ScoreboardScreen extends CompatScreen
                 this.action("Next Page", "Move forward through long scoreboards.", this::nextPage),
                 this.action("Export Current", "Save this objective as a CSV file.", this::exportCurrent),
                 this.action("Record Snapshot", "Keep this objective for a combined export.", this::recordCurrent),
-                this.action("Manage Records", "Reorder, remove, or export saved snapshots.", () -> this.minecraft.gui.setScreen(new ScoreboardRecordsScreen(this))),
+                this.action("Manage Records", "Reorder, remove, or export saved snapshots.", () -> this.minecraft.setScreen(new ScoreboardRecordsScreen(this))),
                 this.action("Edit Scores", "Edit rows when the server grants permission.", this::openEditor))));
     }
 
@@ -389,7 +389,7 @@ public final class ScoreboardScreen extends CompatScreen
     private void openEditor()
     {
         ScoreboardService.getSidebarObjective(Minecraft.getInstance())
-                .ifPresentOrElse(objective -> this.minecraft.gui.setScreen(new ScoreboardEditScreen(this, objective)),
+                .ifPresentOrElse(objective -> this.minecraft.setScreen(new ScoreboardEditScreen(this, objective)),
                         () -> MmmMessages.actionbar("No scoreboard is available to edit"));
     }
 
@@ -473,7 +473,7 @@ public final class ScoreboardScreen extends CompatScreen
     @Override
     public void onClose()
     {
-        Minecraft.getInstance().gui.setScreen(this.parent);
+        Minecraft.getInstance().setScreen(this.parent);
     }
 
     @Override

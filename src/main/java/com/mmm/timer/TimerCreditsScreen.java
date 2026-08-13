@@ -96,7 +96,7 @@ public class TimerCreditsScreen extends CompatScreen
     public void onClose()
     {
         MmmTimerState.dismissCredits();
-        Minecraft.getInstance().gui.setScreen(this.parent);
+        Minecraft.getInstance().setScreen(this.parent);
     }
 
     @Override

@@ -166,7 +166,7 @@ public class HudMoveScreen extends CompatScreen
     {
         Configs.saveToFile();
         MmmTimerState.save();
-        Minecraft.getInstance().gui.setScreen(this.parent);
+        Minecraft.getInstance().setScreen(this.parent);
     }
 
     @Override

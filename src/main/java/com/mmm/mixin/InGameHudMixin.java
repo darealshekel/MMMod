@@ -7,9 +7,9 @@ import com.mmm.util.UiFormat;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.Hud;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.contextualbar.ContextualBar;
+import net.minecraft.client.gui.contextualbar.ContextualBarRenderer;
 import net.minecraft.network.chat.Component;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-@Mixin(Hud.class)
+@Mixin(Gui.class)
 public abstract class InGameHudMixin
 {
     @Shadow @Final private Minecraft minecraft;
@@ -35,7 +35,7 @@ public abstract class InGameHudMixin
     @Redirect(
             method = "extractHotbarAndDecorations",
             at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/contextualbar/ContextualBar;extractExperienceLevel(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;I)V")
+                    target = "Lnet/minecraft/client/gui/contextualbar/ContextualBarRenderer;extractExperienceLevel(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;I)V")
     )
     private void mmm$renderDailyGoalPercent(GuiGraphicsExtractor context, Font textRenderer, int experienceLevel)
     {
@@ -44,7 +44,7 @@ public abstract class InGameHudMixin
                 || this.minecraft.player == null || this.minecraft.gameMode == null
                 || this.minecraft.player.jumpableVehicle() != null || !this.minecraft.gameMode.hasExperience())
         {
-            ContextualBar.extractExperienceLevel(context, textRenderer, experienceLevel);
+            ContextualBarRenderer.extractExperienceLevel(context, textRenderer, experienceLevel);
             return;
         }
 

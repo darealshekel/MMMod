@@ -42,7 +42,7 @@ public final class MiningHudRenderer
         if (FeatureToggle.MMM_MINING_TRACKER.getBooleanValue() == false ||
             FeatureToggle.MMM_HUD.getBooleanValue() == false ||
             client.player == null ||
-            client.gui.hud.isHidden())
+            client.options.hideGui)
         {
             return;
         }

@@ -5,7 +5,7 @@ import com.mmm.scoreboard.ScoreboardHudRenderer;
 import com.mmm.scoreboard.ScoreboardMoveScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.Hud;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.world.scores.Objective;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(Hud.class)
+@Mixin(Gui.class)
 public abstract class ScoreboardInGameHudMixin
 {
     @Shadow @Final private Minecraft minecraft;
@@ -27,7 +27,7 @@ public abstract class ScoreboardInGameHudMixin
     {
         ci.cancel();
         if (!Configs.Generic.SCOREBOARD_VISIBLE.getBooleanValue()
-                || this.minecraft.gui.screen() instanceof ScoreboardMoveScreen)
+                || this.minecraft.screen instanceof ScoreboardMoveScreen)
         {
             return;
         }

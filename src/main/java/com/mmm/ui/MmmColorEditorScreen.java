@@ -145,7 +145,7 @@ public final class MmmColorEditorScreen extends CompatScreen
         this.onClose.run();
         if (this.minecraft != null)
         {
-            this.minecraft.gui.setScreen(this.parent);
+            this.minecraft.setScreen(this.parent);
         }
     }
 

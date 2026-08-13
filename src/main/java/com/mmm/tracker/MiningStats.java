@@ -385,9 +385,9 @@ public final class MiningStats
         }
 
         boolean pauseRequested = client.isLocalServer()
-                && client.gui.screen() != null
-                && (client.gui.screen() instanceof PauseScreen
-                || client.gui.screen().isPauseScreen());
+                && client.screen != null
+                && (client.screen instanceof PauseScreen
+                || client.screen.isPauseScreen());
         if (pauseRequested)
         {
             if (sessionPaused == false)

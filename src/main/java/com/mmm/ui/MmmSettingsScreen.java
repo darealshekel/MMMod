@@ -318,7 +318,7 @@ public class MmmSettingsScreen extends CompatScreen
     @Override
     public void onClose()
     {
-        Minecraft.getInstance().gui.setScreen(this.parent);
+        Minecraft.getInstance().setScreen(this.parent);
     }
 
     @Override
@@ -463,24 +463,24 @@ public class MmmSettingsScreen extends CompatScreen
             case ACTION -> this.drawActionButton(context, controlX, controlY, controlWidth, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
                 if ("Move HUD".equals(row.label()))
                 {
-                    Minecraft.getInstance().gui.setScreen(new HudMoveScreen(this));
+                    Minecraft.getInstance().setScreen(new HudMoveScreen(this));
                 }
                 else if ("Custom Sounds".equals(row.label()))
                 {
-                    Minecraft.getInstance().gui.setScreen(new GoalSoundSettingsScreen(this));
+                    Minecraft.getInstance().setScreen(new GoalSoundSettingsScreen(this));
                 }
                 else if ("Perimeter Block List".equals(row.label()))
                 {
-                    Minecraft.getInstance().gui.setScreen(new PerimeterBlockListScreen(this));
+                    Minecraft.getInstance().setScreen(new PerimeterBlockListScreen(this));
                 }
                 else if ("Sync Scoreboard".equals(row.label()))
                 {
-                    Minecraft.getInstance().gui.setScreen(new SyncScoreboardScreen(this));
+                    Minecraft.getInstance().setScreen(new SyncScoreboardScreen(this));
                 }
                 else if ("Generate Dev Run".equals(row.label()))
                 {
                     MmmMessages.actionbar("Generated preview mining run");
-                    Minecraft.getInstance().gui.setScreen(new SummaryScreen(MiningStats.simulateDevFinishedSession(), this));
+                    Minecraft.getInstance().setScreen(new SummaryScreen(MiningStats.simulateDevFinishedSession(), this));
                 }
             });
         }
@@ -641,7 +641,7 @@ public class MmmSettingsScreen extends CompatScreen
             return;
         }
 
-        Minecraft.getInstance().gui.setScreen(new MmmColorEditorScreen(this, colorConfig, () -> this.syncField(config)));
+        Minecraft.getInstance().setScreen(new MmmColorEditorScreen(this, colorConfig, () -> this.syncField(config)));
     }
     private void drawActionButton(GuiGraphicsExtractor context, int x, int y, int width, int height, String label, int mouseX, int mouseY, Runnable action)
     {

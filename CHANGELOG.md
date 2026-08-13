@@ -4,6 +4,7 @@
 
 ### Added
 
+- Added a Minecraft 26.1.2 build with the complete MMMod 1.0.18.1 feature set.
 - Added Minecraft and MMM channel tabs directly above the normal chat input.
 - Added global MMM Chat for website-linked players without sending messages to the current server.
 - Added global daily-goal milestones from linked players across servers and singleplayer worlds.
@@ -14,6 +15,11 @@
 
 - Menu opacity now updates live without dimming text, controls, or borders.
 - In singleplayer, active sessions now pause while ESC is open or Minecraft is paused, then resume when play continues.
+
+### Fixed
+
+- Fixed a Minecraft 26.1.2 crash when mining with breaking indicators enabled.
+- Fixed distorted Block ESP and breaking-indicator outlines on Minecraft 26.1.2.
 
 ## 1.0.18 - 2026-07-29
 

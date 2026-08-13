@@ -195,7 +195,7 @@ public final class ScoreboardRecordsScreen extends CompatScreen
     @Override
     public void onClose()
     {
-        Minecraft.getInstance().gui.setScreen(this.parent);
+        Minecraft.getInstance().setScreen(this.parent);
     }
 
     @Override
