@@ -5,6 +5,7 @@ import com.mmm.social.PublicChatClient;
 import com.mmm.sync.WebsiteLinkManager;
 import com.mmm.ui.MmmUi;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.screen.Screen;
@@ -70,13 +71,16 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void mmm$selectChannel(double mouseX, double mouseY, int button,
+    private void mmm$selectChannel(Click click, boolean doubleClick,
                                    CallbackInfoReturnable<Boolean> cir)
     {
-        if (button != 0 || this.chatField == null)
+        if (click.button() != 0 || this.chatField == null)
         {
             return;
         }
+
+        double mouseX = click.x();
+        double mouseY = click.y();
 
         int x = this.chatField.getX();
         int y = Math.max(1, this.chatField.getY() - TAB_HEIGHT - 2);
@@ -161,8 +165,13 @@ public abstract class ScoreboardChatScreenMixin extends Screen
 
     private void mmm$switchChannel(Channel channel)
     {
-        if (mmm$selectedChannel == channel || this.chatField == null)
+        if (this.chatField == null)
         {
+            return;
+        }
+        if (mmm$selectedChannel == channel)
+        {
+            this.setFocused(this.chatField);
             return;
         }
 
@@ -191,7 +200,7 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         this.chatField.setPlaceholder(Text.literal(publicChannel
                 ? "Message linked MMM players..."
                 : "Minecraft chat..."));
-        this.chatField.setFocused(true);
+        this.setFocused(this.chatField);
     }
 
     private int mmm$tabWidth(Channel channel)
