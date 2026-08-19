@@ -20,6 +20,7 @@ public class SessionData
     public long totalBlocks;
     public long bestStreakSeconds;
     public int peakBlocksPerHour;
+    public int bestHourBlocks;
     public Map<String, Long> blockBreakdown = new LinkedHashMap<>();
     public List<Integer> miningRateBuckets = new ArrayList<>();
 
@@ -81,6 +82,21 @@ public class SessionData
 
     public int getBestHourBlocks()
     {
+        if (this.bestHourBlocks > 0)
+        {
+            return clampBlocksPerHour(this.bestHourBlocks);
+        }
+
+        return calculateBestHourBlocksFromBuckets();
+    }
+
+    public void captureBestHourBlocks(long value)
+    {
+        this.bestHourBlocks = Math.max(this.bestHourBlocks, clampBlocksPerHour(value));
+    }
+
+    private int calculateBestHourBlocksFromBuckets()
+    {
         if (this.miningRateBuckets.isEmpty())
         {
             return clampBlocksPerHour(this.peakBlocksPerHour);
@@ -98,6 +114,26 @@ public class SessionData
             bestTotal = Math.max(bestTotal, windowTotal);
         }
         return clampBlocksPerHour(bestTotal);
+    }
+
+    public int getCurrentHourBlocks()
+    {
+        if (this.miningRateBuckets.isEmpty())
+        {
+            return 0;
+        }
+
+        long windowTotal = 0L;
+        int latestBucket = Math.max(
+                this.miningRateBuckets.size() - 1,
+                (int) Math.max(0L, this.getActiveDurationMs() / RATE_BUCKET_DURATION_MS));
+        int firstBucket = Math.max(0, latestBucket - 59);
+        int lastStoredBucket = Math.min(latestBucket, this.miningRateBuckets.size() - 1);
+        for (int index = firstBucket; index <= lastStoredBucket; index++)
+        {
+            windowTotal += Math.max(0, this.miningRateBuckets.get(index));
+        }
+        return clampBlocksPerHour(windowTotal);
     }
 
     public void updatePeakBlocksPerHour(long value)
@@ -203,14 +239,14 @@ public class SessionData
 
     public String serialise()
     {
-        return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.getPeakBlocksPerHour() + "," + this.serialiseBreakdown() + "," + this.serialiseRateBuckets() + "," + this.getWallDurationMs();
+        return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.getPeakBlocksPerHour() + "," + this.serialiseBreakdown() + "," + this.serialiseRateBuckets() + "," + this.getWallDurationMs() + "," + this.getBestHourBlocks();
     }
 
     public static SessionData deserialise(String line)
     {
         try
         {
-            String[] parts = line.split(",", 8);
+            String[] parts = line.split(",", 9);
             SessionData session = new SessionData(Long.parseLong(parts[0]));
             session.endTimeMs = Long.parseLong(parts[1]);
             session.totalBlocks = Long.parseLong(parts[2]);
@@ -227,6 +263,10 @@ public class SessionData
             session.wallDurationMs = parts.length >= 8
                     ? Math.max(session.getActiveDurationMs(), Long.parseLong(parts[7]))
                     : session.getActiveDurationMs();
+            if (parts.length >= 9)
+            {
+                session.bestHourBlocks = clampBlocksPerHour(Long.parseLong(parts[8]));
+            }
             return session;
         }
         catch (Exception e)

@@ -25,6 +25,7 @@ public final class MiningCalendarStore
     private static final DateTimeFormatter DAY_FORMAT = DateTimeFormatter.ofPattern("dd-MM-uuuu", Locale.ROOT)
             .withResolverStyle(ResolverStyle.STRICT);
     private static final int MAX_DAYS = 400;
+    private static final long STREAK_DAY_MINIMUM_BLOCKS = 10_000L;
     private static final long SAVE_INTERVAL_MS = 5_000L;
     private static final Map<String, Long> DAYS = new LinkedHashMap<>();
     private static final Map<String, Long> SYNCED_DAYS = new LinkedHashMap<>();
@@ -84,6 +85,49 @@ public final class MiningCalendarStore
                 Instant.ofEpochMilli(PeriodKeys.currentWeeklyStartMs(now)),
                 PeriodKeys.UTC);
         return sumDaysWithin(DAYS, weekStart, currentDay);
+    }
+
+    public static synchronized int longestMiningStreakDays()
+    {
+        activateCurrentPlayer();
+        return longestMiningStreakDays(DAYS);
+    }
+
+    public static synchronized int longestQualifiedMiningStreakDays()
+    {
+        activateCurrentPlayer();
+        return longestMiningStreakDays(DAYS, STREAK_DAY_MINIMUM_BLOCKS);
+    }
+
+    static int longestMiningStreakDays(Map<String, Long> days)
+    {
+        return longestMiningStreakDays(days, 1L);
+    }
+
+    static int longestMiningStreakDays(Map<String, Long> days, long minimumBlocks)
+    {
+        if (days == null || days.isEmpty())
+        {
+            return 0;
+        }
+
+        List<LocalDate> activeDays = days.entrySet().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue() >= Math.max(1L, minimumBlocks))
+                .map(entry -> parseDay(entry.getKey()))
+                .filter(day -> day != null)
+                .distinct()
+                .sorted()
+                .toList();
+        int longest = 0;
+        int current = 0;
+        LocalDate previous = null;
+        for (LocalDate day : activeDays)
+        {
+            current = previous != null && day.equals(previous.plusDays(1L)) ? current + 1 : 1;
+            longest = Math.max(longest, current);
+            previous = day;
+        }
+        return longest;
     }
 
     static long sumDaysWithin(Map<String, Long> days, LocalDate startInclusive, LocalDate endInclusive)

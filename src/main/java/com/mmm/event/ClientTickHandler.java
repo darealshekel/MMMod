@@ -1,5 +1,6 @@
 package com.mmm.event;
 
+import com.mmm.advancement.MmmAdvancementManager;
 import com.mmm.sync.WebsiteProfileTotals;
 
 import com.mmm.hud.SummaryScreen;
@@ -24,6 +25,7 @@ public class ClientTickHandler
 
         MmmHotkeyManager.tick(mc);
         com.mmm.tracker.MiningStats.onClientTick();
+        MmmAdvancementManager.onClientTick(mc);
         WebsiteProfileTotals.refresh(false);
         MmmBlockBreakDetector.onClientTick(mc);
         MmmTimerState.onClientTick(mc);

@@ -55,6 +55,7 @@ public final class PublicChatClient
             .build();
     private static final Set<String> SEEN_EVENT_IDS = new HashSet<>();
     private static final Deque<String> SEEN_EVENT_ORDER = new ArrayDeque<>();
+    private static final Deque<String> PENDING_ADVANCEMENT_MESSAGES = new ArrayDeque<>();
 
     private static volatile InputStream activeStream;
     private static volatile boolean connecting;
@@ -63,6 +64,7 @@ public final class PublicChatClient
     private static volatile long generation;
     private static volatile long nextConnectionAttemptMs;
     private static int tickCounter;
+    private static long nextAdvancementSendMs;
 
     private PublicChatClient()
     {
@@ -78,9 +80,14 @@ public final class PublicChatClient
 
         if (client == null
                 || client.player == null
-                || WebsiteLinkManager.isCurrentPlayerLinked() == false
-                || (Configs.Generic.SHOW_MMM_CHAT_MESSAGES.getBooleanValue() == false
-                    && Configs.Generic.RECEIVE_GOAL_MILESTONES.getBooleanValue() == false))
+                || WebsiteLinkManager.isCurrentPlayerLinked() == false)
+        {
+            disconnect();
+            return;
+        }
+        sendPendingAdvancement();
+        if (Configs.Generic.SHOW_MMM_CHAT_MESSAGES.getBooleanValue() == false
+                && Configs.Generic.RECEIVE_GOAL_MILESTONES.getBooleanValue() == false)
         {
             disconnect();
             return;
@@ -204,6 +211,57 @@ public final class PublicChatClient
             {
                 MMM.LOGGER.warn("[MMM] Could not prepare milestone request: {}", exception.getMessage());
             }
+        }
+    }
+
+    public static void publishAdvancement(String title, String description)
+    {
+        String safeTitle = normalizeMessage(title);
+        String safeDescription = normalizeMessage(description);
+        String message = "earned the MMM advancement [" + safeTitle + "] - " + safeDescription;
+        if (safeTitle.isBlank() || message.length() > MAX_MESSAGE_LENGTH)
+        {
+            return;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.player == null)
+        {
+            return;
+        }
+        if (WebsiteLinkManager.isCurrentPlayerLinked())
+        {
+            synchronized (PENDING_ADVANCEMENT_MESSAGES)
+            {
+                if (PENDING_ADVANCEMENT_MESSAGES.size() < 32)
+                {
+                    PENDING_ADVANCEMENT_MESSAGES.addLast(message);
+                }
+            }
+            return;
+        }
+        client.player.sendMessage(Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
+                .append(Text.literal("Advancement Made! ").styled(style -> style.withColor(MmmUi.accent() & 0x00FFFFFF)))
+                .append(Text.literal(safeTitle).formatted(Formatting.WHITE))
+                .append(Text.literal(" - " + safeDescription).formatted(Formatting.GRAY)), false);
+    }
+
+    private static void sendPendingAdvancement()
+    {
+        long now = System.currentTimeMillis();
+        if (sending || now < nextAdvancementSendMs)
+        {
+            return;
+        }
+        String message;
+        synchronized (PENDING_ADVANCEMENT_MESSAGES)
+        {
+            message = PENDING_ADVANCEMENT_MESSAGES.pollFirst();
+        }
+        if (message != null)
+        {
+            nextAdvancementSendMs = now + 2_500L;
+            sendMessage(message);
         }
     }
 
@@ -355,15 +413,21 @@ public final class PublicChatClient
         String eventId = stringValue(event, "eventId");
         String username = stringValue(event, "username");
         String message = normalizeMessage(stringValue(event, "message"));
+        String rawMessage = normalizeMessage(stringValue(event, "rawMessage"));
         if (eventId.isBlank()
                 || username.matches("[A-Za-z0-9_]{1,16}") == false
                 || message.isBlank()
                 || message.length() > MAX_MESSAGE_LENGTH
+                || rawMessage.length() > MAX_MESSAGE_LENGTH
                 || markSeen(eventId) == false)
         {
             return;
         }
-        showChatMessage(username, message);
+        if (MmmChatIgnoreList.isIgnored(username))
+        {
+            return;
+        }
+        showChatMessage(username, message, rawMessage);
     }
 
     private static void handleMilestoneEvent(JsonObject event)
@@ -384,6 +448,10 @@ public final class PublicChatClient
             {
                 return;
             }
+            if (MmmChatIgnoreList.isIgnored(username))
+            {
+                return;
+            }
             showMilestone(username, threshold, current, target);
         }
         catch (Exception ignored)
@@ -391,7 +459,7 @@ public final class PublicChatClient
         }
     }
 
-    private static void showChatMessage(String username, String messageText)
+    private static void showChatMessage(String username, String messageText, String rawMessageText)
     {
         MinecraftClient client = MinecraftClient.getInstance();
         client.execute(() -> {
@@ -399,9 +467,12 @@ public final class PublicChatClient
             {
                 return;
             }
+            String visibleMessage = Configs.Generic.CENSOR_MMM_CHAT.getBooleanValue()
+                    ? MmmChatCensor.censor(messageText)
+                    : rawMessageText.isBlank() ? messageText : rawMessageText;
             MutableText message = Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
                     .append(Text.literal(username).styled(style -> style.withColor(MmmUi.accent() & 0x00FFFFFF)))
-                    .append(Text.literal(": " + messageText).formatted(Formatting.WHITE));
+                    .append(Text.literal(": " + visibleMessage).formatted(Formatting.WHITE));
             client.player.sendMessage(message, false);
         });
     }

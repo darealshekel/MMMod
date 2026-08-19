@@ -29,6 +29,8 @@ public final class SessionHistory
     private static final Path ROOT_DIR = SharedStoragePaths.sessionsDir();
     private static final List<SessionData> HISTORY = new ArrayList<>();
     private static SessionData best = null;
+    private static LifetimeSummary cachedLifetimeSummary;
+    private static long cachedLifetimeSignature = Long.MIN_VALUE;
     private static String currentWorldId = "default";
     private static boolean legacyMigrationAttempted = false;
 
@@ -38,6 +40,7 @@ public final class SessionHistory
 
     public static synchronized void loadForWorld(String worldId)
     {
+        invalidateLifetimeSummary();
         currentWorldId = normalizeWorldId(worldId);
         migrateLegacySessionsIfNeeded();
         migrateCurrentWorldIdentity();
@@ -75,6 +78,7 @@ public final class SessionHistory
             HISTORY.clear();
             HISTORY.addAll(persisted);
             best = findBest(HISTORY);
+            invalidateLifetimeSummary();
         }
         catch (IOException e)
         {
@@ -183,6 +187,122 @@ public final class SessionHistory
     public static synchronized SessionData getBestSession()
     {
         return best;
+    }
+
+    public static synchronized LifetimeSummary getLifetimeSummary()
+    {
+        List<Path> sessionFiles = getLifetimeSessionFiles();
+        long sourceSignature = lifetimeSourceSignature(sessionFiles);
+        if (cachedLifetimeSummary != null && cachedLifetimeSignature == sourceSignature)
+        {
+            return cachedLifetimeSummary;
+        }
+        cachedLifetimeSummary = summarizeLifetimeSessionFiles(sessionFiles);
+        cachedLifetimeSignature = sourceSignature;
+        return cachedLifetimeSummary;
+    }
+
+    static LifetimeSummary summarizeLifetimeSessionFiles(List<Path> sessionFiles)
+    {
+        long totalActiveMs = 0L;
+        long longestSessionMs = 0L;
+        int bestHourBlocks = 0;
+        int sessionsAt40kBph = 0;
+        int sessionsAt50kBph = 0;
+        Map<Long, SessionData> sessionsByStart = new LinkedHashMap<>();
+        for (Path sessionFile : sessionFiles)
+        {
+            for (SessionData candidate : loadSessions(sessionFile))
+            {
+                if (candidate == null)
+                {
+                    continue;
+                }
+                SessionData existing = sessionsByStart.get(candidate.startTimeMs);
+                if (existing == null
+                        || candidate.endTimeMs > existing.endTimeMs
+                        || candidate.endTimeMs == existing.endTimeMs && candidate.totalBlocks > existing.totalBlocks)
+                {
+                    sessionsByStart.put(candidate.startTimeMs, candidate);
+                }
+            }
+        }
+        for (SessionData session : sessionsByStart.values())
+        {
+            long durationMs = Math.max(0L, session.getActiveDurationMs());
+            totalActiveMs = Long.MAX_VALUE - totalActiveMs < durationMs
+                    ? Long.MAX_VALUE
+                    : totalActiveMs + durationMs;
+            longestSessionMs = Math.max(longestSessionMs, durationMs);
+            bestHourBlocks = Math.max(bestHourBlocks, session.getBestHourBlocks());
+            int averageBph = session.getAverageBlocksPerHour();
+            if (averageBph >= 40_000)
+            {
+                sessionsAt40kBph++;
+            }
+            if (averageBph >= 50_000)
+            {
+                sessionsAt50kBph++;
+            }
+        }
+        return new LifetimeSummary(
+                totalActiveMs,
+                longestSessionMs,
+                bestHourBlocks,
+                sessionsAt40kBph,
+                sessionsAt50kBph);
+    }
+
+    private static void invalidateLifetimeSummary()
+    {
+        cachedLifetimeSummary = null;
+        cachedLifetimeSignature = Long.MIN_VALUE;
+    }
+
+    private static List<Path> getLifetimeSessionFiles()
+    {
+        migrateLegacySessionsIfNeeded();
+        List<Path> files = new ArrayList<>();
+        Path rootFile = ROOT_DIR.resolve("sessions.csv");
+        if (Files.isRegularFile(rootFile))
+        {
+            files.add(rootFile);
+        }
+        if (Files.isDirectory(ROOT_DIR))
+        {
+            try (var paths = Files.list(ROOT_DIR))
+            {
+                paths.filter(Files::isDirectory)
+                        .map(path -> path.resolve("sessions.csv"))
+                        .filter(Files::isRegularFile)
+                        .sorted(Comparator.comparing(Path::toString))
+                        .forEach(files::add);
+            }
+            catch (IOException e)
+            {
+                MMM.LOGGER.warn("[MMM] Failed to list lifetime session files in {}: {}", ROOT_DIR, e.getMessage());
+            }
+        }
+        return files;
+    }
+
+    private static long lifetimeSourceSignature(List<Path> sessionFiles)
+    {
+        long signature = 1125899906842597L;
+        for (Path sessionFile : sessionFiles)
+        {
+            try
+            {
+                signature = 31L * signature + sessionFile.toAbsolutePath().normalize().toString().hashCode();
+                signature = 31L * signature + Files.size(sessionFile);
+                signature = 31L * signature + Files.getLastModifiedTime(sessionFile).toMillis();
+            }
+            catch (IOException e)
+            {
+                signature = 31L * signature + sessionFile.toString().hashCode();
+            }
+        }
+        return signature;
     }
 
     public static synchronized String getCurrentWorldId()
@@ -619,4 +739,11 @@ public final class SessionHistory
         T get() throws IOException;
     }
     public record WorldHistory(String worldId, String displayName, List<SessionData> sessions, SessionData bestSession) {}
+
+    public record LifetimeSummary(
+            long totalActiveMs,
+            long longestSessionMs,
+            int bestHourBlocks,
+            int sessionsAt40kBph,
+            int sessionsAt50kBph) {}
 }

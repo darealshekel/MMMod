@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.0.19 - 2026-08-19
+
+### Added
+
+- Added an MMM tab to Minecraft Advancements for session hours, mining streaks, Best Hour speed, endurance, and consistent-session goals.
+- Added live advancement progress, MMM advancement toasts, and advancement announcements for linked MMM Chat players.
+- Added an optional MMM Chat slur filter, an ignored-player list in Settings, and `/mmm chat ignore`, `unignore`, and `ignored` commands.
+- Added verified Minecraft UUID evidence to source scoreboard rows when the player is present in Tab.
+- Added client-side filtering for confirmed Carpet fake players in complete source scoreboard snapshots.
+
+### Changed
+
+- Source sync cooldowns now reset per source at `00:00 UTC` instead of using a rolling 24-hour timer.
+- Session Best Hour is now stored with each session and lifetime advancement progress is rebuilt from shared cross-version session history.
+- Expanded the shared block breakdown catalog and kept the mod, sessions, timer stats, and website payloads on the same accepted block list.
+
+### Fixed
+
+- Fixed session summaries and speed advancements losing the saved Best Hour after a restart.
+- Fixed fake or duplicate scoreboard rows remaining in the source total after they are removed from a full sync snapshot.
+- Fixed MMM Chat remaining selected after the chat screen closes.
+- Fixed No Swinging Animation not covering hoes and shears.
+
 ## 1.0.18.1 - 2026-07-29
 
 ### Added
@@ -14,6 +37,7 @@
 
 - Menu opacity now updates live without dimming text, controls, or borders.
 - In singleplayer, active sessions now pause while ESC is open or Minecraft is paused, then resume when play continues.
+- Session History and Summary now separate active **Session IGT** from total **Session Time**, including pauses.
 
 ## 1.0.18 - 2026-07-29
 

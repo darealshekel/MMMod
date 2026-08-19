@@ -104,6 +104,8 @@ public class Configs
         public static final ConfigBoolean SHARE_GOAL_MILESTONES = new ConfigBoolean("shareGoalMilestones", true, "Share daily-goal milestones with linked MMM players.");
         public static final ConfigBoolean RECEIVE_GOAL_MILESTONES = new ConfigBoolean("receiveGoalMilestones", true, "Show daily-goal milestones from linked MMM players.");
         public static final ConfigBoolean SHOW_MMM_CHAT_MESSAGES = new ConfigBoolean("showMmmChatMessages", true, "Show messages from linked MMM players in Minecraft chat.");
+        public static final ConfigBoolean CENSOR_MMM_CHAT = new ConfigBoolean("censorMmmChat", true, "Hide slurs in MMM chat messages.");
+        public static final ConfigStringList MMM_CHAT_IGNORED_PLAYERS = new ConfigStringList("mmmChatIgnoredPlayers", ImmutableList.of(), "Minecraft players hidden from MMM chat and milestone messages.");
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 820, "Mining HUD horizontal position.");
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 460, "Mining HUD vertical position.");
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
@@ -204,6 +206,8 @@ public class Configs
                 SHARE_GOAL_MILESTONES,
                 RECEIVE_GOAL_MILESTONES,
                 SHOW_MMM_CHAT_MESSAGES,
+                CENSOR_MMM_CHAT,
+                MMM_CHAT_IGNORED_PLAYERS,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
@@ -308,6 +312,8 @@ public class Configs
                 SHARE_GOAL_MILESTONES,
                 RECEIVE_GOAL_MILESTONES,
                 SHOW_MMM_CHAT_MESSAGES,
+                CENSOR_MMM_CHAT,
+                MMM_CHAT_IGNORED_PLAYERS,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,

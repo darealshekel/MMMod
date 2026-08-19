@@ -31,4 +31,34 @@ class SessionDataBestHourTest
 
         assertEquals(12_000, session.getBestHourBlocks());
     }
+
+    @Test
+    void currentHourUsesTheLatestSixtyActiveMinutes()
+    {
+        SessionData session = new SessionData(0L);
+        for (int minute = 0; minute < 60; minute++)
+        {
+            session.recordMinedAmount(minute * 60_000L, 200L);
+        }
+        for (int minute = 60; minute < 120; minute++)
+        {
+            session.recordMinedAmount(minute * 60_000L, 100L);
+        }
+
+        assertEquals(6_000, session.getCurrentHourBlocks());
+        assertEquals(12_000, session.getBestHourBlocks());
+    }
+
+    @Test
+    void capturedLiveBestHourIsUsedByTheSummaryAndHistory()
+    {
+        SessionData session = new SessionData(0L);
+        session.recordMinedAmount(0L, 500L);
+        session.captureBestHourBlocks(12_345L);
+
+        assertEquals(12_345, session.getBestHourBlocks());
+
+        SessionData restored = SessionData.deserialise(session.serialise());
+        assertEquals(12_345, restored.getBestHourBlocks());
+    }
 }

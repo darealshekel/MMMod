@@ -170,7 +170,10 @@ public final class MiningHudRenderer
         }
         if (Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue())
         {
-            lines.add(HudLine.dualBlocksMined("Hour / Best Hour: ", MmmTimerState.getCurrentHourBlocks(), MmmTimerState.getBestHourBlocks()));
+            lines.add(HudLine.dualBlocksMined(
+                    "Hour / Best Hour: ",
+                    MmmTimerState.getCurrentHourBlocks(),
+                    MmmTimerState.getBestHourBlocks()));
         }
         if (Configs.Generic.HUD_TIMER_STATUS_VISIBLE.getBooleanValue())
         {

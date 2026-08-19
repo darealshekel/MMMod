@@ -39,14 +39,14 @@ class CloudSyncStatusTextTest
     }
 
     @Test
-    void startsCooldownOnlyForAcceptedOrServerConfirmedSourceSyncs()
+    void startsCooldownForAcceptedOrServerConfirmedSourceSyncs()
     {
         assertEquals(0L, CloudSyncManager.sourceSyncCadenceAnchor(
                 "{\"ok\":true,\"source_sync_accepted\":false}"));
         assertTrue(CloudSyncManager.sourceSyncCadenceAnchor(
                 "{\"ok\":true,\"source_sync_accepted\":true}") > 0L);
 
-        String nextSync = Instant.ofEpochMilli(System.currentTimeMillis() + 12L * 60L * 60L * 1000L).toString();
+        String nextSync = Instant.ofEpochMilli(CloudSyncManager.nextUtcDailyResetMs(System.currentTimeMillis())).toString();
         String cooldownResponse = "{\"ok\":true,\"source_sync_accepted\":false,\"sync_skipped\":true,"
                 + "\"reason\":\"24_hour_cooldown\",\"next_sync_at\":\"" + nextSync + "\","
                 + "\"sync_policy\":{\"interval_ms\":86400000}}";
@@ -61,9 +61,24 @@ class CloudSyncStatusTextTest
                 CloudSyncManager.sourceSyncResponseDetail(
                         "{\"reason\":\"no_mining_scoreboard_evidence\"}", false, false, false));
         assertEquals(
-                "Accepted scoreboard Digs [Total] with 17 players / 26,907,214 blocks. Next sync in 24 hours.",
+                "Accepted scoreboard Digs [Total] with 17 players / 26,907,214 blocks. Next sync at 00:00 UTC.",
                 CloudSyncManager.sourceSyncResponseDetail(
                         "{\"source_sync_accepted\":true,\"source_sync\":{\"objective_title\":\"Digs [Total]\",\"player_count\":17,\"total_blocks\":26907214}}",
                         false, true, false));
+    }
+
+    @Test
+    void schedulesEachSourceAtTheNextUtcDailyReset()
+    {
+        long beforeReset = Instant.parse("2026-08-14T23:59:30Z").toEpochMilli();
+        long afterReset = Instant.parse("2026-08-15T00:00:00Z").toEpochMilli();
+
+        assertEquals(afterReset, CloudSyncManager.nextUtcDailyResetMs(beforeReset));
+        assertTrue(CloudSyncManager.hasSyncedDuringCurrentUtcDay(
+                Instant.parse("2026-08-14T12:00:00Z").toEpochMilli(), beforeReset));
+        assertEquals(false, CloudSyncManager.hasSyncedDuringCurrentUtcDay(beforeReset, afterReset));
+        assertTrue(CloudSyncManager.isSyntheticCooldownAnchor(afterReset, afterReset));
+        assertEquals(false, CloudSyncManager.isSyntheticCooldownAnchor(
+                Instant.parse("2026-08-15T00:00:01Z").toEpochMilli(), afterReset));
     }
 }

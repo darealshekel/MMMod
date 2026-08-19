@@ -51,6 +51,12 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         }
     }
 
+    @Inject(method = "removed", at = @At("TAIL"))
+    private void mmm$resetChannelOnClose(CallbackInfo ci)
+    {
+        mmm$publicChannelSelected = false;
+    }
+
     @Inject(method = "render", at = @At("TAIL"))
     private void mmm$renderChannelTabs(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci)
     {

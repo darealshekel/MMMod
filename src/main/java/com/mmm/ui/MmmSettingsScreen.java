@@ -464,6 +464,10 @@ public class MmmSettingsScreen extends Screen
                 {
                     MinecraftClient.getInstance().setScreen(new PerimeterBlockListScreen(this));
                 }
+                else if ("Ignored Players".equals(row.label()))
+                {
+                    MinecraftClient.getInstance().setScreen(new MmmChatIgnoreListScreen(this));
+                }
                 else if ("Sync Scoreboard".equals(row.label()))
                 {
                     MinecraftClient.getInstance().setScreen(new SyncScoreboardScreen(this));
@@ -1036,6 +1040,8 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Share Milestones", "Share progress with linked MMM players.", Configs.Generic.SHARE_GOAL_MILESTONES, ControlKind.BOOLEAN),
                 new SettingRow("Receive Milestones", "Show global milestones from linked players.", Configs.Generic.RECEIVE_GOAL_MILESTONES, ControlKind.BOOLEAN),
                 new SettingRow("MMM Chat Messages", "Show global MMM messages in Minecraft chat.", Configs.Generic.SHOW_MMM_CHAT_MESSAGES, ControlKind.BOOLEAN),
+                new SettingRow("Censor MMM Chat", "Hide slurs in MMM chat messages.", Configs.Generic.CENSOR_MMM_CHAT, ControlKind.BOOLEAN),
+                new SettingRow("Ignored Players", "Hide chat and milestones from selected players.", null, ControlKind.ACTION),
                 new SettingRow("Sound Alerts", "Play milestone sounds.", FeatureToggle.MMM_SOUND_ALERTS, ControlKind.BOOLEAN),
                 new SettingRow("Custom Sounds", "Choose sounds for 25%, 50%, 75%, and 100%.", null, ControlKind.ACTION),
                 new SettingRow("Pickaxe Animation", "Show a pickaxe at each milestone.", Configs.Generic.GOAL_PICKAXE_ANIMATION, ControlKind.BOOLEAN)

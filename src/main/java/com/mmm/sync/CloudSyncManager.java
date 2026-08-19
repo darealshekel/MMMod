@@ -21,6 +21,8 @@ import com.mmm.util.MmmDebugLogger;
 import com.mmm.util.PeriodKeys;
 import com.mmm.util.UiFormat;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -94,7 +96,7 @@ public final class CloudSyncManager
 
     public static void syncHeartbeat()
     {
-        requestScheduledSync("24-hour heartbeat");
+        requestScheduledSync("UTC daily reset");
     }
 
     public static void requestScheduledSync(String reason)
@@ -313,13 +315,13 @@ public final class CloudSyncManager
         JsonObject root = responseObject(responseBody);
         String reason = responseString(root, "reason");
         String message = responseString(root, "message");
-        if (skippedByCadence && reason.equals("24_hour_cooldown"))
+        if (skippedByCadence && isDailyResetCooldownReason(reason))
         {
             long nextSyncAtMs = responseTimestamp(root, "next_sync_at");
             String wait = nextSyncAtMs > System.currentTimeMillis()
                     ? UiFormat.formatDuration(Math.max(1L, (nextSyncAtMs - System.currentTimeMillis() + 999L) / 1000L))
                     : "a moment";
-            return "This source already synced. Its next full sync is available in " + wait + ".";
+            return "This source already synced today. Next sync at the UTC daily reset in " + wait + ".";
         }
         if (sourceSyncAccepted)
         {
@@ -333,9 +335,9 @@ public final class CloudSyncManager
                 String counts = players > 0L
                         ? " with " + players + " players" + (total > 0L ? " / " + UiFormat.formatCompact(total) + " blocks" : "")
                         : total > 0L ? " with " + UiFormat.formatCompact(total) + " blocks" : "";
-                return "Accepted scoreboard " + objective + counts + ". Next sync in 24 hours.";
+                return "Accepted scoreboard " + objective + counts + ". Next sync at 00:00 UTC.";
             }
-            return finishedSession ? "Finished session delivered." : "Latest source scoreboard accepted. Next sync in 24 hours.";
+            return finishedSession ? "Finished session delivered." : "Latest source scoreboard accepted. Next sync at 00:00 UTC.";
         }
         if (reason.equals("no_mining_scoreboard_evidence"))
         {
@@ -827,7 +829,12 @@ public final class CloudSyncManager
             return 0L;
         }
 
-        return Math.max(0L, lastSyncMs + getSyncIntervalMs() - now);
+        if (hasSyncedDuringCurrentUtcDay(lastSyncMs, now) == false)
+        {
+            return 0L;
+        }
+
+        return Math.max(0L, nextUtcDailyResetMs(now) - now);
     }
     public static String getNextSyncLabel()
     {
@@ -905,7 +912,29 @@ public final class CloudSyncManager
         }
 
         long lastSyncMs = lastSuccessfulSyncMs();
-        return lastSyncMs <= 0L || now - lastSyncMs >= getSyncIntervalMs();
+        return lastSyncMs <= 0L || hasSyncedDuringCurrentUtcDay(lastSyncMs, now) == false;
+    }
+
+    static long nextUtcDailyResetMs(long now)
+    {
+        LocalDate utcDate = Instant.ofEpochMilli(now).atZone(ZoneOffset.UTC).toLocalDate();
+        return utcDate.plusDays(1L).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+    }
+
+    private static long currentUtcDayStartMs(long now)
+    {
+        LocalDate utcDate = Instant.ofEpochMilli(now).atZone(ZoneOffset.UTC).toLocalDate();
+        return utcDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+    }
+
+    static boolean hasSyncedDuringCurrentUtcDay(long lastSyncMs, long now)
+    {
+        return lastSyncMs >= currentUtcDayStartMs(now) && lastSyncMs < nextUtcDailyResetMs(now);
+    }
+
+    static boolean isSyntheticCooldownAnchor(long lastSyncMs, long now)
+    {
+        return lastSyncMs > 0L && lastSyncMs == currentUtcDayStartMs(now);
     }
 
     static boolean isCurrentContextPayloadPreparedForSync()
@@ -931,9 +960,10 @@ public final class CloudSyncManager
     private static long lastSuccessfulSyncMs()
     {
         String sourceKey = currentSourceKey();
-        return sourceKey.isBlank()
+        long lastSyncMs = sourceKey.isBlank()
                 ? Math.max(0L, Configs.websiteLastSuccessfulSyncMs)
                 : Configs.getSourceLastSuccessfulSyncMs(sourceKey);
+        return isSyntheticCooldownAnchor(lastSyncMs, System.currentTimeMillis()) ? 0L : lastSyncMs;
     }
 
     public static long getLastSuccessfulSyncMs()
@@ -1036,17 +1066,18 @@ public final class CloudSyncManager
             {
                 return System.currentTimeMillis();
             }
-            if (responseBoolean(responseBody, "sync_skipped")
-                    && responseString(root, "reason").equals("24_hour_cooldown"))
+
+            String reason = responseString(root, "reason");
+            long nextSyncAtMs = responseTimestamp(root, "next_sync_at");
+            if (root.has("sync_skipped")
+                    && root.get("sync_skipped").isJsonPrimitive()
+                    && root.get("sync_skipped").getAsBoolean()
+                    && isDailyResetCooldownReason(reason)
+                    && nextSyncAtMs > System.currentTimeMillis())
             {
-                long nextSyncAtMs = responseTimestamp(root, "next_sync_at");
-                JsonObject syncPolicy = root.has("sync_policy") && root.get("sync_policy").isJsonObject()
-                        ? root.getAsJsonObject("sync_policy") : null;
-                long intervalMs = responseLong(syncPolicy, "interval_ms");
-                if (nextSyncAtMs > 0L && intervalMs > 0L)
-                {
-                    return Math.max(1L, Math.min(System.currentTimeMillis(), nextSyncAtMs - intervalMs));
-                }
+                // A cooldown response is an authoritative receipt that this source
+                // already synced today, even if this installation lost its local key.
+                return System.currentTimeMillis();
             }
         }
         catch (Exception ignored)
@@ -1054,6 +1085,11 @@ public final class CloudSyncManager
         }
 
         return 0L;
+    }
+
+    private static boolean isDailyResetCooldownReason(String reason)
+    {
+        return "daily_reset_cooldown".equals(reason) || "24_hour_cooldown".equals(reason);
     }
 
     private static void applySyncResponse(String responseBody)
@@ -1525,7 +1561,7 @@ public final class CloudSyncManager
         leaderboard.addProperty("mode", "full");
         leaderboard.addProperty("complete_snapshot", true);
 
-        long payloadTotalDigs = SourceLeaderboardPayloadSupport.resolveTotal(snapshot, realEntries);
+        long payloadTotalDigs = SourceLeaderboardPayloadSupport.resolveTotal(snapshot, filtered);
         if (payloadTotalDigs > 0L)
         {
             leaderboard.addProperty("total_digs", payloadTotalDigs);
@@ -1539,6 +1575,12 @@ public final class CloudSyncManager
             row.addProperty("digs", entry.digs());
             row.addProperty("rank", entry.rank());
             row.addProperty("source_server", snapshot.serverName());
+            SourceLeaderboardPayloadSupport.IdentityEvidence identity = filtered.identityFor(entry);
+            if (identity != null)
+            {
+                row.addProperty("minecraft_uuid", identity.minecraftUuid());
+                row.addProperty("identity_verified", true);
+            }
             entries.add(row);
         }
 
