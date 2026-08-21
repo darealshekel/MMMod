@@ -374,6 +374,15 @@ public final class MiningStats
         return sessionActive && sessionPaused;
     }
 
+    public static boolean isActivelyMining()
+    {
+        long now = System.currentTimeMillis();
+        return sessionActive
+                && !sessionPaused
+                && lastValidBlockMineMs > 0L
+                && now - lastValidBlockMineMs <= 45_000L;
+    }
+
     private static void updateMenuPauseState(MinecraftClient client, long now)
     {
         if (sessionActive == false)

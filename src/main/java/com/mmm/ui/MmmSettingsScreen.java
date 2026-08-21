@@ -1020,7 +1020,7 @@ public class MmmSettingsScreen extends Screen
         this.sections.clear();
         this.sections.add(SettingsSection.helpers(
                 new SettingRow("Flat Digger", "Stop digging below your feet.", FeatureToggle.MMM_FLAT_DIGGER, ControlKind.BOOLEAN),
-                new SettingRow("Perimeter Wall Helper", "Protect the configured perimeter floor.", FeatureToggle.MMM_PERIMETER_WALL_DIG_HELPER, ControlKind.BOOLEAN),
+                new SettingRow("Perimeter Wall Helper", "Protect the configured floor; sneak to bypass it.", FeatureToggle.MMM_PERIMETER_WALL_DIG_HELPER, ControlKind.BOOLEAN),
                 new SettingRow("Perimeter Block List", "Choose which floor blocks are protected.", null, ControlKind.ACTION),
                 new SettingRow("Toggle Tab", "Keep the player list open.", FeatureToggle.MMM_TOGGLE_TAB, ControlKind.BOOLEAN)
         ));
@@ -1037,14 +1037,18 @@ public class MmmSettingsScreen extends Screen
                 new SettingRow("Decimal Places", "Choose 1, 2, or 3 decimal places.", Configs.Generic.GOAL_PERCENT_DECIMAL_PLACES, ControlKind.SLIDER),
                 new SettingRow("Goal Tracking", "Track today's goal.", FeatureToggle.MMM_DAILY_GOAL, ControlKind.BOOLEAN),
                 new SettingRow("Milestone Messages", "Post progress alerts in chat.", FeatureToggle.MMM_NOTIFICATIONS, ControlKind.BOOLEAN),
-                new SettingRow("Share Milestones", "Share progress with linked MMM players.", Configs.Generic.SHARE_GOAL_MILESTONES, ControlKind.BOOLEAN),
-                new SettingRow("Receive Milestones", "Show global milestones from linked players.", Configs.Generic.RECEIVE_GOAL_MILESTONES, ControlKind.BOOLEAN),
-                new SettingRow("MMM Chat Messages", "Show global MMM messages in Minecraft chat.", Configs.Generic.SHOW_MMM_CHAT_MESSAGES, ControlKind.BOOLEAN),
-                new SettingRow("Censor MMM Chat", "Hide slurs in MMM chat messages.", Configs.Generic.CENSOR_MMM_CHAT, ControlKind.BOOLEAN),
-                new SettingRow("Ignored Players", "Hide chat and milestones from selected players.", null, ControlKind.ACTION),
                 new SettingRow("Sound Alerts", "Play milestone sounds.", FeatureToggle.MMM_SOUND_ALERTS, ControlKind.BOOLEAN),
                 new SettingRow("Custom Sounds", "Choose sounds for 25%, 50%, 75%, and 100%.", null, ControlKind.ACTION),
                 new SettingRow("Pickaxe Animation", "Show a pickaxe at each milestone.", Configs.Generic.GOAL_PICKAXE_ANIMATION, ControlKind.BOOLEAN)
+        ));
+        this.sections.add(SettingsSection.social(
+                new SettingRow("Active Digger Icons", "Mark active MMM miners in the player list.", Configs.Generic.SHOW_ACTIVE_DIGGERS, ControlKind.BOOLEAN),
+                new SettingRow("Friends Only", "Only mark active miners from your MMM friends list.", Configs.Generic.ACTIVE_DIGGERS_FRIENDS_ONLY, ControlKind.BOOLEAN),
+                new SettingRow("Share Milestones", "Share your goal milestones with linked MMM players.", Configs.Generic.SHARE_GOAL_MILESTONES, ControlKind.BOOLEAN),
+                new SettingRow("Receive Milestones", "Show milestones from linked MMM players.", Configs.Generic.RECEIVE_GOAL_MILESTONES, ControlKind.BOOLEAN),
+                new SettingRow("MMM Chat Messages", "Show MMM chat in Minecraft chat.", Configs.Generic.SHOW_MMM_CHAT_MESSAGES, ControlKind.BOOLEAN),
+                new SettingRow("Censor MMM Chat", "Hide slurs in MMM chat.", Configs.Generic.CENSOR_MMM_CHAT, ControlKind.BOOLEAN),
+                new SettingRow("Ignored Players", "Hide selected players' chat and milestones.", null, ControlKind.ACTION)
         ));
         this.sections.add(SettingsSection.hud(
                 new SettingRow("Move HUD", "Move and resize sections.", null, ControlKind.ACTION),
@@ -1157,6 +1161,7 @@ public class MmmSettingsScreen extends Screen
         GENERAL("General"),
         SYNC("Sync"),
         NOTIFICATIONS("Notifications"),
+        SOCIAL("Social"),
         HUD("HUD"),
         COLORS("Colors"),
         VISUALS("Visuals"),
@@ -1269,6 +1274,11 @@ public class MmmSettingsScreen extends Screen
         private static SettingsSection notifications(SettingRow... rows)
         {
             return new SettingsSection(SidebarItem.NOTIFICATIONS, "GOALS & NOTIFICATIONS", "Set your goal and milestone alerts.", List.of(rows));
+        }
+
+        private static SettingsSection social(SettingRow... rows)
+        {
+            return new SettingsSection(SidebarItem.SOCIAL, "SOCIAL", "Manage MMM chat, milestones, and active diggers.", List.of(rows));
         }
 
         private static SettingsSection hud(SettingRow... rows)

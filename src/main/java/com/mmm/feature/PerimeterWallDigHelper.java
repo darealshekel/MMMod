@@ -29,8 +29,9 @@ public final class PerimeterWallDigHelper
             return false;
         }
 
-        ClientWorld world = MinecraftClient.getInstance().world;
-        if (world == null)
+        MinecraftClient client = MinecraftClient.getInstance();
+        ClientWorld world = client.world;
+        if (client.player == null || client.player.isSneaking() || world == null)
         {
             return false;
         }
