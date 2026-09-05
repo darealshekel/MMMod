@@ -10,6 +10,52 @@ import org.junit.jupiter.api.Test;
 class MiningCalendarStoreTest
 {
     @Test
+    @SuppressWarnings("unchecked")
+    void rolloverKeepsNewestFourHundredDaysAndRemovesSyncedOldDays() throws Exception
+    {
+        var daysField = MiningCalendarStore.class.getDeclaredField("DAYS");
+        var syncedField = MiningCalendarStore.class.getDeclaredField("SYNCED_DAYS");
+        daysField.setAccessible(true);
+        syncedField.setAccessible(true);
+        Map<String, Long> days = (Map<String, Long>) daysField.get(null);
+        Map<String, Long> synced = (Map<String, Long>) syncedField.get(null);
+        Map<String, Long> originalDays = new LinkedHashMap<>(days);
+        Map<String, Long> originalSynced = new LinkedHashMap<>(synced);
+        try
+        {
+            days.clear();
+            synced.clear();
+            var format = java.time.format.DateTimeFormatter.ofPattern("dd-MM-uuuu");
+            LocalDate start = LocalDate.of(2025, 12, 1);
+            for (int index = 400; index >= 0; index--)
+            {
+                String day = start.plusDays(index).format(format);
+                days.put(day, 10_000L);
+                synced.put(day, 9_000L);
+            }
+            var trim = MiningCalendarStore.class.getDeclaredMethod("trimOldDays");
+            trim.setAccessible(true);
+            trim.invoke(null);
+            assertEquals(400, days.size());
+            assertEquals(400, synced.size());
+            org.junit.jupiter.api.Assertions.assertFalse(days.containsKey(start.format(format)));
+            org.junit.jupiter.api.Assertions.assertTrue(days.containsKey(start.plusDays(400).format(format)));
+            var sorted = MiningCalendarStore.class.getDeclaredMethod("sortedDayKeys");
+            sorted.setAccessible(true);
+            var keys = (java.util.List<String>) sorted.invoke(null);
+            assertEquals(start.plusDays(1).format(format), keys.getFirst());
+            assertEquals(start.plusDays(400).format(format), keys.getLast());
+        }
+        finally
+        {
+            days.clear();
+            days.putAll(originalDays);
+            synced.clear();
+            synced.putAll(originalSynced);
+        }
+    }
+
+    @Test
     void sumsOnlyDaysInsideCurrentWednesdayWeek()
     {
         Map<String, Long> days = new LinkedHashMap<>();

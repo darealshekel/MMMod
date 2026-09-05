@@ -18,6 +18,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.mmm.MMM;
 import com.mmm.Reference;
@@ -31,6 +33,17 @@ public final class SessionHistory
     private static SessionData best = null;
     private static LifetimeSummary cachedLifetimeSummary;
     private static long cachedLifetimeSignature = Long.MIN_VALUE;
+    private static final AtomicLong LIFETIME_REVISION = new AtomicLong();
+    private static long cachedLifetimeRevision = -1L;
+    private static final AsyncRefreshCache<LifetimeSummary> LIFETIME = new AsyncRefreshCache<>(
+            Executors.newSingleThreadExecutor(task -> {
+                Thread thread = new Thread(task, "MMM-Session-History");
+                thread.setDaemon(true);
+                return thread;
+            }),
+            SessionHistory::readLifetimeSummary,
+            1_000L,
+            failure -> MMM.LOGGER.warn("[MMM] Failed to refresh lifetime sessions", failure));
     private static String currentWorldId = "default";
     private static boolean legacyMigrationAttempted = false;
 
@@ -189,16 +202,23 @@ public final class SessionHistory
         return best;
     }
 
-    public static synchronized LifetimeSummary getLifetimeSummary()
+    public static LifetimeSummary getLifetimeSummary()
     {
+        return LIFETIME.get(System.currentTimeMillis());
+    }
+
+    private static LifetimeSummary readLifetimeSummary()
+    {
+        long revision = LIFETIME_REVISION.get();
         List<Path> sessionFiles = getLifetimeSessionFiles();
         long sourceSignature = lifetimeSourceSignature(sessionFiles);
-        if (cachedLifetimeSummary != null && cachedLifetimeSignature == sourceSignature)
+        if (cachedLifetimeSummary != null && cachedLifetimeSignature == sourceSignature && cachedLifetimeRevision == revision)
         {
             return cachedLifetimeSummary;
         }
         cachedLifetimeSummary = summarizeLifetimeSessionFiles(sessionFiles);
         cachedLifetimeSignature = sourceSignature;
+        cachedLifetimeRevision = revision;
         return cachedLifetimeSummary;
     }
 
@@ -255,13 +275,12 @@ public final class SessionHistory
 
     private static void invalidateLifetimeSummary()
     {
-        cachedLifetimeSummary = null;
-        cachedLifetimeSignature = Long.MIN_VALUE;
+        LIFETIME_REVISION.incrementAndGet();
+        LIFETIME.invalidate();
     }
 
     private static List<Path> getLifetimeSessionFiles()
     {
-        migrateLegacySessionsIfNeeded();
         List<Path> files = new ArrayList<>();
         Path rootFile = ROOT_DIR.resolve("sessions.csv");
         if (Files.isRegularFile(rootFile))
