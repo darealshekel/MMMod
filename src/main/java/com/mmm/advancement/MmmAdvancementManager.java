@@ -39,6 +39,9 @@ public final class MmmAdvancementManager
     private static long lastSaveAtMs;
     private static long lastProgressRefreshAtMs;
     private static int tickCounter;
+    private static boolean progressReady;
+    private static boolean initialProgressPending;
+    private static boolean pendingFirstTimeNotification;
 
     private MmmAdvancementManager()
     {
@@ -141,7 +144,11 @@ public final class MmmAdvancementManager
             if (UNLOCKED.add(MmmAdvancementDefinition.FIRST_TIME))
             {
                 dirty = true;
-                if (existingModData == false)
+                if (!progressReady)
+                {
+                    pendingFirstTimeNotification = true;
+                }
+                else if (existingModData == false)
                 {
                     MinecraftClient client = MinecraftClient.getInstance();
                     if (client != null)
@@ -171,6 +178,9 @@ public final class MmmAdvancementManager
         lastProgressRefreshAtMs = 0L;
         tickCounter = 0;
         UNLOCKED.clear();
+        progressReady = false;
+        initialProgressPending = true;
+        pendingFirstTimeNotification = false;
     }
 
     private static void backfillExistingProgress()
@@ -193,6 +203,10 @@ public final class MmmAdvancementManager
 
     private static void revalidateUnlockedSilently()
     {
+        if (!progressReady)
+        {
+            return;
+        }
         MmmAdvancementSnapshot snapshot = snapshot();
         for (MmmAdvancementDefinition definition : MmmAdvancementDefinition.ORDERED)
         {
@@ -212,6 +226,11 @@ public final class MmmAdvancementManager
     {
         lastProgressRefreshAtMs = System.currentTimeMillis();
         SessionHistory.LifetimeSummary history = SessionHistory.getLifetimeSummary();
+        progressReady = history != null;
+        if (!progressReady)
+        {
+            return;
+        }
         long nextTotalSessionMs = history.totalActiveMs();
         long nextLongestSessionMs = history.longestSessionMs();
         int nextBestHourBlocks = history.bestHourBlocks();
@@ -244,6 +263,21 @@ public final class MmmAdvancementManager
 
     private static void reconcileUnlocks(MinecraftClient client, boolean announceNewUnlocks)
     {
+        if (!progressReady)
+        {
+            return;
+        }
+        // Loading existing history must not announce old achievements as new ones.
+        announceNewUnlocks &= !initialProgressPending;
+        initialProgressPending = false;
+        if (pendingFirstTimeNotification)
+        {
+            pendingFirstTimeNotification = false;
+            if (totalSessionMs == 0L && longestSessionMs == 0L && longestStreakDays == 0 && bestHourBlocks == 0)
+            {
+                announce(client, MmmAdvancementDefinition.FIRST_TIME);
+            }
+        }
         MmmAdvancementSnapshot snapshot = snapshot();
         for (MmmAdvancementDefinition definition : MmmAdvancementDefinition.ORDERED)
         {

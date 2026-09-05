@@ -42,9 +42,13 @@ public final class MiningCalendarStore
     {
         activateCurrentPlayer();
         String day = PeriodKeys.currentDailyKey(now);
+        boolean newDay = !DAYS.containsKey(day);
         DAYS.merge(day, 1L, Long::sum);
         dirty = true;
-        trimOldDays();
+        if (newDay)
+        {
+            trimOldDays();
+        }
         if (now - lastSaveAtMs >= SAVE_INTERVAL_MS)
         {
             save();
@@ -321,10 +325,16 @@ public final class MiningCalendarStore
 
     private static List<String> sortedDayKeys()
     {
-        List<String> keys = new ArrayList<>(DAYS.keySet());
-        keys.removeIf(day -> parseDay(day) == null);
-        keys.sort(Comparator.comparing(MiningCalendarStore::parseDay));
-        return keys;
+        Map<String, LocalDate> dates = new java.util.HashMap<>();
+        for (String day : DAYS.keySet())
+        {
+            LocalDate date = parseDay(day);
+            if (date != null)
+            {
+                dates.put(day, date);
+            }
+        }
+        return dates.keySet().stream().sorted(Comparator.comparing(dates::get)).toList();
     }
 
     private static LocalDate parseDay(String value)

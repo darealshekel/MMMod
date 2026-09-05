@@ -63,13 +63,19 @@ public final class TierTagManager
             return;
         }
 
+        if (!Configs.Generic.TIER_NAME_TAGS.getBooleanValue())
+        {
+            clear();
+            return;
+        }
+
         LinkedHashMap<String, String> discoveredNames = new LinkedHashMap<>();
         for (PlayerListEntry entry : client.getNetworkHandler().getPlayerList())
         {
             addValidName(discoveredNames, entry.getProfile().getName());
         }
         ScoreboardService.getSidebarObjective(client).ifPresent(objective ->
-                ScoreboardService.getSortedEntries(objective)
+                client.world.getScoreboard().getScoreboardEntries(objective)
                         .forEach(entry -> addValidName(discoveredNames, entry.owner())));
 
         LinkedHashMap<String, String> currentNames = new LinkedHashMap<>();
@@ -85,11 +91,6 @@ public final class TierTagManager
             tags = Map.of();
             return;
         }
-        if (!Configs.Generic.TIER_NAME_TAGS.getBooleanValue())
-        {
-            return;
-        }
-
         long now = System.currentTimeMillis();
         if (signature.equals(requestedSignature) && now < nextRefreshAtMs)
         {
@@ -123,7 +124,7 @@ public final class TierTagManager
 
     public static MutableText decorateDisplayedName(Text original)
     {
-        if (original == null)
+        if (original == null || !Configs.Generic.TIER_NAME_TAGS.getBooleanValue())
         {
             return null;
         }
@@ -149,19 +150,28 @@ public final class TierTagManager
         requestedSignature = signature;
         nextRefreshAtMs = now + REFRESH_INTERVAL_MS;
 
-        List<CompletableFuture<BatchResult>> requests = new ArrayList<>();
+        List<List<String>> batches = new ArrayList<>();
         for (int start = 0; start < names.size(); start += MAX_NAMES_PER_REQUEST)
         {
             List<String> batch = List.copyOf(names.subList(start, Math.min(names.size(), start + MAX_NAMES_PER_REQUEST)));
-            requests.add(requestBatch(batch));
+            batches.add(batch);
         }
 
-        CompletableFuture.allOf(requests.toArray(CompletableFuture[]::new)).whenComplete((ignored, throwable) -> {
+        // Process batches one at a time so their fallback limits are global, not per batch.
+        BoundedRequests.map(batches, 1, batch -> signature.equals(observedSignature)
+                ? requestBatch(batch, signature)
+                : CompletableFuture.completedFuture(new BatchResult(Map.of(), false, false)))
+                .whenComplete((results, throwable) -> {
             try
             {
                 if (!signature.equals(observedSignature))
                 {
                     nextRefreshAtMs = 0L;
+                    return;
+                }
+                if (throwable != null)
+                {
+                    nextRefreshAtMs = System.currentTimeMillis() + RETRY_INTERVAL_MS;
                     return;
                 }
 
@@ -177,9 +187,8 @@ public final class TierTagManager
 
                 boolean anySuccess = false;
                 boolean usedProfileFallback = false;
-                for (CompletableFuture<BatchResult> request : requests)
+                for (BatchResult result : results)
                 {
-                    BatchResult result = request.join();
                     if (!result.success())
                     {
                         continue;
@@ -209,7 +218,7 @@ public final class TierTagManager
         });
     }
 
-    private static CompletableFuture<BatchResult> requestBatch(List<String> batch)
+    private static CompletableFuture<BatchResult> requestBatch(List<String> batch, String signature)
     {
         String encodedNames = URLEncoder.encode(String.join(",", batch), StandardCharsets.UTF_8);
         HttpRequest request = buildRequest(PLAYER_TAG_API + encodedNames);
@@ -218,7 +227,7 @@ public final class TierTagManager
                     if (!isSuccessful(response, throwable) || !PlayerTagPayload.isTagPayload(response.body()))
                     {
                         logResult("failed", batch.size(), 0, response, throwable);
-                        return requestProfileBatch(batch);
+                        return requestProfileBatch(batch, signature);
                     }
                     Map<String, PlayerTagData> loadedTags = PlayerTagPayload.parse(response.body());
                     logResult("profile-tags", batch.size(), loadedTags.size(), response, null);
@@ -227,17 +236,14 @@ public final class TierTagManager
                 .thenCompose(result -> result);
     }
 
-    private static CompletableFuture<BatchResult> requestProfileBatch(List<String> batch)
+    private static CompletableFuture<BatchResult> requestProfileBatch(List<String> batch, String signature)
     {
-        List<CompletableFuture<Map.Entry<String, PlayerTagData>>> requests = batch.stream()
-                .map(TierTagManager::requestProfile)
-                .toList();
-        return CompletableFuture.allOf(requests.toArray(CompletableFuture[]::new))
-                .thenApply(ignored -> {
+        return BoundedRequests.<String, Map.Entry<String, PlayerTagData>>map(batch, 4,
+                name -> signature.equals(observedSignature) ? requestProfile(name) : CompletableFuture.completedFuture(null))
+                .thenApply(results -> {
                     Map<String, PlayerTagData> loadedTags = new LinkedHashMap<>();
-                    for (CompletableFuture<Map.Entry<String, PlayerTagData>> request : requests)
+                    for (Map.Entry<String, PlayerTagData> entry : results)
                     {
-                        Map.Entry<String, PlayerTagData> entry = request.join();
                         if (entry != null)
                         {
                             loadedTags.put(entry.getKey(), entry.getValue());
