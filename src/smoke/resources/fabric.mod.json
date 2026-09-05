@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "mmm_smoke",
+  "version": "1.0.0",
+  "name": "MMM runtime regression checks",
+  "environment": "client",
+  "entrypoints": { "fabric-client-gametest": ["com.mmm.smoke.ClientSmoke"] }
+}

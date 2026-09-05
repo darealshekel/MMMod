@@ -18,6 +18,7 @@
 
 ### Fixed
 
+- Fixed the Minecraft 1.21.4 chat crash caused by loading a channel enum from the mixin package.
 - Fixed session summaries and speed advancements losing the saved Best Hour after a restart.
 - Fixed fake or duplicate scoreboard rows remaining in the source total after they are removed from a full sync snapshot.
 - Fixed MMM Chat remaining selected after the chat screen closes.

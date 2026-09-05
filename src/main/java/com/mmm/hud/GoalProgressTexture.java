@@ -68,10 +68,10 @@ public final class GoalProgressTexture
                 for (int x = 0; x < width; x++)
                 {
                     int index = y * width + x;
-                    int pixel = source.getColor(x, y);
-                    alpha[index] = ColorHelper.Abgr.getAlpha(pixel);
-                    int brightestChannel = Math.max(ColorHelper.Abgr.getRed(pixel),
-                            Math.max(ColorHelper.Abgr.getGreen(pixel), ColorHelper.Abgr.getBlue(pixel)));
+                    int pixel = source.getColorArgb(x, y);
+                    alpha[index] = ColorHelper.getAlpha(pixel);
+                    int brightestChannel = Math.max(ColorHelper.getRed(pixel),
+                            Math.max(ColorHelper.getGreen(pixel), ColorHelper.getBlue(pixel)));
                     brightness[index] = brightestChannel / 255.0F;
                 }
             }
@@ -98,11 +98,11 @@ public final class GoalProgressTexture
             {
                 int index = y * width + x;
                 float shade = brightness[index];
-                image.setColor(x, y, ColorHelper.Abgr.getAbgr(
+                image.setColorArgb(x, y, ColorHelper.getArgb(
                         alpha[index],
-                        Math.round(blue * shade),
+                        Math.round(red * shade),
                         Math.round(green * shade),
-                        Math.round(red * shade)));
+                        Math.round(blue * shade)));
             }
         }
         texture.upload();

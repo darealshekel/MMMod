@@ -9,12 +9,11 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.BufferRenderer;
-import net.minecraft.client.render.GameRenderer;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.VertexRendering;
 import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.BlockBreakingInfo;
 import net.minecraft.util.hit.BlockHitResult;
@@ -82,7 +81,6 @@ public final class BreakingIndicatorRenderer
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         try
         {
-            RenderSystem.setShader(GameRenderer::getPositionColorProgram);
             BufferBuilder fillBuffer = Tessellator.getInstance().begin(
                     VertexFormat.DrawMode.QUADS,
                     VertexFormats.POSITION_COLOR
@@ -91,9 +89,8 @@ public final class BreakingIndicatorRenderer
             {
                 renderFill(client, matrices, fillBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
             }
-            BufferRenderer.drawWithGlobalProgram(fillBuffer.end());
+            RenderLayer.getDebugFilledBox().draw(fillBuffer.end());
 
-            RenderSystem.setShader(GameRenderer::getRenderTypeLinesProgram);
             RenderSystem.lineWidth(2.0F);
             BufferBuilder lineBuffer = Tessellator.getInstance().begin(
                     VertexFormat.DrawMode.LINES,
@@ -103,7 +100,7 @@ public final class BreakingIndicatorRenderer
             {
                 renderOutline(client, matrices, lineBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
             }
-            BufferRenderer.drawWithGlobalProgram(lineBuffer.end());
+            RenderLayer.getLines().draw(lineBuffer.end());
         }
         finally
         {
@@ -266,7 +263,7 @@ public final class BreakingIndicatorRenderer
             return;
         }
         Color4f outline = colorForProgress(progress, 0.95F);
-        WorldRenderer.drawBox(
+        VertexRendering.drawBox(
                 matrices,
                 buffer,
                 bounds.minX,
