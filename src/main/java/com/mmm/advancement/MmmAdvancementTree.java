@@ -21,6 +21,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.AssetInfo;
 
 public final class MmmAdvancementTree
 {
@@ -43,7 +44,7 @@ public final class MmmAdvancementTree
                 AdvancementFrame.TASK,
                 0F,
                 3F,
-                Optional.of(Identifier.ofVanilla("textures/block/blackstone.png")));
+                Optional.of(new AssetInfo(Identifier.ofVanilla("block/blackstone"))));
 
         addCategory(Category.SESSION_HOURS, "Session Hours", "Earned from active time in saved sessions.", Items.CLOCK, 0F);
         addCategory(Category.STREAKS, "Streaks", "Mine at least 10,000 blocks on consecutive days.", Items.FLINT_AND_STEEL, 2F);
@@ -145,7 +146,7 @@ public final class MmmAdvancementTree
             AdvancementFrame frame,
             float x,
             float y,
-            Optional<Identifier> background)
+            Optional<AssetInfo> background)
     {
         return createNode(id, parent, title, description, icon, frame, x, y, background, 1);
     }
@@ -159,7 +160,7 @@ public final class MmmAdvancementTree
             AdvancementFrame frame,
             float x,
             float y,
-            Optional<Identifier> background,
+            Optional<AssetInfo> background,
             int progressSteps)
     {
         AdvancementDisplay display = new AdvancementDisplay(

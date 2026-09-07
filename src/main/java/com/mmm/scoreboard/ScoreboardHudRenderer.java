@@ -39,9 +39,9 @@ public final class ScoreboardHudRenderer
         int textColor = withAlpha(0xFFFFFF, Configs.Generic.SCOREBOARD_TEXT_OPACITY.getDoubleValue());
         int titleColor = withAlpha(0xFFFFFF, Configs.Generic.SCOREBOARD_TITLE_TEXT_OPACITY.getDoubleValue());
 
-        context.getMatrices().push();
-        context.getMatrices().translate(layout.x(), layout.y(), 0.0F);
-        context.getMatrices().scale(layout.scale(), layout.scale(), 1.0F);
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(layout.x(), layout.y());
+        context.getMatrices().scale(layout.scale(), layout.scale());
         context.fill(0, 0, layout.panelWidth(), layout.titleHeight(), titleBackground);
         context.fill(0, layout.titleHeight(), layout.panelWidth(), layout.panelHeight(), bodyBackground);
         context.drawText(renderer, layout.title(),
@@ -57,7 +57,7 @@ public final class ScoreboardHudRenderer
                 context.drawText(renderer, entry.score(), layout.panelWidth() - scoreWidth - 2, rowY, textColor, false);
             }
         }
-        context.getMatrices().pop();
+        context.getMatrices().popMatrix();
         return layout.bounds();
     }
 

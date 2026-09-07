@@ -15,11 +15,13 @@ public final class ClientSmoke implements FabricClientGameTest
         {
             context.runOnClient(RuntimeChecks::run);
             context.waitTicks(40);
+            context.runOnClient(RuntimeChecks::prepareRendering);
+            context.waitTicks(40);
             context.runOnClient(client -> {
                 if (SessionHistory.getLifetimeSummary() == null)
                     throw new AssertionError("Background history did not finish loading");
                 client.setScreen(null);
-                Files.writeString(Path.of("mmm-smoke-result.txt"), "PASS: live scoreboard, snapshot invalidation, async history, mixin audit, chat typing, advancements");
+                Files.writeString(Path.of("mmm-smoke-result.txt"), "PASS: live scoreboard, snapshot invalidation, async history, mixin audit, chat typing, advancements, breaking indicator and item rendering");
                 System.out.println("MMM_SMOKE_PASS");
             });
         }

@@ -1,6 +1,5 @@
 package com.mmm.feature;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.render.Color4f;
@@ -11,8 +10,6 @@ import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexRendering;
 import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormat;
-import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
@@ -84,35 +81,27 @@ public final class BlockEspRenderer
         Color4f outline = Color4f.fromColor(baseColor, Math.min(1.0F, Configs.getBlockEspOpacity() + 0.25F));
 
         matrices.push();
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableCull();
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
         try
         {
-            BufferBuilder fillBuffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
-            VertexRendering.drawFilledBox(matrices, fillBuffer, minX, minY, minZ, maxX, maxY, maxZ, fill.r, fill.g, fill.b, fill.a);
-            RenderLayer.getDebugFilledBox().draw(fillBuffer.end());
+            RenderLayer fillLayer = RenderLayer.getDebugFilledBox();
+            BufferBuilder fillBuffer = Tessellator.getInstance().begin(fillLayer.getDrawMode(), fillLayer.getVertexFormat());
+            VertexRendering.drawFilledBox(matrices, fillBuffer, minX, minY, minZ, maxX, maxY, maxZ,
+                    fill.r, fill.g, fill.b, fill.a);
+            fillLayer.draw(fillBuffer.end());
 
-            RenderSystem.lineWidth(1.0F);
-            BufferBuilder lineBuffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.LINES, VertexFormats.LINES);
-            VertexRendering.drawBox(matrices, lineBuffer, minX, minY, minZ, maxX, maxY, maxZ, outline.r, outline.g, outline.b, outline.a);
-            RenderLayer.getLines().draw(lineBuffer.end());
+            RenderLayer lineLayer = RenderLayer.getLines();
+            BufferBuilder lineBuffer = Tessellator.getInstance().begin(lineLayer.getDrawMode(), lineLayer.getVertexFormat());
+            VertexRendering.drawBox(matrices, lineBuffer, minX, minY, minZ, maxX, maxY, maxZ,
+                    outline.r, outline.g, outline.b, outline.a);
+            lineLayer.draw(lineBuffer.end());
         }
         finally
         {
-            RenderSystem.lineWidth(1.0F);
-            RenderSystem.depthMask(true);
-            RenderSystem.enableDepthTest();
-            RenderSystem.enableCull();
-            RenderSystem.disableBlend();
             matrices.pop();
         }
     }
 
-    private static Color4f getCurrentColor()
-    {
+    private static Color4f getCurrentColor()    {
         if (Configs.isBlockEspRainbow())
         {
             float cycleLengthMs = Math.max(250.0F, 5000.0F / Math.max(0.1F, Configs.getBlockEspRainbowSpeed()));

@@ -71,9 +71,9 @@ public final class MiningHudRenderer
         int x = resolveHudX(client, scaledWidth);
         int y = resolveHudY(client, scaledHeight);
 
-        context.getMatrices().push();
-        context.getMatrices().translate(x, y, 0.0F);
-        context.getMatrices().scale(scale, scale, 1.0F);
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(x, y);
+        context.getMatrices().scale(scale, scale);
 
         if (FeatureToggle.MMM_HUD_BOUNDING_BOX.getBooleanValue())
         {
@@ -119,7 +119,7 @@ public final class MiningHudRenderer
             drawGoalProgress(context, client, 0, drawY + 2, width, dailyGoal);
         }
 
-        context.getMatrices().pop();
+        context.getMatrices().popMatrix();
     }
 
     private static List<HudLine> buildHudLines(boolean showTitle, boolean sessionPaused)

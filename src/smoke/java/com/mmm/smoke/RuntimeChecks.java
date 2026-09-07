@@ -1,6 +1,13 @@
 package com.mmm.smoke;
 
 import com.mmm.storage.SessionHistory;
+import com.mmm.config.Configs;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import net.minecraft.block.Blocks;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.util.Hand;
 import com.mmm.sync.DigsSyncManager;
 import com.mmm.sync.ScoreboardReader;
 import com.mmm.sync.SyncScoreboardSelector;
@@ -17,6 +24,19 @@ import org.spongepowered.asm.mixin.MixinEnvironment;
 
 final class RuntimeChecks
 {
+    static void prepareRendering(MinecraftClient client)
+    {
+        if (RenderLayer.getDebugQuads().getDrawMode() != VertexFormat.DrawMode.QUADS)
+            throw new AssertionError("Breaking indicator requires independent quad faces");
+        client.setScreen(null);
+        Configs.Generic.BREAKING_INDICATORS.setBooleanValue(true);
+        Configs.Generic.SMALL_DIG_ITEMS.setBooleanValue(true);
+        client.player.setStackInHand(Hand.MAIN_HAND, new ItemStack(Items.STONE));
+        var pos = client.player.getBlockPos().offset(client.player.getHorizontalFacing(), 2);
+        client.world.setBlockState(pos, Blocks.STONE.getDefaultState());
+        client.worldRenderer.setBlockBreakingInfo(123456, pos, 5);
+    }
+
     static void run(MinecraftClient client) throws Exception
     {
         MixinEnvironment.getCurrentEnvironment().audit();

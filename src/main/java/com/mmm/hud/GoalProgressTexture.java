@@ -77,7 +77,7 @@ public final class GoalProgressTexture
             }
         }
 
-        texture = new NativeImageBackedTexture(width, height, false);
+        texture = new NativeImageBackedTexture("MMM goal progress", width, height, false);
         client.getTextureManager().registerTexture(COLORED_TEXTURE, texture);
     }
 

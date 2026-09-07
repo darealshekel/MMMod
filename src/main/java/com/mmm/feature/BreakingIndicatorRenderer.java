@@ -1,6 +1,5 @@
 package com.mmm.feature;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mmm.config.Configs;
 import com.mmm.mixin.ClientPlayerInteractionManagerAccessor;
 import com.mmm.mixin.WorldRendererAccessor;
@@ -12,8 +11,6 @@ import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexRendering;
 import net.minecraft.client.render.Tessellator;
-import net.minecraft.client.render.VertexFormat;
-import net.minecraft.client.render.VertexFormats;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.BlockBreakingInfo;
 import net.minecraft.util.hit.BlockHitResult;
@@ -73,43 +70,26 @@ public final class BreakingIndicatorRenderer
         }
 
         matrices.push();
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableCull();
-        RenderSystem.disableDepthTest();
-        RenderSystem.depthMask(false);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         try
         {
-            BufferBuilder fillBuffer = Tessellator.getInstance().begin(
-                    VertexFormat.DrawMode.QUADS,
-                    VertexFormats.POSITION_COLOR
-            );
+            RenderLayer fillLayer = RenderLayer.getDebugQuads();
+            BufferBuilder fillBuffer = Tessellator.getInstance().begin(fillLayer.getDrawMode(), fillLayer.getVertexFormat());
             for (int index = 0; index < indicatorCount; index++)
             {
                 renderFill(client, matrices, fillBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
             }
-            RenderLayer.getDebugFilledBox().draw(fillBuffer.end());
+            fillLayer.draw(fillBuffer.end());
 
-            RenderSystem.lineWidth(2.0F);
-            BufferBuilder lineBuffer = Tessellator.getInstance().begin(
-                    VertexFormat.DrawMode.LINES,
-                    VertexFormats.LINES
-            );
+            RenderLayer lineLayer = RenderLayer.getLines();
+            BufferBuilder lineBuffer = Tessellator.getInstance().begin(lineLayer.getDrawMode(), lineLayer.getVertexFormat());
             for (int index = 0; index < indicatorCount; index++)
             {
                 renderOutline(client, matrices, lineBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
             }
-            RenderLayer.getLines().draw(lineBuffer.end());
+            lineLayer.draw(lineBuffer.end());
         }
         finally
         {
-            RenderSystem.lineWidth(1.0F);
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            RenderSystem.depthMask(true);
-            RenderSystem.enableDepthTest();
-            RenderSystem.enableCull();
-            RenderSystem.disableBlend();
             matrices.pop();
         }
     }

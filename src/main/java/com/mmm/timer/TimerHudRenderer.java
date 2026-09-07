@@ -76,9 +76,9 @@ public final class TimerHudRenderer
         int x = bounds[0];
         int y = bounds[1];
         double scale = getScale(module);
-        context.getMatrices().push();
-        context.getMatrices().translate(x, y, 0.0F);
-        context.getMatrices().scale((float) scale, (float) scale, 1.0F);
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate(x, y);
+        context.getMatrices().scale((float) scale, (float) scale);
         switch (module)
         {
             case TIMER -> drawTimer(context, client, preview);
@@ -87,7 +87,7 @@ public final class TimerHudRenderer
             case NOTIFICATION -> drawNotification(context, client, preview);
             default -> {}
         }
-        context.getMatrices().pop();
+        context.getMatrices().popMatrix();
     }
 
     public static int[] getBounds(MinecraftClient client, HudModuleId module)
