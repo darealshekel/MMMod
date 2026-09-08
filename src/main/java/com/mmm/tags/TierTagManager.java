@@ -75,7 +75,7 @@ public final class TierTagManager
             addValidName(discoveredNames, entry.getProfile().getName());
         }
         ScoreboardService.getSidebarObjective(client).ifPresent(objective ->
-                client.world.getScoreboard().getScoreboardEntries(objective)
+                com.mmm.compat.ScoreboardCompat.entries(objective)
                         .forEach(entry -> addValidName(discoveredNames, entry.owner())));
 
         LinkedHashMap<String, String> currentNames = new LinkedHashMap<>();

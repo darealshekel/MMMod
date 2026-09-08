@@ -18,19 +18,18 @@ import java.util.UUID;
 
 import com.mmm.config.Configs;
 import com.mmm.config.Configs.ScoreboardSorting;
+import com.mmm.compat.ScoreboardCompat;
+import com.mmm.compat.ScoreboardCompat.Entry;
 import com.mmm.tags.TierTagManager;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
-import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.scoreboard.Team;
-import net.minecraft.scoreboard.number.NumberFormat;
-import net.minecraft.scoreboard.number.StyledNumberFormat;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 public final class ScoreboardService
 {
@@ -51,44 +50,44 @@ public final class ScoreboardService
 
         Scoreboard scoreboard = client.world.getScoreboard();
         ScoreboardObjective objective = null;
-        Team team = scoreboard.getScoreHolderTeam(client.player.getNameForScoreboard());
+        Team team = scoreboard.getPlayerTeam(client.player.getEntityName());
         if (team != null)
         {
-            ScoreboardDisplaySlot teamSlot = ScoreboardDisplaySlot.fromFormatting(team.getColor());
-            if (teamSlot != null)
+            int teamSlot = Scoreboard.getDisplaySlotId("sidebar.team." + team.getColor().getName());
+            if (teamSlot >= 0)
             {
                 objective = scoreboard.getObjectiveForSlot(teamSlot);
             }
         }
         if (objective == null)
         {
-            objective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+            objective = scoreboard.getObjectiveForSlot(Scoreboard.SIDEBAR_DISPLAY_SLOT_ID);
         }
         return Optional.ofNullable(objective);
     }
 
-    public static List<ScoreboardEntry> getSortedEntries(ScoreboardObjective objective)
+    public static List<Entry> getSortedEntries(ScoreboardObjective objective)
     {
         if (objective == null)
         {
             return List.of();
         }
 
-        List<ScoreboardEntry> entries = new ArrayList<>(objective.getScoreboard().getScoreboardEntries(objective));
-        entries.removeIf(ScoreboardEntry::hidden);
+        List<Entry> entries = new ArrayList<>(ScoreboardCompat.entries(objective));
+        entries.removeIf(Entry::hidden);
         entries.sort(comparator());
         return entries;
     }
 
     public static List<RenderEntry> getRenderEntries(ScoreboardObjective objective)
     {
-        List<ScoreboardEntry> entries = getSortedEntries(objective);
+        List<Entry> entries = getSortedEntries(objective);
         return getRenderEntries(objective, entries, 0, entries.size());
     }
 
     public static List<RenderEntry> getRenderEntries(
             ScoreboardObjective objective,
-            List<ScoreboardEntry> sortedEntries,
+            List<Entry> sortedEntries,
             int fromIndex,
             int toIndex)
     {
@@ -100,35 +99,30 @@ public final class ScoreboardService
         int from = Math.max(0, Math.min(fromIndex, sortedEntries.size()));
         int to = Math.max(from, Math.min(toIndex, sortedEntries.size()));
         Scoreboard scoreboard = objective.getScoreboard();
-        NumberFormat numberFormat = objective.getNumberFormatOr(StyledNumberFormat.RED);
         List<RenderEntry> rows = new ArrayList<>(to - from);
         for (int index = from; index < to; index++)
         {
-            ScoreboardEntry entry = sortedEntries.get(index);
-            Team team = scoreboard.getScoreHolderTeam(entry.owner());
+            Entry entry = sortedEntries.get(index);
+            Team team = scoreboard.getPlayerTeam(entry.owner());
             MutableText name = Team.decorateName(team, entry.name());
             MutableText tierName = TierTagManager.decorateName(entry.owner(), name);
             if (tierName != null)
             {
                 name = tierName;
             }
-            Text score = formatScore(entry, numberFormat);
+            Text score = formatScore(entry);
             rows.add(new RenderEntry(entry.owner(), name, score, entry.value()));
         }
         return rows;
     }
 
-    public static Text formatScore(ScoreboardEntry entry, NumberFormat numberFormat)
+    public static Text formatScore(Entry entry)
     {
         if (!Configs.Generic.SCOREBOARD_SCORES_VISIBLE.getBooleanValue())
         {
             return Text.empty();
         }
-        MutableText vanilla = entry.formatted(numberFormat);
-        if (!vanilla.getString().equals(Integer.toString(entry.value())))
-        {
-            return vanilla;
-        }
+        MutableText vanilla = Text.literal(Integer.toString(entry.value())).formatted(Formatting.RED);
         if (Configs.Generic.SCOREBOARD_SCORE_ABBREVIATED.getBooleanValue())
         {
             return Text.literal(formatAbbreviated(entry.value())).setStyle(vanilla.getStyle());
@@ -179,7 +173,7 @@ public final class ScoreboardService
         {
             writer.write("Player,Score");
             writer.newLine();
-            for (ScoreboardEntry entry : getSortedEntries(objective))
+            for (Entry entry : getSortedEntries(objective))
             {
                 writer.write(csv(entry.owner()));
                 writer.write(',');
@@ -260,19 +254,19 @@ public final class ScoreboardService
         return (value < 0 ? "-" : "") + formatted + ABBREVIATION_SUFFIXES[suffix];
     }
 
-    private static Comparator<ScoreboardEntry> comparator()
+    private static Comparator<Entry> comparator()
     {
         ScoreboardSorting sorting = (ScoreboardSorting) Configs.Generic.SCOREBOARD_SORTING.getOptionListValue();
-        Comparator<ScoreboardEntry> byName = Comparator.comparing(
+        Comparator<Entry> byName = Comparator.comparing(
                 entry -> entry.name().getString(), String.CASE_INSENSITIVE_ORDER);
         return switch (sorting)
         {
-            case SCORE_DESCENDING -> Comparator.comparingInt(ScoreboardEntry::value).reversed()
-                    .thenComparing(ScoreboardEntry::owner, String.CASE_INSENSITIVE_ORDER);
-            case SCORE_ASCENDING -> Comparator.comparingInt(ScoreboardEntry::value)
-                    .thenComparing(ScoreboardEntry::owner, String.CASE_INSENSITIVE_ORDER);
-            case NAME_DESCENDING -> byName.reversed().thenComparingInt(ScoreboardEntry::value);
-            case NAME_ASCENDING -> byName.thenComparingInt(ScoreboardEntry::value);
+            case SCORE_DESCENDING -> Comparator.comparingInt(Entry::value).reversed()
+                    .thenComparing(Entry::owner, String.CASE_INSENSITIVE_ORDER);
+            case SCORE_ASCENDING -> Comparator.comparingInt(Entry::value)
+                    .thenComparing(Entry::owner, String.CASE_INSENSITIVE_ORDER);
+            case NAME_DESCENDING -> byName.reversed().thenComparingInt(Entry::value);
+            case NAME_ASCENDING -> byName.thenComparingInt(Entry::value);
         };
     }
 

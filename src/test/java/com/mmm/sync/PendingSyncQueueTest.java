@@ -35,7 +35,7 @@ class PendingSyncQueueTest
         queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, "cloud-live-state", fresh, true);
 
         assertEquals(1, queue.snapshotItemsForTests().size());
-        assertEquals(200L, queue.snapshotItemsForTests().getFirst().payload.get("total").getAsLong());
+        assertEquals(200L, queue.snapshotItemsForTests().get(0).payload.get("total").getAsLong());
         queue.shutdown();
     }
 

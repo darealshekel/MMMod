@@ -19,7 +19,7 @@ public final class ClientSmoke implements ClientModInitializer
     public void onInitializeClient()
     {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (phase == 4) return;
+            if (phase == 5) return;
             try
             {
                 if (System.currentTimeMillis() - started > 180_000L)
@@ -48,16 +48,23 @@ public final class ClientSmoke implements ClientModInitializer
                 }
                 else if (phase == 3 && ++checkedTicks >= 20 && SessionHistory.getLifetimeSummary() != null)
                 {
+                    RuntimeChecks.prepareRendering(client);
                     phase = 4;
+                    checkedTicks = 0;
+                }
+                else if (phase == 4 && ++checkedTicks >= 40)
+                {
+                    RuntimeChecks.mineBlocks(client);
+                    phase = 5;
                     client.setScreen(null);
-                    Files.writeString(Path.of("mmm-smoke-result.txt"), "PASS: live scoreboard, snapshot invalidation, async history, mixin audit, chat typing, advancements");
+                    Files.writeString(Path.of("mmm-smoke-result.txt"), "PASS: Java 17, live scoreboard, snapshot invalidation, async history, mixin audit, chat typing, advancements and progress, settings, Tab commas, breaking indicator rendering, stone/glowstone/leaves mining");
                     System.out.println("MMM_SMOKE_PASS");
                     client.scheduleStop();
                 }
             }
             catch (Throwable failure)
             {
-                phase = 4;
+                phase = 5;
                 failure.printStackTrace();
                 try { Files.writeString(Path.of("mmm-smoke-result.txt"), "FAIL: " + failure); }
                 catch (Exception ignored) {}

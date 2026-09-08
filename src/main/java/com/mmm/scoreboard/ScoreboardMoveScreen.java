@@ -120,7 +120,7 @@ public final class ScoreboardMoveScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         this.adjustScale(verticalAmount > 0.0D ? 0.05D : -0.05D);
         return true;
@@ -140,7 +140,7 @@ public final class ScoreboardMoveScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

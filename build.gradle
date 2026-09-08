@@ -46,14 +46,14 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    it.options.release = 21
+    it.options.release = 17
     it.options.encoding = "UTF-8"
 }
 
 java {
     withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 // Opt-in checks in an isolated game directory, excluded from release jars.
@@ -68,6 +68,9 @@ if (project.hasProperty('smokeTest')) {
         smoke { sourceSet sourceSets.smoke }
     }
     tasks.named('runClient') {
+        if (project.hasProperty('smokeJavaExecutable')) {
+            executable = project.property('smokeJavaExecutable')
+        }
         dependsOn tasks.named('smokeClasses')
         classpath += sourceSets.smoke.output
         environment 'APPDATA', file('build/smoke-appdata').absolutePath

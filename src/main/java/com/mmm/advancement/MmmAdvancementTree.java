@@ -7,13 +7,9 @@ import java.util.Optional;
 import net.minecraft.advancement.Advancement;
 import net.minecraft.advancement.AdvancementCriterion;
 import net.minecraft.advancement.AdvancementDisplay;
-import net.minecraft.advancement.AdvancementEntry;
 import net.minecraft.advancement.AdvancementFrame;
 import net.minecraft.advancement.AdvancementProgress;
-import net.minecraft.advancement.AdvancementRequirements;
 import net.minecraft.advancement.AdvancementRewards;
-import net.minecraft.advancement.PlacedAdvancement;
-import net.minecraft.advancement.criterion.Criteria;
 import net.minecraft.advancement.criterion.ImpossibleCriterion;
 import net.minecraft.client.gui.screen.advancement.AdvancementsScreen;
 import net.minecraft.item.Item;
@@ -28,9 +24,9 @@ public final class MmmAdvancementTree
     private static final String PROGRESS_CRITERION_PREFIX = "progress_";
     private static final int PROGRESS_STEPS = 100;
     private static final Identifier ROOT_ID = Identifier.of("mmm", "root");
-    private static final Map<MmmAdvancementDefinition, PlacedAdvancement> NODES = new EnumMap<>(MmmAdvancementDefinition.class);
-    private static final Map<Category, PlacedAdvancement> CATEGORY_NODES = new EnumMap<>(Category.class);
-    private static final PlacedAdvancement ROOT;
+    private static final Map<MmmAdvancementDefinition, Advancement> NODES = new EnumMap<>(MmmAdvancementDefinition.class);
+    private static final Map<Category, Advancement> CATEGORY_NODES = new EnumMap<>(Category.class);
+    private static final Advancement ROOT;
 
     static
     {
@@ -43,7 +39,7 @@ public final class MmmAdvancementTree
                 AdvancementFrame.TASK,
                 0F,
                 3F,
-                Optional.of(Identifier.ofVanilla("textures/block/blackstone.png")));
+                Optional.of(Identifier.of("minecraft", "textures/block/blackstone.png")));
 
         addCategory(Category.SESSION_HOURS, "Session Hours", "Earned from active time in saved sessions.", Items.CLOCK, 0F);
         addCategory(Category.STREAKS, "Streaks", "Mine at least 10,000 blocks on consecutive days.", Items.FLINT_AND_STEEL, 2F);
@@ -51,13 +47,13 @@ public final class MmmAdvancementTree
         addCategory(Category.ENDURANCE, "Endurance", "Earned from active time in one session.", Items.DIAMOND_PICKAXE, 6F);
         addCategory(Category.PRECISION, "Precision", "Earned from consistently fast completed sessions.", Items.COMPASS, 8F);
 
-        Map<Category, PlacedAdvancement> branchParents = new EnumMap<>(Category.class);
+        Map<Category, Advancement> branchParents = new EnumMap<>(Category.class);
         branchParents.putAll(CATEGORY_NODES);
         for (MmmAdvancementDefinition definition : MmmAdvancementDefinition.ORDERED)
         {
             Category category = categoryFor(definition);
-            PlacedAdvancement parent = branchParents.get(category);
-            PlacedAdvancement node = createNode(
+            Advancement parent = branchParents.get(category);
+            Advancement node = createNode(
                     Identifier.of("mmm", definition.id()),
                     parent,
                     definition.title(),
@@ -109,13 +105,13 @@ public final class MmmAdvancementTree
         screen.setProgress(ROOT, completedProgress(ROOT));
         for (Category category : Category.values())
         {
-            PlacedAdvancement node = CATEGORY_NODES.get(category);
+            Advancement node = CATEGORY_NODES.get(category);
             screen.setProgress(node, completedProgress(node));
         }
         MmmAdvancementSnapshot snapshot = MmmAdvancementManager.snapshot();
         for (MmmAdvancementDefinition definition : MmmAdvancementDefinition.ORDERED)
         {
-            PlacedAdvancement node = NODES.get(definition);
+            Advancement node = NODES.get(definition);
             screen.setProgress(node, progressFor(node, definition, snapshot));
             Object widget = screen.getAdvancementWidget(node);
             if (widget instanceof MmmAdvancementWidgetProgress progressWidget)
@@ -125,20 +121,20 @@ public final class MmmAdvancementTree
         }
     }
 
-    public static AdvancementEntry entry(MmmAdvancementDefinition definition)
+    public static Advancement entry(MmmAdvancementDefinition definition)
     {
-        PlacedAdvancement node = NODES.get(definition);
-        return node == null ? ROOT.getAdvancementEntry() : node.getAdvancementEntry();
+        Advancement node = NODES.get(definition);
+        return node == null ? ROOT : node;
     }
 
-    public static AdvancementEntry rootEntry()
+    public static Advancement rootEntry()
     {
-        return ROOT.getAdvancementEntry();
+        return ROOT;
     }
 
-    private static PlacedAdvancement createNode(
+    private static Advancement createNode(
             Identifier id,
-            PlacedAdvancement parent,
+            Advancement parent,
             String title,
             String description,
             Item icon,
@@ -150,9 +146,9 @@ public final class MmmAdvancementTree
         return createNode(id, parent, title, description, icon, frame, x, y, background, 1);
     }
 
-    private static PlacedAdvancement createNode(
+    private static Advancement createNode(
             Identifier id,
-            PlacedAdvancement parent,
+            Advancement parent,
             String title,
             String description,
             Item icon,
@@ -166,45 +162,46 @@ public final class MmmAdvancementTree
                 new ItemStack(icon),
                 Text.literal(title),
                 Text.literal(description),
-                background,
+                background.orElse(null),
                 frame,
                 true,
                 false,
                 false);
         display.setPos(x, y);
-        Map<String, AdvancementCriterion<?>> criteria = new LinkedHashMap<>();
+        Map<String, AdvancementCriterion> criteria = new LinkedHashMap<>();
         int steps = Math.max(1, progressSteps);
         for (int index = 0; index < steps; index++)
         {
             String key = steps == 1 ? CRITERION : progressCriterion(index);
-            criteria.put(key, new AdvancementCriterion<>(Criteria.IMPOSSIBLE, new ImpossibleCriterion.Conditions()));
+            criteria.put(key, new AdvancementCriterion(new ImpossibleCriterion.Conditions()));
         }
         Advancement advancement = new Advancement(
-                parent == null ? Optional.empty() : Optional.of(parent.getAdvancementEntry().id()),
-                Optional.of(display),
+                id,
+                parent,
+                display,
                 AdvancementRewards.NONE,
                 criteria,
-                AdvancementRequirements.allOf(criteria.keySet()),
+                criteria.keySet().stream().map(key -> new String[] {key}).toArray(String[][]::new),
                 false);
-        return new PlacedAdvancement(new AdvancementEntry(id, advancement), parent);
+        return advancement;
     }
 
-    private static AdvancementProgress emptyProgress(PlacedAdvancement node)
+    private static AdvancementProgress emptyProgress(Advancement node)
     {
         AdvancementProgress progress = new AdvancementProgress();
-        progress.init(node.getAdvancement().requirements());
+        progress.init(node.getCriteria(), node.getRequirements());
         return progress;
     }
 
-    private static AdvancementProgress completedProgress(PlacedAdvancement node)
+    private static AdvancementProgress completedProgress(Advancement node)
     {
         AdvancementProgress progress = emptyProgress(node);
-        node.getAdvancement().criteria().keySet().forEach(progress::obtain);
+        node.getCriteria().keySet().forEach(progress::obtain);
         return progress;
     }
 
     private static AdvancementProgress progressFor(
-            PlacedAdvancement node,
+            Advancement node,
             MmmAdvancementDefinition definition,
             MmmAdvancementSnapshot snapshot)
     {
@@ -240,7 +237,7 @@ public final class MmmAdvancementTree
 
     private static void addCategory(Category category, String title, String description, Item icon, float y)
     {
-        PlacedAdvancement node = createNode(
+        Advancement node = createNode(
                 Identifier.of("mmm", "category/" + category.name().toLowerCase()),
                 ROOT,
                 title,
@@ -276,9 +273,9 @@ public final class MmmAdvancementTree
         };
     }
 
-    public static boolean isMmmRoot(PlacedAdvancement root)
+    public static boolean isMmmRoot(Advancement root)
     {
-        return root != null && ROOT_ID.equals(root.getAdvancementEntry().id());
+        return root != null && ROOT_ID.equals(root.getId());
     }
 
     private enum Category

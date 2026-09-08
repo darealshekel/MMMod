@@ -52,7 +52,7 @@ class BoundedRequestsTest
     void handlesEmptyMissingAndFailedResponses()
     {
         assertEquals(List.of(), BoundedRequests.map(List.of(), 4, value -> CompletableFuture.completedFuture(value)).join());
-        assertNull(BoundedRequests.map(List.of("missing"), 4, value -> CompletableFuture.completedFuture(null)).join().getFirst());
+        assertNull(BoundedRequests.map(List.of("missing"), 4, value -> CompletableFuture.completedFuture(null)).join().get(0));
         assertTrue(BoundedRequests.map(List.of(1), 4,
                 value -> CompletableFuture.failedFuture(new IllegalStateException("offline"))).isCompletedExceptionally());
         assertThrows(IllegalArgumentException.class, () -> BoundedRequests.map(List.of(), 0, CompletableFuture::completedFuture));

@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(PressableWidget.class)
 public abstract class MmmPressableWidgetMixin
 {
-    @Inject(method = "renderWidget", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "renderButton", at = @At("HEAD"), cancellable = true)
     private void mmm$renderMmmButton(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci)
     {
         MinecraftClient client = MinecraftClient.getInstance();

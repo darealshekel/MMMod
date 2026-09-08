@@ -89,9 +89,9 @@ public final class ScoreboardRecordsScreen extends Screen
         MmmUi.drawTextWithin(context, this.textRenderer, "Build one CSV from several scoreboard snapshots.", x, y + 16, width, MmmUi.MUTED, false);
         y += 38;
 
-        this.recordButton.setDimensionsAndPosition(Math.min(120, width / 3), 18, x, y);
-        this.exportButton.setDimensionsAndPosition(Math.min(100, width / 3), 18, x + Math.min(120, width / 3) + 6, y);
-        this.closeButton.setDimensionsAndPosition(Math.min(70, width / 4), 18, x + width - Math.min(70, width / 4), y);
+        MmmUi.positionWidget(this.recordButton, Math.min(120, width / 3), x, y);
+        MmmUi.positionWidget(this.exportButton, Math.min(100, width / 3), x + Math.min(120, width / 3) + 6, y);
+        MmmUi.positionWidget(this.closeButton, Math.min(70, width / 4), x + width - Math.min(70, width / 4), y);
         boolean toolbarVisible = y + 18 >= viewportY && y <= viewportY + viewportHeight;
         this.recordButton.visible = toolbarVisible;
         this.exportButton.visible = toolbarVisible;
@@ -121,9 +121,9 @@ public final class ScoreboardRecordsScreen extends Screen
 
             RecordButtons controls = this.rowButtons.get(index);
             int buttonX = x + width - buttonsWidth - 6;
-            controls.up().setDimensionsAndPosition(42, 18, buttonX, y + 10);
-            controls.down().setDimensionsAndPosition(48, 18, buttonX + 46, y + 10);
-            controls.delete().setDimensionsAndPosition(58, 18, buttonX + 98, y + 10);
+            MmmUi.positionWidget(controls.up(), 42, buttonX, y + 10);
+            MmmUi.positionWidget(controls.down(), 48, buttonX + 46, y + 10);
+            MmmUi.positionWidget(controls.delete(), 58, buttonX + 98, y + 10);
             boolean visible = y + ROW_HEIGHT >= viewportY && y <= viewportY + viewportHeight;
             controls.setVisible(visible);
             y += ROW_HEIGHT;
@@ -183,7 +183,7 @@ public final class ScoreboardRecordsScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         int viewportHeight = Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT - MmmUi.pagePad(this.width));
         int maxScroll = Math.max(0, this.contentHeight - viewportHeight);
@@ -204,7 +204,7 @@ public final class ScoreboardRecordsScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

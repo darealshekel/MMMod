@@ -126,14 +126,14 @@ public class ProjectManagerScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         if (isMouseInsideList(mouseX, mouseY))
         {
             setScrollOffset(this.scrollOffset + (verticalAmount < 0 ? 1 : -1));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, verticalAmount);
     }
 
     @Override
@@ -217,7 +217,7 @@ public class ProjectManagerScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 
@@ -513,7 +513,7 @@ public class ProjectManagerScreen extends Screen
         Configs.PROJECTS.remove(selected);
         if (selected.id.equals(Configs.activeProjectId))
         {
-            Configs.activeProjectId = Configs.PROJECTS.getFirst().id;
+            Configs.activeProjectId = Configs.PROJECTS.get(0).id;
         }
         this.deleteConfirm = false;
         Configs.saveToFile();

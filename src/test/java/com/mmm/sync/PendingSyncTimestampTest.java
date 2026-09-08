@@ -27,7 +27,7 @@ class PendingSyncTimestampTest
             queue.initialize();
             queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, "live", payload(), true, "automatic");
             queue.requestFlush("test");
-            await(() -> queue.snapshotItemsForTests().getFirst().retryCount == 1
+            await(() -> queue.snapshotItemsForTests().get(0).retryCount == 1
                     && queue.snapshot().flushActive() == false);
 
             assertEquals(0L, queue.snapshot().lastSuccessfulSyncAtMs());

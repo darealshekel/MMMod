@@ -17,8 +17,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.scoreboard.ReadableScoreboardScore;
-import net.minecraft.scoreboard.number.NumberFormat;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -28,6 +26,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -39,6 +38,20 @@ public abstract class PlayerListHudMixin
 
     @Unique private Text mmm$originalFooter;
     @Unique private boolean mmm$footerDecorated;
+
+    @ModifyArg(method = {"render", "renderScoreboardObjective"}, at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/font/TextRenderer;getWidth(Ljava/lang/String;)I"), index = 0)
+    private String mmm$measureTabScore(String value)
+    {
+        return com.mmm.compat.ScoreboardCompat.formatTabScore(value, Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS.getBooleanValue());
+    }
+
+    @ModifyArg(method = "renderScoreboardObjective", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/gui/DrawContext;drawTextWithShadow(Lnet/minecraft/client/font/TextRenderer;Ljava/lang/String;III)I"), index = 1)
+    private String mmm$drawTabScore(String value)
+    {
+        return com.mmm.compat.ScoreboardCompat.formatTabScore(value, Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS.getBooleanValue());
+    }
 
     @Inject(method = "getPlayerName", at = @At("RETURN"), cancellable = true)
     private void mmm$applyTierNameTag(PlayerListEntry entry, CallbackInfoReturnable<Text> cir)
@@ -55,27 +68,6 @@ public abstract class PlayerListHudMixin
         {
             cir.setReturnValue(tierDecorated);
         }
-    }
-
-    @Redirect(
-            method = "render",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/scoreboard/ReadableScoreboardScore;getFormattedScore(Lnet/minecraft/scoreboard/ReadableScoreboardScore;Lnet/minecraft/scoreboard/number/NumberFormat;)Lnet/minecraft/text/MutableText;"))
-    private MutableText mmm$formatTabListScore(ReadableScoreboardScore score, NumberFormat numberFormat)
-    {
-        if (score == null)
-        {
-            return Text.empty();
-        }
-
-        MutableText vanilla = ReadableScoreboardScore.getFormattedScore(score, numberFormat);
-        if (!Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS.getBooleanValue()
-                || !vanilla.getString().equals(Integer.toString(score.getScore())))
-        {
-            return vanilla;
-        }
-        return Text.literal(String.format(Locale.US, "%,d", score.getScore())).setStyle(vanilla.getStyle());
     }
 
     @Redirect(

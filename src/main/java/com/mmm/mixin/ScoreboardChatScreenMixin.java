@@ -99,15 +99,15 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         }
     }
 
-    @Inject(method = "sendMessage(Ljava/lang/String;Z)V", at = @At("HEAD"), cancellable = true)
-    private void mmm$sendPublicMessage(String message, boolean addToHistory, CallbackInfo ci)
+    @Inject(method = "sendMessage(Ljava/lang/String;Z)Z", at = @At("HEAD"), cancellable = true)
+    private void mmm$sendPublicMessage(String message, boolean addToHistory, CallbackInfoReturnable<Boolean> cir)
     {
         if (mmm$publicChannelSelected == false)
         {
             return;
         }
 
-        ci.cancel();
+        cir.setReturnValue(true);
         String normalized = message == null ? "" : message.trim();
         if (normalized.isBlank())
         {

@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
+import com.mmm.compat.ScoreboardCompat;
+import com.mmm.compat.ScoreboardCompat.Entry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
-import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
 
 public final class ScoreboardReader
@@ -37,13 +37,13 @@ public final class ScoreboardReader
             OBJECTIVES.clear();
             cachedScoreboard = scoreboard;
         }
-        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(Scoreboard.SIDEBAR_DISPLAY_SLOT_ID);
         OBJECTIVES.keySet().retainAll(scoreboard.getObjectives());
         List<ObjectiveSnapshot> snapshots = new ArrayList<>();
         for (ScoreboardObjective objective : scoreboard.getObjectives())
         {
             ObjectiveCache cache = OBJECTIVES.computeIfAbsent(objective, ignored -> new ObjectiveCache());
-            List<ScoreboardLine> lines = cache.read(scoreboard.getScoreboardEntries(objective));
+            List<ScoreboardLine> lines = cache.read(ScoreboardCompat.entries(objective));
             if (!lines.isEmpty())
             {
                 snapshots.add(new ObjectiveSnapshot(cleanup(objective.getDisplayName().getString()),
@@ -58,13 +58,13 @@ public final class ScoreboardReader
         private Map<String, CachedLine> previous = Map.of();
         private List<ScoreboardLine> sorted = List.of();
 
-        List<ScoreboardLine> read(java.util.Collection<ScoreboardEntry> entries)
+        List<ScoreboardLine> read(java.util.Collection<Entry> entries)
         {
             Map<String, CachedLine> next = new HashMap<>();
             boolean changed = entries.size() != previous.size();
-            for (ScoreboardEntry entry : entries)
+            for (Entry entry : entries)
             {
-                String raw = entry.display() != null ? entry.display().getString() : entry.name().getString();
+                String raw = entry.name().getString();
                 raw = raw == null || raw.isBlank() ? entry.owner() : raw;
                 CachedLine old = previous.get(entry.owner());
                 CachedLine current;

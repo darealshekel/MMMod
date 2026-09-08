@@ -32,7 +32,7 @@ class WorldStatsIdentityMigrationTest
         assertTrue(Configs.mergeCanonicalWorldStats());
         assertEquals(1, Configs.WORLD_STATS.size());
 
-        Configs.WorldStatsEntry merged = Configs.WORLD_STATS.getFirst();
+        Configs.WorldStatsEntry merged = Configs.WORLD_STATS.get(0);
         assertEquals("server_dffdebc6ee0e", merged.worldId);
         assertEquals(1_508_454L, merged.totalBlocks);
         assertEquals(110L, merged.blockBreakdown.get("minecraft:stone"));

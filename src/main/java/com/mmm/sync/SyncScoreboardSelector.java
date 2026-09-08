@@ -2,13 +2,12 @@ package com.mmm.sync;
 
 import com.mmm.config.Configs;
 import com.mmm.storage.WorldSessionContext;
+import com.mmm.compat.ScoreboardCompat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.scoreboard.ReadableScoreboardScore;
-import net.minecraft.scoreboard.ScoreHolder;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardObjective;
 
@@ -83,7 +82,7 @@ public final class SyncScoreboardSelector
                     username,
                     sourceName,
                     objective,
-                    scoreboard.getScoreboardEntries(objective));
+                    ScoreboardCompat.entries(objective));
             if (candidate == null || candidate.snapshot().isValid() == false)
             {
                 continue;
@@ -137,13 +136,10 @@ public final class SyncScoreboardSelector
 
     private static long readPlayerScore(Scoreboard scoreboard, ScoreboardObjective objective, MinecraftClient client)
     {
-        ReadableScoreboardScore byProfile = scoreboard.getScore(
-                ScoreHolder.fromProfile(client.player.getGameProfile()), objective);
-        ReadableScoreboardScore byName = scoreboard.getScore(
-                ScoreHolder.fromName(client.player.getGameProfile().getName()), objective);
-        return Math.max(
-                byProfile == null ? 0L : Math.max(0L, byProfile.getScore()),
-                byName == null ? 0L : Math.max(0L, byName.getScore()));
+        String username = client.player.getGameProfile().getName();
+        return scoreboard.playerHasObjective(username, objective)
+                ? Math.max(0L, scoreboard.getPlayerScore(username, objective).getScore())
+                : 0L;
     }
 
     private static String clean(String value)

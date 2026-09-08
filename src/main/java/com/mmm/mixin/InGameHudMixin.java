@@ -11,7 +11,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
 import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
@@ -28,10 +27,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class InGameHudMixin
 {
     @Shadow @Final private MinecraftClient client;
-    @Unique private static final Identifier mmm$experienceBarBackground = Identifier.ofVanilla("hud/experience_bar_background");
+    @Unique private static final Identifier mmm$iconsTexture = new Identifier("textures/gui/icons.png");
 
     @Redirect(
-            method = "renderPlayerList",
+            method = "render",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/client/option/KeyBinding;isPressed()Z")
     )
     private boolean mmm$keepPlayerListOpen(KeyBinding keyBinding)
@@ -59,7 +58,7 @@ public abstract class InGameHudMixin
         }
 
         RenderSystem.enableBlend();
-        context.drawGuiTexture(mmm$experienceBarBackground, x, y, 182, 5);
+        context.drawTexture(mmm$iconsTexture, x, y, 0, 64, 182, 5);
         if (filledWidth > 0)
         {
             int color = UiFormat.getGoalProgressColor(progress);
@@ -74,30 +73,22 @@ public abstract class InGameHudMixin
             }
         }
         RenderSystem.disableBlend();
-        ci.cancel();
-    }
 
-    @Inject(method = "renderExperienceLevel", at = @At("HEAD"), cancellable = true)
-    private void mmm$renderDailyGoalPercent(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci)
-    {
-        MiningStats.GoalProgress progress = mmm$getVisibleGoalProgress();
-        if (progress == null || !Configs.Generic.SHOW_GOAL_PERCENT.getBooleanValue()
-                || this.client.player == null || this.client.interactionManager == null
-                || this.client.player.getJumpingMount() != null || !this.client.interactionManager.hasExperienceBar())
+        if (Configs.Generic.SHOW_GOAL_PERCENT.getBooleanValue()
+                && this.client.player != null && this.client.interactionManager != null
+                && this.client.player.getJumpingMount() == null && this.client.interactionManager.hasExperienceBar())
         {
-            return;
+            String percent = UiFormat.formatGoalPercent(progress);
+            int textX = (context.getScaledWindowWidth() - this.client.textRenderer.getWidth(percent)) / 2;
+            int textY = context.getScaledWindowHeight() - 35;
+            int goalColor = UiFormat.getGoalProgressColor(progress);
+
+            context.drawText(this.client.textRenderer, percent, textX + 1, textY, 0x000000, false);
+            context.drawText(this.client.textRenderer, percent, textX - 1, textY, 0x000000, false);
+            context.drawText(this.client.textRenderer, percent, textX, textY + 1, 0x000000, false);
+            context.drawText(this.client.textRenderer, percent, textX, textY - 1, 0x000000, false);
+            context.drawText(this.client.textRenderer, Text.literal(percent), textX, textY, goalColor, false);
         }
-
-        String percent = UiFormat.formatGoalPercent(progress);
-        int x = (context.getScaledWindowWidth() - this.client.textRenderer.getWidth(percent)) / 2;
-        int y = context.getScaledWindowHeight() - 35;
-        int goalColor = UiFormat.getGoalProgressColor(progress);
-
-        context.drawText(this.client.textRenderer, percent, x + 1, y, 0x000000, false);
-        context.drawText(this.client.textRenderer, percent, x - 1, y, 0x000000, false);
-        context.drawText(this.client.textRenderer, percent, x, y + 1, 0x000000, false);
-        context.drawText(this.client.textRenderer, percent, x, y - 1, 0x000000, false);
-        context.drawText(this.client.textRenderer, Text.literal(percent), x, y, goalColor, false);
         ci.cancel();
     }
 

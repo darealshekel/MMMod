@@ -220,7 +220,7 @@ public class MmmSettingsScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         for (ScrollTarget target : List.copyOf(this.scrollTargets))
         {
@@ -321,7 +321,7 @@ public class MmmSettingsScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 
@@ -480,8 +480,9 @@ public class MmmSettingsScreen extends Screen
             });
         }
 
-        if (row.kind() != ControlKind.ACTION && row.config() instanceof IConfigResettable resettable && resettable.isModified())
+        if (row.kind() != ControlKind.ACTION && ((IConfigResettable) row.config()).isModified())
         {
+            IConfigResettable resettable = (IConfigResettable) row.config();
             this.drawButtonShell(context, resetX, controlY, RESET_WIDTH, FIELD_HEIGHT, "R", mouseX, mouseY, true);
             this.clickTargets.add(new ClickTarget(resetX, controlY, RESET_WIDTH, FIELD_HEIGHT, () -> {
                 resettable.resetToDefault();
@@ -514,20 +515,19 @@ public class MmmSettingsScreen extends Screen
     private void drawOptionControl(DrawContext context, IConfigBase config, int x, int y, int width, int mouseX, int mouseY)
     {
         String label = this.getConfigString(config);
-        if (config instanceof ConfigOptionList optionList && optionList.getOptionListValue() instanceof IConfigOptionListEntry entry)
+        if (config instanceof ConfigOptionList optionList)
         {
+            IConfigOptionListEntry entry = optionList.getOptionListValue();
             label = entry.getDisplayName();
         }
 
         this.drawButtonShell(context, x, y, width, FIELD_HEIGHT, label, mouseX, mouseY, false);
         this.clickTargets.add(new ClickTarget(x, y, width, FIELD_HEIGHT, () -> {
-            if (config instanceof ConfigOptionList optionList && optionList.getOptionListValue() instanceof IConfigOptionListEntry entry)
+            if (config instanceof ConfigOptionList optionList)
             {
+                IConfigOptionListEntry entry = optionList.getOptionListValue();
                 IConfigOptionListEntry next = entry.cycle(true);
-                if (config instanceof IStringRepresentable representable)
-                {
-                    representable.setValueFromString(next.getStringValue());
-                }
+                ((IStringRepresentable) config).setValueFromString(next.getStringValue());
                 Configs.saveToFile();
             }
         }));
@@ -814,18 +814,14 @@ public class MmmSettingsScreen extends Screen
 
     private String getConfigString(IConfigBase config)
     {
-        if (config instanceof IStringRepresentable representable)
-        {
-            return representable.getStringValue();
-        }
-        return "";
+        return config == null ? "" : ((IStringRepresentable) config).getStringValue();
     }
 
     private void setConfigString(IConfigBase config, String value)
     {
-        if (config instanceof IStringRepresentable representable)
+        if (config != null)
         {
-            representable.setValueFromString(value);
+            ((IStringRepresentable) config).setValueFromString(value);
             Configs.saveToFile();
         }
     }

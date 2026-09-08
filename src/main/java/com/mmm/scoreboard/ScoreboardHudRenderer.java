@@ -8,7 +8,7 @@ import com.mmm.config.Configs.ScoreboardPosition;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.scoreboard.ScoreboardEntry;
+import com.mmm.compat.ScoreboardCompat.Entry;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.text.Text;
 
@@ -101,7 +101,7 @@ public final class ScoreboardHudRenderer
             return cachedLayout;
         }
 
-        List<ScoreboardEntry> sortedEntries = ScoreboardService.getSortedEntries(objective);
+        List<Entry> sortedEntries = ScoreboardService.getSortedEntries(objective);
         int pageSize = Configs.Generic.SCOREBOARD_MAX_ENTRIES.getIntegerValue();
         ScoreboardState.clampPage(sortedEntries.size(), Math.max(1, pageSize));
         int from = pageSize <= 0 ? 0 : Math.min(ScoreboardState.getPageOffset(), sortedEntries.size());
