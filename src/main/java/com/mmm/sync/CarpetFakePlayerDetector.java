@@ -71,4 +71,3 @@ final class CarpetFakePlayerDetector
         return false;
     }
 }
-

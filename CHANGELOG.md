@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.0.20 - 2026-09-16
+
+See [the release summary](RELEASE-1.0.20.md) for all new 1.0.20 features.
+
+- Added collection rank and Top % to details, tooltips, and pinned HUD progress using synced MMM block rankings.
+- Added intermediate tiers for low-cap collections, set Scaffolding to 1M, and made every completion tier accessible with red/green glass panes.
+
+- Fixed rank estimates using old spreadsheet ranks instead of current profile-aligned totals. Both lookups now request current data and reject unverified fallback rows.
+
+- Added Rank Overtake Estimate under Settings > HUD Content for Minecraft 1.21.
+- Shows the next manual leaderboard player, the remaining block gap, and estimated active mining time using the HUD Blocks/hr pace.
+- Estimated ranks advance with new local mining before sync. The official website rank stays separate; local progress is saved and reconciled against newly published increases.
+- Website targets refresh in the background every five minutes and after successful sync. Pauses are excluded from pace.
+
+## 1.0.19 - 2026-08-19
+
+### Added
+
+- Added an MMM tab to Minecraft Advancements for session hours, mining streaks, Best Hour speed, endurance, and consistent-session goals.
+- Added live advancement progress, MMM advancement toasts, and advancement announcements for linked MMM Chat players.
+- Added an optional MMM Chat slur filter, an ignored-player list in Settings, and `/mmm chat ignore`, `unignore`, and `ignored` commands.
+- Added verified Minecraft UUID evidence to source scoreboard rows when the player is present in Tab.
+- Added client-side filtering for confirmed Carpet fake players in complete source scoreboard snapshots.
+
+### Changed
+
+- Source sync cooldowns now reset per source at `00:00 UTC` instead of using a rolling 24-hour timer.
+- Session Best Hour is now stored with each session and lifetime advancement progress is rebuilt from shared cross-version session history.
+- Expanded the shared block breakdown catalog and kept the mod, sessions, timer stats, and website payloads on the same accepted block list.
+
+### Fixed
+
+- Fixed session summaries and speed advancements losing the saved Best Hour after a restart.
+- Fixed fake or duplicate scoreboard rows remaining in the source total after they are removed from a full sync snapshot.
+- Fixed MMM Chat remaining selected after the chat screen closes.
+- Fixed No Swinging Animation not covering hoes and shears.
+
 ## 1.0.18.1 - 2026-07-29
 
 ### Added

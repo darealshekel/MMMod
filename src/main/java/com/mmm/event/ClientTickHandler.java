@@ -1,5 +1,6 @@
 package com.mmm.event;
 
+import com.mmm.advancement.MmmAdvancementManager;
 import com.mmm.sync.WebsiteProfileTotals;
 
 import com.mmm.hud.SummaryScreen;
@@ -23,8 +24,14 @@ public class ClientTickHandler
         }
 
         MmmHotkeyManager.tick(mc);
+        com.mmm.leaderboard.LeaderboardSidebar.tick(mc);
         com.mmm.tracker.MiningStats.onClientTick();
+        com.mmm.tracker.LiveCollections.tick(mc);
+        com.mmm.tracker.EfficiencyTracker.tick(mc);
+        com.mmm.tracker.PinnedCollection.tick(mc);
+        MmmAdvancementManager.onClientTick(mc);
         WebsiteProfileTotals.refresh(false);
+        com.mmm.sync.RankOvertakeClient.onClientTick(mc);
         MmmBlockBreakDetector.onClientTick(mc);
         MmmTimerState.onClientTick(mc);
         PublicChatClient.onClientTick(mc);

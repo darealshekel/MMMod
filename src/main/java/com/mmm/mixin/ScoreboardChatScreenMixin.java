@@ -25,10 +25,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class ScoreboardChatScreenMixin extends Screen
 {
     private static final int TAB_HEIGHT = 14;
-    private static Channel mmm$selectedChannel = Channel.MINECRAFT;
-
-    private String mmm$minecraftDraft = "";
-    private String mmm$publicDraft = "";
+    private static final String MINECRAFT_CHANNEL_LABEL = "MINECRAFT";
+    private static final String MMM_CHANNEL_LABEL = "MMM";
+    private static boolean mmm$publicChannelSelected;
 
     @Shadow
     protected TextFieldWidget chatField;
@@ -46,12 +45,16 @@ public abstract class ScoreboardChatScreenMixin extends Screen
             return;
         }
 
-        this.mmm$minecraftDraft = this.chatField.getText();
-        if (this.mmm$minecraftDraft.isBlank() == false)
+        if (this.chatField.getText().isBlank() == false)
         {
-            mmm$selectedChannel = Channel.MINECRAFT;
+            mmm$publicChannelSelected = false;
         }
-        mmm$applySelectedChannel();
+    }
+
+    @Inject(method = "removed", at = @At("TAIL"))
+    private void mmm$resetChannelOnClose(CallbackInfo ci)
+    {
+        mmm$publicChannelSelected = false;
     }
 
     @Inject(method = "render", at = @At("TAIL"))
@@ -64,9 +67,9 @@ public abstract class ScoreboardChatScreenMixin extends Screen
 
         int x = this.chatField.getX();
         int y = Math.max(1, this.chatField.getY() - TAB_HEIGHT - 2);
-        mmm$drawTab(context, Channel.MINECRAFT, x, y, mouseX, mouseY);
-        x += mmm$tabWidth(Channel.MINECRAFT);
-        mmm$drawTab(context, Channel.MMM, x, y, mouseX, mouseY);
+        mmm$drawTab(context, false, MINECRAFT_CHANNEL_LABEL, x, y, mouseX, mouseY);
+        x += mmm$tabWidth(MINECRAFT_CHANNEL_LABEL);
+        mmm$drawTab(context, true, MMM_CHANNEL_LABEL, x, y, mouseX, mouseY);
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
@@ -80,18 +83,18 @@ public abstract class ScoreboardChatScreenMixin extends Screen
 
         int x = this.chatField.getX();
         int y = Math.max(1, this.chatField.getY() - TAB_HEIGHT - 2);
-        int minecraftWidth = mmm$tabWidth(Channel.MINECRAFT);
+        int minecraftWidth = mmm$tabWidth(MINECRAFT_CHANNEL_LABEL);
         if (mmm$isInside(mouseX, mouseY, x, y, minecraftWidth, TAB_HEIGHT))
         {
-            mmm$switchChannel(Channel.MINECRAFT);
+            mmm$switchChannel(false);
             cir.setReturnValue(true);
             return;
         }
 
         x += minecraftWidth;
-        if (mmm$isInside(mouseX, mouseY, x, y, mmm$tabWidth(Channel.MMM), TAB_HEIGHT))
+        if (mmm$isInside(mouseX, mouseY, x, y, mmm$tabWidth(MMM_CHANNEL_LABEL), TAB_HEIGHT))
         {
-            mmm$switchChannel(Channel.MMM);
+            mmm$switchChannel(true);
             cir.setReturnValue(true);
         }
     }
@@ -99,14 +102,13 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     @Inject(method = "sendMessage(Ljava/lang/String;Z)V", at = @At("HEAD"), cancellable = true)
     private void mmm$sendPublicMessage(String message, boolean addToHistory, CallbackInfo ci)
     {
-        if (mmm$selectedChannel != Channel.MMM)
+        if (mmm$publicChannelSelected == false)
         {
             return;
         }
 
         ci.cancel();
         String normalized = message == null ? "" : message.trim();
-        this.mmm$publicDraft = "";
         if (normalized.isBlank())
         {
             return;
@@ -146,79 +148,37 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         networkHandler.sendChatCommand("teammsg " + message);
     }
 
-    private void mmm$drawTab(DrawContext context, Channel channel, int x, int y, int mouseX, int mouseY)
+    private void mmm$drawTab(DrawContext context, boolean publicChannel, String label,
+                             int x, int y, int mouseX, int mouseY)
     {
-        int width = mmm$tabWidth(channel);
-        boolean selected = mmm$selectedChannel == channel;
+        int width = mmm$tabWidth(label);
+        boolean selected = mmm$publicChannelSelected == publicChannel;
         boolean hovered = mmm$isInside(mouseX, mouseY, x, y, width, TAB_HEIGHT);
         int background = selected ? 0xEE151515 : hovered ? 0xDD101010 : 0xCC070707;
         int border = selected ? MmmUi.accent() : hovered ? 0xFF5A5A5A : 0xFF292929;
         int color = selected ? 0xFFF5F5F5 : 0xFF949494;
         context.fill(x, y, x + width, y + TAB_HEIGHT, background);
         context.drawBorder(x, y, width, TAB_HEIGHT, border);
-        context.drawTextWithShadow(this.textRenderer, channel.label, x + 6, y + 3, color);
+        context.drawTextWithShadow(this.textRenderer, label, x + 6, y + 3, color);
     }
 
-    private void mmm$switchChannel(Channel channel)
+    private void mmm$switchChannel(boolean publicChannel)
     {
-        if (this.chatField == null)
-        {
-            return;
-        }
-        if (mmm$selectedChannel == channel)
-        {
-            this.setFocused(this.chatField);
-            return;
-        }
-
-        if (mmm$selectedChannel == Channel.MMM)
-        {
-            this.mmm$publicDraft = this.chatField.getText();
-        }
-        else
-        {
-            this.mmm$minecraftDraft = this.chatField.getText();
-        }
-        mmm$selectedChannel = channel;
-        mmm$applySelectedChannel();
-    }
-
-    private void mmm$applySelectedChannel()
-    {
-        if (this.chatField == null)
+        if (mmm$publicChannelSelected == publicChannel || this.chatField == null)
         {
             return;
         }
 
-        boolean publicChannel = mmm$selectedChannel == Channel.MMM;
-        this.chatField.setMaxLength(publicChannel ? PublicChatClient.MAX_MESSAGE_LENGTH : 256);
-        this.chatField.setText(publicChannel ? this.mmm$publicDraft : this.mmm$minecraftDraft);
-        this.chatField.setPlaceholder(Text.literal(publicChannel
-                ? "Message linked MMM players..."
-                : "Minecraft chat..."));
-        this.setFocused(this.chatField);
+        mmm$publicChannelSelected = publicChannel;
     }
 
-    private int mmm$tabWidth(Channel channel)
+    private int mmm$tabWidth(String label)
     {
-        return this.textRenderer.getWidth(channel.label) + 12;
+        return this.textRenderer.getWidth(label) + 12;
     }
 
     private static boolean mmm$isInside(double mouseX, double mouseY, int x, int y, int width, int height)
     {
         return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
-    }
-
-    private enum Channel
-    {
-        MINECRAFT("MINECRAFT"),
-        MMM("MMM");
-
-        private final String label;
-
-        Channel(String label)
-        {
-            this.label = label;
-        }
     }
 }

@@ -1,5 +1,6 @@
 package com.mmm;
 
+import com.mmm.advancement.MmmAdvancementManager;
 import com.mmm.storage.AsyncPersistence;
 import java.time.Duration;
 import com.mmm.sound.MmmSounds;
@@ -28,6 +29,7 @@ public class MMM implements ClientModInitializer
             {
                 MiningStats.finaliseSession();
                 MmmTimerState.save();
+                MmmAdvancementManager.flush();
                 SyncQueueManager.forceFlush("client shutdown");
                 AsyncPersistence.flush(Duration.ofSeconds(3L));
             }

@@ -41,6 +41,7 @@ public final class PublicChatClient
     private static final String BASE_ENDPOINT = System.getProperty("mmm.socialEndpoint", "https://www.mmmaniacs.com/api/mod-social");
     private static final long RECONNECT_DELAY_MS = 5_000L;
     private static final long AUTH_RETRY_DELAY_MS = 60_000L;
+    private static final long PRESENCE_HEARTBEAT_MS = 20_000L;
     private static final int MAX_SEEN_EVENTS = 256;
     private static final AtomicInteger THREAD_IDS = new AtomicInteger();
     private static final ThreadFactory THREAD_FACTORY = runnable -> {
@@ -55,14 +56,19 @@ public final class PublicChatClient
             .build();
     private static final Set<String> SEEN_EVENT_IDS = new HashSet<>();
     private static final Deque<String> SEEN_EVENT_ORDER = new ArrayDeque<>();
+    private static final Deque<String> PENDING_ADVANCEMENT_MESSAGES = new ArrayDeque<>();
 
     private static volatile InputStream activeStream;
     private static volatile boolean connecting;
     private static volatile boolean connected;
     private static volatile boolean sending;
+    private static volatile boolean sendingPresence;
+    private static volatile Boolean lastPresenceValue;
+    private static volatile long lastPresenceSentAtMs;
     private static volatile long generation;
     private static volatile long nextConnectionAttemptMs;
     private static int tickCounter;
+    private static long nextAdvancementSendMs;
 
     private PublicChatClient()
     {
@@ -78,14 +84,19 @@ public final class PublicChatClient
 
         if (client == null
                 || client.player == null
-                || WebsiteLinkManager.isCurrentPlayerLinked() == false
-                || (Configs.Generic.SHOW_MMM_CHAT_MESSAGES.getBooleanValue() == false
-                    && Configs.Generic.RECEIVE_GOAL_MILESTONES.getBooleanValue() == false))
+                || WebsiteLinkManager.isCurrentPlayerLinked() == false)
         {
             disconnect();
+            ActiveDiggerManager.clear();
             return;
         }
-        if (connected || connecting || System.currentTimeMillis() < nextConnectionAttemptMs)
+        sendPendingAdvancement();
+        if (connected)
+        {
+            sendPresence(client);
+            return;
+        }
+        if (connecting || System.currentTimeMillis() < nextConnectionAttemptMs)
         {
             return;
         }
@@ -132,13 +143,24 @@ public final class PublicChatClient
                         try
                         {
                             JsonObject body = JsonParser.parseString(response.body()).getAsJsonObject();
-                            if (body.has("event") && body.get("event").isJsonObject())
+                            if (body.has("ok") == false
+                                    || body.get("ok").isJsonPrimitive() == false
+                                    || body.get("ok").getAsBoolean() == false
+                                    || body.has("event") == false
+                                    || body.get("event").isJsonObject() == false)
                             {
-                                handleChatEvent(body.getAsJsonObject("event"));
+                                showLocalError("MMM Chat returned an invalid response.");
+                                return;
                             }
+                            handleChatEvent(body.getAsJsonObject("event"));
                         }
-                        catch (Exception ignored)
+                        catch (Exception exception)
                         {
+                            showLocalError("MMM Chat is not available yet.");
+                            if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue())
+                            {
+                                MMM.LOGGER.warn("[MMM] Chat endpoint returned an invalid response: {}", exception.getMessage());
+                            }
                         }
                     });
         }
@@ -146,6 +168,32 @@ public final class PublicChatClient
         {
             sending = false;
             showLocalError("Could not send that message.");
+        }
+    }
+
+    public static java.util.concurrent.CompletableFuture<Boolean> sendCollectionMessage(String message)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.player == null || !WebsiteLinkManager.isCurrentPlayerLinked() || sending
+                || message.isBlank() || message.length() > MAX_MESSAGE_LENGTH)
+            return java.util.concurrent.CompletableFuture.completedFuture(false);
+        JsonObject payload = new JsonObject();
+        payload.addProperty("minecraftUuid", client.player.getUuidAsString());
+        payload.addProperty("clientId", Configs.cloudClientId);
+        payload.addProperty("message", message);
+        try {
+            sending = true;
+            return HTTP_CLIENT.sendAsync(jsonRequest("/chat", payload), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                    .thenApply(response -> {
+                        if (response.statusCode() >= 400) return false;
+                        JsonObject body = JsonParser.parseString(response.body()).getAsJsonObject();
+                        if (!body.has("ok") || !body.get("ok").getAsBoolean() || !body.has("event")) return false;
+                        handleChatEvent(body.getAsJsonObject("event"));
+                        return true;
+                    }).whenComplete((ok, error) -> sending = false);
+        } catch (RuntimeException error) {
+            sending = false;
+            return java.util.concurrent.CompletableFuture.completedFuture(false);
         }
     }
 
@@ -193,6 +241,57 @@ public final class PublicChatClient
             {
                 MMM.LOGGER.warn("[MMM] Could not prepare milestone request: {}", exception.getMessage());
             }
+        }
+    }
+
+    public static void publishAdvancement(String title, String description)
+    {
+        String safeTitle = normalizeMessage(title);
+        String safeDescription = normalizeMessage(description);
+        String message = "earned the MMM advancement [" + safeTitle + "] - " + safeDescription;
+        if (safeTitle.isBlank() || message.length() > MAX_MESSAGE_LENGTH)
+        {
+            return;
+        }
+
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.player == null)
+        {
+            return;
+        }
+        if (WebsiteLinkManager.isCurrentPlayerLinked())
+        {
+            synchronized (PENDING_ADVANCEMENT_MESSAGES)
+            {
+                if (PENDING_ADVANCEMENT_MESSAGES.size() < 32)
+                {
+                    PENDING_ADVANCEMENT_MESSAGES.addLast(message);
+                }
+            }
+            return;
+        }
+        client.player.sendMessage(Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
+                .append(Text.literal("Advancement Made! ").styled(style -> style.withColor(MmmUi.accent() & 0x00FFFFFF)))
+                .append(Text.literal(safeTitle).formatted(Formatting.WHITE))
+                .append(Text.literal(" - " + safeDescription).formatted(Formatting.GRAY)), false);
+    }
+
+    private static void sendPendingAdvancement()
+    {
+        long now = System.currentTimeMillis();
+        if (sending || now < nextAdvancementSendMs)
+        {
+            return;
+        }
+        String message;
+        synchronized (PENDING_ADVANCEMENT_MESSAGES)
+        {
+            message = PENDING_ADVANCEMENT_MESSAGES.pollFirst();
+        }
+        if (message != null)
+        {
+            nextAdvancementSendMs = now + 2_500L;
+            sendMessage(message);
         }
     }
 
@@ -286,6 +385,8 @@ public final class PublicChatClient
             connecting = false;
             connected = true;
             activeStream = response.body();
+            lastPresenceValue = null;
+            lastPresenceSentAtMs = 0L;
         }
         IO_EXECUTOR.execute(() -> consumeEventStream(connectionGeneration, response.body()));
     }
@@ -311,6 +412,14 @@ public final class PublicChatClient
                         else if ("milestone".equals(eventName))
                         {
                             handleMilestoneEvent(event);
+                        }
+                        else if ("social-state".equals(eventName))
+                        {
+                            ActiveDiggerManager.applySocialState(event);
+                        }
+                        else if ("presence".equals(eventName))
+                        {
+                            ActiveDiggerManager.applyPresence(event);
                         }
                     }
                     eventName = "";
@@ -344,15 +453,21 @@ public final class PublicChatClient
         String eventId = stringValue(event, "eventId");
         String username = stringValue(event, "username");
         String message = normalizeMessage(stringValue(event, "message"));
+        String rawMessage = normalizeMessage(stringValue(event, "rawMessage"));
         if (eventId.isBlank()
                 || username.matches("[A-Za-z0-9_]{1,16}") == false
                 || message.isBlank()
                 || message.length() > MAX_MESSAGE_LENGTH
+                || rawMessage.length() > MAX_MESSAGE_LENGTH
                 || markSeen(eventId) == false)
         {
             return;
         }
-        showChatMessage(username, message);
+        if (MmmChatIgnoreList.isIgnored(username))
+        {
+            return;
+        }
+        showChatMessage(username, message, rawMessage);
     }
 
     private static void handleMilestoneEvent(JsonObject event)
@@ -373,6 +488,10 @@ public final class PublicChatClient
             {
                 return;
             }
+            if (MmmChatIgnoreList.isIgnored(username))
+            {
+                return;
+            }
             showMilestone(username, threshold, current, target);
         }
         catch (Exception ignored)
@@ -380,7 +499,7 @@ public final class PublicChatClient
         }
     }
 
-    private static void showChatMessage(String username, String messageText)
+    private static void showChatMessage(String username, String messageText, String rawMessageText)
     {
         MinecraftClient client = MinecraftClient.getInstance();
         client.execute(() -> {
@@ -388,9 +507,12 @@ public final class PublicChatClient
             {
                 return;
             }
+            String visibleMessage = Configs.Generic.CENSOR_MMM_CHAT.getBooleanValue()
+                    ? MmmChatCensor.censor(messageText)
+                    : rawMessageText.isBlank() ? messageText : rawMessageText;
             MutableText message = Text.literal("[MMM] ").formatted(Formatting.DARK_GRAY)
                     .append(Text.literal(username).styled(style -> style.withColor(MmmUi.accent() & 0x00FFFFFF)))
-                    .append(Text.literal(": " + messageText).formatted(Formatting.WHITE));
+                    .append(Text.literal(": " + visibleMessage).formatted(Formatting.WHITE));
             client.player.sendMessage(message, false);
         });
     }
@@ -467,6 +589,50 @@ public final class PublicChatClient
         connected = false;
         activeStream = null;
         nextConnectionAttemptMs = System.currentTimeMillis() + retryDelayMs;
+    }
+
+    private static void sendPresence(MinecraftClient client)
+    {
+        if (client.player == null || sendingPresence)
+        {
+            return;
+        }
+        boolean active = MiningStats.isActivelyMining();
+        long now = System.currentTimeMillis();
+        if (Boolean.valueOf(active).equals(lastPresenceValue)
+                && now - lastPresenceSentAtMs < PRESENCE_HEARTBEAT_MS)
+        {
+            return;
+        }
+
+        JsonObject payload = new JsonObject();
+        payload.addProperty("minecraftUuid", client.player.getUuidAsString());
+        payload.addProperty("clientId", Configs.cloudClientId);
+        payload.addProperty("active", active);
+        sendingPresence = true;
+        try
+        {
+            HTTP_CLIENT.sendAsync(jsonRequest("/presence", payload), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                    .whenComplete((response, error) -> {
+                        sendingPresence = false;
+                        if (error == null && response != null && response.statusCode() < 400)
+                        {
+                            lastPresenceValue = active;
+                            lastPresenceSentAtMs = System.currentTimeMillis();
+                            try
+                            {
+                                ActiveDiggerManager.applyFriends(JsonParser.parseString(response.body()).getAsJsonObject());
+                            }
+                            catch (Exception ignored)
+                            {
+                            }
+                        }
+                    });
+        }
+        catch (Exception exception)
+        {
+            sendingPresence = false;
+        }
     }
 
     private static HttpRequest jsonRequest(String path, JsonObject payload)

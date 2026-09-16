@@ -10,6 +10,10 @@ import com.mmm.sync.CloudSyncManager;
 import com.mmm.sync.DigsSyncManager;
 import com.mmm.timer.MmmTimerState;
 import com.mmm.tracker.MiningStats;
+import com.mmm.tracker.PinnedCollection;
+import net.minecraft.item.ItemStack;
+import net.minecraft.registry.Registries;
+import net.minecraft.util.Identifier;
 import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
 
@@ -33,6 +37,10 @@ public final class MiningHudRenderer
     private static boolean cachedShowTitle;
     private static boolean cachedSessionPaused;
     private static long hudModelCacheExpiresAtNanos;
+    private static String pinnedIconId = "";
+    private static ItemStack pinnedIcon = ItemStack.EMPTY;
+    private static final int PINNED_HEIGHT = 58;
+    private static final java.text.NumberFormat PINNED_NUMBERS = java.text.NumberFormat.getIntegerInstance(java.util.Locale.US);
 
     private MiningHudRenderer()
     {
@@ -55,7 +63,7 @@ public final class MiningHudRenderer
         MiningStats.GoalProgress dailyGoal = frame.dailyGoal();
         boolean showDailyGoalBar = frame.showDailyGoalBar();
 
-        if (lines.isEmpty() && !showDailyGoalBar)
+        if (lines.isEmpty() && !showDailyGoalBar && frame.pinned() == null)
         {
             return;
         }
@@ -117,9 +125,33 @@ public final class MiningHudRenderer
         if (showDailyGoalBar)
         {
             drawGoalProgress(context, client, 0, drawY + 2, width, dailyGoal);
+            drawY += GOAL_BAR_EXTRA_HEIGHT;
         }
+        if (frame.pinned() != null) drawPinnedCollection(context, client, drawY + 3, width, frame.pinned());
 
         context.getMatrices().pop();
+    }
+
+    private static void drawPinnedCollection(DrawContext context, MinecraftClient client, int y, int width, PinnedCollection.View pin)
+    {
+        if (!pinnedIconId.equals(pin.blockId())) {
+            pinnedIconId = pin.blockId();
+            pinnedIcon = new ItemStack(Registries.BLOCK.get(Identifier.of(com.mmm.tracker.CollectionProgress.iconId(pin.blockId()))).asItem());
+        }
+        if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
+            context.fill(-2, y - 2, width + 2, y + PINNED_HEIGHT - 3, Configs.getHudBackgroundColor());
+        context.drawItem(pinnedIcon, 0, y + 2);
+        boolean shadow = Configs.useHudTextShadow();
+        MmmUi.drawTextWithin(context, client.textRenderer, pin.name(), 22, y, width - 22, hudTextColor(), shadow);
+        MmmUi.drawTextWithin(context, client.textRenderer, pin.scope(), 22, y + 11, width - 22, MmmUi.LABEL, shadow);
+        String progress = PINNED_NUMBERS.format(pin.count()) + " / " + PINNED_NUMBERS.format(pin.target())
+                + (pin.completed() ? " | Complete" : String.format(java.util.Locale.ROOT, " | %.1f%%", pin.fraction() * 100));
+        MmmUi.drawTextWithin(context, client.textRenderer, progress, 0, y + 24, width, hudTextColor(), shadow);
+        var ranking = com.mmm.ui.CollectionRankText.format(pin.rank());
+        context.drawText(client.textRenderer, net.minecraft.util.Language.getInstance().reorder(
+                client.textRenderer.trimToWidth(ranking, width)), 0, y + 36, hudTextColor(), shadow);
+        context.fill(0, y + 49, width, y + 53, GOAL_BAR_BG);
+        context.fill(0, y + 49, (int)(width * pin.fraction()), y + 53, pin.completed() ? MmmUi.SUCCESS : MmmUi.accent());
     }
 
     private static List<HudLine> buildHudLines(boolean showTitle, boolean sessionPaused)
@@ -131,6 +163,13 @@ public final class MiningHudRenderer
         }
 
         boolean sessionInactive = MiningStats.isSessionActive() == false || sessionPaused;
+        if (Configs.Generic.HUD_RANK_OVERTAKE_VISIBLE.getBooleanValue())
+        {
+            for (String line : com.mmm.sync.RankOvertakeClient.hudLines())
+            {
+                lines.add(HudLine.text(line, hudTextColor()));
+            }
+        }
         if (FeatureToggle.MMM_HUD_PROJECT.getBooleanValue())
         {
             MiningStats.ProjectProgress project = MiningStats.getActiveProjectProgress();
@@ -170,7 +209,10 @@ public final class MiningHudRenderer
         }
         if (Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue())
         {
-            lines.add(HudLine.dualBlocksMined("Hour / Best Hour: ", MmmTimerState.getCurrentHourBlocks(), MmmTimerState.getBestHourBlocks()));
+            lines.add(HudLine.dualBlocksMined(
+                    "Hour / Best Hour: ",
+                    MmmTimerState.getCurrentHourBlocks(),
+                    MmmTimerState.getBestHourBlocks()));
         }
         if (Configs.Generic.HUD_TIMER_STATUS_VISIBLE.getBooleanValue())
         {
@@ -230,10 +272,11 @@ public final class MiningHudRenderer
         int lineHeight = client.textRenderer.fontHeight + 2;
         int padding = 4;
         int width = Math.max(Math.max(getTextWidth(client, lines), getGoalHeaderWidth(client, dailyGoal, showDailyGoalBar)), 190);
-        int extraHeight = showDailyGoalBar ? GOAL_BAR_EXTRA_HEIGHT : 0;
+        PinnedCollection.View pinned = PinnedCollection.view();
+        int extraHeight = (showDailyGoalBar ? GOAL_BAR_EXTRA_HEIGHT : 0) + (pinned == null ? 0 : PINNED_HEIGHT);
         int totalHeight = lines.size() * lineHeight + extraHeight + padding * 2;
 
-        cachedFrame = new HudFrame(lines, dailyGoal, showDailyGoalBar, lineHeight, padding, width, extraHeight, totalHeight);
+        cachedFrame = new HudFrame(lines, dailyGoal, showDailyGoalBar, lineHeight, padding, width, extraHeight, totalHeight, pinned);
         cachedShowTitle = showTitle;
         cachedSessionPaused = sessionPaused;
         hudModelCacheExpiresAtNanos = now + HUD_MODEL_CACHE_NANOS;
@@ -241,7 +284,7 @@ public final class MiningHudRenderer
     }
 
     private record HudFrame(List<HudLine> lines, MiningStats.GoalProgress dailyGoal, boolean showDailyGoalBar,
-                            int lineHeight, int padding, int width, int extraHeight, int totalHeight)
+                            int lineHeight, int padding, int width, int extraHeight, int totalHeight, PinnedCollection.View pinned)
     {
     }
 

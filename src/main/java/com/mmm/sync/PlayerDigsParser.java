@@ -66,10 +66,12 @@ public final class PlayerDigsParser
         }
 
         Candidate best = null;
+        String usernameLower = currentUsername.toLowerCase(Locale.ROOT);
+        boolean objectiveLooksRelevant = ScoreboardParser.isMiningEvidence(snapshot.title());
         for (int index = 0; index < snapshot.lines().size(); index++)
         {
             ScoreboardReader.ScoreboardLine line = snapshot.lines().get(index);
-            Candidate candidate = evaluateLine(currentUsername, snapshot, index, line);
+            Candidate candidate = evaluateLine(currentUsername, usernameLower, objectiveLooksRelevant, snapshot, index, line);
             if (candidate != null && (best == null || candidate.confidence() > best.confidence()))
             {
                 best = candidate;
@@ -80,21 +82,14 @@ public final class PlayerDigsParser
     }
 
     private static Candidate evaluateLine(String currentUsername,
+                                          String usernameLower,
+                                          boolean objectiveLooksRelevant,
                                           ScoreboardReader.ObjectiveSnapshot snapshot,
                                           int index,
                                           ScoreboardReader.ScoreboardLine line)
     {
         String lineLower = line.cleaned().toLowerCase(Locale.ROOT);
         String ownerLower = line.owner().toLowerCase(Locale.ROOT);
-        String usernameLower = currentUsername.toLowerCase(Locale.ROOT);
-
-        long value = extractValue(line);
-        if (value < 0L)
-        {
-            return null;
-        }
-
-        boolean objectiveLooksRelevant = ScoreboardParser.isMiningEvidence(snapshot.title());
         boolean lineLooksRelevant = lineLower.contains("dig") || lineLower.contains("dug");
         boolean isPlayerRow = ownerLower.equals(usernameLower) || lineLower.contains(usernameLower);
         boolean miningContext = objectiveLooksRelevant || lineLooksRelevant;
@@ -115,6 +110,12 @@ public final class PlayerDigsParser
         }
 
         if (isPlayerRow == false && isExplicitPlayerLabel == false)
+        {
+            return null;
+        }
+
+        long value = extractValue(line);
+        if (value < 0L)
         {
             return null;
         }

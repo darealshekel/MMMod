@@ -55,9 +55,12 @@ public final class DigsSyncManager
                 : SCOREBOARD_DETECTION_INTERVAL_MS;
         nextScoreboardDetectionAtMs = now + detectionIntervalMs;
 
-        List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots = ScoreboardReader.readObjectives(client);
+        // A chosen objective already supplies a direct player score. Do not rebuild
+        // every other project's scoreboard just to discard the automatic result.
+        List<ScoreboardReader.ObjectiveSnapshot> objectiveSnapshots = SyncScoreboardSelector.hasManualSelection()
+                ? List.of() : ScoreboardReader.readObjectives(client);
         PersonalTotalDetector.Detection detection = PersonalTotalDetector.detect(client, objectiveSnapshots);
-        PlayerDigsModel parserModel = PlayerDigsParser.parse(client, objectiveSnapshots);
+        PlayerDigsModel parserModel = objectiveSnapshots.isEmpty() ? null : PlayerDigsParser.parse(client, objectiveSnapshots);
         TotalSelection selection = selectAuthoritativeTotal(client, detection, parserModel, now);
         applyDetectionDebug(detection, selection);
 
