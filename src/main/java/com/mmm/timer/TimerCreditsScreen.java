@@ -84,7 +84,7 @@ public class TimerCreditsScreen extends CompatScreen
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers)
     {
-        if (keyCode == 256)
+        if (keyCode == com.mojang.blaze3d.platform.InputConstants.KEY_ESCAPE)
         {
             this.onClose();
             return true;

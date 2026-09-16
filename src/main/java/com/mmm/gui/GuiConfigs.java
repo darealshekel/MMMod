@@ -20,7 +20,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 public final class GuiConfigs extends CompatScreen
 {
@@ -260,7 +260,7 @@ public final class GuiConfigs extends CompatScreen
     {
         if (this.capturing != null)
         {
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE)
+            if (keyCode == InputConstants.KEY_ESCAPE)
             {
                 this.capturing.setStorageString("");
                 this.capturing = null;
@@ -269,7 +269,7 @@ public final class GuiConfigs extends CompatScreen
                 Configs.saveToFile();
                 return true;
             }
-            if ((keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE) && this.chordCapture.isEmpty())
+            if ((keyCode == InputConstants.KEY_BACKSPACE || keyCode == InputConstants.KEY_DELETE) && this.chordCapture.isEmpty())
             {
                 this.capturing.setStorageString("");
                 this.capturing = null;
@@ -282,7 +282,7 @@ public final class GuiConfigs extends CompatScreen
             return true;
         }
 
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE)
+        if (keyCode == InputConstants.KEY_ESCAPE)
         {
             if (this.searchField != null && !this.searchField.getValue().isBlank())
             {

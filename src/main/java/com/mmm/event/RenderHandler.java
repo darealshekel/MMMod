@@ -10,7 +10,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public final class RenderHandler
 {
-    private static final boolean SPEED_GRAPH_AVAILABLE = false;
 
     private RenderHandler()
     {
@@ -19,6 +18,7 @@ public final class RenderHandler
     public static void renderHud(GuiGraphicsExtractor drawContext)
     {
         Minecraft client = Minecraft.getInstance();
+        com.mmm.leaderboard.LeaderboardSidebar.render(drawContext, client);
         if (!FeatureToggle.MMM_MINING_TRACKER.getBooleanValue())
         {
             return;
@@ -26,7 +26,7 @@ public final class RenderHandler
 
         MiningHudRenderer.render(drawContext, client);
         TimerHudRenderer.render(drawContext, client);
-        if (SPEED_GRAPH_AVAILABLE && FeatureToggle.MMM_HUD_SPEED_GRAPH.getBooleanValue() && MiningSpeedTracker.hasSessionData())
+        if (FeatureToggle.MMM_HUD_SPEED_GRAPH.getBooleanValue() && MiningSpeedTracker.hasSessionData())
         {
             SpeedGraphRenderer.render(drawContext, client);
         }

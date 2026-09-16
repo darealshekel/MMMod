@@ -27,6 +27,7 @@ public abstract class ScoreboardInGameHudMixin
     {
         ci.cancel();
         if (!Configs.Generic.SCOREBOARD_VISIBLE.getBooleanValue()
+                || com.mmm.leaderboard.LeaderboardSidebar.enabled()
                 || this.minecraft.gui.screen() instanceof ScoreboardMoveScreen)
         {
             return;

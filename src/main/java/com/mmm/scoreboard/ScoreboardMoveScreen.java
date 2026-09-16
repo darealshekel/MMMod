@@ -48,10 +48,10 @@ public final class ScoreboardMoveScreen extends CompatScreen
 
         Minecraft client = Minecraft.getInstance();
         Optional<Objective> objective = ScoreboardService.getSidebarObjective(client);
-        if (objective.isPresent())
+        if (objective.isPresent() || com.mmm.leaderboard.LeaderboardSidebar.enabled())
         {
-            ScoreboardHudRenderer.Bounds bounds = ScoreboardHudRenderer.render(context, client, objective.get());
-            MmmUi.drawBorder(context, bounds.left() - 2, bounds.top() - 2,
+            ScoreboardHudRenderer.Bounds bounds = ScoreboardHudRenderer.render(context, client, objective.orElse(null));
+            context.outline(bounds.left() - 2, bounds.top() - 2,
                     bounds.width() + 4, bounds.height() + 4, MmmUi.accent());
         }
         else
@@ -79,11 +79,11 @@ public final class ScoreboardMoveScreen extends CompatScreen
 
         Minecraft client = Minecraft.getInstance();
         Optional<Objective> objective = ScoreboardService.getSidebarObjective(client);
-        if (objective.isEmpty())
+        if (objective.isEmpty() && !com.mmm.leaderboard.LeaderboardSidebar.enabled())
         {
             return false;
         }
-        ScoreboardHudRenderer.Bounds bounds = ScoreboardHudRenderer.getBounds(client, objective.get());
+        ScoreboardHudRenderer.Bounds bounds = ScoreboardHudRenderer.getBounds(client, objective.orElse(null));
         if (!bounds.contains(mouseX, mouseY))
         {
             return false;
@@ -100,8 +100,10 @@ public final class ScoreboardMoveScreen extends CompatScreen
         if (this.dragging)
         {
             Minecraft client = Minecraft.getInstance();
-            ScoreboardService.getSidebarObjective(client).ifPresent(objective -> ScoreboardHudRenderer.setPosition(
-                    client, objective, (int) mouseX - this.dragOffsetX, (int) mouseY - this.dragOffsetY));
+            var objective = ScoreboardService.getSidebarObjective(client);
+            if (objective.isPresent() || com.mmm.leaderboard.LeaderboardSidebar.enabled())
+                ScoreboardHudRenderer.setPosition(client, objective.orElse(null),
+                        (int) mouseX - this.dragOffsetX, (int) mouseY - this.dragOffsetY);
             return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);

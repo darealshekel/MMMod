@@ -11,7 +11,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 public final class PerimeterBlockListScreen extends CompatScreen
 {
@@ -239,12 +239,12 @@ public final class PerimeterBlockListScreen extends CompatScreen
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers)
     {
-        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER)
+        if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER)
         {
             addBlock();
             return true;
         }
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE)
+        if (keyCode == InputConstants.KEY_ESCAPE)
         {
             onClose();
             return true;

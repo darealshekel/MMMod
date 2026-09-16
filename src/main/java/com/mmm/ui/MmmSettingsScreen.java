@@ -58,7 +58,6 @@ public class MmmSettingsScreen extends CompatScreen
     private static final int RESET_WIDTH = 18;
     private static final int TWO_COLUMN_MIN_WIDTH = 680;
     private static final int CONTENT_HEADER_HEIGHT = 68;
-    private static final boolean SPEED_GRAPH_AVAILABLE = false;
     private static final long OPENING_HOTKEY_SUPPRESSION_TIMEOUT_MS = 750L;
 
     private final Screen parent;
@@ -253,7 +252,7 @@ public class MmmSettingsScreen extends CompatScreen
             this.suppressAutomaticSearchInput = false;
         }
 
-        if (keyCode == 256)
+        if (keyCode == com.mojang.blaze3d.platform.InputConstants.KEY_ESCAPE)
         {
             if (this.searchField != null && this.searchField.isFocused() && this.searchField.getValue().isBlank() == false)
             {
@@ -472,6 +471,10 @@ public class MmmSettingsScreen extends CompatScreen
                 else if ("Perimeter Block List".equals(row.label()))
                 {
                     Minecraft.getInstance().gui.setScreen(new PerimeterBlockListScreen(this));
+                }
+                else if ("Ignored Players".equals(row.label()))
+                {
+                    Minecraft.getInstance().gui.setScreen(new MmmChatIgnoreListScreen(this));
                 }
                 else if ("Sync Scoreboard".equals(row.label()))
                 {
@@ -1075,7 +1078,7 @@ public class MmmSettingsScreen extends CompatScreen
         this.sections.clear();
         this.sections.add(SettingsSection.helpers(
                 new SettingRow("Flat Digger", "Stop digging below your feet.", FeatureToggle.MMM_FLAT_DIGGER, ControlKind.BOOLEAN),
-                new SettingRow("Perimeter Wall Helper", "Protect the configured perimeter floor.", FeatureToggle.MMM_PERIMETER_WALL_DIG_HELPER, ControlKind.BOOLEAN),
+                new SettingRow("Perimeter Wall Helper", "Protect the configured floor; sneak to bypass it.", FeatureToggle.MMM_PERIMETER_WALL_DIG_HELPER, ControlKind.BOOLEAN),
                 new SettingRow("Perimeter Block List", "Choose which floor blocks are protected.", null, ControlKind.ACTION),
                 new SettingRow("Toggle Tab", "Keep the player list open.", FeatureToggle.MMM_TOGGLE_TAB, ControlKind.BOOLEAN)
         ));
@@ -1092,12 +1095,19 @@ public class MmmSettingsScreen extends CompatScreen
                 new SettingRow("Decimal Places", "Choose 1, 2, or 3 decimal places.", Configs.Generic.GOAL_PERCENT_DECIMAL_PLACES, ControlKind.SLIDER),
                 new SettingRow("Goal Tracking", "Track today's goal.", FeatureToggle.MMM_DAILY_GOAL, ControlKind.BOOLEAN),
                 new SettingRow("Milestone Messages", "Post progress alerts in chat.", FeatureToggle.MMM_NOTIFICATIONS, ControlKind.BOOLEAN),
-                new SettingRow("Share Milestones", "Share progress with MMM players here.", Configs.Generic.SHARE_GOAL_MILESTONES, ControlKind.BOOLEAN),
-                new SettingRow("Receive Milestones", "Show progress from MMM players here.", Configs.Generic.RECEIVE_GOAL_MILESTONES, ControlKind.BOOLEAN),
-                new SettingRow("MMM Chat Messages", "Show global MMM messages in Minecraft chat.", Configs.Generic.SHOW_MMM_CHAT_MESSAGES, ControlKind.BOOLEAN),
                 new SettingRow("Sound Alerts", "Play milestone sounds.", FeatureToggle.MMM_SOUND_ALERTS, ControlKind.BOOLEAN),
                 new SettingRow("Custom Sounds", "Choose sounds for 25%, 50%, 75%, and 100%.", null, ControlKind.ACTION),
                 new SettingRow("Pickaxe Animation", "Show a pickaxe at each milestone.", Configs.Generic.GOAL_PICKAXE_ANIMATION, ControlKind.BOOLEAN)
+        ));
+        this.sections.add(SettingsSection.social(
+                new SettingRow("Active Digger Icons", "Mark active MMM miners in the player list.", Configs.Generic.SHOW_ACTIVE_DIGGERS, ControlKind.BOOLEAN),
+                new SettingRow("Friends Only", "Only mark active miners from your MMM friends list.", Configs.Generic.ACTIVE_DIGGERS_FRIENDS_ONLY, ControlKind.BOOLEAN),
+                new SettingRow("Share Milestones", "Share your goal milestones with linked MMM players.", Configs.Generic.SHARE_GOAL_MILESTONES, ControlKind.BOOLEAN),
+                new SettingRow("Collection Milestones", "Share new collection tiers in MMM chat, before sync.", Configs.Generic.SHARE_COLLECTION_MILESTONES, ControlKind.BOOLEAN),
+                new SettingRow("Receive Milestones", "Show milestones from linked MMM players.", Configs.Generic.RECEIVE_GOAL_MILESTONES, ControlKind.BOOLEAN),
+                new SettingRow("MMM Chat Messages", "Show MMM chat in Minecraft chat.", Configs.Generic.SHOW_MMM_CHAT_MESSAGES, ControlKind.BOOLEAN),
+                new SettingRow("Censor MMM Chat", "Hide slurs in MMM chat.", Configs.Generic.CENSOR_MMM_CHAT, ControlKind.BOOLEAN),
+                new SettingRow("Ignored Players", "Hide selected players' chat and milestones.", null, ControlKind.ACTION)
         ));
         this.sections.add(SettingsSection.hud(
                 new SettingRow("Move HUD", "Move and resize sections.", null, ControlKind.ACTION),
@@ -1126,6 +1136,7 @@ public class MmmSettingsScreen extends CompatScreen
                 new SettingRow("Project", "Show your active project.", FeatureToggle.MMM_HUD_PROJECT, ControlKind.BOOLEAN),
                 new SettingRow("Mining Totals", "Enable mining total rows.", FeatureToggle.MMM_HUD_TOTAL_MINED, ControlKind.BOOLEAN),
                 new SettingRow("Global Total", "Show your website total.", Configs.Generic.HUD_GLOBAL_TOTAL_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Rank Overtake Estimate", "Projects manual rank using website totals plus new local mining. ETA uses the HUD Blocks/hr pace and shows active mining time. Reconciles after sync; assumes the target stops mining.", Configs.Generic.HUD_RANK_OVERTAKE_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("World Total", "Show this world's total.", Configs.Generic.HUD_WORLD_TOTAL_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Session Total", "Show this session's total.", Configs.Generic.HUD_SESSION_TOTAL_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Today / Week", "Show today and this week.", Configs.Generic.HUD_DAILY_WEEK_VISIBLE, ControlKind.BOOLEAN),
@@ -1171,7 +1182,6 @@ public class MmmSettingsScreen extends CompatScreen
                 new SettingRow("Opacity", "Change highlight strength.", Configs.Generic.BLOCK_ESP_OPACITY, ControlKind.NUMBER),
                 new SettingRow("Rainbow Speed", "Change rainbow speed.", Configs.Generic.BLOCK_ESP_RAINBOW_SPEED, ControlKind.NUMBER)
         ));
-        if (SPEED_GRAPH_AVAILABLE)
         {
             this.sections.add(SettingsSection.speedGraph(
                     new SettingRow("Speed Graph", "Show the live speed graph.", FeatureToggle.MMM_HUD_SPEED_GRAPH, ControlKind.BOOLEAN),
@@ -1210,6 +1220,7 @@ public class MmmSettingsScreen extends CompatScreen
         GENERAL("General"),
         SYNC("Sync"),
         NOTIFICATIONS("Notifications"),
+        SOCIAL("Social"),
         HUD("HUD"),
         COLORS("Colors"),
         VISUALS("Visuals"),
@@ -1323,6 +1334,11 @@ public class MmmSettingsScreen extends CompatScreen
         private static SettingsSection notifications(SettingRow... rows)
         {
             return new SettingsSection(SidebarItem.NOTIFICATIONS, "GOALS & NOTIFICATIONS", "Set your goal and milestone alerts.", List.of(rows));
+        }
+
+        private static SettingsSection social(SettingRow... rows)
+        {
+            return new SettingsSection(SidebarItem.SOCIAL, "SOCIAL", "Manage MMM chat, milestones, and active diggers.", List.of(rows));
         }
 
         private static SettingsSection hud(SettingRow... rows)

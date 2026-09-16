@@ -24,6 +24,10 @@ public abstract class MmmPressableWidgetMixin
         }
 
         AbstractButton button = (AbstractButton) (Object) this;
+        if (button instanceof com.mmm.ui.CollectionSlotButton || button instanceof com.mmm.ui.InventoryCollectionButton)
+        {
+            return;
+        }
         boolean highlighted = button.isHovered() || button.isFocused();
         int fill = button.active ? (highlighted ? MmmUi.accentHover() : MmmUi.INSET) : MmmUi.CARD;
         int border = button.active && highlighted ? MmmUi.accent() : MmmUi.BORDER_SOFT;

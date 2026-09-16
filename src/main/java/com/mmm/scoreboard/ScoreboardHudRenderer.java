@@ -99,16 +99,22 @@ public final class ScoreboardHudRenderer
             return cachedLayout;
         }
 
-        List<PlayerScoreEntry> sortedEntries = ScoreboardService.getSortedEntries(objective);
-        int pageSize = Configs.Generic.SCOREBOARD_MAX_ENTRIES.getIntegerValue();
-        ScoreboardState.clampPage(sortedEntries.size(), Math.max(1, pageSize));
-        int from = pageSize <= 0 ? 0 : Math.min(ScoreboardState.getPageOffset(), sortedEntries.size());
-        int to = pageSize <= 0 ? 0 : Math.min(sortedEntries.size(), from + pageSize);
-        List<ScoreboardService.RenderEntry> entries = ScoreboardService.getRenderEntries(
-                objective, sortedEntries, from, to);
+        List<ScoreboardService.RenderEntry> entries;
+        Component title;
+        if (com.mmm.leaderboard.LeaderboardSidebar.enabled()) {
+            entries = com.mmm.leaderboard.LeaderboardSidebar.entries();
+            title = com.mmm.leaderboard.LeaderboardSidebar.title();
+        } else {
+            List<PlayerScoreEntry> sortedEntries = ScoreboardService.getSortedEntries(objective);
+            int pageSize = Configs.Generic.SCOREBOARD_MAX_ENTRIES.getIntegerValue();
+            ScoreboardState.clampPage(sortedEntries.size(), Math.max(1, pageSize));
+            int from = pageSize <= 0 ? 0 : Math.min(ScoreboardState.getPageOffset(), sortedEntries.size());
+            int to = pageSize <= 0 ? 0 : Math.min(sortedEntries.size(), from + pageSize);
+            entries = ScoreboardService.getRenderEntries(objective, sortedEntries, from, to);
+            title = objective.getDisplayName();
+        }
 
         Font renderer = client.font;
-        Component title = objective.getDisplayName();
         int separatorWidth = renderer.width(": ");
         int contentWidth = renderer.width(title);
         for (ScoreboardService.RenderEntry entry : entries)
@@ -123,6 +129,9 @@ public final class ScoreboardHudRenderer
         int titleHeight = rowHeight + 2;
         int panelHeight = titleHeight + entries.size() * rowHeight + 2;
         float scale = (float) Math.max(0.5D, Math.min(2.0D, Configs.Generic.SCOREBOARD_SCALE.getDoubleValue()));
+        if (com.mmm.leaderboard.LeaderboardSidebar.enabled())
+            scale = Math.min(scale, Math.min(Math.max(1, currentScreenWidth - 6) / (float) panelWidth,
+                    Math.max(1, currentScreenHeight - 6) / (float) panelHeight));
         int scaledPanelWidth = Math.round(panelWidth * scale);
         int scaledPanelHeight = Math.round(panelHeight * scale);
         int screenWidth = currentScreenWidth;

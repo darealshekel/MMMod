@@ -117,7 +117,7 @@ public final class GoalNotificationManager
             {
                 stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
             }
-            client.execute(() -> client.gameRenderer.displayItemActivation(stack));
+            client.execute(() -> { if (client.player != null) client.gameRenderer.displayItemActivation(stack); });
         }
     }
 

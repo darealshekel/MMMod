@@ -2,6 +2,7 @@ package com.mmm.mixin;
 
 import java.util.Locale;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.PlayerTabOverlay;
 import net.minecraft.client.multiplayer.PlayerInfo;
@@ -11,8 +12,12 @@ import net.minecraft.network.chat.numbers.NumberFormat;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.ReadOnlyScoreInfo;
 import net.minecraft.world.scores.Scoreboard;
+import java.util.ArrayList;
+import java.util.List;
+
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
+import com.mmm.social.ActiveDiggerManager;
 import com.mmm.tracker.MiningStats;
 import com.mmm.tags.TierTagManager;
 import com.mmm.util.UiFormat;
@@ -31,15 +36,22 @@ public abstract class PlayerListHudMixin
     @Shadow private Component footer;
 
     @Unique private Component mmm$originalFooter;
-    @Unique private boolean mmm$goalFooterAdded;
+    @Unique private boolean mmm$footerDecorated;
 
     @Inject(method = "getNameForDisplay", at = @At("RETURN"), cancellable = true)
     private void mmm$applyTierNameTag(PlayerInfo entry, CallbackInfoReturnable<Component> cir)
     {
-        MutableComponent decorated = TierTagManager.decorateName(entry.getProfile().name(), cir.getReturnValue());
-        if (decorated != null)
+        Component original = cir.getReturnValue();
+        MutableComponent tierDecorated = TierTagManager.decorateName(entry.getProfile().name(), original);
+        Component displayed = tierDecorated == null ? original : tierDecorated;
+        MutableComponent activeDecorated = ActiveDiggerManager.decorateName(entry.getProfile().name(), displayed);
+        if (activeDecorated != null)
         {
-            cir.setReturnValue(decorated);
+            cir.setReturnValue(activeDecorated);
+        }
+        else if (tierDecorated != null)
+        {
+            cir.setReturnValue(tierDecorated);
         }
     }
 
@@ -79,40 +91,77 @@ public abstract class PlayerListHudMixin
     @Inject(method = "extractRenderState", at = @At("HEAD"))
     private void mmm$addDailyGoalToPlayerList(GuiGraphicsExtractor context, int scaledWindowWidth, Scoreboard scoreboard, Objective objective, CallbackInfo ci)
     {
-        if (!FeatureToggle.MMM_MINING_TRACKER.getBooleanValue()
-                || !FeatureToggle.MMM_DAILY_GOAL.getBooleanValue())
+        MutableComponent extraFooter = Component.empty();
+        boolean hasExtraFooter = false;
+        List<String> localPlayerNames = new ArrayList<>();
+        if (Minecraft.getInstance().getConnection() != null)
+        {
+            for (PlayerInfo entry : Minecraft.getInstance().getConnection().getOnlinePlayers())
+            {
+                localPlayerNames.add(entry.getProfile().name());
+            }
+        }
+        List<String> remoteDiggers = ActiveDiggerManager.visibleRemoteDiggers(localPlayerNames);
+        if (!remoteDiggers.isEmpty())
+        {
+            extraFooter.append(Component.literal("Active Diggers").withStyle(ChatFormatting.GRAY));
+            for (int index = 0; index < remoteDiggers.size(); index++)
+            {
+                if (index % 4 == 0)
+                {
+                    extraFooter.append(Component.literal("\n"));
+                }
+                else
+                {
+                    extraFooter.append(Component.literal("   "));
+                }
+                extraFooter.append(Component.literal("\u26CF").withStyle(style -> style.withColor(0xE00000)))
+                        .append(Component.literal(" " + remoteDiggers.get(index)).withStyle(ChatFormatting.WHITE));
+            }
+            hasExtraFooter = true;
+        }
+
+        if (FeatureToggle.MMM_MINING_TRACKER.getBooleanValue()
+                && FeatureToggle.MMM_DAILY_GOAL.getBooleanValue())
+        {
+            MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
+            if (progress.enabled())
+            {
+                String value = String.format(Locale.US, "%,d/%,d", Math.max(0L, progress.current()), Math.max(0L, progress.target()));
+                int goalColor = UiFormat.getGoalProgressColor(progress) & 0x00FFFFFF;
+                MutableComponent goalLine = Component.literal("Daily Goal: ").withStyle(ChatFormatting.GRAY)
+                        .append(Component.literal(value).withStyle(ChatFormatting.WHITE))
+                        .append(Component.literal("  " + UiFormat.formatGoalPercent(progress))
+                                .withStyle(style -> style.withColor(goalColor)));
+                if (hasExtraFooter)
+                {
+                    extraFooter.append(Component.literal("\n"));
+                }
+                extraFooter.append(goalLine);
+                hasExtraFooter = true;
+            }
+        }
+
+        if (!hasExtraFooter)
         {
             return;
         }
-
-        MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
-        if (!progress.enabled())
-        {
-            return;
-        }
-
-        String value = String.format(Locale.US, "%,d/%,d", Math.max(0L, progress.current()), Math.max(0L, progress.target()));
-        int goalColor = UiFormat.getGoalProgressColor(progress) & 0x00FFFFFF;
-        MutableComponent goalLine = Component.literal("Daily Goal: ").withStyle(ChatFormatting.GRAY)
-                .append(Component.literal(value).withStyle(ChatFormatting.WHITE))
-                .append(Component.literal("  " + UiFormat.formatGoalPercent(progress))
-                        .withStyle(style -> style.withColor(goalColor)));
 
         this.mmm$originalFooter = this.footer;
         this.footer = this.mmm$originalFooter == null
-                ? goalLine
-                : Component.empty().append(this.mmm$originalFooter).append(Component.literal("\n")).append(goalLine);
-        this.mmm$goalFooterAdded = true;
+                ? extraFooter
+                : Component.empty().append(this.mmm$originalFooter).append(Component.literal("\n")).append(extraFooter);
+        this.mmm$footerDecorated = true;
     }
 
     @Inject(method = "extractRenderState", at = @At("RETURN"))
     private void mmm$restorePlayerListHeader(GuiGraphicsExtractor context, int scaledWindowWidth, Scoreboard scoreboard, Objective objective, CallbackInfo ci)
     {
-        if (this.mmm$goalFooterAdded)
+        if (this.mmm$footerDecorated)
         {
             this.footer = this.mmm$originalFooter;
             this.mmm$originalFooter = null;
-            this.mmm$goalFooterAdded = false;
+            this.mmm$footerDecorated = false;
         }
     }
 }

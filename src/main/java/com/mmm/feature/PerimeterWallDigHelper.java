@@ -27,8 +27,9 @@ public final class PerimeterWallDigHelper
             return false;
         }
 
-        ClientLevel world = Minecraft.getInstance().level;
-        if (world == null)
+        Minecraft client = Minecraft.getInstance();
+        ClientLevel world = client.level;
+        if (client.player == null || client.player.isShiftKeyDown() || world == null)
         {
             return false;
         }

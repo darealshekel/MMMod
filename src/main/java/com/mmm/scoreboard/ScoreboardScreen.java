@@ -55,6 +55,8 @@ public final class ScoreboardScreen extends CompatScreen
         this.sections.clear();
 
         this.sections.add(new Section("DISPLAY", "Choose what the sidebar shows.", List.of(
+                this.toggle("MMM Leaderboard", "Replace the server sidebar with website rankings; sync stays unchanged.", Configs.Generic.MMM_LEADERBOARD_SIDEBAR),
+                this.action("Choose Leaderboard", "Choose a ranking or block, then press Use.", () -> this.minecraft.gui.setScreen(new com.mmm.ui.LeaderboardScreen(this, true))),
                 this.toggle("Show Scoreboard", "Hide or show the whole sidebar.", Configs.Generic.SCOREBOARD_VISIBLE),
                 this.toggle("Show Scores", "Show numbers beside each name.", Configs.Generic.SCOREBOARD_SCORES_VISIBLE),
                 this.toggle("Score Commas", "Display 100,000 instead of 100000.", Configs.Generic.SCOREBOARD_SCORE_COMMAS),
@@ -65,7 +67,7 @@ public final class ScoreboardScreen extends CompatScreen
 
         this.sections.add(new Section("LAYOUT", "Control row order, size, and position.", List.of(
                 this.action("Move Scoreboard", "Drag and resize the live sidebar.", () -> this.minecraft.gui.setScreen(new ScoreboardMoveScreen(this))),
-                this.option("Sort Rows", "Sort by score or player name.", Configs.Generic.SCOREBOARD_SORTING),
+                this.option("Sort Rows", "Sort server rows; MMM rankings keep website rank order.", Configs.Generic.SCOREBOARD_SORTING),
                 this.slider("Rows Per Page", "Maximum rows visible at once.", Configs.Generic.SCOREBOARD_MAX_ENTRIES, ValueStyle.INTEGER),
                 this.option("Position", "Anchor the sidebar to either side.", Configs.Generic.SCOREBOARD_POSITION),
                 this.slider("Vertical Offset", "Fine-tune the sidebar height.", Configs.Generic.SCOREBOARD_Y_OFFSET, ValueStyle.SIGNED),
@@ -80,7 +82,7 @@ public final class ScoreboardScreen extends CompatScreen
         this.sections.add(new Section("CHAT", "Optional team-chat shortcut.", List.of(
                 this.toggle("Team Chat by Default", "Normal messages use /teammsg; # sends public chat.", Configs.Generic.SCOREBOARD_DEFAULT_TEAM_CHAT))));
 
-        this.sections.add(new Section("TOOLS", "Work with the scoreboard currently on screen.", List.of(
+        this.sections.add(new Section("TOOLS", "Exports and edits apply to the server scoreboard.", List.of(
                 this.action("Previous Page", "Move back through long scoreboards.", this::previousPage),
                 this.action("Next Page", "Move forward through long scoreboards.", this::nextPage),
                 this.action("Export Current", "Save this objective as a CSV file.", this::exportCurrent),
@@ -114,7 +116,7 @@ public final class ScoreboardScreen extends CompatScreen
     {
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
         MmmUi.drawTextWithin(context, this.font, "SCOREBOARD", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.font, "Tune the vanilla sidebar and work with its live data.", x, y + 16, width, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.font, "Server scoreboard or MMM website rankings.", x, y + 16, width, MmmUi.MUTED, false);
         y += 46;
 
         boolean twoColumns = width >= TWO_COLUMN_MIN_WIDTH;

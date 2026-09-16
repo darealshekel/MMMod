@@ -136,6 +136,7 @@ public final class MiningStats
         MiningCalendarStore.flush();
         currentSession.endTimeMs = now - pausedAccumulatedMs;
         currentSession.wallDurationMs = Math.max(0L, now - currentSession.startTimeMs);
+        currentSession.captureBestHourBlocks(MmmTimerState.getBestHourBlocks());
         if (wasActive && shouldPersistSession(currentSession))
         {
             SessionHistory.save(currentSession);
@@ -165,6 +166,11 @@ public final class MiningStats
     }
 
     public static void recordBlockMined(Block block, BlockPos pos, BlockState previousState)
+    {
+        recordBlockMined(block, pos, previousState, false);
+    }
+
+    public static void recordBlockMined(Block block, BlockPos pos, BlockState previousState, boolean nonInstant)
     {
         long now = System.currentTimeMillis();
         if (BlockBreakdownCatalog.isValid(block) == false)
@@ -197,7 +203,11 @@ public final class MiningStats
         // mining scoreboard is seen in this world, World Total and sync stay pinned
         // to that scoreboard instead of exposing this local prediction.
         Configs.totalBlocksMined++;
+        com.mmm.sync.RankOvertakeClient.onAcceptedBlock();
         Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
+        if (block != null) LiveCollections.mined(BlockBreakdownCatalog.blockId(block));
+        if (nonInstant && block == net.minecraft.world.level.block.Blocks.DEEPSLATE)
+            LiveCollections.nonInstantDeepslate(WorldSessionContext.getCurrentWorldId());
         worldStats.totalBlocks++;
         if (worldStats.scoreboardTotalUpdatedAtMs > 0L)
         {
@@ -232,6 +242,7 @@ public final class MiningStats
             currentSession.endTimeMs = now - pausedAccumulatedMs;
             currentSession.wallDurationMs = Math.max(0L, now - currentSession.startTimeMs);
             currentSession.recordMineEvent(getActiveElapsedMs(now));
+            currentSession.captureBestHourBlocks(MmmTimerState.getBestHourBlocks());
             recordFastest100kIfReached(now);
 
             if (lastMineMs == 0L || now - lastMineMs > STREAK_GAP_MS)
@@ -370,6 +381,15 @@ public final class MiningStats
     public static boolean isSessionPaused()
     {
         return sessionActive && sessionPaused;
+    }
+
+    public static boolean isActivelyMining()
+    {
+        long now = System.currentTimeMillis();
+        return sessionActive
+                && !sessionPaused
+                && lastValidBlockMineMs > 0L
+                && now - lastValidBlockMineMs <= 45_000L;
     }
 
     private static void updateMenuPauseState(Minecraft client, long now)
@@ -876,6 +896,7 @@ public final class MiningStats
         long now = sessionPaused ? pausedAtMs : System.currentTimeMillis();
         currentSession.endTimeMs = now - pausedAccumulatedMs;
         currentSession.wallDurationMs = Math.max(0L, System.currentTimeMillis() - currentSession.startTimeMs);
+        currentSession.captureBestHourBlocks(MmmTimerState.getBestHourBlocks());
         return currentSession;
     }
 
@@ -978,7 +999,7 @@ public final class MiningStats
                 "minecraft:tuff",
                 "minecraft:stone",
                 "minecraft:gravel",
-                "minecraft:diorite",
+                "minecraft:granite",
                 "minecraft:andesite",
                 "minecraft:deepslate_redstone_ore",
                 "minecraft:deepslate_diamond_ore"

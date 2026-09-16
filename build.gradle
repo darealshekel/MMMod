@@ -54,3 +54,22 @@ java {
     sourceCompatibility = JavaVersion.VERSION_25
     targetCompatibility = JavaVersion.VERSION_25
 }
+
+// Isolated in-game verification; test classes are not packaged in release jars.
+if (project.hasProperty('smokeTest')) {
+    sourceSets {
+        smoke {
+            compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+            runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+        }
+    }
+    loom.mods {
+        smoke { sourceSet sourceSets.smoke }
+    }
+    tasks.named('runClient') {
+        dependsOn tasks.named('smokeClasses')
+        classpath += sourceSets.smoke.output
+        environment 'APPDATA', file('build/smoke-appdata').absolutePath
+        jvmArgs '-Duser.home=' + file('build/smoke-home').absolutePath
+    }
+}

@@ -57,6 +57,16 @@ public final class SharedStoragePaths
         return root().resolve("mining-calendar").resolve(safePlayerKey + ".json");
     }
 
+    public static Path advancementFile(String playerKey)
+    {
+        String safePlayerKey = playerKey == null ? "unlinked" : playerKey.trim().toLowerCase().replaceAll("[^a-z0-9-]", "");
+        if (safePlayerKey.isBlank())
+        {
+            safePlayerKey = "unlinked";
+        }
+        return root().resolve("advancements").resolve(safePlayerKey + ".json");
+    }
+
     public static Path goalSoundsDir()
     {
         return root().resolve("goal-sounds");

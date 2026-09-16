@@ -13,6 +13,7 @@ import net.minecraft.network.chat.Component;
 import com.mmm.config.Configs;
 import com.mmm.scoreboard.ScoreboardService;
 import com.mmm.scoreboard.ScoreboardState;
+import com.mmm.social.MmmChatIgnoreList;
 
 public final class MmmClientCommands
 {
@@ -24,7 +25,23 @@ public final class MmmClientCommands
     {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(ClientCommands.literal("mmm")
+                    .then(ClientCommands.literal("leaderboard").executes(context -> {
+                        var client = net.minecraft.client.Minecraft.getInstance();
+                        client.schedule(() -> client.gui.setScreen(new com.mmm.ui.LeaderboardScreen(null)));
+                        return 1;
+                    }))
                     .then(buildTimerCommand())
+                    .then(ClientCommands.literal("collections").executes(context -> {
+                        var client = net.minecraft.client.Minecraft.getInstance();
+                        client.schedule(() -> client.gui.setScreen(new com.mmm.ui.CollectionBookScreen(null)));
+                        return 1;
+                    }))
+                    .then(ClientCommands.literal("efficiency").executes(context -> {
+                        var client = net.minecraft.client.Minecraft.getInstance();
+                        client.schedule(() -> client.gui.setScreen(new com.mmm.hud.SummaryScreen(com.mmm.tracker.MiningStats.getCurrentSession(), null)));
+                        return 1;
+                    }))
+                    .then(buildChatCommand())
                     .then(buildScoreboardCommand()));
             dispatcher.register(ClientCommands.literal("sbhelper")
                     .then(ClientCommands.literal("maxDisplayCount")
@@ -32,6 +49,55 @@ public final class MmmClientCommands
                                     .executes(context -> setScoreboardRows(context,
                                             IntegerArgumentType.getInteger(context, "count"))))));
         });
+    }
+
+    private static LiteralArgumentBuilder<FabricClientCommandSource> buildChatCommand()
+    {
+        return ClientCommands.literal("chat")
+                .then(ClientCommands.literal("ignore")
+                        .then(ClientCommands.argument("player", StringArgumentType.word())
+                                .executes(context -> ignorePlayer(context, StringArgumentType.getString(context, "player")))))
+                .then(ClientCommands.literal("unignore")
+                        .then(ClientCommands.argument("player", StringArgumentType.word())
+                                .executes(context -> unignorePlayer(context, StringArgumentType.getString(context, "player")))))
+                .then(ClientCommands.literal("ignored")
+                        .executes(MmmClientCommands::showIgnoredPlayers));
+    }
+
+    private static int ignorePlayer(CommandContext<FabricClientCommandSource> context, String username)
+    {
+        if (!MmmChatIgnoreList.isValidUsername(username))
+        {
+            feedback(context, ChatFormatting.RED, "Enter a valid Minecraft username.");
+            return 0;
+        }
+        if (!MmmChatIgnoreList.add(username))
+        {
+            feedback(context, ChatFormatting.YELLOW, username + " is already ignored.");
+            return 0;
+        }
+        feedback(context, ChatFormatting.GREEN, "Ignoring MMM messages from " + username + ".");
+        return 1;
+    }
+
+    private static int unignorePlayer(CommandContext<FabricClientCommandSource> context, String username)
+    {
+        if (!MmmChatIgnoreList.remove(username))
+        {
+            feedback(context, ChatFormatting.YELLOW, username + " is not ignored.");
+            return 0;
+        }
+        feedback(context, ChatFormatting.GREEN, "Showing MMM messages from " + username + " again.");
+        return 1;
+    }
+
+    private static int showIgnoredPlayers(CommandContext<FabricClientCommandSource> context)
+    {
+        var ignored = MmmChatIgnoreList.entries();
+        feedback(context, ChatFormatting.YELLOW, ignored.isEmpty()
+                ? "No MMM players are ignored."
+                : "Ignored MMM players: " + String.join(", ", ignored));
+        return 1;
     }
 
     private static LiteralArgumentBuilder<FabricClientCommandSource> buildScoreboardCommand()

@@ -142,11 +142,13 @@ public final class ScoreboardService
 
     public static boolean pageUp()
     {
+        if (com.mmm.leaderboard.LeaderboardSidebar.enabled()) return com.mmm.leaderboard.LeaderboardSidebar.changePage(false);
         return ScoreboardState.pageUp(Configs.Generic.SCOREBOARD_MAX_ENTRIES.getIntegerValue());
     }
 
     public static boolean pageDown()
     {
+        if (com.mmm.leaderboard.LeaderboardSidebar.enabled()) return com.mmm.leaderboard.LeaderboardSidebar.changePage(true);
         if (Configs.Generic.SCOREBOARD_MAX_ENTRIES.getIntegerValue() <= 0)
         {
             return false;

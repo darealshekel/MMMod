@@ -1,12 +1,8 @@
 .gradle/
 build/
 run/
-.aider*
-gradle/
-gradlew
-gradlew.bat
-.codex/
-.claude/
-.planning/
-CLAUDE.md
-AGENTS.md
+logs/
+*.log
+hs_err_pid*
+.idea/
+*.iml

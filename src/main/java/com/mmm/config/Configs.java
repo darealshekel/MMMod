@@ -101,9 +101,14 @@ public class Configs
         public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", false, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
         public static final ConfigBoolean GOAL_PICKAXE_ANIMATION = new ConfigBoolean("goalPickaxeAnimation", true, "Show a pickaxe animation at each main daily-goal milestone.");
-        public static final ConfigBoolean SHARE_GOAL_MILESTONES = new ConfigBoolean("shareGoalMilestones", true, "Share goal milestones with linked MMM players on this server.");
-        public static final ConfigBoolean RECEIVE_GOAL_MILESTONES = new ConfigBoolean("receiveGoalMilestones", true, "Show goal milestones from linked MMM players on this server.");
+        public static final ConfigBoolean SHARE_GOAL_MILESTONES = new ConfigBoolean("shareGoalMilestones", true, "Share daily-goal milestones with linked MMM players.");
+        public static final ConfigBoolean SHARE_COLLECTION_MILESTONES = new ConfigBoolean("shareCollectionMilestones", true, "Share newly completed collection tiers in MMM chat.");
+        public static final ConfigBoolean RECEIVE_GOAL_MILESTONES = new ConfigBoolean("receiveGoalMilestones", true, "Show daily-goal milestones from linked MMM players.");
         public static final ConfigBoolean SHOW_MMM_CHAT_MESSAGES = new ConfigBoolean("showMmmChatMessages", true, "Show messages from linked MMM players in Minecraft chat.");
+        public static final ConfigBoolean CENSOR_MMM_CHAT = new ConfigBoolean("censorMmmChat", true, "Hide slurs in MMM chat messages.");
+        public static final ConfigStringList MMM_CHAT_IGNORED_PLAYERS = new ConfigStringList("mmmChatIgnoredPlayers", ImmutableList.of(), "Minecraft players hidden from MMM chat and milestone messages.");
+        public static final ConfigBoolean SHOW_ACTIVE_DIGGERS = new ConfigBoolean("showActiveDiggers", true, "Mark active MMM miners in the player list.");
+        public static final ConfigBoolean ACTIVE_DIGGERS_FRIENDS_ONLY = new ConfigBoolean("activeDiggersFriendsOnly", false, "Only mark active miners from your MMM friends list.");
         public static final ConfigInteger HUD_X = new ConfigInteger("hudX", 4, 0, 820, "Mining HUD horizontal position.");
         public static final ConfigInteger HUD_Y = new ConfigInteger("hudY", 4, 0, 460, "Mining HUD vertical position.");
         public static final ConfigOptionList HUD_ALIGNMENT = new ConfigOptionList("hudAlignment", HudAlignment.TOP_LEFT, "Mining HUD alignment anchor.");
@@ -112,6 +117,7 @@ public class Configs
         public static final ConfigBoolean HUD_TEXT_SHADOW = new ConfigBoolean("hudTextShadow", true, "Add a dark pixel shadow behind HUD text.");
         public static final ConfigBoolean HUD_TITLE_VISIBLE = new ConfigBoolean("hudTitleVisible", true, "Show the MMM title and sync status.");
         public static final ConfigBoolean HUD_GLOBAL_TOTAL_VISIBLE = new ConfigBoolean("hudGlobalTotalVisible", true, "Show your combined website total.");
+        public static final ConfigBoolean HUD_RANK_OVERTAKE_VISIBLE = new ConfigBoolean("hudRankOvertakeVisible", false, "Estimate active mining time to the next manual rank using the HUD Blocks/hr rate and your projected total.");
         public static final ConfigBoolean HUD_WORLD_TOTAL_VISIBLE = new ConfigBoolean("hudWorldTotalVisible", true, "Show the current source total.");
         public static final ConfigBoolean HUD_SESSION_TOTAL_VISIBLE = new ConfigBoolean("hudSessionTotalVisible", true, "Show blocks mined in the current session.");
         public static final ConfigBoolean HUD_DAILY_WEEK_VISIBLE = new ConfigBoolean("hudDailyWeekVisible", true, "Show today's and this week's blocks.");
@@ -163,6 +169,7 @@ public class Configs
         public static final ConfigBoolean TRANSLUCENT_LAVA = new ConfigBoolean("translucentLava", false, "Make lava transparent enough to see through.");
         public static final ConfigInteger LAVA_OPACITY = new ConfigInteger("lavaOpacity", 45, 10, 100, "How visible lava is while Translucent Lava is enabled.");
         public static final ConfigBoolean SCOREBOARD_VISIBLE = new ConfigBoolean("scoreboardVisible", true, "Show the sidebar scoreboard.");
+        public static final ConfigBoolean MMM_LEADERBOARD_SIDEBAR = new ConfigBoolean("mmmLeaderboardSidebar", false, "Replace the sidebar with a selected MMM leaderboard. Does not change source sync.");
         public static final ConfigBoolean SCOREBOARD_SCORES_VISIBLE = new ConfigBoolean("scoreboardScoresVisible", true, "Show score values beside player names.");
         public static final ConfigBoolean SCOREBOARD_SCORE_COMMAS = new ConfigBoolean("scoreboardScoreCommas", true, "Format scores with thousands separators.");
         public static final ConfigBoolean SCOREBOARD_TAB_LIST_COMMAS = new ConfigBoolean("scoreboardTabListCommas", true, "Format player-list scores with thousands separators.");
@@ -202,8 +209,13 @@ public class Configs
                 DAILY_GOAL,
                 GOAL_PICKAXE_ANIMATION,
                 SHARE_GOAL_MILESTONES,
+                SHARE_COLLECTION_MILESTONES,
                 RECEIVE_GOAL_MILESTONES,
                 SHOW_MMM_CHAT_MESSAGES,
+                CENSOR_MMM_CHAT,
+                MMM_CHAT_IGNORED_PLAYERS,
+                SHOW_ACTIVE_DIGGERS,
+                ACTIVE_DIGGERS_FRIENDS_ONLY,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
@@ -212,6 +224,7 @@ public class Configs
                 HUD_TEXT_SHADOW,
                 HUD_TITLE_VISIBLE,
                 HUD_GLOBAL_TOTAL_VISIBLE,
+                HUD_RANK_OVERTAKE_VISIBLE,
                 HUD_WORLD_TOTAL_VISIBLE,
                 HUD_SESSION_TOTAL_VISIBLE,
                 HUD_DAILY_WEEK_VISIBLE,
@@ -277,6 +290,7 @@ public class Configs
         );
 
         public static final ImmutableList<IConfigBase> SCOREBOARD_OPTIONS = ImmutableList.of(
+                MMM_LEADERBOARD_SIDEBAR,
                 SCOREBOARD_VISIBLE,
                 SCOREBOARD_SCORES_VISIBLE,
                 SCOREBOARD_SCORE_COMMAS,
@@ -306,8 +320,13 @@ public class Configs
                 DAILY_GOAL,
                 GOAL_PICKAXE_ANIMATION,
                 SHARE_GOAL_MILESTONES,
+                SHARE_COLLECTION_MILESTONES,
                 RECEIVE_GOAL_MILESTONES,
                 SHOW_MMM_CHAT_MESSAGES,
+                CENSOR_MMM_CHAT,
+                MMM_CHAT_IGNORED_PLAYERS,
+                SHOW_ACTIVE_DIGGERS,
+                ACTIVE_DIGGERS_FRIENDS_ONLY,
                 HUD_X,
                 HUD_Y,
                 HUD_ALIGNMENT,
@@ -316,6 +335,7 @@ public class Configs
                 HUD_TEXT_SHADOW,
                 HUD_TITLE_VISIBLE,
                 HUD_GLOBAL_TOTAL_VISIBLE,
+                HUD_RANK_OVERTAKE_VISIBLE,
                 HUD_WORLD_TOTAL_VISIBLE,
                 HUD_SESSION_TOTAL_VISIBLE,
                 HUD_DAILY_WEEK_VISIBLE,
@@ -366,6 +386,7 @@ public class Configs
                 BREAKING_INDICATOR_END_HEX_COLOR,
                 TRANSLUCENT_LAVA,
                 LAVA_OPACITY,
+                MMM_LEADERBOARD_SIDEBAR,
                 SCOREBOARD_VISIBLE,
                 SCOREBOARD_SCORES_VISIBLE,
                 SCOREBOARD_SCORE_COMMAS,
@@ -420,6 +441,13 @@ public class Configs
     public static long fastest100kStartedAtMs = 0L;
     public static long fastest100kFinishedAtMs = 0L;
     public static String activeProjectId = "";
+    public static String pinnedCollectionBlock = "";
+    public static String collectionLiveState = "{}";
+    public static String sidebarLeaderboardKind = "PLAYERS";
+    public static String sidebarLeaderboardBlock = "minecraft:stone";
+    public static String pinnedCollectionWorld = "";
+    public static String pinnedCollectionWorldName = "";
+    public static String pinnedCollectionPlayer = "";
     public static String cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
     public static String cloudSyncSecret = "";
     public static String cloudClientId = "";
@@ -962,6 +990,13 @@ public class Configs
             fastest100kStartedAtMs = readLong(state, "fastest100kStartedAtMs", fastest100kStartedAtMs, "config State");
             fastest100kFinishedAtMs = readLong(state, "fastest100kFinishedAtMs", fastest100kFinishedAtMs, "config State");
             activeProjectId = readString(state, "activeProjectId", activeProjectId, "config State");
+            pinnedCollectionBlock = readString(state, "pinnedCollectionBlock", "", "config State");
+            collectionLiveState = readString(state, "collectionLiveState", "{}", "config State");
+            sidebarLeaderboardKind = readString(state, "sidebarLeaderboardKind", "PLAYERS", "config State");
+            sidebarLeaderboardBlock = readString(state, "sidebarLeaderboardBlock", "minecraft:stone", "config State");
+            pinnedCollectionWorld = readString(state, "pinnedCollectionWorld", "", "config State");
+            pinnedCollectionWorldName = readString(state, "pinnedCollectionWorldName", "", "config State");
+            pinnedCollectionPlayer = readString(state, "pinnedCollectionPlayer", "", "config State");
             Generic.WEBSITE_SYNC_ENABLED.setBooleanValue(readBoolean(state, "cloudSyncEnabled", Generic.WEBSITE_SYNC_ENABLED.getBooleanValue(), "config State"));
             cloudSyncEndpoint = readString(state, "cloudSyncEndpoint", cloudSyncEndpoint, "config State");
             cloudSyncSecret = readString(state, "cloudSyncSecret", cloudSyncSecret, "config State");
@@ -1293,6 +1328,13 @@ public class Configs
         state.addProperty("fastest100kStartedAtMs", fastest100kStartedAtMs);
         state.addProperty("fastest100kFinishedAtMs", fastest100kFinishedAtMs);
         state.addProperty("activeProjectId", activeProjectId == null ? "" : activeProjectId);
+        state.addProperty("pinnedCollectionBlock", pinnedCollectionBlock);
+        state.addProperty("collectionLiveState", collectionLiveState);
+        state.addProperty("sidebarLeaderboardKind", sidebarLeaderboardKind);
+        state.addProperty("sidebarLeaderboardBlock", sidebarLeaderboardBlock);
+        state.addProperty("pinnedCollectionWorld", pinnedCollectionWorld);
+        state.addProperty("pinnedCollectionWorldName", pinnedCollectionWorldName);
+        state.addProperty("pinnedCollectionPlayer", pinnedCollectionPlayer);
         state.addProperty("cloudSyncEnabled", Generic.WEBSITE_SYNC_ENABLED.getBooleanValue());
         state.addProperty("cloudSyncEndpoint", cloudSyncEndpoint == null ? DEFAULT_CLOUD_SYNC_ENDPOINT : cloudSyncEndpoint);
         state.addProperty("cloudSyncSecret", cloudSyncSecret == null ? "" : cloudSyncSecret);
