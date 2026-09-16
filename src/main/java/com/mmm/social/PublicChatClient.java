@@ -171,6 +171,32 @@ public final class PublicChatClient
         }
     }
 
+    public static java.util.concurrent.CompletableFuture<Boolean> sendCollectionMessage(String message)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.player == null || !WebsiteLinkManager.isCurrentPlayerLinked() || sending
+                || message.isBlank() || message.length() > MAX_MESSAGE_LENGTH)
+            return java.util.concurrent.CompletableFuture.completedFuture(false);
+        JsonObject payload = new JsonObject();
+        payload.addProperty("minecraftUuid", client.player.getUuidAsString());
+        payload.addProperty("clientId", Configs.cloudClientId);
+        payload.addProperty("message", message);
+        try {
+            sending = true;
+            return HTTP_CLIENT.sendAsync(jsonRequest("/chat", payload), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                    .thenApply(response -> {
+                        if (response.statusCode() >= 400) return false;
+                        JsonObject body = JsonParser.parseString(response.body()).getAsJsonObject();
+                        if (!body.has("ok") || !body.get("ok").getAsBoolean() || !body.has("event")) return false;
+                        handleChatEvent(body.getAsJsonObject("event"));
+                        return true;
+                    }).whenComplete((ok, error) -> sending = false);
+        } catch (RuntimeException error) {
+            sending = false;
+            return java.util.concurrent.CompletableFuture.completedFuture(false);
+        }
+    }
+
     public static void publishMilestone(int threshold, MiningStats.GoalProgress progress)
     {
         MinecraftClient client = MinecraftClient.getInstance();

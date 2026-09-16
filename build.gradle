@@ -72,5 +72,7 @@ if (project.hasProperty('smokeTest')) {
         classpath += sourceSets.smoke.output
         environment 'APPDATA', file('build/smoke-appdata').absolutePath
         jvmArgs '-Duser.home=' + file('build/smoke-home').absolutePath
+        if (project.hasProperty('leaderboardSmoke')) jvmArgs '-Dmmm.leaderboardSmoke=true'
+        if (project.hasProperty('miningFeaturesSmoke')) jvmArgs '-Dmmm.miningFeaturesSmoke=true'
     }
 }

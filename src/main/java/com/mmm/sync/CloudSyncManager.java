@@ -1027,6 +1027,7 @@ public final class CloudSyncManager
     {
         applySyncResponse(responseBody);
         WebsiteProfileTotals.refresh(true);
+        RankOvertakeClient.onWebsiteSync();
         long cadenceAnchorMs = sourceSyncCadenceAnchor(responseBody);
         String sourceKey = payloadSourceKey(payload);
         if (cadenceAnchorMs > 0L && sourceKey.isBlank() == false)

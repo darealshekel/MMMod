@@ -395,6 +395,7 @@ public final class MmmUi
             case HISTORY -> client.setScreen(new SessionHistoryScreen(routeParent));
             case SUMMARY -> client.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), routeParent));
             case SCOREBOARD -> client.setScreen(new ScoreboardScreen(routeParent));
+            case LEADERBOARDS -> client.setScreen(new LeaderboardScreen(routeParent));
         }
     }
 
@@ -425,7 +426,8 @@ public final class MmmUi
         WEBSITE_LINK("WEBSITE_LINK", "Website Link", "Link"),
         HISTORY("HISTORY", "History", "History"),
         SUMMARY("SUMMARY", "Summary", "Summary"),
-        SCOREBOARD("SCOREBOARD", "Scoreboard", "Scores");
+        SCOREBOARD("SCOREBOARD", "Scoreboard", "Scores"),
+        LEADERBOARDS("LEADERBOARDS", "Leaderboards", "Rankings");
 
         private final String id;
         private final String label;

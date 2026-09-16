@@ -18,6 +18,11 @@ public final class ClientSmoke implements ClientModInitializer
 
     public void onInitializeClient()
     {
+        if (Boolean.getBoolean("mmm.miningFeaturesSmoke")) CollectionChatSmoke.start();
+        if (Boolean.getBoolean("mmm.leaderboardSmoke")) {
+            new LeaderboardSmoke().install();
+            return;
+        }
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (phase == 4) return;
             try
@@ -44,6 +49,11 @@ public final class ClientSmoke implements ClientModInitializer
                 else if (phase == 2 && client.player != null && client.world != null && client.currentScreen == null)
                 {
                     RuntimeChecks.run(client);
+                    if (Boolean.getBoolean("mmm.miningFeaturesSmoke")) {
+                        phase = 4;
+                        new MiningFeaturesSmoke().install();
+                        return;
+                    }
                     phase = 3;
                 }
                 else if (phase == 3 && ++checkedTicks >= 20 && SessionHistory.getLifetimeSummary() != null)
