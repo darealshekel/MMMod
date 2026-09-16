@@ -29,6 +29,7 @@ public abstract class ScoreboardInGameHudMixin
     {
         ci.cancel();
         if (!Configs.Generic.SCOREBOARD_VISIBLE.getBooleanValue()
+                || com.mmm.leaderboard.LeaderboardSidebar.enabled()
                 || this.client.currentScreen instanceof ScoreboardMoveScreen)
         {
             return;

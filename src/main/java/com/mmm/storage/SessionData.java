@@ -21,6 +21,7 @@ public class SessionData
     public long bestStreakSeconds;
     public int peakBlocksPerHour;
     public int bestHourBlocks;
+    public com.mmm.tracker.SessionEfficiency efficiency = new com.mmm.tracker.SessionEfficiency();
     public Map<String, Long> blockBreakdown = new LinkedHashMap<>();
     public List<Integer> miningRateBuckets = new ArrayList<>();
 

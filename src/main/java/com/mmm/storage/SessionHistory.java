@@ -90,6 +90,7 @@ public final class SessionHistory
 
             HISTORY.clear();
             HISTORY.addAll(persisted);
+            EfficiencyStore.save(session);
             best = findBest(HISTORY);
             invalidateLifetimeSummary();
         }

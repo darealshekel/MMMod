@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.20 - 2026-09-16
+
+See [the release summary](RELEASE-1.0.20.md) for all new 1.0.20 features.
+
+- Added collection rank and Top % to details, tooltips, and pinned HUD progress using synced MMM block rankings.
+- Added intermediate tiers for low-cap collections, set Scaffolding to 1M, and made every completion tier accessible with red/green glass panes.
+
+- Fixed rank estimates using old spreadsheet ranks instead of current profile-aligned totals. Both lookups now request current data and reject unverified fallback rows.
+
+- Added Rank Overtake Estimate under Settings > HUD Content for Minecraft 1.21.
+- Shows the next manual leaderboard player, the remaining block gap, and estimated active mining time using the HUD Blocks/hr pace.
+- Estimated ranks advance with new local mining before sync. The official website rank stays separate; local progress is saved and reconciled against newly published increases.
+- Website targets refresh in the background every five minutes and after successful sync. Pauses are excluded from pace.
+
 ## 1.0.19 - 2026-08-19
 
 ### Added
@@ -18,7 +32,6 @@
 
 ### Fixed
 
-- Fixed the Minecraft 1.21.4 chat crash caused by loading a channel enum from the mixin package.
 - Fixed session summaries and speed advancements losing the saved Best Hour after a restart.
 - Fixed fake or duplicate scoreboard rows remaining in the source total after they are removed from a full sync snapshot.
 - Fixed MMM Chat remaining selected after the chat screen closes.

@@ -1,13 +1,6 @@
 package com.mmm.smoke;
 
 import com.mmm.storage.SessionHistory;
-import com.mmm.config.Configs;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Hand;
 import com.mmm.sync.DigsSyncManager;
 import com.mmm.sync.ScoreboardReader;
 import com.mmm.sync.SyncScoreboardSelector;
@@ -26,14 +19,16 @@ final class RuntimeChecks
 {
     static void prepareRendering(MinecraftClient client)
     {
-        if (RenderLayer.getDebugQuads().getDrawMode() != VertexFormat.DrawMode.QUADS)
+        if (net.minecraft.client.render.RenderLayer.getDebugQuads().getDrawMode()
+                != com.mojang.blaze3d.vertex.VertexFormat.DrawMode.QUADS)
             throw new AssertionError("Breaking indicator requires independent quad faces");
         client.setScreen(null);
-        Configs.Generic.BREAKING_INDICATORS.setBooleanValue(true);
-        Configs.Generic.SMALL_DIG_ITEMS.setBooleanValue(true);
-        client.player.setStackInHand(Hand.MAIN_HAND, new ItemStack(Items.STONE));
+        com.mmm.config.Configs.Generic.BREAKING_INDICATORS.setBooleanValue(true);
+        com.mmm.config.Configs.Generic.SMALL_DIG_ITEMS.setBooleanValue(true);
+        client.player.setStackInHand(net.minecraft.util.Hand.MAIN_HAND,
+                new net.minecraft.item.ItemStack(net.minecraft.item.Items.STONE));
         var pos = client.player.getBlockPos().offset(client.player.getHorizontalFacing(), 2);
-        client.world.setBlockState(pos, Blocks.STONE.getDefaultState());
+        client.world.setBlockState(pos, net.minecraft.block.Blocks.STONE.getDefaultState());
         client.worldRenderer.setBlockBreakingInfo(123456, pos, 5);
     }
 
@@ -85,5 +80,54 @@ final class RuntimeChecks
         if (channel.getBoolean(null)) throw new AssertionError("Chat channel did not reset");
         client.setScreen(new AdvancementsScreen(client.getNetworkHandler().getAdvancementHandler()));
         SessionHistory.getLifetimeSummary();
+        checkRankOvertakeHud(client);
+    }
+
+    private static void checkRankOvertakeHud(MinecraftClient client) throws Exception
+    {
+        var type = com.mmm.sync.RankOvertakeClient.class;
+        Field name = type.getDeclaredField("username");
+        Field refresh = type.getDeclaredField("nextRefresh");
+        Field estimate = type.getDeclaredField("websitePlayer");
+        Field progress = type.getDeclaredField("progress");
+        Field rows = type.getDeclaredField("rows");
+        Field hudUpdate = type.getDeclaredField("nextHudUpdate");
+        name.setAccessible(true);
+        refresh.setAccessible(true);
+        estimate.setAccessible(true);
+        progress.setAccessible(true);
+        rows.setAccessible(true);
+        hudUpdate.setAccessible(true);
+        com.mmm.config.Configs.Generic.HUD_RANK_OVERTAKE_VISIBLE.setBooleanValue(true);
+        try
+        {
+            name.set(null, client.getSession().getUsername());
+            refresh.setLong(null, Long.MAX_VALUE);
+            estimate.set(null, new com.mmm.sync.RankOvertakeEstimate.Player(name.get(null).toString(), 48, 100));
+            progress.set(null, new com.mmm.sync.RankLocalProgress(100, 0));
+            @SuppressWarnings("unchecked")
+            var targets = (java.util.Map<Integer, com.mmm.sync.RankOvertakeEstimate.Player>) rows.get(null);
+            targets.put(47, new com.mmm.sync.RankOvertakeEstimate.Player("Target47", 47, 100));
+            targets.put(46, new com.mmm.sync.RankOvertakeEstimate.Player("Target46", 46, 200));
+            hudUpdate.setLong(null, 0);
+            com.mmm.sync.RankOvertakeClient.onClientTick(client);
+            var lines = com.mmm.sync.RankOvertakeClient.hudLines();
+            if (lines.size() != 4 || !lines.get(1).contains("#47 Target47"))
+                throw new AssertionError("Rank overtake HUD missing target");
+            com.mmm.sync.RankOvertakeClient.onAcceptedBlock();
+            hudUpdate.setLong(null, 0);
+            com.mmm.sync.RankOvertakeClient.onClientTick(client);
+            if (!com.mmm.sync.RankOvertakeClient.hudLines().get(1).contains("#46 Target46"))
+                throw new AssertionError("Rank estimate did not advance after local mining");
+            var build = com.mmm.hud.MiningHudRenderer.class.getDeclaredMethod("buildHudLines", boolean.class, boolean.class);
+            build.setAccessible(true);
+            if (build.invoke(null, false, false).toString().contains("Estimated Rank") == false)
+                throw new AssertionError("Rank estimate not included in HUD");
+        }
+        finally
+        {
+            com.mmm.config.Configs.Generic.HUD_RANK_OVERTAKE_VISIBLE.setBooleanValue(false);
+            com.mmm.sync.RankOvertakeClient.onClientTick(client);
+        }
     }
 }
