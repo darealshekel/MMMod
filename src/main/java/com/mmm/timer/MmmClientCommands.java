@@ -25,7 +25,22 @@ public final class MmmClientCommands
     {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(ClientCommandManager.literal("mmm")
+                    .then(ClientCommandManager.literal("leaderboard").executes(context -> {
+                        var client = net.minecraft.client.MinecraftClient.getInstance();
+                        client.send(() -> client.setScreen(new com.mmm.ui.LeaderboardScreen(null)));
+                        return 1;
+                    }))
                     .then(buildTimerCommand())
+                    .then(ClientCommandManager.literal("collections").executes(context -> {
+                        var client = net.minecraft.client.MinecraftClient.getInstance();
+                        client.send(() -> client.setScreen(new com.mmm.ui.CollectionBookScreen(null)));
+                        return 1;
+                    }))
+                    .then(ClientCommandManager.literal("efficiency").executes(context -> {
+                        var client = net.minecraft.client.MinecraftClient.getInstance();
+                        client.send(() -> client.setScreen(new com.mmm.hud.SummaryScreen(com.mmm.tracker.MiningStats.getCurrentSession(), null)));
+                        return 1;
+                    }))
                     .then(buildChatCommand())
                     .then(buildScoreboardCommand()));
             dispatcher.register(ClientCommandManager.literal("sbhelper")

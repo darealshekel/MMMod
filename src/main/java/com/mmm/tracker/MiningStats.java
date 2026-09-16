@@ -167,6 +167,11 @@ public final class MiningStats
 
     public static void recordBlockMined(Block block, BlockPos pos, BlockState previousState)
     {
+        recordBlockMined(block, pos, previousState, false);
+    }
+
+    public static void recordBlockMined(Block block, BlockPos pos, BlockState previousState, boolean nonInstant)
+    {
         long now = System.currentTimeMillis();
         if (BlockBreakdownCatalog.isValid(block) == false)
         {
@@ -198,7 +203,11 @@ public final class MiningStats
         // mining scoreboard is seen in this world, World Total and sync stay pinned
         // to that scoreboard instead of exposing this local prediction.
         Configs.totalBlocksMined++;
+        com.mmm.sync.RankOvertakeClient.onAcceptedBlock();
         Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
+        if (block != null) LiveCollections.mined(BlockBreakdownCatalog.blockId(block));
+        if (nonInstant && block == net.minecraft.block.Blocks.DEEPSLATE)
+            LiveCollections.nonInstantDeepslate(WorldSessionContext.getCurrentWorldId());
         worldStats.totalBlocks++;
         if (worldStats.scoreboardTotalUpdatedAtMs > 0L)
         {

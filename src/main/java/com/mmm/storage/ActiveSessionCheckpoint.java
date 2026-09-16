@@ -95,6 +95,7 @@ public final class ActiveSessionCheckpoint
     {
         JsonObject root = new JsonObject();
         root.addProperty("session", state.session().serialise());
+        root.add("efficiency", state.session().efficiency.toJson());
         root.addProperty("paused", state.paused());
         root.addProperty("autoPaused", state.autoPaused());
         root.addProperty("menuPaused", state.menuPaused());
@@ -130,6 +131,10 @@ public final class ActiveSessionCheckpoint
             return null;
         }
 
+        if (root.has("efficiency") && root.get("efficiency").isJsonObject())
+        {
+            session.efficiency = com.mmm.tracker.SessionEfficiency.fromJson(root.getAsJsonObject("efficiency"), session.getActiveDurationMs());
+        }
         return new State(
                 session,
                 booleanValue(root, "paused"),

@@ -56,7 +56,7 @@ java {
     targetCompatibility = JavaVersion.VERSION_21
 }
 
-// Opt-in runtime regression checks; never packaged in the release jar.
+// Opt-in checks in an isolated game directory, excluded from release jars.
 if (project.hasProperty('smokeTest')) {
     sourceSets {
         smoke {
@@ -72,6 +72,7 @@ if (project.hasProperty('smokeTest')) {
         classpath += sourceSets.smoke.output
         environment 'APPDATA', file('build/smoke-appdata').absolutePath
         jvmArgs '-Duser.home=' + file('build/smoke-home').absolutePath
-        jvmArgs '-Dfabric.client.gametest'
+        if (project.hasProperty('leaderboardSmoke')) jvmArgs '-Dmmm.leaderboardSmoke=true'
+        if (project.hasProperty('miningFeaturesSmoke')) jvmArgs '-Dmmm.miningFeaturesSmoke=true'
     }
 }

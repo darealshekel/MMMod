@@ -6,10 +6,10 @@ MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmania
 
 | Minecraft | Release jar |
 | --- | --- |
-| 1.21 | `mmm-1.0.19+1.21.jar` |
-| 1.21.1 | `mmm-1.0.18.1+1.21.1.jar` |
-| 1.21.4 | `mmm-1.0.19+1.21.4.jar` |
-| 1.21.6 | `mmm-1.0.18.1+1.21.6.jar` |
+| 1.21 | `mmm-1.0.20+1.21.jar` |
+| 1.21.1 | `mmm-1.0.20+1.21.1.jar` |
+| 1.21.4 | `mmm-1.0.20+1.21.4.jar` |
+| 1.21.6 | `mmm-1.0.20+1.21.6.jar` |
 | 1.21.11 | `mmm-1.0.18.1+1.21.11.jar` |
 
 ## Install

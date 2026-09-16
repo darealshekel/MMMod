@@ -20,6 +20,7 @@ class ActiveSessionCheckpointTest
         Path target = this.tempDir.resolve("active-session.json");
         SessionData session = session(1_000L, 65_000L, 12_345L);
         session.wallDurationMs = 90_000L;
+        session.efficiency.add(com.mmm.tracker.SessionEfficiency.Activity.MINING, 200);
         ActiveSessionCheckpoint.State expected = new ActiveSessionCheckpoint.State(
                 session,
                 true,
@@ -40,6 +41,7 @@ class ActiveSessionCheckpointTest
         assertEquals(12_345L, restored.session().totalBlocks);
         assertEquals(64_000L, restored.session().getDurationMs());
         assertEquals(90_000L, restored.session().getWallDurationMs());
+        assertEquals(200, restored.session().efficiency.tracked());
         assertTrue(restored.paused());
         assertTrue(restored.autoPaused());
         assertTrue(restored.menuPaused());

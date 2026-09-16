@@ -32,6 +32,17 @@ public final class BlockBreakdownCatalog
             "minecraft:clay",
             "minecraft:smooth_basalt",
             "minecraft:coarse_dirt",
+            "minecraft:rooted_dirt",
+            "minecraft:tube_coral_block",
+            "minecraft:brain_coral_block",
+            "minecraft:bubble_coral_block",
+            "minecraft:fire_coral_block",
+            "minecraft:horn_coral_block",
+            "minecraft:dead_tube_coral_block",
+            "minecraft:dead_brain_coral_block",
+            "minecraft:dead_bubble_coral_block",
+            "minecraft:dead_fire_coral_block",
+            "minecraft:dead_horn_coral_block",
             "minecraft:mud",
             "minecraft:mycelium",
             "minecraft:podzol",
@@ -127,6 +138,11 @@ public final class BlockBreakdownCatalog
 
     private BlockBreakdownCatalog()
     {
+    }
+
+    public static java.util.List<String> blockIds()
+    {
+        return VALID_BLOCK_IDS.stream().sorted().toList();
     }
 
     public static boolean isValid(Block block)

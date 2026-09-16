@@ -19,6 +19,7 @@ public final class RenderHandler
     public static void renderHud(DrawContext drawContext)
     {
         MinecraftClient client = MinecraftClient.getInstance();
+        com.mmm.leaderboard.LeaderboardSidebar.render(drawContext, client);
         if (!FeatureToggle.MMM_MINING_TRACKER.getBooleanValue())
         {
             return;
