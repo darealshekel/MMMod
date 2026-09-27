@@ -10,7 +10,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-public final class SyncScoreboardScreen extends Screen
+public final class SyncScoreboardScreen extends com.mmm.ui.CompatScreen
 {
     private static final int ROW_HEIGHT = 42;
     private static final int ROW_GAP = 5;

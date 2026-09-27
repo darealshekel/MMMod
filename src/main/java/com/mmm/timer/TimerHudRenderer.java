@@ -332,7 +332,7 @@ public final class TimerHudRenderer
     private static void drawCard(DrawContext context, int width, int height, String title)
     {
         context.fill(0, 0, width, height, Configs.getHudBackgroundColor());
-        context.drawBorder(0, 0, width, height, CARD_BORDER);
+        com.mmm.ui.MmmUi.drawBorder(context, 0, 0, width, height, CARD_BORDER);
         context.fill(8, 8, 11, 18, MmmUi.RED);
         drawText(context, MinecraftClient.getInstance().textRenderer, title, 17, 8, Configs.getHudTitleColor());
     }

@@ -70,7 +70,7 @@ public final class PinnedCollection
         if (global && !linked.isBlank() && !loading && now >= nextRefresh) {
             loading = true;
             String username = WebsiteLinkManager.getPersistedUsername();
-            if (username.isBlank()) username = client.player.getGameProfile().getName();
+            if (username.isBlank()) username = client.player.getGameProfile().name();
             CollectionWebsiteClient.load(linked, username).whenComplete((data, failure) -> client.execute(() -> {
                 if (!linked.equals(account)) return;
                 loading = false; failed = failure != null;
@@ -95,7 +95,7 @@ public final class PinnedCollection
         long next = CollectionProgress.next(block, count);
         String name = CollectionProgress.customName(block);
         String username = WebsiteLinkManager.isCurrentPlayerLinked() ? WebsiteLinkManager.getPersistedUsername() : "";
-        if (username.isBlank()) username = client.player.getGameProfile().getName();
+        if (username.isBlank()) username = client.player.getGameProfile().name();
         view = new View(block, name == null ? Registries.BLOCK.get(id).getName().getString() : name, scope, count,
                 next == 0 ? CollectionProgress.milestones(block).getLast() : next, CollectionRankClient.get(block, username));
     }

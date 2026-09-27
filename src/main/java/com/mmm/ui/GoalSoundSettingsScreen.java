@@ -17,7 +17,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
-public class GoalSoundSettingsScreen extends Screen
+public class GoalSoundSettingsScreen extends com.mmm.ui.CompatScreen
 {
     private static final int BUTTON_HEIGHT = 20;
     private static final int GAP = 8;

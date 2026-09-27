@@ -32,7 +32,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.Identifier;
 
-public class SummaryScreen extends Screen
+public class SummaryScreen extends com.mmm.ui.CompatScreen
 {
     private static final int PANEL_MARGIN = 20;
     private static final int PANEL_PADDING = 18;
@@ -351,7 +351,7 @@ public class SummaryScreen extends Screen
         int fillWidth = progress.target() <= 0 ? 0 : (int) Math.round(barWidth * Math.min(1.0D, progress.current() / (double) progress.target()));
         context.fill(barX, barY, barX + barWidth, barY + 8, MmmUi.INSET);
         context.fill(barX, barY, barX + fillWidth, barY + 8, goalColor);
-        context.drawBorder(barX, barY, barWidth, 8, COLOR_BORDER);
+        com.mmm.ui.MmmUi.drawBorder(context, barX, barY, barWidth, 8, COLOR_BORDER);
 
         String etaText = "ETA: " + MiningStats.getEstimatedTimeToDailyGoal();
         String streakText = "Best Streak: " + this.session.bestStreakSeconds + "s";
@@ -371,7 +371,7 @@ public class SummaryScreen extends Screen
         int viewportWidth = listWidth - SCROLLBAR_WIDTH - 6;
 
         context.fill(listX, listY, listX + listWidth, listY + listHeight, MmmUi.INSET);
-        context.drawBorder(listX, listY, listWidth, listHeight, COLOR_BORDER_SOFT);
+        com.mmm.ui.MmmUi.drawBorder(context, listX, listY, listWidth, listHeight, COLOR_BORDER_SOFT);
 
         context.enableScissor(listX, listY, listX + viewportWidth, listY + listHeight);
         int drawY = listY + 6 - this.breakdownScrollOffset;
@@ -537,7 +537,7 @@ public class SummaryScreen extends Screen
         int thumbHeight = getScrollbarThumbHeight(height);
         int thumbY = y + getScrollbarThumbOffset(height, thumbHeight);
         context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, MmmUi.SCROLLBAR_TRACK);
-        context.drawBorder(x, y, SCROLLBAR_WIDTH, height, COLOR_BORDER_SOFT);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, SCROLLBAR_WIDTH, height, COLOR_BORDER_SOFT);
         int thumbColor = MmmUi.scrollbarThumb();
         context.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight, thumbColor);
     }

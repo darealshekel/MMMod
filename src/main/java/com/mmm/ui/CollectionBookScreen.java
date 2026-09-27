@@ -24,7 +24,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 
-public final class CollectionBookScreen extends Screen
+public final class CollectionBookScreen extends com.mmm.ui.CompatScreen
 {
     private record BlockEntry(String id, String name, ItemStack icon) {}
     private final Screen parent;
@@ -130,7 +130,7 @@ public final class CollectionBookScreen extends Screen
         }
         if (!allWorlds || player.isBlank() || websiteLoading || System.currentTimeMillis() < nextWebsiteRefresh) return;
         String username = WebsiteLinkManager.getPersistedUsername();
-        if (username.isBlank()) username = client.player.getGameProfile().getName();
+        if (username.isBlank()) username = client.player.getGameProfile().name();
         websiteLoading = true;
         CollectionWebsiteClient.load(player, username).whenComplete((result, failure) -> client.execute(() -> {
             if (!player.equals(websitePlayer) || !player.equals(Configs.websiteLinkedMinecraftUuid)) return;
@@ -278,7 +278,7 @@ public final class CollectionBookScreen extends Screen
             if (now - rankHoverStarted < 250_000_000L) return Text.literal("Loading website rank...").formatted(Formatting.GRAY);
         }
         String username = WebsiteLinkManager.isCurrentPlayerLinked() ? WebsiteLinkManager.getPersistedUsername() : "";
-        if (username.isBlank()) username = client.player.getGameProfile().getName();
+        if (username.isBlank()) username = client.player.getGameProfile().name();
         var rank = CollectionRankClient.get(block.id, username);
         return CollectionRankText.format(rank);
     }
@@ -317,7 +317,7 @@ public final class CollectionBookScreen extends Screen
     @Override public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         context.fill(0, 0, width, height, 0xA0000000);
         context.fill(x, y, x + panelWidth, y + panelHeight, 0xFF373737);
-        context.drawBorder(x, y, panelWidth, panelHeight, 0xFF111111);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, panelWidth, panelHeight, 0xFF111111);
         context.fill(x + 2, y + 2, x + panelWidth - 2, y + 4, 0xFFBA303A);
         String heading = selected != null ? selected.name + " Collection" : category == null ? "MMM Collections"
                 : category.label + " Collections " + (page + 1) + "/" + pages();
@@ -424,7 +424,7 @@ public final class CollectionBookScreen extends Screen
         return super.mouseScrolled(mx, my, horizontal, vertical);
     }
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
-        if (!searchField.isFocused() && client.options.inventoryKey.matchesKey(key, scan)) { close(); return true; }
+        if (!searchField.isFocused() && client.options.inventoryKey.matchesKey(new net.minecraft.client.input.KeyInput(key, scan, modifiers))) { close(); return true; }
         return super.keyPressed(key, scan, modifiers);
     }
     @Override public void close() { client.setScreen(parent); }

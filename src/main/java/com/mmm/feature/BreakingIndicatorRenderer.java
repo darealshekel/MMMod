@@ -4,13 +4,13 @@ import com.mmm.config.Configs;
 import com.mmm.mixin.ClientPlayerInteractionManagerAccessor;
 import com.mmm.mixin.WorldRendererAccessor;
 import com.mmm.render.Color4f;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexRendering;
-import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.entity.player.BlockBreakingInfo;
 import net.minecraft.util.hit.BlockHitResult;
@@ -19,6 +19,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.shape.VoxelShape;
+import net.minecraft.util.shape.VoxelShapes;
 import org.joml.Matrix4f;
 
 public final class BreakingIndicatorRenderer
@@ -43,16 +44,20 @@ public final class BreakingIndicatorRenderer
         }
 
         initialized = true;
-        WorldRenderEvents.LAST.register(context -> {
-            MatrixStack matrices = context.matrixStack();
-            if (matrices != null)
+        WorldRenderEvents.END_MAIN.register(context -> {
+            MatrixStack matrices = context.matrices();
+            if (matrices != null && context.worldState().cameraRenderState != null)
             {
-                render(MinecraftClient.getInstance(), matrices, context.camera().getPos());
+                render(MinecraftClient.getInstance(), matrices,
+                        context.worldState().cameraRenderState.pos, context.consumers());
             }
         });
     }
 
-    private static void render(MinecraftClient client, MatrixStack matrices, Vec3d camera)
+    private static void render(MinecraftClient client,
+                               MatrixStack matrices,
+                               Vec3d camera,
+                               VertexConsumerProvider consumers)
     {
         if (!Configs.Generic.BREAKING_INDICATORS.getBooleanValue()
                 || client == null
@@ -69,28 +74,16 @@ public final class BreakingIndicatorRenderer
             return;
         }
 
-        matrices.push();
-        try
+        VertexConsumer fillConsumer = consumers.getBuffer(RenderLayers.debugQuads());
+        for (int index = 0; index < indicatorCount; index++)
         {
-            RenderLayer fillLayer = RenderLayer.getDebugQuads();
-            BufferBuilder fillBuffer = Tessellator.getInstance().begin(fillLayer.getDrawMode(), fillLayer.getVertexFormat());
-            for (int index = 0; index < indicatorCount; index++)
-            {
-                renderFill(client, matrices, fillBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
-            }
-            fillLayer.draw(fillBuffer.end());
-
-            RenderLayer lineLayer = RenderLayer.getLines();
-            BufferBuilder lineBuffer = Tessellator.getInstance().begin(lineLayer.getDrawMode(), lineLayer.getVertexFormat());
-            for (int index = 0; index < indicatorCount; index++)
-            {
-                renderOutline(client, matrices, lineBuffer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
-            }
-            lineLayer.draw(lineBuffer.end());
+            renderFill(client, matrices, fillConsumer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
         }
-        finally
+
+        VertexConsumer lineConsumer = consumers.getBuffer(RenderLayers.lines());
+        for (int index = 0; index < indicatorCount; index++)
         {
-            matrices.pop();
+            renderOutline(client, matrices, lineConsumer, camera, INDICATOR_POSITIONS[index], INDICATOR_PROGRESS[index]);
         }
     }
 
@@ -158,7 +151,7 @@ public final class BreakingIndicatorRenderer
 
     private static void renderFill(MinecraftClient client,
                                    MatrixStack matrices,
-                                   BufferBuilder buffer,
+                                   VertexConsumer buffer,
                                    Vec3d camera,
                                    BlockPos pos,
                                    float progress)
@@ -173,7 +166,7 @@ public final class BreakingIndicatorRenderer
     }
 
     private static void renderCameraFacingFaces(MatrixStack matrices,
-                                                BufferBuilder buffer,
+                                                VertexConsumer buffer,
                                                 Box box,
                                                 Color4f color)
     {
@@ -216,7 +209,7 @@ public final class BreakingIndicatorRenderer
         }
     }
 
-    private static void quad(BufferBuilder buffer,
+    private static void quad(VertexConsumer buffer,
                              Matrix4f matrix,
                              double x1, double y1, double z1,
                              double x2, double y2, double z2,
@@ -232,10 +225,10 @@ public final class BreakingIndicatorRenderer
 
     private static void renderOutline(MinecraftClient client,
                                       MatrixStack matrices,
-                                      BufferBuilder buffer,
+                                      VertexConsumer buffer,
                                       Vec3d camera,
                                       BlockPos pos,
-                                   float progress)
+                                      float progress)
     {
         Box bounds = getBounds(client, camera, pos, progress);
         if (bounds == null)
@@ -243,19 +236,15 @@ public final class BreakingIndicatorRenderer
             return;
         }
         Color4f outline = colorForProgress(progress, 0.95F);
-        VertexRendering.drawBox(
+        VertexRendering.drawOutline(
                 matrices,
                 buffer,
-                bounds.minX,
-                bounds.minY,
-                bounds.minZ,
-                bounds.maxX,
-                bounds.maxY,
-                bounds.maxZ,
-                outline.r,
-                outline.g,
-                outline.b,
-                outline.a
+                VoxelShapes.cuboid(bounds),
+                0.0D,
+                0.0D,
+                0.0D,
+                toArgb(outline),
+                1.0F
         );
     }
 
@@ -313,6 +302,14 @@ public final class BreakingIndicatorRenderer
         return Color4f.fromColor((alpha << 24) | (red << 16) | (green << 8) | blue);
     }
 
+    private static int toArgb(Color4f color)
+    {
+        int alpha = Math.clamp(Math.round(color.a * 255.0F), 0, 255);
+        int red = Math.clamp(Math.round(color.r * 255.0F), 0, 255);
+        int green = Math.clamp(Math.round(color.g * 255.0F), 0, 255);
+        int blue = Math.clamp(Math.round(color.b * 255.0F), 0, 255);
+        return (alpha << 24) | (red << 16) | (green << 8) | blue;
+    }
     private static int parseColor(String value, String fallback)
     {
         String normalized = Configs.normalizeHexColor(value, fallback);

@@ -68,7 +68,7 @@ public final class SyncScoreboardSelector
         }
 
         Scoreboard scoreboard = client.world.getScoreboard();
-        String username = client.player.getGameProfile().getName();
+        String username = client.player.getGameProfile().name();
         String sourceName = ScoreboardSourceResolver.displayName(
                 WorldSessionContext.getCurrentWorldName(),
                 WorldSessionContext.getCurrentWorldInfo());
@@ -140,7 +140,7 @@ public final class SyncScoreboardSelector
         ReadableScoreboardScore byProfile = scoreboard.getScore(
                 ScoreHolder.fromProfile(client.player.getGameProfile()), objective);
         ReadableScoreboardScore byName = scoreboard.getScore(
-                ScoreHolder.fromName(client.player.getGameProfile().getName()), objective);
+                ScoreHolder.fromName(client.player.getGameProfile().name()), objective);
         return Math.max(
                 byProfile == null ? 0L : Math.max(0L, byProfile.getScore()),
                 byName == null ? 0L : Math.max(0L, byName.getScore()));

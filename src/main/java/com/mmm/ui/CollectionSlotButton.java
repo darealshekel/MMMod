@@ -5,11 +5,11 @@ import java.util.function.Supplier;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
-import net.minecraft.client.gui.widget.PressableWidget;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 
-public final class CollectionSlotButton extends PressableWidget {
+public final class CollectionSlotButton extends ClickableWidget {
     private final ItemStack icon;
     private final boolean redBook;
     private final Runnable action;
@@ -20,11 +20,18 @@ public final class CollectionSlotButton extends PressableWidget {
         super(x, y, size, size, Text.literal(label));
         this.icon = icon; this.redBook = redBook; this.action = action; this.badge = badge; this.details = details;
     }
-    @Override public void onPress() { action.run(); }
+    public void onPress() { action.run(); }
+    @Override public void onClick(net.minecraft.client.gui.Click click, boolean doubleClick) { onPress(); }
+    @Override public boolean keyPressed(net.minecraft.client.input.KeyInput input) {
+        if (!active || !visible || !input.isEnterOrSpace()) return false;
+        playDownSound(MinecraftClient.getInstance().getSoundManager());
+        onPress();
+        return true;
+    }
     @Override protected void renderWidget(DrawContext c, int mx, int my, float delta) {
         boolean hover = active && (isHovered() || isFocused());
         c.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF514545 : 0xFF303030);
-        c.drawBorder(getX(), getY(), width, height, hover ? 0xFFF26969 : 0xFF151515);
+        com.mmm.ui.MmmUi.drawBorder(c, getX(), getY(), width, height, hover ? 0xFFF26969 : 0xFF151515);
         String overlay = badge.get();
         int ix = getX() + (width - 16) / 2;
         int iy = getY() + (overlay.isEmpty() ? (height - 16) / 2 : height < 32 ? 1 : 3);

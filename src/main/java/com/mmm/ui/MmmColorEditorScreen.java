@@ -9,7 +9,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
-public final class MmmColorEditorScreen extends Screen
+public final class MmmColorEditorScreen extends com.mmm.ui.CompatScreen
 {
     private static final int PANEL_WIDTH = 260;
     private static final int PANEL_HEIGHT = 218;
@@ -54,7 +54,7 @@ public final class MmmColorEditorScreen extends Screen
     {
         context.fill(0, 0, this.width, this.height, 0xB8000000);
         context.fill(this.panelX, this.panelY, this.panelX + PANEL_WIDTH, this.panelY + PANEL_HEIGHT, 0xFF090909);
-        context.drawBorder(this.panelX, this.panelY, PANEL_WIDTH, PANEL_HEIGHT, 0xFF2A2A2A);
+        com.mmm.ui.MmmUi.drawBorder(context, this.panelX, this.panelY, PANEL_WIDTH, PANEL_HEIGHT, 0xFF2A2A2A);
         context.fill(this.panelX + 14, this.panelY + 14, this.panelX + 18, this.panelY + 28, MmmUi.accent());
         context.drawText(this.textRenderer, Text.literal("CUSTOM COLOR"), this.panelX + 26, this.panelY + 17, 0xFFF5F5F5, false);
 
@@ -75,10 +75,10 @@ public final class MmmColorEditorScreen extends Screen
                 context.fill(x1, y1, x2, y2, 0xFF000000 | Color.HSBtoRGB(this.hue, sat, value));
             }
         }
-        context.drawBorder(colorX, colorY, colorW, colorH, 0xFF343434);
+        com.mmm.ui.MmmUi.drawBorder(context, colorX, colorY, colorW, colorH, 0xFF343434);
         int markerX = colorX + Math.round(this.saturation * (colorW - 1));
         int markerY = colorY + Math.round((1.0F - this.brightness) * (colorH - 1));
-        context.drawBorder(markerX - 2, markerY - 2, 5, 5, 0xFFFFFFFF);
+        com.mmm.ui.MmmUi.drawBorder(context, markerX - 2, markerY - 2, 5, 5, 0xFFFFFFFF);
 
         int hueX = this.panelX + 218;
         for (int row = 0; row < 28; row++)
@@ -87,13 +87,13 @@ public final class MmmColorEditorScreen extends Screen
             int y2 = colorY + (row + 1) * colorH / 28;
             context.fill(hueX, y1, hueX + 24, y2, 0xFF000000 | Color.HSBtoRGB(row / 27.0F, 1.0F, 1.0F));
         }
-        context.drawBorder(hueX, colorY, 24, colorH, 0xFF343434);
+        com.mmm.ui.MmmUi.drawBorder(context, hueX, colorY, 24, colorH, 0xFF343434);
         int hueMarkerY = colorY + Math.round(this.hue * (colorH - 1));
         context.fill(hueX - 2, hueMarkerY - 1, hueX + 26, hueMarkerY + 2, 0xFFFFFFFF);
 
         int preview = currentArgb();
         context.fill(this.panelX + 18, this.panelY + 194, this.panelX + 242, this.panelY + 204, preview);
-        context.drawBorder(this.panelX + 18, this.panelY + 194, 224, 10, 0xFF343434);
+        com.mmm.ui.MmmUi.drawBorder(context, this.panelX + 18, this.panelY + 194, 224, 10, 0xFF343434);
         super.render(context, mouseX, mouseY, delta);
     }
 

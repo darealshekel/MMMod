@@ -46,13 +46,13 @@ final class SourceLeaderboardPayloadSupport
             IdentityEvidence evidence = null;
             if (playerListEntry != null
                     && playerListEntry.getProfile() != null
-                    && playerListEntry.getProfile().getId() != null
-                    && playerListEntry.getProfile().getName() != null
-                    && playerListEntry.getProfile().getName().isBlank() == false)
+                    && playerListEntry.getProfile().id() != null
+                    && playerListEntry.getProfile().name() != null
+                    && playerListEntry.getProfile().name().isBlank() == false)
             {
-                username = playerListEntry.getProfile().getName();
-                identityKey = "uuid:" + playerListEntry.getProfile().getId();
-                evidence = new IdentityEvidence(username, playerListEntry.getProfile().getId().toString());
+                username = playerListEntry.getProfile().name();
+                identityKey = "uuid:" + playerListEntry.getProfile().id();
+                evidence = new IdentityEvidence(username, playerListEntry.getProfile().id().toString());
             }
 
             SourceLeaderboardEntry normalized = new SourceLeaderboardEntry(username, entry.digs(), entry.rank());

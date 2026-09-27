@@ -36,7 +36,7 @@ public final class PlayerDigsParser
         }
 
         List<ScoreboardReader.ObjectiveSnapshot> snapshots = objectiveSnapshots == null ? List.of() : objectiveSnapshots;
-        String currentUsername = client.player.getGameProfile().getName();
+        String currentUsername = client.player.getGameProfile().name();
         WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
         Candidate best = snapshots.stream()
                 .map(snapshot -> parseObjective(currentUsername, snapshot))

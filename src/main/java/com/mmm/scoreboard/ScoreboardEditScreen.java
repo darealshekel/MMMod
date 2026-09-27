@@ -18,7 +18,7 @@ import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.text.Text;
 
-public final class ScoreboardEditScreen extends Screen
+public final class ScoreboardEditScreen extends com.mmm.ui.CompatScreen
 {
     private static final int ROW_HEIGHT = 30;
 
@@ -68,7 +68,7 @@ public final class ScoreboardEditScreen extends Screen
                 .dimensions(0, 0, 70, 18).build());
         this.backButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), ignored -> this.close())
                 .dimensions(0, 0, 70, 18).build());
-        this.saveButton.active = this.client != null && this.client.player != null && this.client.player.hasPermissionLevel(2);
+        this.saveButton.active = this.client != null && this.client.player != null && this.client.player.getPermissions().hasPermission(new net.minecraft.command.permission.Permission.Level(net.minecraft.command.permission.PermissionLevel.GAMEMASTERS));
 
         for (int index = 0; index < this.rows.size(); index++)
         {
@@ -224,7 +224,7 @@ public final class ScoreboardEditScreen extends Screen
 
     private void save()
     {
-        if (this.client == null || this.client.player == null || !this.client.player.hasPermissionLevel(2))
+        if (this.client == null || this.client.player == null || !this.client.player.getPermissions().hasPermission(new net.minecraft.command.permission.Permission.Level(net.minecraft.command.permission.PermissionLevel.GAMEMASTERS)))
         {
             this.error = "Operator permission level 2 is required.";
             return;

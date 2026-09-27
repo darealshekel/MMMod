@@ -27,7 +27,7 @@ public final class EfficiencyTracker
         }
         if (session.totalBlocks > previousBlocks) lastHarvestIgt = igt;
         previousBlocks = session.totalBlocks;
-        Vec3d position = client.player == null ? null : client.player.getPos();
+        Vec3d position = client.player == null ? null : client.player.getEntityPos();
         boolean moving = position != null && previousPosition != null && position.squaredDistanceTo(previousPosition) > 0.0001;
         SessionEfficiency.Activity activity = null;
         if (MiningStats.isSessionActive() && !MiningStats.isSessionPaused() && !client.isPaused()

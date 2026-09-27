@@ -25,7 +25,7 @@ final class LeaderboardSmoke
         var button = screen.children().stream().filter(child -> child instanceof ButtonWidget)
                 .map(child -> (ButtonWidget) child).filter(b -> b.getMessage().getString().equals(label)
                         || (label.equals("Blocks") && b.getMessage().getString().equals("Blk"))).findFirst().orElseThrow();
-        button.onPress();
+        button.onPress(new net.minecraft.client.input.KeyInput(32, 0, 0));
     }
     void install() {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -46,9 +46,9 @@ final class LeaderboardSmoke
                     click("Blocks");
                     var search = (TextFieldWidget) field("searchField");
                     screen.setFocused(search);
-                    for (char c : "stone".toCharArray()) screen.charTyped(c, 0);
+                    for (char c : "stone".toCharArray()) screen.charTyped(new net.minecraft.client.input.CharInput(c, 0));
                     if (!search.getText().equals("stone")) throw new AssertionError("Block search typing failed");
-                    screen.keyPressed(259, 0, 0);
+                    screen.keyPressed(new net.minecraft.client.input.KeyInput(259, 0, 0));
                     if (!search.getText().equals("ston")) throw new AssertionError("Block search backspace failed");
                     search.setText("stone");
                     ticks = 0; phase = 3;
@@ -69,7 +69,7 @@ final class LeaderboardSmoke
                     ticks = 0; phase = 5;
                 } else if (phase == 5 && ++ticks > 25) {
                     screenshot(client, "leaderboard-stone.png");
-                    screen.init(client, 320, 240);
+                    screen.init(320, 240);
                     if ((int) field("listBottom") - (int) field("listTop") < 28) throw new AssertionError("No rows fit at minimum GUI size");
                     for (var child : screen.children()) if (child instanceof net.minecraft.client.gui.widget.ClickableWidget widget)
                         if (widget.getX() < 0 || widget.getX() + widget.getWidth() > screen.width) throw new AssertionError("Widget overflows");

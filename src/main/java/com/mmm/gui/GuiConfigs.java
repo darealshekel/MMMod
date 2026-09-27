@@ -18,7 +18,7 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-public final class GuiConfigs extends Screen
+public final class GuiConfigs extends com.mmm.ui.CompatScreen
 {
     private static final int ROW_HEIGHT = 32;
     private static final int ROW_GAP = 4;
@@ -290,7 +290,7 @@ public final class GuiConfigs extends Screen
         }
 
         if (this.searchField != null && this.searchField.isFocused()
-                && this.searchField.keyPressed(keyCode, scanCode, modifiers))
+                && this.searchField.keyPressed(new net.minecraft.client.input.KeyInput(keyCode, scanCode, modifiers)))
         {
             return true;
         }
@@ -328,7 +328,7 @@ public final class GuiConfigs extends Screen
                 && (Character.isLetterOrDigit(chr) || Character.isWhitespace(chr)))
         {
             this.searchField.setFocused(true);
-            return this.searchField.charTyped(chr, modifiers);
+            return this.searchField.charTyped(new net.minecraft.client.input.CharInput(chr, modifiers));
         }
         return false;
     }
@@ -382,7 +382,7 @@ public final class GuiConfigs extends Screen
 
     private static String keyName(int keyCode, int scanCode)
     {
-        String key = InputUtil.fromKeyCode(keyCode, scanCode).getTranslationKey();
+        String key = InputUtil.fromKeyCode(new net.minecraft.client.input.KeyInput(keyCode, scanCode, 0)).getTranslationKey();
         if (key.startsWith("key.keyboard."))
         {
             key = key.substring("key.keyboard.".length());

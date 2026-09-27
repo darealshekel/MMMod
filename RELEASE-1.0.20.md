@@ -1,4 +1,4 @@
-# MMMod 1.0.20 - Minecraft 1.21.6
+# MMMod 1.0.20 - Minecraft 1.21.11
 
 - Browse MMM and block leaderboards in-game, with an optional leaderboard sidebar.
 - Open the red Collections book from your inventory. Track milestones, view completed tiers, and pin a collection to your HUD.
@@ -8,7 +8,6 @@
 - Rank-overtake estimates advance as you mine. Session Summary now includes a mining-efficiency breakdown.
 - Get a clickable update notice when a newer release is available for your Minecraft version.
 
-For Minecraft 1.21.6 with Fabric Loader 0.16.14 or newer. Fabric API is included; Mod Menu is optional. Open settings with X + V.
+For Minecraft 1.21.11 with Fabric Loader 0.19.2 or newer and Java 21. Fabric API is included; Mod Menu is optional. Open settings with X + V.
 
 Collection ranks use synced website data; combined and local-only collections show when ranking is unavailable.
-

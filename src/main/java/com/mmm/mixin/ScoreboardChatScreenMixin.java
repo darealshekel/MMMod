@@ -73,9 +73,12 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     }
 
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
-    private void mmm$selectChannel(double mouseX, double mouseY, int button,
+    private void mmm$selectChannel(net.minecraft.client.gui.Click click, boolean doubleClick,
                                    CallbackInfoReturnable<Boolean> cir)
     {
+        double mouseX = click.x();
+        double mouseY = click.y();
+        int button = click.button();
         if (button != 0 || this.chatField == null)
         {
             return;
@@ -158,7 +161,7 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         int border = selected ? MmmUi.accent() : hovered ? 0xFF5A5A5A : 0xFF292929;
         int color = selected ? 0xFFF5F5F5 : 0xFF949494;
         context.fill(x, y, x + width, y + TAB_HEIGHT, background);
-        context.drawBorder(x, y, width, TAB_HEIGHT, border);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, TAB_HEIGHT, border);
         context.drawTextWithShadow(this.textRenderer, label, x + 6, y + 3, color);
     }
 

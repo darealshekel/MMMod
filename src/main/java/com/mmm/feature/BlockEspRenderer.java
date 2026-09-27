@@ -3,13 +3,13 @@ package com.mmm.feature;
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.render.Color4f;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.VertexConsumer;
+import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexRendering;
-import net.minecraft.client.render.Tessellator;
+import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
@@ -17,6 +17,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.shape.VoxelShape;
+import net.minecraft.util.shape.VoxelShapes;
 
 public final class BlockEspRenderer
 {
@@ -36,11 +37,12 @@ public final class BlockEspRenderer
             return;
         }
         initialized = true;
-        WorldRenderEvents.LAST.register(context -> {
-            MatrixStack matrices = context.matrixStack();
-            if (matrices != null)
+        WorldRenderEvents.END_MAIN.register(context -> {
+            MatrixStack matrices = context.matrices();
+            if (matrices != null && context.worldState().cameraRenderState != null)
             {
-                render(MinecraftClient.getInstance(), matrices, context.camera().getPos());
+                render(MinecraftClient.getInstance(), matrices,
+                        context.worldState().cameraRenderState.pos, context.consumers());
             }
         });
     }
@@ -50,7 +52,10 @@ public final class BlockEspRenderer
         Configs.Generic.BLOCK_ESP_HEX_COLOR.setValueFromString(Configs.normalizeBlockEspHexColor(Configs.Generic.BLOCK_ESP_HEX_COLOR.getStringValue()));
     }
 
-    private static void render(MinecraftClient client, MatrixStack matrices, Vec3d camera)
+    private static void render(MinecraftClient client,
+                               MatrixStack matrices,
+                               Vec3d camera,
+                               VertexConsumerProvider consumers)
     {
         if (!FeatureToggle.MMM_BLOCK_ESP.getBooleanValue() || Configs.isBlockEspOutlineOnly())
         {
@@ -80,27 +85,59 @@ public final class BlockEspRenderer
         Color4f fill = Color4f.fromColor(baseColor, Configs.getBlockEspOpacity());
         Color4f outline = Color4f.fromColor(baseColor, Math.min(1.0F, Configs.getBlockEspOpacity() + 0.25F));
 
-        matrices.push();
-        try
-        {
-            RenderLayer fillLayer = RenderLayer.getDebugFilledBox();
-            BufferBuilder fillBuffer = Tessellator.getInstance().begin(fillLayer.getDrawMode(), fillLayer.getVertexFormat());
-            VertexRendering.drawFilledBox(matrices, fillBuffer, minX, minY, minZ, maxX, maxY, maxZ,
-                    fill.r, fill.g, fill.b, fill.a);
-            fillLayer.draw(fillBuffer.end());
+        VertexConsumer fillConsumer = consumers.getBuffer(RenderLayers.debugQuads());
+        drawFilledBox(matrices, fillConsumer, minX, minY, minZ, maxX, maxY, maxZ, fill);
 
-            RenderLayer lineLayer = RenderLayer.getLines();
-            BufferBuilder lineBuffer = Tessellator.getInstance().begin(lineLayer.getDrawMode(), lineLayer.getVertexFormat());
-            VertexRendering.drawBox(matrices, lineBuffer, minX, minY, minZ, maxX, maxY, maxZ,
-                    outline.r, outline.g, outline.b, outline.a);
-            lineLayer.draw(lineBuffer.end());
-        }
-        finally
-        {
-            matrices.pop();
-        }
+        VertexConsumer lineConsumer = consumers.getBuffer(RenderLayers.lines());
+        VertexRendering.drawOutline(
+                matrices,
+                lineConsumer,
+                VoxelShapes.cuboid(new Box(minX, minY, minZ, maxX, maxY, maxZ)),
+                0.0D,
+                0.0D,
+                0.0D,
+                toArgb(outline),
+                1.0F
+        );
     }
 
+    private static void drawFilledBox(MatrixStack matrices,
+                                      VertexConsumer consumer,
+                                      double minX, double minY, double minZ,
+                                      double maxX, double maxY, double maxZ,
+                                      Color4f color)
+    {
+        org.joml.Matrix4f matrix = matrices.peek().getPositionMatrix();
+        quad(consumer, matrix, minX, minY, minZ, maxX, minY, minZ, maxX, maxY, minZ, minX, maxY, minZ, color);
+        quad(consumer, matrix, maxX, minY, maxZ, minX, minY, maxZ, minX, maxY, maxZ, maxX, maxY, maxZ, color);
+        quad(consumer, matrix, minX, minY, maxZ, minX, minY, minZ, minX, maxY, minZ, minX, maxY, maxZ, color);
+        quad(consumer, matrix, maxX, minY, minZ, maxX, minY, maxZ, maxX, maxY, maxZ, maxX, maxY, minZ, color);
+        quad(consumer, matrix, minX, minY, maxZ, maxX, minY, maxZ, maxX, minY, minZ, minX, minY, minZ, color);
+        quad(consumer, matrix, minX, maxY, minZ, maxX, maxY, minZ, maxX, maxY, maxZ, minX, maxY, maxZ, color);
+    }
+
+    private static void quad(VertexConsumer consumer,
+                             org.joml.Matrix4f matrix,
+                             double x1, double y1, double z1,
+                             double x2, double y2, double z2,
+                             double x3, double y3, double z3,
+                             double x4, double y4, double z4,
+                             Color4f color)
+    {
+        consumer.vertex(matrix, (float) x1, (float) y1, (float) z1).color(color.r, color.g, color.b, color.a);
+        consumer.vertex(matrix, (float) x2, (float) y2, (float) z2).color(color.r, color.g, color.b, color.a);
+        consumer.vertex(matrix, (float) x3, (float) y3, (float) z3).color(color.r, color.g, color.b, color.a);
+        consumer.vertex(matrix, (float) x4, (float) y4, (float) z4).color(color.r, color.g, color.b, color.a);
+    }
+
+    private static int toArgb(Color4f color)
+    {
+        int alpha = Math.clamp(Math.round(color.a * 255.0F), 0, 255);
+        int red = Math.clamp(Math.round(color.r * 255.0F), 0, 255);
+        int green = Math.clamp(Math.round(color.g * 255.0F), 0, 255);
+        int blue = Math.clamp(Math.round(color.b * 255.0F), 0, 255);
+        return (alpha << 24) | (red << 16) | (green << 8) | blue;
+    }
     private static Color4f getCurrentColor()    {
         if (Configs.isBlockEspRainbow())
         {

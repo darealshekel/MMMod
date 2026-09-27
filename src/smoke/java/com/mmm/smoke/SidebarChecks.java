@@ -27,7 +27,7 @@ final class SidebarChecks {
         var use = screen.children().stream().filter(c -> c instanceof ButtonWidget button
                 && button.getMessage().equals(Text.literal("Use"))).map(c -> (ButtonWidget)c).findFirst().orElseThrow();
         require(use.active, "Saved block cannot be selected");
-        use.onPress();
+        use.onPress(new net.minecraft.client.input.KeyInput(32, 0, 0));
         require(client.currentScreen == null, "Sidebar chooser did not return");
 
         var rows = new ArrayList<LeaderboardData.Row>();

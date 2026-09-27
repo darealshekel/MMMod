@@ -19,7 +19,7 @@ final class RuntimeChecks
 {
     static void prepareRendering(MinecraftClient client)
     {
-        if (net.minecraft.client.render.RenderLayer.getDebugQuads().getDrawMode()
+        if (net.minecraft.client.render.RenderLayers.debugQuads().getDrawMode()
                 != com.mojang.blaze3d.vertex.VertexFormat.DrawMode.QUADS)
             throw new AssertionError("Breaking indicator requires independent quad faces");
         client.setScreen(null);
@@ -61,22 +61,22 @@ final class RuntimeChecks
             throw new AssertionError("Removed scoreboard remained cached");
         SyncScoreboardSelector.selectObjective("");
 
-        ChatScreen chat = new ChatScreen("");
+        ChatScreen chat = new ChatScreen("", false);
         client.setScreen(chat);
         if (!(chat.getFocused() instanceof TextFieldWidget input))
             throw new AssertionError("Chat input is not focused");
-        chat.charTyped('a', 0);
+        chat.charTyped(new net.minecraft.client.input.CharInput('a', 0));
         if (!input.getText().equals("a")) throw new AssertionError("Vanilla chat typing failed");
         int tabX = input.getX() + client.textRenderer.getWidth("MINECRAFT") + 14;
-        chat.mouseClicked(tabX, Math.max(1, input.getY() - 16) + 5, 0);
+        chat.mouseClicked(new net.minecraft.client.gui.Click(tabX, Math.max(1, input.getY() - 16) + 5, new net.minecraft.client.input.MouseInput(0, 0)), false);
         Field channel = java.util.Arrays.stream(ChatScreen.class.getDeclaredFields())
                 .filter(field -> field.getName().endsWith("mmm$publicChannelSelected")).findFirst().orElseThrow();
         channel.setAccessible(true);
         if (!channel.getBoolean(null)) throw new AssertionError("MMM tab did not select");
-        chat.charTyped('b', 0);
+        chat.charTyped(new net.minecraft.client.input.CharInput('b', 0));
         if (!input.getText().equals("ab")) throw new AssertionError("MMM chat typing failed");
         client.setScreen(null);
-        client.setScreen(new ChatScreen(""));
+        client.setScreen(new ChatScreen("", false));
         if (channel.getBoolean(null)) throw new AssertionError("Chat channel did not reset");
         client.setScreen(new AdvancementsScreen(client.getNetworkHandler().getAdvancementHandler()));
         SessionHistory.getLifetimeSummary();

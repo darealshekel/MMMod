@@ -72,7 +72,7 @@ public final class TierTagManager
         LinkedHashMap<String, String> discoveredNames = new LinkedHashMap<>();
         for (PlayerListEntry entry : client.getNetworkHandler().getPlayerList())
         {
-            addValidName(discoveredNames, entry.getProfile().getName());
+            addValidName(discoveredNames, entry.getProfile().name());
         }
         ScoreboardService.getSidebarObjective(client).ifPresent(objective ->
                 client.world.getScoreboard().getScoreboardEntries(objective)

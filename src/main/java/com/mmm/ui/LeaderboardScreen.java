@@ -14,7 +14,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
-public final class LeaderboardScreen extends Screen
+public final class LeaderboardScreen extends com.mmm.ui.CompatScreen
 {
     private static final int ROW_HEIGHT = 24;
     private final Screen parent;

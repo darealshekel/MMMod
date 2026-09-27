@@ -21,7 +21,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
-public final class ScoreboardScreen extends Screen
+public final class ScoreboardScreen extends com.mmm.ui.CompatScreen
 {
     private static final int TOP_HEIGHT = MmmUi.TOP_BAR_HEIGHT;
     private static final int GAP = 12;
@@ -197,7 +197,7 @@ public final class ScoreboardScreen extends Screen
         boolean enabled = config instanceof IConfigBoolean booleanConfig && booleanConfig.getBooleanValue();
         boolean hovered = contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
         context.fill(x, y, x + width, y + FIELD_HEIGHT, enabled ? MmmUi.accent() : MmmUi.INSET);
-        context.drawBorder(x, y, width, FIELD_HEIGHT, hovered || enabled ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, FIELD_HEIGHT, hovered || enabled ? MmmUi.accent() : MmmUi.BORDER_SOFT);
         String label = enabled ? "ON" : "OFF";
         int labelX = x + Math.max(4, (width - this.textRenderer.getWidth(label)) / 2);
         context.drawText(this.textRenderer, Text.literal(label), labelX, y + 6,
@@ -262,7 +262,7 @@ public final class ScoreboardScreen extends Screen
         boolean hovered = contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
         context.fill(x, trackY, x + width, trackY + 3, MmmUi.INSET);
         context.fill(x, trackY, x + fillWidth, trackY + 3, MmmUi.accent());
-        context.drawBorder(x, trackY, width, 3, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        com.mmm.ui.MmmUi.drawBorder(context, x, trackY, width, 3, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
         int thumbX = Math.max(x, Math.min(x + width - 4, x + fillWidth - 2));
         context.fill(thumbX, y + 3, thumbX + 4, y + FIELD_HEIGHT - 3, MmmUi.accent());
 
@@ -290,7 +290,7 @@ public final class ScoreboardScreen extends Screen
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
         context.fill(x, y, x + width, y + height, subtle ? MmmUi.INSET : hovered ? MmmUi.accentHover() : MmmUi.INSET);
-        context.drawBorder(x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
         String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
         int labelX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
         context.drawText(this.textRenderer, Text.literal(clipped), labelX, y + 6,

@@ -13,7 +13,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-public final class PerimeterBlockListScreen extends Screen
+public final class PerimeterBlockListScreen extends com.mmm.ui.CompatScreen
 {
     private static final int ROW_HEIGHT = 30;
     private static final int ROW_GAP = 4;
@@ -196,7 +196,7 @@ public final class PerimeterBlockListScreen extends Screen
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
         context.fill(x, y, x + width, y + height, hovered ? MmmUi.accentHover() : MmmUi.INSET);
-        context.drawBorder(x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
         int textX = x + Math.max(3, (width - this.textRenderer.getWidth(label)) / 2);
         context.drawText(this.textRenderer, Text.literal(label), textX, y + 6, hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, height, action));

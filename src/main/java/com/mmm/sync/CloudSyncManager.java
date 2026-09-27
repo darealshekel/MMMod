@@ -1503,7 +1503,7 @@ public final class CloudSyncManager
             return 0L;
         }
 
-        String username = client.player.getGameProfile().getName();
+        String username = client.player.getGameProfile().name();
         return snapshot.entries().stream()
                 .filter(SourceLeaderboardEntry::isValid)
                 .filter(entry -> entry.username().equalsIgnoreCase(username))

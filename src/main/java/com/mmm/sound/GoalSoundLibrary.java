@@ -113,7 +113,7 @@ public final class GoalSoundLibrary
         MinecraftClient client = MinecraftClient.getInstance();
         if (client != null && client.getSoundManager() != null)
         {
-            client.getSoundManager().play(PositionedSoundInstance.master(
+            client.getSoundManager().play(PositionedSoundInstance.ui(
                     threshold >= 100 ? MmmSounds.GOAL_COMPLETE : MmmSounds.GOAL_SUCCESS,
                     1.0F,
                     1.0F));

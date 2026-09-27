@@ -12,7 +12,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
-public class HudMoveScreen extends Screen
+public class HudMoveScreen extends com.mmm.ui.CompatScreen
 {
     private final Screen parent;
     private HudModuleId selected = HudModuleId.MAIN;
@@ -193,13 +193,13 @@ public class HudMoveScreen extends Screen
             int rowFill = active ? MmmUi.accentSoft() : MmmUi.INSET;
             int border = active ? MmmUi.accent() : MmmUi.BORDER_SOFT;
             context.fill(layout.x() + 12, rowY, layout.x() + layout.width() - 12, rowY + 20, rowFill);
-            context.drawBorder(layout.x() + 12, rowY, layout.width() - 24, 20, border);
+            com.mmm.ui.MmmUi.drawBorder(context, layout.x() + 12, rowY, layout.width() - 24, 20, border);
             MmmUi.drawTextWithin(context, this.textRenderer, module.label(), layout.x() + 20, rowY + 6, layout.width() - 94, active ? MmmUi.TEXT : MmmUi.MUTED, false);
             if (module != HudModuleId.MAIN)
             {
                 String visibility = TimerHudRenderer.isVisible(module) ? "ON" : "OFF";
                 int toggleX = layout.x() + layout.width() - 58;
-                context.drawBorder(toggleX, rowY + 3, 38, 14, TimerHudRenderer.isVisible(module) ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+                com.mmm.ui.MmmUi.drawBorder(context, toggleX, rowY + 3, 38, 14, TimerHudRenderer.isVisible(module) ? MmmUi.accent() : MmmUi.BORDER_SOFT);
                 MmmUi.drawTextWithin(context, this.textRenderer, visibility, toggleX + 8, rowY + 6, 26, TimerHudRenderer.isVisible(module) ? MmmUi.TEXT : MmmUi.MUTED, false);
             }
             rowY += 25;
@@ -219,7 +219,7 @@ public class HudMoveScreen extends Screen
             }
             int[] bounds = TimerHudRenderer.getBounds(client, module);
             int color = module == this.selected ? MmmUi.accent() : MmmUi.accentSoft();
-            context.drawBorder(bounds[0] - 2, bounds[1] - 2, bounds[2] - bounds[0] + 4, bounds[3] - bounds[1] + 4, color);
+            com.mmm.ui.MmmUi.drawBorder(context, bounds[0] - 2, bounds[1] - 2, bounds[2] - bounds[0] + 4, bounds[3] - bounds[1] + 4, color);
         }
     }
 

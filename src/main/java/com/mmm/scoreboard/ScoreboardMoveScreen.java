@@ -12,7 +12,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.text.Text;
 
-public final class ScoreboardMoveScreen extends Screen
+public final class ScoreboardMoveScreen extends com.mmm.ui.CompatScreen
 {
     private final Screen parent;
     private boolean dragging;
@@ -51,7 +51,7 @@ public final class ScoreboardMoveScreen extends Screen
         if (objective.isPresent() || com.mmm.leaderboard.LeaderboardSidebar.enabled())
         {
             ScoreboardHudRenderer.Bounds bounds = ScoreboardHudRenderer.render(context, client, objective.orElse(null));
-            context.drawBorder(bounds.left() - 2, bounds.top() - 2,
+            com.mmm.ui.MmmUi.drawBorder(context, bounds.left() - 2, bounds.top() - 2,
                     bounds.width() + 4, bounds.height() + 4, MmmUi.accent());
         }
         else

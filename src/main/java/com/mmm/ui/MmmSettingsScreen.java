@@ -30,7 +30,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
-public class MmmSettingsScreen extends Screen
+public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
 {
     private static final int BG = 0xFF050505;
     private static final int TOP_BAR = 0xF0060606;
@@ -260,7 +260,7 @@ public class MmmSettingsScreen extends Screen
         if (this.searchField != null
                 && this.searchField.isVisible()
                 && this.searchField.isFocused()
-                && this.searchField.keyPressed(keyCode, scanCode, modifiers))
+                && this.searchField.keyPressed(new net.minecraft.client.input.KeyInput(keyCode, scanCode, modifiers)))
         {
             return true;
         }
@@ -303,7 +303,7 @@ public class MmmSettingsScreen extends Screen
                 && (Character.isLetterOrDigit(chr) || Character.isWhitespace(chr)))
         {
             this.searchField.setFocused(true);
-            return this.searchField.charTyped(chr, modifiers);
+            return this.searchField.charTyped(new net.minecraft.client.input.CharInput(chr, modifiers));
         }
         return false;
     }
@@ -328,7 +328,7 @@ public class MmmSettingsScreen extends Screen
     private void drawTopBar(DrawContext context, int mouseX, int mouseY)
     {
         context.fill(0, 0, this.width, TOP_HEIGHT, MmmUi.menuSurface(TOP_BAR));
-        context.drawBorder(0, 0, this.width, TOP_HEIGHT, BORDER);
+        com.mmm.ui.MmmUi.drawBorder(context, 0, 0, this.width, TOP_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, MmmUi.accent());
         MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 26, 10, 40, MmmUi.accent(), false);
 
@@ -409,7 +409,7 @@ public class MmmSettingsScreen extends Screen
     {
         SettingsSection section = visibleSection.section();
         context.fill(x, y, x + width, y + height, MmmUi.menuSurface(CARD));
-        context.drawBorder(x, y, width, height, BORDER);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, height, BORDER);
         MmmUi.drawSectionHeading(context, this.textRenderer, section.title(), x + CARD_PAD, y + 12, width - CARD_PAD * 2);
         MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, MUTED, false);
 
@@ -498,7 +498,7 @@ public class MmmSettingsScreen extends Screen
         int fill = enabled ? MmmUi.accent() : INSET;
         int border = hovered ? MmmUi.accent() : BORDER_SOFT;
         context.fill(x, y, x + width, y + FIELD_HEIGHT, enabled ? fill : MmmUi.menuSurface(fill));
-        context.drawBorder(x, y, width, FIELD_HEIGHT, border);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, FIELD_HEIGHT, border);
         String label = enabled ? "ON" : "OFF";
         int labelW = this.textRenderer.getWidth(label);
         context.drawText(this.textRenderer, Text.literal(label), x + (width - labelW) / 2, y + 6, enabled ? TEXT : MUTED, false);
@@ -550,7 +550,7 @@ public class MmmSettingsScreen extends Screen
             fieldW = width - FIELD_HEIGHT - 4;
             int preview = this.getColorPreview(row.config(), MmmUi.accent());
             context.fill(x, y, x + FIELD_HEIGHT, y + FIELD_HEIGHT, preview);
-            context.drawBorder(x, y, FIELD_HEIGHT, FIELD_HEIGHT, BORDER_SOFT);
+            com.mmm.ui.MmmUi.drawBorder(context, x, y, FIELD_HEIGHT, FIELD_HEIGHT, BORDER_SOFT);
             this.clickTargets.add(new ClickTarget(x, y, FIELD_HEIGHT, FIELD_HEIGHT, () -> {
                 this.openColorEditor(row.config());
             }));
@@ -603,7 +603,7 @@ public class MmmSettingsScreen extends Screen
 
         context.fill(x, trackY, x + width, trackY + 3, MmmUi.menuSurface(INSET));
         context.fill(x, trackY, x + fillWidth, trackY + 3, MmmUi.accent());
-        context.drawBorder(x, trackY, width, 3, hovered ? MmmUi.accent() : BORDER_SOFT);
+        com.mmm.ui.MmmUi.drawBorder(context, x, trackY, width, 3, hovered ? MmmUi.accent() : BORDER_SOFT);
         int thumbX = Math.max(x, Math.min(x + width - 4, x + fillWidth - 2));
         context.fill(thumbX, y + 3, thumbX + 4, y + FIELD_HEIGHT - 3, MmmUi.accent());
 
@@ -657,7 +657,7 @@ public class MmmSettingsScreen extends Screen
         int fill = subtle ? INSET : hovered ? MmmUi.accentHover() : INSET;
         int border = hovered ? MmmUi.accent() : BORDER_SOFT;
         context.fill(x, y, x + width, y + height, MmmUi.menuSurface(fill));
-        context.drawBorder(x, y, width, height, border);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, height, border);
         String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
         int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
         context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 6, hovered ? TEXT : MUTED, false);

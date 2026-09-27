@@ -10,11 +10,11 @@ MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmania
 | 1.21.1 | `mmm-1.0.20+1.21.1.jar` |
 | 1.21.4 | `mmm-1.0.20+1.21.4.jar` |
 | 1.21.6 | `mmm-1.0.20+1.21.6.jar` |
-| 1.21.11 | `mmm-1.0.18.1+1.21.11.jar` |
+| 1.21.11 | `mmm-1.0.20+1.21.11.jar` |
 
 ## Install
 
-1. Install Fabric Loader 0.16.14 or newer.
+1. Install Fabric Loader 0.19.2 or newer for Minecraft 1.21.11 (Java 21).
 2. Put the jar for your Minecraft version in the `mods` folder.
 3. Start Minecraft and press `X + V`.
 

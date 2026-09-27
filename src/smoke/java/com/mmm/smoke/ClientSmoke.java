@@ -14,6 +14,7 @@ public final class ClientSmoke implements ClientModInitializer
 {
     private int phase;
     private int checkedTicks;
+    private int menuIndex;
     private final long started = System.currentTimeMillis();
 
     public void onInitializeClient()
@@ -28,11 +29,16 @@ public final class ClientSmoke implements ClientModInitializer
             try
             {
                 if (System.currentTimeMillis() - started > 180_000L)
-                    throw new AssertionError("Runtime test timed out in phase " + phase);
+                    throw new AssertionError("Runtime test timed out in phase " + phase + ": " + client.currentScreen);
+                if (phase == 0 && client.currentScreen != null
+                        && client.currentScreen.getClass().getSimpleName().contains("Onboarding"))
+                {
+                    client.setScreen(new TitleScreen());
+                }
                 if (phase == 0 && client.currentScreen instanceof TitleScreen)
                 {
                     phase = 1;
-                    CreateWorldScreen.show(client, client.currentScreen);
+                    CreateWorldScreen.show(client, () -> client.setScreen(new TitleScreen()));
                 }
                 else if (phase == 1 && client.currentScreen instanceof CreateWorldScreen create)
                 {
@@ -41,7 +47,7 @@ public final class ClientSmoke implements ClientModInitializer
                         if (child instanceof ButtonWidget button && button.getMessage().equals(Text.translatable("selectWorld.create")))
                         {
                             phase = 2;
-                            button.onPress();
+                            button.onPress(new net.minecraft.client.input.KeyInput(32, 0, 0));
                             break;
                         }
                     }
@@ -54,6 +60,25 @@ public final class ClientSmoke implements ClientModInitializer
                 }
                 else if (phase == 5 && ++checkedTicks >= 40)
                 {
+                    phase = 6;
+                    checkedTicks = 0;
+                    client.options.pauseOnLostFocus = false;
+                }
+                else if (phase == 6 && ++checkedTicks >= 15)
+                {
+                    checkedTicks = 0;
+                    net.minecraft.client.gui.screen.Screen screen = switch (menuIndex++) {
+                        case 0 -> new com.mmm.ui.MmmSettingsScreen(null);
+                        case 1 -> new com.mmm.gui.GuiConfigs(null);
+                        case 2 -> new com.mmm.timer.TimerCreditsScreen(null);
+                        case 3 -> new com.mmm.ui.WebsiteLinkScreen(null);
+                        case 4 -> new net.minecraft.client.gui.screen.advancement.AdvancementsScreen(client.getNetworkHandler().getAdvancementHandler());
+                        case 5 -> new com.mmm.ui.MmmChatIgnoreListScreen(null);
+                        case 6 -> new com.mmm.scoreboard.ScoreboardScreen(null);
+                        default -> null;
+                    };
+                    client.setScreen(screen);
+                    if (screen != null) return;
                     if (Boolean.getBoolean("mmm.miningFeaturesSmoke")) {
                         phase = 4;
                         new MiningFeaturesSmoke().install();

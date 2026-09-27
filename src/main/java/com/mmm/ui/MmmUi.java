@@ -20,6 +20,14 @@ import net.minecraft.text.Text;
 
 public final class MmmUi
 {
+    public static void drawBorder(DrawContext context, int x, int y, int width, int height, int color)
+    {
+        context.fill(x, y, x + width, y + 1, color);
+        context.fill(x, y + height - 1, x + width, y + height, color);
+        context.fill(x, y, x + 1, y + height, color);
+        context.fill(x + width - 1, y, x + width, y + height, color);
+    }
+
     public static final int BLACK = 0xFF050505;
     public static final int RED = 0xFFE00000;
     public static final int OVERLAY = 0xFF050505;
@@ -202,7 +210,7 @@ public final class MmmUi
         int sidePad = sidebarWidth < 120 ? 8 : 12;
         SidebarMetrics metrics = sidebarMetrics(height);
         context.fill(0, TOP_BAR_HEIGHT, sidebarWidth, height, menuSurface(0xE9080808));
-        context.drawBorder(0, TOP_BAR_HEIGHT, sidebarWidth, Math.max(1, height - TOP_BAR_HEIGHT), BORDER);
+        com.mmm.ui.MmmUi.drawBorder(context, 0, TOP_BAR_HEIGHT, sidebarWidth, Math.max(1, height - TOP_BAR_HEIGHT), BORDER);
 
         int titleY = metrics.titleY();
         drawSectionHeading(context, renderer, "MMM SCREENS", sidePad, titleY, sidebarWidth - sidePad * 2);
@@ -215,7 +223,7 @@ public final class MmmUi
             int fill = active ? accentSoft() : hovered ? accentHover() : INSET;
             int border = active || hovered ? accent() : BORDER_SOFT;
             context.fill(sidePad, y, sidebarWidth - sidePad, y + metrics.rowHeight(), menuSurface(fill));
-            context.drawBorder(sidePad, y, sidebarWidth - sidePad * 2, metrics.rowHeight(), border);
+            com.mmm.ui.MmmUi.drawBorder(context, sidePad, y, sidebarWidth - sidePad * 2, metrics.rowHeight(), border);
             int textY = y + Math.max(2, (metrics.rowHeight() - 8) / 2);
             String label = sidebarWidth < 120 ? route.compactLabel : route.label;
             drawTextWithin(context, renderer, label, sidePad + 8, textY, sidebarWidth - sidePad * 2 - 16, active ? TEXT : MUTED, false);
@@ -225,7 +233,7 @@ public final class MmmUi
         if (metrics.showFooter())
         {
             int bottomY = height - 42;
-            context.drawBorder(sidePad, bottomY, sidebarWidth - sidePad * 2, 28, BORDER_SOFT);
+            com.mmm.ui.MmmUi.drawBorder(context, sidePad, bottomY, sidebarWidth - sidePad * 2, 28, BORDER_SOFT);
             drawTextWithin(context, renderer, "MMM MOD", sidePad + 8, bottomY + 7, sidebarWidth - sidePad * 2 - 16, TEXT, false);
             drawTextWithin(context, renderer, Reference.MOD_VERSION, sidePad + 8, bottomY + 18, sidebarWidth - sidePad * 2 - 16, MUTED, false);
         }
@@ -234,7 +242,7 @@ public final class MmmUi
     public static void drawMmmTopBar(DrawContext context, TextRenderer renderer, int width)
     {
         context.fill(0, 0, width, TOP_BAR_HEIGHT, menuSurface(0xF0060606));
-        context.drawBorder(0, 0, width, TOP_BAR_HEIGHT, BORDER);
+        com.mmm.ui.MmmUi.drawBorder(context, 0, 0, width, TOP_BAR_HEIGHT, BORDER);
         context.fill(14, 12, 18, 30, accent());
         drawTextWithin(context, renderer, "MMM", 26, 10, 40, accent(), false);
         int versionWidth = renderer.getWidth(Reference.MOD_VERSION);
@@ -288,7 +296,7 @@ public final class MmmUi
     public static void card(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
         context.fill(x, y, x + width, y + height, menuSurface(fillColor));
-        context.drawBorder(x, y, width, height, borderColor);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, height, borderColor);
     }
 
     public static void fieldShell(DrawContext context, int x, int y, int width, int height, boolean focused)

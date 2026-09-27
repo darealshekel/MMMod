@@ -68,7 +68,7 @@ public final class LiveCollections {
         if (!loading && now >= refreshAt) {
             loading = true;
             String name = WebsiteLinkManager.getPersistedUsername();
-            if (name.isBlank()) name = client.player.getGameProfile().getName();
+            if (name.isBlank()) name = client.player.getGameProfile().name();
             CollectionWebsiteClient.load(uuid, name).whenComplete((result, failure) -> client.execute(() -> {
                 if (!uuid.equals(account)) return;
                 loading = false; refreshAt = System.currentTimeMillis() + (failure == null ? 60_000 : 30_000);

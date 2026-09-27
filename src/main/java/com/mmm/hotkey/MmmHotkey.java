@@ -215,7 +215,7 @@ public final class MmmHotkey
         {
             return null;
         }
-        String translation = InputUtil.fromKeyCode(keyCode, scanCode).getTranslationKey();
+        String translation = InputUtil.fromKeyCode(new net.minecraft.client.input.KeyInput(keyCode, scanCode, 0)).getTranslationKey();
         if (translation.startsWith("key.keyboard."))
         {
             translation = translation.substring("key.keyboard.".length());
@@ -225,13 +225,13 @@ public final class MmmHotkey
 
     private InputKey parseKey(String raw)    {
         String value = normalizeToken(raw);
-        long window = MinecraftClient.getInstance().getWindow().getHandle();
+        var window = MinecraftClient.getInstance().getWindow();
         if (value.startsWith("MOUSE_"))
         {
             try
             {
                 int button = Integer.parseInt(value.substring(6)) - 1;
-                return new InputKey(() -> GLFW.glfwGetMouseButton(window, button) == GLFW.GLFW_PRESS);
+                return new InputKey(() -> GLFW.glfwGetMouseButton(window.getHandle(), button) == GLFW.GLFW_PRESS);
             }
             catch (NumberFormatException ignored)
             {

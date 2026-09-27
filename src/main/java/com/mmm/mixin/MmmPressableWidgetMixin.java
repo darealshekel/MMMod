@@ -31,7 +31,10 @@ public abstract class MmmPressableWidgetMixin
         int border = button.active && highlighted ? MmmUi.accent() : MmmUi.BORDER_SOFT;
         int textColor = button.active ? (highlighted ? MmmUi.TEXT : MmmUi.MUTED) : MmmUi.INACTIVE;
         MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), fill, border);
-        button.drawMessage(context, client.textRenderer, textColor);
+        context.drawCenteredTextWithShadow(client.textRenderer, button.getMessage(),
+                button.getX() + button.getWidth() / 2,
+                button.getY() + (button.getHeight() - 8) / 2,
+                textColor);
         ci.cancel();
     }
 }

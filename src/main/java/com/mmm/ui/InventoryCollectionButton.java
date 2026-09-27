@@ -11,10 +11,10 @@ import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
 import net.minecraft.client.gui.tooltip.Tooltip;
-import net.minecraft.client.gui.widget.PressableWidget;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.text.Text;
 
-public final class InventoryCollectionButton extends PressableWidget {
+public final class InventoryCollectionButton extends ClickableWidget {
     private final Screen inventory;
     private InventoryCollectionButton(Screen inventory) {
         super(0, 0, 20, 20, Text.literal("MMM Collections"));
@@ -40,15 +40,22 @@ public final class InventoryCollectionButton extends PressableWidget {
         var player = MinecraftClient.getInstance().player;
         active = player != null && player.currentScreenHandler.getCursorStack().isEmpty();
     }
-    @Override public void onPress() {
+    public void onPress() {
         var client = MinecraftClient.getInstance();
         if (client.player != null && client.player.currentScreenHandler.getCursorStack().isEmpty())
             client.setScreen(new CollectionBookScreen(inventory));
     }
+    @Override public void onClick(net.minecraft.client.gui.Click click, boolean doubleClick) { onPress(); }
+    @Override public boolean keyPressed(net.minecraft.client.input.KeyInput input) {
+        if (!active || !visible || !input.isEnterOrSpace()) return false;
+        playDownSound(MinecraftClient.getInstance().getSoundManager());
+        onPress();
+        return true;
+    }
     @Override protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
         if (isHovered() || isFocused()) {
             context.fill(getX(), getY(), getX() + width, getY() + height, 0xCC292020);
-            context.drawBorder(getX(), getY(), width, height, MmmUi.accent());
+            com.mmm.ui.MmmUi.drawBorder(context, getX(), getY(), width, height, MmmUi.accent());
         }
         RedBookIcon.draw(context, getX() + 2, getY() + 2);
     }

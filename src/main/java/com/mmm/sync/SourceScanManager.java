@@ -32,7 +32,7 @@ public final class SourceScanManager
         }
 
         Scoreboard scoreboard = client.world.getScoreboard();
-        String username = client.player.getGameProfile().getName();
+        String username = client.player.getGameProfile().name();
         String sourceDisplayName = ScoreboardSourceResolver.displayName(
                 world != null ? world.displayName() : "",
                 world
@@ -182,7 +182,7 @@ public final class SourceScanManager
                 return null;
             }
             return new PlayerDigsModel(
-                    client.player.getGameProfile().getName(),
+                    client.player.getGameProfile().name(),
                     total,
                     System.currentTimeMillis(),
                     sourceDisplayName,
@@ -214,7 +214,7 @@ public final class SourceScanManager
         }
 
         return new PlayerDigsModel(
-                client.player.getGameProfile().getName(),
+                client.player.getGameProfile().name(),
                 detection.chosenTotal(),
                 System.currentTimeMillis(),
                 sourceDisplayName,

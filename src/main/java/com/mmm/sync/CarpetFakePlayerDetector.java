@@ -22,8 +22,8 @@ final class CarpetFakePlayerDetector
         {
             if (entry != null
                     && entry.getProfile() != null
-                    && entry.getProfile().getName() != null
-                    && entry.getProfile().getName().equalsIgnoreCase(username))
+                    && entry.getProfile().name() != null
+                    && entry.getProfile().name().equalsIgnoreCase(username))
             {
                 return entry;
             }
@@ -34,12 +34,12 @@ final class CarpetFakePlayerDetector
 
     static boolean isConfirmedFakePlayer(MinecraftClient client, PlayerListEntry entry)
     {
-        if (entry == null || entry.getProfile() == null || entry.getProfile().getId() == null)
+        if (entry == null || entry.getProfile() == null || entry.getProfile().id() == null)
         {
             return true;
         }
 
-        String profileName = entry.getProfile().getName();
+        String profileName = entry.getProfile().name();
         if (profileName == null || profileName.isBlank())
         {
             return true;
@@ -47,7 +47,7 @@ final class CarpetFakePlayerDetector
 
         UUID expectedOfflineId = UUID.nameUUIDFromBytes(
                 ("OfflinePlayer:" + profileName).getBytes(StandardCharsets.UTF_8));
-        return isLikelyOnlineMode(client) && entry.getProfile().getId().equals(expectedOfflineId);
+        return isLikelyOnlineMode(client) && entry.getProfile().id().equals(expectedOfflineId);
     }
 
     private static boolean isLikelyOnlineMode(MinecraftClient client)
@@ -62,9 +62,9 @@ final class CarpetFakePlayerDetector
         {
             if (entry != null
                     && entry.getProfile() != null
-                    && localPlayerId.equals(entry.getProfile().getId()))
+                    && localPlayerId.equals(entry.getProfile().id()))
             {
-                return entry.getProfile().getId().version() == 4;
+                return entry.getProfile().id().version() == 4;
             }
         }
 

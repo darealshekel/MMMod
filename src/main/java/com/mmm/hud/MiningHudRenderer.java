@@ -409,13 +409,13 @@ public final class MiningHudRenderer
     {
         context.fill(x - 4, y - 2, x + textWidth + 5, y + 11, Configs.getHudBackgroundColor());
         context.fill(x - 3, y - 1, x + textWidth + 4, y, HUD_NEUTRAL_BORDER_COLOR);
-        context.drawBorder(x - 4, y - 2, textWidth + 9, 13, HUD_NEUTRAL_BORDER_COLOR);
+        com.mmm.ui.MmmUi.drawBorder(context, x - 4, y - 2, textWidth + 9, 13, HUD_NEUTRAL_BORDER_COLOR);
     }
 
     private static void drawSyncIndicator(DrawContext context, int x, int y, int size, int color)
     {
         context.fill(x, y, x + size, y + size, color);
-        context.drawBorder(x, y, size, size, 0xAA000000);
+        com.mmm.ui.MmmUi.drawBorder(context, x, y, size, size, 0xAA000000);
     }
 
     private static boolean shouldShowDailyGoalBar(MiningStats.GoalProgress progress)
@@ -460,7 +460,7 @@ public final class MiningHudRenderer
         {
             context.fill(x, barY, x + fillWidth, barY + 6, fillColor);
         }
-        context.drawBorder(x, barY, width, 6, GOAL_BAR_BORDER);
+        com.mmm.ui.MmmUi.drawBorder(context, x, barY, width, 6, GOAL_BAR_BORDER);
     }
 
     private static int getTextWidth(MinecraftClient client, List<String> lines)

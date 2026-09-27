@@ -20,7 +20,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
-public class TimerCreditsScreen extends Screen
+public class TimerCreditsScreen extends com.mmm.ui.CompatScreen
 {
     private static final Map<String, ItemStack> ICON_CACHE = new LinkedHashMap<>();
     private final Screen parent;
@@ -69,7 +69,7 @@ public class TimerCreditsScreen extends Screen
                 MmmTimerState.BlockCount entry = top.get(i);
                 int rowY = listY + i * 24;
                 context.fill(x + 18, rowY - 3, x + panelW - 18, rowY + 19, MmmUi.INSET);
-                context.drawBorder(x + 18, rowY - 3, panelW - 36, 22, MmmUi.BORDER_SOFT);
+                com.mmm.ui.MmmUi.drawBorder(context, x + 18, rowY - 3, panelW - 36, 22, MmmUi.BORDER_SOFT);
                 context.drawText(this.textRenderer, Text.literal("#" + (i + 1)), x + 26, rowY + 4, MmmUi.RED, false);
                 context.drawItem(getCachedIcon(entry.id()), x + 50, rowY);
                 context.drawText(this.textRenderer, Text.literal(blockName(entry.id())), x + 72, rowY + 5, Configs.getHudTextColor(), false);

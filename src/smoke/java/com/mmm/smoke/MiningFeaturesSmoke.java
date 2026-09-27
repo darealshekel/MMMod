@@ -116,8 +116,8 @@ final class MiningFeaturesSmoke
                     clickSlot(book, "All collections");
                     var field = book.children().stream().filter(c -> c instanceof TextFieldWidget).map(c -> (TextFieldWidget)c).findFirst().orElseThrow();
                     book.setFocused(field);
-                    for (char c : "stone".toCharArray()) book.charTyped(c, 0);
-                    book.keyPressed(259, 0, 0);
+                    for (char c : "stone".toCharArray()) book.charTyped(new net.minecraft.client.input.CharInput(c, 0));
+                    book.keyPressed(new net.minecraft.client.input.KeyInput(259, 0, 0));
                     if (!field.getText().equals("ston")) throw new AssertionError("Collection search/backspace failed");
                     field.setText("stone");
                     var counts = (Map<?, ?>) field(book, "counts");
@@ -133,7 +133,7 @@ final class MiningFeaturesSmoke
                     }
                     if (((long[])field(book, "tierTotals"))[CollectionProgress.OVERVIEW_MILESTONES.indexOf(25000000L)] != 2)
                         throw new AssertionError("25M tier must include only two blocks");
-                    book.init(client, 320, 240); checkBounds(book);
+                    book.init(320, 240); checkBounds(book);
                     if ((int)field(book, "x") < 0 || (int)field(book, "y") < 0) throw new AssertionError("Collection panel overflows");
                     client.options.getGuiScale().setValue(1); client.onResolutionChanged();
                     field = book.children().stream().filter(c -> c instanceof TextFieldWidget).map(c -> (TextFieldWidget)c).findFirst().orElseThrow();
@@ -153,7 +153,7 @@ final class MiningFeaturesSmoke
                     ((TextFieldWidget)field(book, "searchField")).setText("gilded");
                     clickSlot(book, "Gilded Blackstone");
                     checkTierPanes(book, 5, 0);
-                    book.init(client, 320, 240); checkBounds(book);
+                    book.init(320, 240); checkBounds(book);
                     client.onResolutionChanged();
                     clickSlot(book, "Back");
                     ((TextFieldWidget)field(book, "searchField")).setText("oak log");
@@ -164,7 +164,7 @@ final class MiningFeaturesSmoke
                     clickSlot(book, "Stone");
                     if (field(book, "selected") == null) throw new AssertionError("Collection details did not open");
                     checkTierPanes(book, 5, 2);
-                    book.init(client, 320, 240); checkBounds(book);
+                    book.init(320, 240); checkBounds(book);
                     client.onResolutionChanged();
                     ticks = 0; phase = 14;
                 } else if (phase == 14 && ++ticks > 20) {
@@ -216,7 +216,7 @@ final class MiningFeaturesSmoke
                             .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().equals("Collection progress")).findFirst().orElseThrow();
                     if (progressBook.details.get().size() != CollectionProgress.OVERVIEW_MILESTONES.size() + 1)
                         throw new AssertionError("Book tooltip missing tier counts");
-                    book.init(client, 320, 240); checkBounds(book);
+                    book.init(320, 240); checkBounds(book);
                     for (int i = 0; i < 40; i++) book.mouseScrolled((int)field(book, "x") + 20, (int)field(book, "gridY") + 20, 0, -1);
                     var maxScroll = book.getClass().getDeclaredMethod("maxOverviewScroll"); maxScroll.setAccessible(true);
                     if ((int)field(book, "overviewScroll") != (int)maxScroll.invoke(book) || (int)field(book, "overviewScroll") <= 0)
@@ -244,7 +244,7 @@ final class MiningFeaturesSmoke
                     ticks = 0; phase = 7;
                 } else if (phase == 7 && ++ticks > 20) {
                     shot(client, "efficiency-small.png");
-                    efficiency.init(client, 320, 240); checkBounds(efficiency);
+                    efficiency.init(320, 240); checkBounds(efficiency);
                     int before = (int)field(efficiency, "contentScroll");
                     efficiency.mouseScrolled(270, 140, 0, -1);
                     if ((int)field(efficiency, "contentScroll") <= before) throw new AssertionError("Summary scrolling failed");
@@ -254,7 +254,7 @@ final class MiningFeaturesSmoke
                     if (!search.visible) throw new AssertionError("Summary search inaccessible");
                     search.setText("stone");
                     var exit = SummaryScreen.worldExit(demo, null, "Smoke world");
-                    client.setScreen(exit); exit.init(client, 320, 240); checkBounds(exit);
+                    client.setScreen(exit); exit.init(320, 240); checkBounds(exit);
                     exit.mouseScrolled(270, 140, 0, -100);
                     if (!((TextFieldWidget)field(exit, "searchField")).visible) throw new AssertionError("World exit search inaccessible");
                     efficiency.close();
@@ -293,7 +293,7 @@ final class MiningFeaturesSmoke
         long buttons = inventory.children().stream().filter(c -> c instanceof InventoryCollectionButton).count();
         if (buttons != 1) throw new AssertionError("Duplicate inventory book after reopening");
         inventory.children().stream().filter(c -> c instanceof TexturedButtonWidget)
-                .map(c -> (TexturedButtonWidget)c).findFirst().orElseThrow().onPress();
+                .map(c -> (TexturedButtonWidget)c).findFirst().orElseThrow().onPress(new net.minecraft.client.input.KeyInput(32, 0, 0));
     }
     private static void checkTierPanes(Screen screen, int total, int green) throws Exception {
         var panes = screen.children().stream().filter(c -> c instanceof CollectionSlotButton)

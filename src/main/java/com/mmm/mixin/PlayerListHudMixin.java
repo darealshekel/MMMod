@@ -44,9 +44,9 @@ public abstract class PlayerListHudMixin
     private void mmm$applyTierNameTag(PlayerListEntry entry, CallbackInfoReturnable<Text> cir)
     {
         Text original = cir.getReturnValue();
-        MutableText tierDecorated = TierTagManager.decorateName(entry.getProfile().getName(), original);
+        MutableText tierDecorated = TierTagManager.decorateName(entry.getProfile().name(), original);
         Text displayed = tierDecorated == null ? original : tierDecorated;
-        MutableText activeDecorated = ActiveDiggerManager.decorateName(entry.getProfile().getName(), displayed);
+        MutableText activeDecorated = ActiveDiggerManager.decorateName(entry.getProfile().name(), displayed);
         if (activeDecorated != null)
         {
             cir.setReturnValue(activeDecorated);
@@ -100,7 +100,7 @@ public abstract class PlayerListHudMixin
         {
             for (PlayerListEntry entry : MinecraftClient.getInstance().getNetworkHandler().getPlayerList())
             {
-                localPlayerNames.add(entry.getProfile().getName());
+                localPlayerNames.add(entry.getProfile().name());
             }
         }
         List<String> remoteDiggers = ActiveDiggerManager.visibleRemoteDiggers(localPlayerNames);
