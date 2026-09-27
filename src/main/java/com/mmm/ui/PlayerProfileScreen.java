@@ -9,13 +9,13 @@ import com.mmm.util.UiFormat;
 import java.util.Comparator;
 import java.util.Map;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Util;
 
-public class PlayerProfileScreen extends Screen
+public class PlayerProfileScreen extends com.mmm.compat.MmmScreen
 {
     private static final String WEBSITE_BASE_URL = "https://www.mmmaniacs.com/player/";
     private static final int PANEL_PADDING = 18;
@@ -97,7 +97,7 @@ public class PlayerProfileScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

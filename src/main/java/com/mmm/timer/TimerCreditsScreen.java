@@ -11,7 +11,7 @@ import com.mmm.util.UiFormat;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -20,7 +20,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
-public class TimerCreditsScreen extends Screen
+public class TimerCreditsScreen extends com.mmm.compat.MmmScreen
 {
     private static final Map<String, ItemStack> ICON_CACHE = new LinkedHashMap<>();
     private final Screen parent;

@@ -5,7 +5,7 @@ import com.mmm.scoreboard.ScoreboardHudRenderer;
 import com.mmm.scoreboard.ScoreboardMoveScreen;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
 import net.minecraft.scoreboard.ScoreboardObjective;
 
@@ -22,11 +22,12 @@ public abstract class ScoreboardInGameHudMixin
     @Shadow @Final private MinecraftClient client;
 
     @Inject(
-            method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V",
+            method = "renderScoreboardSidebar(Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/scoreboard/ScoreboardObjective;)V",
             at = @At("HEAD"),
             cancellable = true)
-    private void mmm$renderConfiguredScoreboard(DrawContext context, ScoreboardObjective objective, CallbackInfo ci)
+    private void mmm$renderConfiguredScoreboard(net.minecraft.client.util.math.MatrixStack matrices, ScoreboardObjective objective, CallbackInfo ci)
     {
+        DrawContext context = new DrawContext(net.minecraft.client.MinecraftClient.getInstance(), matrices);
         ci.cancel();
         if (!Configs.Generic.SCOREBOARD_VISIBLE.getBooleanValue()
                 || com.mmm.leaderboard.LeaderboardSidebar.enabled()

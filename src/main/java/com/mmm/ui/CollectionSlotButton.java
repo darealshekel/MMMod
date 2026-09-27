@@ -3,7 +3,7 @@ package com.mmm.ui;
 import java.util.List;
 import java.util.function.Supplier;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
 import net.minecraft.client.gui.widget.PressableWidget;
 import net.minecraft.item.ItemStack;
@@ -21,7 +21,8 @@ public final class CollectionSlotButton extends PressableWidget {
         this.icon = icon; this.redBook = redBook; this.action = action; this.badge = badge; this.details = details;
     }
     @Override public void onPress() { action.run(); }
-    @Override protected void renderWidget(DrawContext c, int mx, int my, float delta) {
+    @Override public void renderButton(net.minecraft.client.util.math.MatrixStack matrices, int mx, int my, float delta) {
+        DrawContext c = new DrawContext(MinecraftClient.getInstance(), matrices);
         boolean hover = active && (isHovered() || isFocused());
         c.fill(getX(), getY(), getX() + width, getY() + height, hover ? 0xFF514545 : 0xFF303030);
         c.drawBorder(getX(), getY(), width, height, hover ? 0xFFF26969 : 0xFF151515);

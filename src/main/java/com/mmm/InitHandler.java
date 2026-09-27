@@ -40,6 +40,6 @@ public final class InitHandler
             tickHandler.onClientTick(client);
             updates.tick(client);
         });
-        HudRenderCallback.EVENT.register((drawContext, tickCounter) -> RenderHandler.renderHud(drawContext));
+        HudRenderCallback.EVENT.register((drawContext, tickCounter) -> RenderHandler.renderHud(new com.mmm.compat.DrawContext(net.minecraft.client.MinecraftClient.getInstance(), drawContext)));
     }
 }

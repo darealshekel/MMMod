@@ -19,7 +19,7 @@ import com.mmm.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.text.Text;
 
 public final class MiningHudRenderer
@@ -98,7 +98,7 @@ public final class MiningHudRenderer
         int firstContentLine = 0;
         if (showTitle)
         {
-            String title = lines.getFirst().text();
+            String title = lines.get(0).text();
             int titleTextWidth = client.textRenderer.getWidth(title);
             int syncIndicatorSize = client.textRenderer.fontHeight;
             int titleX = syncIndicatorSize + 4;
@@ -136,7 +136,7 @@ public final class MiningHudRenderer
     {
         if (!pinnedIconId.equals(pin.blockId())) {
             pinnedIconId = pin.blockId();
-            pinnedIcon = new ItemStack(Registries.BLOCK.get(Identifier.of(com.mmm.tracker.CollectionProgress.iconId(pin.blockId()))).asItem());
+            pinnedIcon = new ItemStack(Registries.BLOCK.get(new Identifier(com.mmm.tracker.CollectionProgress.iconId(pin.blockId()))).asItem());
         }
         if (Configs.Generic.HUD_TEXT_BACKGROUND.getBooleanValue())
             context.fill(-2, y - 2, width + 2, y + PINNED_HEIGHT - 3, Configs.getHudBackgroundColor());

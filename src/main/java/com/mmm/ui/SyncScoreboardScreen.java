@@ -5,12 +5,12 @@ import com.mmm.util.UiFormat;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-public final class SyncScoreboardScreen extends Screen
+public final class SyncScoreboardScreen extends com.mmm.compat.MmmScreen
 {
     private static final int ROW_HEIGHT = 42;
     private static final int ROW_GAP = 5;
@@ -140,7 +140,7 @@ public final class SyncScoreboardScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         Layout layout = layout();
         if (mouseY >= layout.listTop() && mouseY < layout.statusY())
@@ -148,7 +148,7 @@ public final class SyncScoreboardScreen extends Screen
             this.scrollOffset = Math.max(0, this.scrollOffset - (int) Math.signum(verticalAmount));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, verticalAmount);
     }
 
     @Override
@@ -175,7 +175,7 @@ public final class SyncScoreboardScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

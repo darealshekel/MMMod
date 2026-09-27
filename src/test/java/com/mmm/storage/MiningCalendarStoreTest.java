@@ -43,8 +43,8 @@ class MiningCalendarStoreTest
             var sorted = MiningCalendarStore.class.getDeclaredMethod("sortedDayKeys");
             sorted.setAccessible(true);
             var keys = (java.util.List<String>) sorted.invoke(null);
-            assertEquals(start.plusDays(1).format(format), keys.getFirst());
-            assertEquals(start.plusDays(400).format(format), keys.getLast());
+            assertEquals(start.plusDays(1).format(format), keys.get(0));
+            assertEquals(start.plusDays(400).format(format), keys.get(keys.size() - 1));
         }
         finally
         {

@@ -16,7 +16,7 @@ public final class PinnedCollection
         public View(String blockId, String name, String scope, long count, long target) {
             this(blockId, name, scope, count, target, new CollectionRankClient.Rank(CollectionRankClient.Status.LOADING, 0, 0));
         }
-        public boolean completed() { return count >= CollectionProgress.milestones(blockId).getLast(); }
+        public boolean completed() { return count >= CollectionProgress.cap(blockId); }
         public double fraction() { return target <= 0 ? 0 : Math.min(1, Math.max(0, count) / (double)target); }
     }
     private static View view;
@@ -97,6 +97,6 @@ public final class PinnedCollection
         String username = WebsiteLinkManager.isCurrentPlayerLinked() ? WebsiteLinkManager.getPersistedUsername() : "";
         if (username.isBlank()) username = client.player.getGameProfile().getName();
         view = new View(block, name == null ? Registries.BLOCK.get(id).getName().getString() : name, scope, count,
-                next == 0 ? CollectionProgress.milestones(block).getLast() : next, CollectionRankClient.get(block, username));
+                next == 0 ? CollectionProgress.cap(block) : next, CollectionRankClient.get(block, username));
     }
 }

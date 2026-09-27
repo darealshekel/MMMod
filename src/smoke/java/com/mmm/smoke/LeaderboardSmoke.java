@@ -65,7 +65,7 @@ final class LeaderboardSmoke
                     if (field("error") != null) throw new AssertionError(field("error"));
                     if (!"minecraft:stone".equals(field("selectedBlock"))) throw new AssertionError("Wrong block selected");
                     if (((LeaderboardData.Page) field("data")).rows().isEmpty()) throw new AssertionError("Missing block data");
-                    screen.mouseScrolled((int) field("x") + 30, (int) field("listTop") + 10, 0, -1);
+                    screen.mouseScrolled((int) field("x") + 30, (int) field("listTop") + 10, -1);
                     ticks = 0; phase = 5;
                 } else if (phase == 5 && ++ticks > 25) {
                     screenshot(client, "leaderboard-stone.png");

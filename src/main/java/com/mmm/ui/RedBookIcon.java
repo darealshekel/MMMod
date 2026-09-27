@@ -1,6 +1,6 @@
 package com.mmm.ui;
 
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 
 public final class RedBookIcon {
     private RedBookIcon() {}

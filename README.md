@@ -6,11 +6,12 @@ MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmania
 
 | Minecraft | Release jar |
 | --- | --- |
+| 1.19.4 | `mmm-1.0.20+1.19.4.jar` |
 | 1.21 | `mmm-1.0.20+1.21.jar` |
 | 1.21.1 | `mmm-1.0.20+1.21.1.jar` |
 | 1.21.4 | `mmm-1.0.20+1.21.4.jar` |
 | 1.21.6 | `mmm-1.0.20+1.21.6.jar` |
-| 1.21.11 | `mmm-1.0.18.1+1.21.11.jar` |
+| 1.21.11 | `mmm-1.0.20+1.21.11.jar` |
 
 ## Install
 
@@ -18,7 +19,7 @@ MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmania
 2. Put the jar for your Minecraft version in the `mods` folder.
 3. Start Minecraft and press `X + V`.
 
-Fabric API is included. Mod Menu is optional.
+Fabric API is included. Mod Menu is optional. This 1.19.4 build requires Java 17 or newer.
 
 ## Features
 
@@ -32,6 +33,9 @@ Fabric API is included. Mod Menu is optional.
 - Includes scoreboard sorting, paging, formatting, export, editing, movement, transparency, and Tier / Name Tags.
 - Includes global MMM Chat for website-linked players, with optional censoring and per-player ignores.
 - Adds an MMM advancement tree for session hours, streaks, Best Hour speed, endurance, and precision.
+- Includes in-game player and block leaderboards, a leaderboard sidebar, and rank-overtake estimates.
+- Adds a collections book, live collection progress, milestone sharing, ranks, and a pinned collection HUD.
+- Includes mining efficiency in session summaries.
 - Saves shared records and sessions across supported MMMod versions.
 
 ## Website Sync
@@ -81,7 +85,7 @@ All hotkeys are editable. `Escape` clears an assignment.
 
 ## Build
 
-MMMod uses Java 21:
+Run Gradle with Java 21; this build targets Java 17 for Minecraft 1.19.4:
 
 ```text
 gradle clean build

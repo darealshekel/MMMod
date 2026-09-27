@@ -4,13 +4,13 @@ import com.mmm.social.MmmChatIgnoreList;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-public final class MmmChatIgnoreListScreen extends Screen
+public final class MmmChatIgnoreListScreen extends com.mmm.compat.MmmScreen
 {
     private static final int ROW_HEIGHT = 28;
     private static final int ROW_GAP = 4;
@@ -165,7 +165,7 @@ public final class MmmChatIgnoreListScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         Layout layout = layout();
         if (mouseY >= layout.listTop() && mouseY < layout.statusY())
@@ -174,7 +174,7 @@ public final class MmmChatIgnoreListScreen extends Screen
             this.scrollOffset = Math.max(0, Math.min(maxScroll, this.scrollOffset - (int) Math.signum(verticalAmount)));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, verticalAmount);
     }
 
     @Override
@@ -206,7 +206,7 @@ public final class MmmChatIgnoreListScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

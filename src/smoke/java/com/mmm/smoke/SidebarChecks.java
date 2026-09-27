@@ -35,9 +35,9 @@ final class SidebarChecks {
         set("current", LeaderboardSidebar.selection());
         set("data", new LeaderboardData.Page(rows, 1, 2, 50, 9_000_000_000L));
         set("refreshAt", Long.MAX_VALUE);
-        require(LeaderboardSidebar.entries().getFirst().score().getString().equals("4,500,000,000"), "Long totals truncated");
-        require(ScoreboardService.pageDown() && LeaderboardSidebar.entries().getFirst().name().getString().startsWith("#16"), "Sidebar paging");
-        require(ScoreboardService.pageUp() && LeaderboardSidebar.entries().getFirst().name().getString().startsWith("#1 "), "Sidebar previous page");
+        require(LeaderboardSidebar.entries().get(0).score().getString().equals("4,500,000,000"), "Long totals truncated");
+        require(ScoreboardService.pageDown() && LeaderboardSidebar.entries().get(0).name().getString().startsWith("#16"), "Sidebar paging");
+        require(ScoreboardService.pageUp() && LeaderboardSidebar.entries().get(0).name().getString().startsWith("#1 "), "Sidebar previous page");
         var bounds = ScoreboardHudRenderer.getBounds(client, null);
         require(bounds.left() >= 0 && bounds.right() <= client.getWindow().getScaledWidth(), "Sidebar width overflow");
         client.setScreen(new ScoreboardMoveScreen(null));

@@ -13,10 +13,10 @@ class CollectionProgressTest
             assertEquals(0, CollectionProgress.next(id, 1000));
         }
         for (String id : List.of("oak_log", "dark_oak_log", "pale_oak_log", "poplar_log", "obsidian")) {
-            assertEquals(100000L, CollectionProgress.milestones("minecraft:" + id).getLast());
+            assertEquals(100000L, CollectionProgress.milestones("minecraft:" + id).get(CollectionProgress.milestones("minecraft:" + id).size() - 1));
             assertEquals(0, CollectionProgress.next(id, 100000));
         }
-        assertEquals(100000L, CollectionProgress.milestones("minecraft:crimson_stem").getLast());
+        assertEquals(100000L, CollectionProgress.milestones("minecraft:crimson_stem").get(CollectionProgress.milestones("minecraft:crimson_stem").size() - 1));
         assertEquals(250000L, CollectionProgress.cap("minecraft:flowering_azalea_leaves"));
         assertEquals(5000L, CollectionProgress.cap("minecraft:gilded_blackstone"));
         assertEquals(25000L, CollectionProgress.cap("minecraft:rooted_dirt"));

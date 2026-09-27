@@ -11,14 +11,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-public final class GuiConfigs extends Screen
+public final class GuiConfigs extends com.mmm.compat.MmmScreen
 {
     private static final int ROW_HEIGHT = 32;
     private static final int ROW_GAP = 4;
@@ -82,7 +82,7 @@ public final class GuiConfigs extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
         // MMM draws its own opaque background; suppress Minecraft's menu blur.
     }
@@ -245,7 +245,7 @@ public final class GuiConfigs extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         this.scrollOffset = Math.max(0, this.scrollOffset - (int) Math.signum(verticalAmount) * 32);
         return true;

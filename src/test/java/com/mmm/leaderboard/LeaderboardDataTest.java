@@ -23,8 +23,8 @@ class LeaderboardDataTest
                 """);
         assertEquals(2, page.pages());
         assertEquals(26, page.total());
-        assertEquals(3000000000L, page.rows().getFirst().blocks());
-        assertEquals("_SleepyZZZ", page.rows().getFirst().name());
+        assertEquals(3000000000L, page.rows().get(0).blocks());
+        assertEquals("_SleepyZZZ", page.rows().get(0).name());
         assertThrows(UnsupportedOperationException.class, () -> page.rows().clear());
     }
     @Test void rejectsWrongBlockAndMalformedResponses() {
@@ -38,7 +38,7 @@ class LeaderboardDataTest
                 {"scope":"main","page":1,"pageSize":25,"totalPages":1,"totalRows":1,"totalBlocks":100,
                 "rows":[{"rank":48,"username":"Miner","blocksMined":100,"sourceServer":"Enigma"}]}
                 """);
-        assertEquals(48, result.rows().getFirst().rank());
+        assertEquals(48, result.rows().get(0).rank());
     }
     @Test void filtersSingleplayerSourcesButHonorsExplicitServers() {
         String json = """
@@ -50,7 +50,7 @@ class LeaderboardDataTest
                 """;
         var page = LeaderboardData.parse(new LeaderboardData.Query(LeaderboardData.Kind.SERVERS, null, "Beta", 1), json);
         assertEquals(1, page.total());
-        assertEquals(2, page.rows().getFirst().rank());
+        assertEquals(2, page.rows().get(0).rank());
         assertEquals(500, page.blocks());
     }
     @Test void validatesQueryBounds() {

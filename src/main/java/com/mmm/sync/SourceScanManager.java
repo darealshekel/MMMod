@@ -1,6 +1,7 @@
 package com.mmm.sync;
 
 import com.mmm.storage.WorldSessionContext;
+import com.mmm.compat.ScoreboardCompat;
 import java.util.Base64;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -11,7 +12,6 @@ import java.util.Optional;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ServerInfo;
 import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
 import net.minecraft.scoreboard.ScoreboardObjective;
 
 public final class SourceScanManager
@@ -49,19 +49,19 @@ public final class SourceScanManager
 
         ScoreboardObjective sidebar = manualSelection
                 ? selectedObjective
-                : scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+                : scoreboard.getObjectiveForSlot(Scoreboard.SIDEBAR_DISPLAY_SLOT_ID);
         List<ScoreboardParser.ObjectiveRows> objectiveRows = scoreboard.getObjectives().stream()
                 .filter(objective -> manualSelection
                         ? objective == selectedObjective
                         : SyncScoreboardSelector.isEligible(objective))
-                .map(objective -> new ScoreboardParser.ObjectiveRows(objective, scoreboard.getScoreboardEntries(objective)))
+                .map(objective -> new ScoreboardParser.ObjectiveRows(objective, ScoreboardCompat.entries(objective)))
                 .toList();
 
         ScoreboardParser.Candidate sidebarCandidate = ScoreboardParser.parse(
                 username,
                 sourceDisplayName,
                 sidebar,
-                sidebar == null ? java.util.List.of() : scoreboard.getScoreboardEntries(sidebar)
+                sidebar == null ? java.util.List.of() : ScoreboardCompat.entries(sidebar)
         );
 
         ScoreboardParser.Candidate chosen = null;

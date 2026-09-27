@@ -17,11 +17,11 @@ import com.mmm.config.value.IConfigResettable;
 import com.mmm.config.value.ConfigOptionList;
 import com.mmm.util.MmmMessages;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
-public final class ScoreboardScreen extends Screen
+public final class ScoreboardScreen extends com.mmm.compat.MmmScreen
 {
     private static final int TOP_HEIGHT = MmmUi.TOP_BAR_HEIGHT;
     private static final int GAP = 12;
@@ -181,7 +181,8 @@ public final class ScoreboardScreen extends Screen
             case ACTION -> this.drawActionControl(context, row, controlX, controlY, controlW, mouseX, mouseY, visible);
         }
 
-        if (visible && row.config() instanceof IConfigResettable resettable && resettable.isModified())
+        IConfigResettable resettable = (IConfigResettable) row.config();
+        if (visible && resettable != null && resettable.isModified())
         {
             this.drawButtonShell(context, resetX, controlY, RESET_WIDTH, FIELD_HEIGHT, "R", mouseX, mouseY, true);
             this.clickTargets.add(new ClickTarget(resetX, controlY, RESET_WIDTH, FIELD_HEIGHT, () -> {
@@ -223,9 +224,9 @@ public final class ScoreboardScreen extends Screen
         if (visible)
         {
             this.clickTargets.add(new ClickTarget(x, y, width, FIELD_HEIGHT, () -> {
-                if (config instanceof ConfigOptionList optionList
-                        && optionList.getOptionListValue() instanceof IConfigOptionListEntry entry)
+                if (config instanceof ConfigOptionList optionList)
                 {
+                    IConfigOptionListEntry entry = optionList.getOptionListValue();
                     optionList.setValueFromString(entry.cycle(true).getStringValue());
                     this.afterConfigChanged(config);
                 }
@@ -449,7 +450,7 @@ public final class ScoreboardScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         int viewportH = Math.max(1, this.height - TOP_HEIGHT - MmmUi.pagePad(this.width));
         int maxScroll = Math.max(0, this.contentHeight - viewportH);
@@ -484,14 +485,14 @@ public final class ScoreboardScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 
     private static Text optionText(ConfigOptionList config)
     {
-        return config.getOptionListValue() instanceof IConfigOptionListEntry entry
-                ? Text.literal(entry.getDisplayName()) : Text.literal(config.getStringValue());
+        IConfigOptionListEntry entry = config.getOptionListValue();
+        return entry == null ? Text.literal(config.getStringValue()) : Text.literal(entry.getDisplayName());
     }
 
     private static String formatValue(double current, ValueStyle style)

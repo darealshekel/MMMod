@@ -11,14 +11,12 @@ import com.mmm.tracker.MiningStats;
 import com.mmm.tags.TierTagManager;
 import com.mmm.util.UiFormat;
 
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.hud.PlayerListHud;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardObjective;
-import net.minecraft.scoreboard.ReadableScoreboardScore;
-import net.minecraft.scoreboard.number.NumberFormat;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -28,6 +26,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -39,6 +38,20 @@ public abstract class PlayerListHudMixin
 
     @Unique private Text mmm$originalFooter;
     @Unique private boolean mmm$footerDecorated;
+
+    @ModifyArg(method = {"render", "renderScoreboardObjective"}, at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/font/TextRenderer;getWidth(Ljava/lang/String;)I"), index = 0)
+    private String mmm$measureTabScore(String value)
+    {
+        return com.mmm.compat.ScoreboardCompat.formatTabScore(value, Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS.getBooleanValue());
+    }
+
+    @ModifyArg(method = "renderScoreboardObjective", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/client/font/TextRenderer;drawWithShadow(Lnet/minecraft/client/util/math/MatrixStack;Ljava/lang/String;FFI)I"), index = 1)
+    private String mmm$drawTabScore(String value)
+    {
+        return com.mmm.compat.ScoreboardCompat.formatTabScore(value, Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS.getBooleanValue());
+    }
 
     @Inject(method = "getPlayerName", at = @At("RETURN"), cancellable = true)
     private void mmm$applyTierNameTag(PlayerListEntry entry, CallbackInfoReturnable<Text> cir)
@@ -61,38 +74,18 @@ public abstract class PlayerListHudMixin
             method = "render",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/scoreboard/ReadableScoreboardScore;getFormattedScore(Lnet/minecraft/scoreboard/ReadableScoreboardScore;Lnet/minecraft/scoreboard/number/NumberFormat;)Lnet/minecraft/text/MutableText;"))
-    private MutableText mmm$formatTabListScore(ReadableScoreboardScore score, NumberFormat numberFormat)
-    {
-        if (score == null)
-        {
-            return Text.empty();
-        }
-
-        MutableText vanilla = ReadableScoreboardScore.getFormattedScore(score, numberFormat);
-        if (!Configs.Generic.SCOREBOARD_TAB_LIST_COMMAS.getBooleanValue()
-                || !vanilla.getString().equals(Integer.toString(score.getScore())))
-        {
-            return vanilla;
-        }
-        return Text.literal(String.format(Locale.US, "%,d", score.getScore())).setStyle(vanilla.getStyle());
-    }
-
-    @Redirect(
-            method = "render",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/DrawContext;fill(IIIII)V"))
-    private void mmm$renderTransparentTabBackground(DrawContext context, int x1, int y1, int x2, int y2, int color)
+                    target = "Lnet/minecraft/client/gui/hud/PlayerListHud;fill(Lnet/minecraft/client/util/math/MatrixStack;IIIII)V"))
+    private void mmm$renderTransparentTabBackground(net.minecraft.client.util.math.MatrixStack matrices, int x1, int y1, int x2, int y2, int color)
     {
         if (!Configs.Generic.TRANSPARENT_TAB.getBooleanValue())
         {
-            context.fill(x1, y1, x2, y2, color);
+            net.minecraft.client.gui.DrawableHelper.fill(matrices, x1, y1, x2, y2, color);
         }
     }
     @Inject(method = "render", at = @At("HEAD"))
-    private void mmm$addDailyGoalToPlayerList(DrawContext context, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)
+    private void mmm$addDailyGoalToPlayerList(net.minecraft.client.util.math.MatrixStack matrices, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)
     {
+        DrawContext context = new DrawContext(net.minecraft.client.MinecraftClient.getInstance(), matrices);
         MutableText extraFooter = Text.empty();
         boolean hasExtraFooter = false;
         List<String> localPlayerNames = new ArrayList<>();
@@ -157,8 +150,9 @@ public abstract class PlayerListHudMixin
     }
 
     @Inject(method = "render", at = @At("RETURN"))
-    private void mmm$restorePlayerListHeader(DrawContext context, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)
+    private void mmm$restorePlayerListHeader(net.minecraft.client.util.math.MatrixStack matrices, int scaledWindowWidth, Scoreboard scoreboard, ScoreboardObjective objective, CallbackInfo ci)
     {
+        DrawContext context = new DrawContext(net.minecraft.client.MinecraftClient.getInstance(), matrices);
         if (this.mmm$footerDecorated)
         {
             this.footer = this.mmm$originalFooter;

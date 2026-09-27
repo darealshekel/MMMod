@@ -221,7 +221,7 @@ final class MiningFeaturesSmoke
                     if (progressBook.details.get().size() != CollectionProgress.OVERVIEW_MILESTONES.size() + 1)
                         throw new AssertionError("Book tooltip missing tier counts");
                     book.init(client, 320, 240); checkBounds(book);
-                    for (int i = 0; i < 40; i++) book.mouseScrolled((int)field(book, "x") + 20, (int)field(book, "gridY") + 20, 0, -1);
+                    for (int i = 0; i < 40; i++) book.mouseScrolled((int)field(book, "x") + 20, (int)field(book, "gridY") + 20, -1);
                     var maxScroll = book.getClass().getDeclaredMethod("maxOverviewScroll"); maxScroll.setAccessible(true);
                     if ((int)field(book, "overviewScroll") != (int)maxScroll.invoke(book) || (int)field(book, "overviewScroll") <= 0)
                         throw new AssertionError("Final overview tiers unreachable on small screen");
@@ -244,22 +244,22 @@ final class MiningFeaturesSmoke
                     shot(client, "efficiency-large.png");
                     if (demo.efficiency.tracked() != 3300000) throw new AssertionError("Summary did not load saved activity");
                     client.options.getGuiScale().setValue(2); client.onResolutionChanged();
-                    efficiency.mouseScrolled(efficiency.width - 30, 130, 0, -5);
+                    efficiency.mouseScrolled(efficiency.width - 30, 130, -5);
                     ticks = 0; phase = 7;
                 } else if (phase == 7 && ++ticks > 20) {
                     shot(client, "efficiency-small.png");
                     efficiency.init(client, 320, 240); checkBounds(efficiency);
                     int before = (int)field(efficiency, "contentScroll");
-                    efficiency.mouseScrolled(270, 140, 0, -1);
+                    efficiency.mouseScrolled(270, 140, -1);
                     if ((int)field(efficiency, "contentScroll") <= before) throw new AssertionError("Summary scrolling failed");
-                    efficiency.mouseScrolled(270, 140, 0, -100);
+                    efficiency.mouseScrolled(270, 140, -100);
                     if ((int)field(efficiency, "contentScroll") != (int)field(efficiency, "maxContentScroll")) throw new AssertionError("Summary bottom unreachable");
                     var search = (TextFieldWidget)field(efficiency, "searchField");
                     if (!search.visible) throw new AssertionError("Summary search inaccessible");
                     search.setText("stone");
                     var exit = SummaryScreen.worldExit(demo, null, "Smoke world");
                     client.setScreen(exit); exit.init(client, 320, 240); checkBounds(exit);
-                    exit.mouseScrolled(270, 140, 0, -100);
+                    exit.mouseScrolled(270, 140, -100);
                     if (!((TextFieldWidget)field(exit, "searchField")).visible) throw new AssertionError("World exit search inaccessible");
                     efficiency.close();
                     if (client.currentScreen != null) throw new AssertionError("Close failed");

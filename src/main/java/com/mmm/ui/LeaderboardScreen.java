@@ -5,7 +5,7 @@ import com.mmm.util.BlockBreakdownCatalog;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -14,7 +14,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
-public final class LeaderboardScreen extends Screen
+public final class LeaderboardScreen extends com.mmm.compat.MmmScreen
 {
     private static final int ROW_HEIGHT = 24;
     private final Screen parent;
@@ -209,11 +209,11 @@ public final class LeaderboardScreen extends Screen
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
-    @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
+    @Override public boolean mouseScrolled(double x, double y, double vertical) {
         if (y >= listTop && y < listBottom && x >= this.x && x < this.x + contentWidth) {
             offset = Math.max(0, offset - (int) Math.signum(vertical) * 3); return true;
         }
-        return super.mouseScrolled(x, y, horizontal, vertical);
+        return super.mouseScrolled(x, y, vertical);
     }
     @Override public void removed() { removed = true; cancel(); }
     @Override public void close() { client.setScreen(parent); }

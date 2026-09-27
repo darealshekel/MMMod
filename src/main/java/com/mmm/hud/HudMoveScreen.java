@@ -7,12 +7,12 @@ import com.mmm.timer.TimerHudRenderer;
 import com.mmm.ui.MmmUi;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
-public class HudMoveScreen extends Screen
+public class HudMoveScreen extends com.mmm.compat.MmmScreen
 {
     private final Screen parent;
     private HudModuleId selected = HudModuleId.MAIN;
@@ -154,7 +154,7 @@ public class HudMoveScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         adjustScale(verticalAmount > 0 ? 0.05D : -0.05D);
         return true;
@@ -175,7 +175,7 @@ public class HudMoveScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

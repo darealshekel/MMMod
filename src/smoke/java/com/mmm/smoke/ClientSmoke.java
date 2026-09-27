@@ -28,7 +28,9 @@ public final class ClientSmoke implements ClientModInitializer
             try
             {
                 if (System.currentTimeMillis() - started > 180_000L)
-                    throw new AssertionError("Runtime test timed out in phase " + phase);
+                    throw new AssertionError("Runtime test timed out in phase " + phase + ": " + client.currentScreen);
+                if (phase == 0 && client.currentScreen instanceof net.minecraft.client.gui.screen.AccessibilityOnboardingScreen)
+                    client.setScreen(new TitleScreen());
                 if (phase == 0 && client.currentScreen instanceof TitleScreen)
                 {
                     phase = 1;
@@ -48,18 +50,36 @@ public final class ClientSmoke implements ClientModInitializer
                 }
                 else if (phase == 2 && client.player != null && client.world != null && client.currentScreen == null)
                 {
-                    RuntimeChecks.run(client);
-                    if (Boolean.getBoolean("mmm.miningFeaturesSmoke")) {
+                    if (Boolean.getBoolean("mmm.breakingIndicatorSmoke")) {
                         phase = 4;
+                        new BreakingIndicatorSmoke().install();
+                        return;
+                    }
+                    RuntimeChecks.run(client);
+                    client.options.pauseOnLostFocus = false;
+                    phase = 3;
+                }
+                else if (phase == 3 && ++checkedTicks % 15 == 0 && SessionHistory.getLifetimeSummary() != null)
+                {
+                    int menu = checkedTicks / 15;
+                    if (menu <= 7) {
+                        client.setScreen(switch (menu) {
+                            case 1 -> new com.mmm.ui.MmmSettingsScreen(null);
+                            case 2 -> new com.mmm.gui.GuiConfigs(null);
+                            case 3 -> new com.mmm.timer.TimerCreditsScreen(null);
+                            case 4 -> new com.mmm.ui.WebsiteLinkScreen(null);
+                            case 5 -> new net.minecraft.client.gui.screen.advancement.AdvancementsScreen(client.getNetworkHandler().getAdvancementHandler());
+                            case 6 -> new com.mmm.ui.MmmChatIgnoreListScreen(null);
+                            default -> new com.mmm.scoreboard.ScoreboardScreen(null);
+                        });
+                        return;
+                    }
+                    phase = 4;
+                    client.setScreen(null);
+                    if (Boolean.getBoolean("mmm.miningFeaturesSmoke")) {
                         new MiningFeaturesSmoke().install();
                         return;
                     }
-                    phase = 3;
-                }
-                else if (phase == 3 && ++checkedTicks >= 20 && SessionHistory.getLifetimeSummary() != null)
-                {
-                    phase = 4;
-                    client.setScreen(null);
                     Files.writeString(Path.of("mmm-smoke-result.txt"), "PASS: live scoreboard, snapshot invalidation, async history, mixin audit, chat typing, advancements");
                     System.out.println("MMM_SMOKE_PASS");
                     client.scheduleStop();

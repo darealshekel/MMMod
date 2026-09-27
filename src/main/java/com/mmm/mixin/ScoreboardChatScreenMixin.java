@@ -5,7 +5,7 @@ import com.mmm.social.PublicChatClient;
 import com.mmm.sync.WebsiteLinkManager;
 import com.mmm.ui.MmmUi;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -58,8 +58,9 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     }
 
     @Inject(method = "render", at = @At("TAIL"))
-    private void mmm$renderChannelTabs(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci)
+    private void mmm$renderChannelTabs(net.minecraft.client.util.math.MatrixStack matrices, int mouseX, int mouseY, float delta, CallbackInfo ci)
     {
+        DrawContext context = new DrawContext(net.minecraft.client.MinecraftClient.getInstance(), matrices);
         if (this.chatField == null)
         {
             return;
@@ -99,15 +100,15 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         }
     }
 
-    @Inject(method = "sendMessage(Ljava/lang/String;Z)V", at = @At("HEAD"), cancellable = true)
-    private void mmm$sendPublicMessage(String message, boolean addToHistory, CallbackInfo ci)
+    @Inject(method = "sendMessage(Ljava/lang/String;Z)Z", at = @At("HEAD"), cancellable = true)
+    private void mmm$sendPublicMessage(String message, boolean addToHistory, CallbackInfoReturnable<Boolean> cir)
     {
         if (mmm$publicChannelSelected == false)
         {
             return;
         }
 
-        ci.cancel();
+        cir.setReturnValue(true);
         String normalized = message == null ? "" : message.trim();
         if (normalized.isBlank())
         {

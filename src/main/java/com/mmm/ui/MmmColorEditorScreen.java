@@ -3,13 +3,13 @@ package com.mmm.ui;
 import com.mmm.config.Configs;
 import com.mmm.config.value.ConfigColor;
 import java.awt.Color;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
-public final class MmmColorEditorScreen extends Screen
+public final class MmmColorEditorScreen extends com.mmm.compat.MmmScreen
 {
     private static final int PANEL_WIDTH = 260;
     private static final int PANEL_HEIGHT = 218;

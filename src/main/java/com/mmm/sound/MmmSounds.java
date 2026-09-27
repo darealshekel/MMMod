@@ -7,8 +7,8 @@ import net.minecraft.util.Identifier;
 
 public final class MmmSounds
 {
-    public static final Identifier GOAL_SUCCESS_ID = Identifier.of("mmm", "goal_success");
-    public static final Identifier GOAL_COMPLETE_ID = Identifier.of("mmm", "goal_complete");
+    public static final Identifier GOAL_SUCCESS_ID = new Identifier("mmm", "goal_success");
+    public static final Identifier GOAL_COMPLETE_ID = new Identifier("mmm", "goal_complete");
 
     public static final SoundEvent GOAL_SUCCESS = SoundEvent.of(GOAL_SUCCESS_ID);
     public static final SoundEvent GOAL_COMPLETE = SoundEvent.of(GOAL_COMPLETE_ID);

@@ -13,7 +13,7 @@ import com.mmm.util.BlockBreakdownCatalog;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.function.Supplier;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.item.Item;
@@ -24,7 +24,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 
-public final class CollectionBookScreen extends Screen
+public final class CollectionBookScreen extends com.mmm.compat.MmmScreen
 {
     private record BlockEntry(String id, String name, ItemStack icon) {}
     private final Screen parent;
@@ -70,7 +70,7 @@ public final class CollectionBookScreen extends Screen
         gridY = y + 72;
         gridX = x + (panelWidth - cell * 7) / 2;
         footerY = y + panelHeight - 30;
-        overviewScroll = Math.clamp(overviewScroll, 0, maxOverviewScroll());
+        overviewScroll = net.minecraft.util.math.MathHelper.clamp(overviewScroll, 0, maxOverviewScroll());
         if (catalog.isEmpty()) {
             var added = new HashSet<String>();
             for (String id : BlockBreakdownCatalog.blockIds()) {
@@ -208,7 +208,7 @@ public final class CollectionBookScreen extends Screen
         bookSlot();
         int col = 1;
         for (var group : BlockRankingCategory.values()) {
-            slot(col++, 2, group.label + " collections", Registries.ITEM.get(Identifier.of("minecraft", group.icon)), () -> {
+            slot(col++, 2, group.label + " collections", Registries.ITEM.get(new Identifier("minecraft", group.icon)), () -> {
                 category = group; page = 0; clearAndInit();
             }, () -> {
                 long total = catalog.stream().filter(entry -> group.includes(entry.id)).count();
@@ -356,7 +356,7 @@ public final class CollectionBookScreen extends Screen
         return Math.max(0, rows * OVERVIEW_ROW_HEIGHT - (overviewBottom() - overviewTop()));
     }
     private void scrollOverview(int amount) {
-        overviewScroll = Math.clamp(overviewScroll + amount, 0, maxOverviewScroll());
+        overviewScroll = net.minecraft.util.math.MathHelper.clamp(overviewScroll + amount, 0, maxOverviewScroll());
         rebuildSlots();
     }
     private void drawTierOverview(DrawContext context) {
@@ -413,7 +413,7 @@ public final class CollectionBookScreen extends Screen
         String text = MmmUi.truncate(textRenderer, value, panelWidth - 20);
         context.drawText(textRenderer, text, x + (panelWidth - textRenderer.getWidth(text)) / 2, yy, color, false);
     }
-    @Override public boolean mouseScrolled(double mx, double my, double horizontal, double vertical) {
+    @Override public boolean mouseScrolled(double mx, double my, double vertical) {
         if (category == null && selected == null && mx >= x && mx < x + panelWidth && my >= gridY && my < footerY) {
             if (vertical != 0) scrollOverview(vertical < 0 ? OVERVIEW_ROW_HEIGHT : -OVERVIEW_ROW_HEIGHT);
             return true;
@@ -421,7 +421,7 @@ public final class CollectionBookScreen extends Screen
         if (category != null && selected == null && mx >= x && mx < x + panelWidth && my >= gridY && my < y + panelHeight) {
             changePage(vertical < 0 ? 1 : -1); return true;
         }
-        return super.mouseScrolled(mx, my, horizontal, vertical);
+        return super.mouseScrolled(mx, my, vertical);
     }
     @Override public boolean keyPressed(int key, int scan, int modifiers) {
         if (!searchField.isFocused() && client.options.inventoryKey.matchesKey(key, scan)) { close(); return true; }

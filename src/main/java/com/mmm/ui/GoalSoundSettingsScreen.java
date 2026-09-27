@@ -12,12 +12,12 @@ import java.util.List;
 import com.mmm.sound.GoalSoundLibrary;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
-public class GoalSoundSettingsScreen extends Screen
+public class GoalSoundSettingsScreen extends com.mmm.compat.MmmScreen
 {
     private static final int BUTTON_HEIGHT = 20;
     private static final int GAP = 8;
@@ -114,7 +114,7 @@ public class GoalSoundSettingsScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 
@@ -236,10 +236,10 @@ public class GoalSoundSettingsScreen extends Screen
         }
 
         int actionWidth = (layout.contentWidth() - GAP * 2) / 3;
-        this.chooseButton.setDimensionsAndPosition(actionWidth, BUTTON_HEIGHT, layout.contentX(), layout.actionY());
-        this.previewButton.setDimensionsAndPosition(actionWidth, BUTTON_HEIGHT, layout.contentX() + actionWidth + GAP, layout.actionY());
-        this.resetButton.setDimensionsAndPosition(actionWidth, BUTTON_HEIGHT, layout.contentX() + (actionWidth + GAP) * 2, layout.actionY());
-        this.doneButton.setDimensionsAndPosition(64, BUTTON_HEIGHT, layout.panelX() + layout.panelWidth() - 76, layout.panelY() + 10);
+        MmmUi.positionWidget(this.chooseButton, actionWidth, layout.contentX(), layout.actionY());
+        MmmUi.positionWidget(this.previewButton, actionWidth, layout.contentX() + actionWidth + GAP, layout.actionY());
+        MmmUi.positionWidget(this.resetButton, actionWidth, layout.contentX() + (actionWidth + GAP) * 2, layout.actionY());
+        MmmUi.positionWidget(this.doneButton, 64, layout.panelX() + layout.panelWidth() - 76, layout.panelY() + 10);
     }
 
     private Layout layout()

@@ -11,10 +11,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.scoreboard.ReadableScoreboardScore;
-import net.minecraft.scoreboard.ScoreHolder;
 import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
 import net.minecraft.scoreboard.ScoreboardObjective;
 
 final class PersonalTotalDetector
@@ -149,11 +146,11 @@ final class PersonalTotalDetector
             case "tab" -> FastTotalPlan.single(
                     scoreboard,
                     sourceType,
-                    matchingObjective(scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.LIST), objectiveTitle));
+                    matchingObjective(scoreboard.getObjectiveForSlot(Scoreboard.LIST_DISPLAY_SLOT_ID), objectiveTitle));
             case "sidebar" -> FastTotalPlan.single(
                     scoreboard,
                     sourceType,
-                    matchingObjective(scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR), objectiveTitle));
+                    matchingObjective(scoreboard.getObjectiveForSlot(Scoreboard.SIDEBAR_DISPLAY_SLOT_ID), objectiveTitle));
             case "parser" -> buildParserPlan(client, scoreboard, sourceType, objectiveTitle);
             case "tool-uses" -> buildToolUsagePlan(client, scoreboard, sourceType);
             default -> FastTotalPlan.empty();
@@ -345,7 +342,7 @@ final class PersonalTotalDetector
         }
 
         Scoreboard scoreboard = client.world.getScoreboard();
-        ScoreboardObjective objective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        ScoreboardObjective objective = scoreboard.getObjectiveForSlot(Scoreboard.SIDEBAR_DISPLAY_SLOT_ID);
         if (objective == null)
         {
             return new SidebarResult(0L, "no-sidebar-objective", "", 0L, "");
@@ -380,7 +377,7 @@ final class PersonalTotalDetector
         }
 
         Scoreboard scoreboard = client.world.getScoreboard();
-        ScoreboardObjective objective = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.LIST);
+        ScoreboardObjective objective = scoreboard.getObjectiveForSlot(Scoreboard.LIST_DISPLAY_SLOT_ID);
         long rawScore = objective == null ? 0L : readDirectScore(scoreboard, objective, client.player.getGameProfile(), username);
         String objectiveTitle = objective == null ? "no-tab-objective" : clean(objective.getDisplayName().getString());
 
@@ -492,19 +489,9 @@ final class PersonalTotalDetector
         {
             return 0L;
         }
-        long fromProfile = readScore(scoreboard, objective, ScoreHolder.fromProfile(profile));
-        long fromName = readScore(scoreboard, objective, ScoreHolder.fromName(username));
-        return Math.max(fromProfile, fromName);
-    }
-
-    private static long readScore(Scoreboard scoreboard, ScoreboardObjective objective, ScoreHolder holder)
-    {
-        if (holder == null)
-        {
-            return 0L;
-        }
-        ReadableScoreboardScore score = scoreboard.getScore(holder, objective);
-        return score == null ? 0L : Math.max(0L, score.getScore());
+        return scoreboard.playerHasObjective(username, objective)
+                ? Math.max(0L, scoreboard.getPlayerScore(username, objective).getScore())
+                : 0L;
     }
 
     private static String findRenderedSidebarLineForUser(

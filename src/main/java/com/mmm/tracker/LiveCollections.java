@@ -103,7 +103,7 @@ public final class LiveCollections {
         for (long goal : milestones) {
             String collection = CollectionProgress.collectionId(block);
             String name = CollectionProgress.customName(collection);
-            if (name == null) name = Registries.BLOCK.get(Identifier.of(CollectionProgress.iconId(collection))).getName().getString();
+            if (name == null) name = Registries.BLOCK.get(new Identifier(CollectionProgress.iconId(collection))).getName().getString();
             String amount = CollectionProgress.targetLabel(goal);
             String message = "completed the " + name + " Collection " + amount + " milestone!";
             if (WebsiteLinkManager.isCurrentPlayerLinked() && Configs.Generic.SHARE_COLLECTION_MILESTONES.getBooleanValue()) {

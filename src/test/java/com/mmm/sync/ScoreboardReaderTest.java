@@ -2,7 +2,7 @@ package com.mmm.sync;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
-import net.minecraft.scoreboard.ScoreboardEntry;
+import com.mmm.compat.ScoreboardCompat.Entry;
 import net.minecraft.text.Text;
 import org.junit.jupiter.api.Test;
 
@@ -28,17 +28,17 @@ class ScoreboardReaderTest
         var first = cache.read(List.of(entry("One", 20, "One"), entry("Two", 10, "Two")));
         assertSame(first, cache.read(List.of(entry("One", 20, "One"), entry("Two", 10, "Two"))));
         var changed = cache.read(List.of(entry("One", 20, "One"), entry("Two", 30, "New label")));
-        assertEquals("Two", changed.getFirst().owner());
-        assertEquals(30, changed.getFirst().scoreValue());
-        assertEquals("New label", changed.getFirst().cleaned());
-        assertSame(first.getFirst(), changed.get(1));
+        assertEquals("Two", changed.get(0).owner());
+        assertEquals(30, changed.get(0).scoreValue());
+        assertEquals("New label", changed.get(0).cleaned());
+        assertSame(first.get(0), changed.get(1));
         assertEquals(1, cache.read(List.of(entry("One", 20, "One"))).size());
         assertTrue(cache.read(List.of()).isEmpty());
         assertEquals(1, cache.read(List.of(entry("New", 5, "New"))).size());
     }
 
-    private static ScoreboardEntry entry(String name, int value, String display)
+    private static Entry entry(String name, int value, String display)
     {
-        return new ScoreboardEntry(name, value, Text.literal(display), null);
+        return new Entry(name, Text.literal(display), value);
     }
 }

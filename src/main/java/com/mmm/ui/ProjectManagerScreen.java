@@ -8,14 +8,14 @@ import com.mmm.tracker.MiningStats;
 import com.mmm.util.UiFormat;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 
-public class ProjectManagerScreen extends Screen
+public class ProjectManagerScreen extends com.mmm.compat.MmmScreen
 {
     private static final int PANEL_MARGIN = 20;
     private static final int PANEL_PADDING = 18;
@@ -126,14 +126,14 @@ public class ProjectManagerScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         if (isMouseInsideList(mouseX, mouseY))
         {
             setScrollOffset(this.scrollOffset + (verticalAmount < 0 ? 1 : -1));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        return super.mouseScrolled(mouseX, mouseY, verticalAmount);
     }
 
     @Override
@@ -217,7 +217,7 @@ public class ProjectManagerScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 
@@ -513,7 +513,7 @@ public class ProjectManagerScreen extends Screen
         Configs.PROJECTS.remove(selected);
         if (selected.id.equals(Configs.activeProjectId))
         {
-            Configs.activeProjectId = Configs.PROJECTS.getFirst().id;
+            Configs.activeProjectId = Configs.PROJECTS.get(0).id;
         }
         this.deleteConfirm = false;
         Configs.saveToFile();

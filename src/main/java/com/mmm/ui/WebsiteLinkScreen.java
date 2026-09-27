@@ -6,7 +6,7 @@ import com.mmm.config.Configs;
 import com.mmm.sync.WebsiteLinkManager;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -15,7 +15,7 @@ import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.util.Util;
 
-public class WebsiteLinkScreen extends Screen
+public class WebsiteLinkScreen extends com.mmm.compat.MmmScreen
 {
     private static final String WEBSITE_LOGIN_URL = "https://www.mmmaniacs.com/login";
     private static final int PANEL_MARGIN = 20;
@@ -150,7 +150,7 @@ public class WebsiteLinkScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

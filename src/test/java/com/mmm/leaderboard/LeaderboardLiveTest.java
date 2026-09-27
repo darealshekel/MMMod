@@ -12,8 +12,8 @@ class LeaderboardLiveTest
         for (var kind : LeaderboardData.Kind.values()) {
             var page = LeaderboardClient.load(new LeaderboardData.Query(kind, "minecraft:stone", "", 1), false).get(25, TimeUnit.SECONDS);
             assertFalse(page.rows().isEmpty(), kind.label);
-            assertTrue(page.rows().getFirst().blocks() > 0, kind.label);
-            System.out.println("LIVE " + kind.label + ": " + page.rows().getFirst());
+            assertTrue(page.rows().get(0).blocks() > 0, kind.label);
+            System.out.println("LIVE " + kind.label + ": " + page.rows().get(0));
         }
     }
 }

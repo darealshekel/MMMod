@@ -1,7 +1,7 @@
 package com.mmm.mixin;
 
 import com.mmm.advancement.MmmAdvancementTree;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.advancement.AdvancementTab;
 import net.minecraft.client.gui.screen.advancement.AdvancementsScreen;
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,8 +22,9 @@ public abstract class AdvancementsScreenMixin
     }
 
     @Inject(method = "render", at = @At("HEAD"))
-    private void mmm$refreshAdvancementProgress(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci)
+    private void mmm$refreshAdvancementProgress(net.minecraft.client.util.math.MatrixStack matrices, int mouseX, int mouseY, float delta, CallbackInfo ci)
     {
+        DrawContext context = new DrawContext(net.minecraft.client.MinecraftClient.getInstance(), matrices);
         mmm$installAndSelectIfEmpty();
     }
 

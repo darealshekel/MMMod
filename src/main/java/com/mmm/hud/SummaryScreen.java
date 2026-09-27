@@ -20,7 +20,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -32,7 +32,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.Identifier;
 
-public class SummaryScreen extends Screen
+public class SummaryScreen extends com.mmm.compat.MmmScreen
 {
     private static final int PANEL_MARGIN = 20;
     private static final int PANEL_PADDING = 18;
@@ -184,10 +184,10 @@ public class SummaryScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         Layout layout = computeLayout();
-        if (!isInsideContent(layout, mouseX, mouseY)) return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        if (!isInsideContent(layout, mouseX, mouseY)) return super.mouseScrolled(mouseX, mouseY, verticalAmount);
         if (isMouseInsideBreakdown(mouseX, mouseY) && this.contentScroll == this.maxContentScroll
                 && (verticalAmount < 0 && this.breakdownScrollOffset < getMaxBreakdownScroll()
                     || verticalAmount > 0 && this.breakdownScrollOffset > 0))
@@ -266,7 +266,7 @@ public class SummaryScreen extends Screen
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 

@@ -10,7 +10,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.screen.advancement.AdvancementsScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.scoreboard.ScoreHolder;
+
 import net.minecraft.scoreboard.ScoreboardCriterion;
 import net.minecraft.text.Text;
 import org.spongepowered.asm.mixin.MixinEnvironment;
@@ -22,9 +22,9 @@ final class RuntimeChecks
         MixinEnvironment.getCurrentEnvironment().audit();
         var scoreboard = client.world.getScoreboard();
         var objective = scoreboard.addObjective("mmm_test_digs", ScoreboardCriterion.DUMMY,
-                Text.literal("Total Digs"), ScoreboardCriterion.RenderType.INTEGER, false, null);
-        var holder = ScoreHolder.fromProfile(client.player.getGameProfile());
-        var score = scoreboard.getOrCreateScore(holder, objective);
+                Text.literal("Total Digs"), ScoreboardCriterion.RenderType.INTEGER);
+        var holder = client.player.getGameProfile().getName();
+        var score = scoreboard.getPlayerScore(holder, objective);
         score.setScore(100_000);
         SyncScoreboardSelector.selectObjective(objective.getName());
         long now = System.currentTimeMillis();
@@ -38,8 +38,8 @@ final class RuntimeChecks
         var first = ScoreboardReader.readObjectives(client);
         score.setScore(100_002);
         var second = ScoreboardReader.readObjectives(client);
-        if (first.getFirst().lines().getFirst().scoreValue() != 100_001
-                || second.getFirst().lines().getFirst().scoreValue() != 100_002)
+        if (first.get(0).lines().get(0).scoreValue() != 100_001
+                || second.get(0).lines().get(0).scoreValue() != 100_002)
             throw new AssertionError("Scoreboard snapshot returned an old value");
         scoreboard.removeObjective(objective);
         if (!ScoreboardReader.readObjectives(client).isEmpty())

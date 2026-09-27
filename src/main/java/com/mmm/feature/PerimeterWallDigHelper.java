@@ -63,7 +63,7 @@ public final class PerimeterWallDigHelper
     {
         try
         {
-            Identifier identifier = Identifier.of(name);
+            Identifier identifier = new Identifier(name);
             return Registries.BLOCK.containsId(identifier) ? Registries.BLOCK.get(identifier) : null;
         }
         catch (Exception ignored)
