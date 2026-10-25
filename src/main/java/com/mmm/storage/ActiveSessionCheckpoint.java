@@ -7,6 +7,7 @@ import java.nio.file.Path;
 
 public final class ActiveSessionCheckpoint
 {
+    private static final java.util.concurrent.ConcurrentHashMap<Path, JsonObject> PENDING = new java.util.concurrent.ConcurrentHashMap<>();
     public record State(
             SessionData session,
             boolean paused,
@@ -37,7 +38,11 @@ public final class ActiveSessionCheckpoint
         {
             Path target = stateFile(worldId);
             JsonObject snapshot = serialize(state);
-            AsyncPersistence.submit(persistenceKey(target), () -> writeSnapshot(target, snapshot));
+            PENDING.put(target, snapshot);
+            AsyncPersistence.submit(persistenceKey(target), () -> {
+                writeSnapshot(target, snapshot);
+                PENDING.remove(target, snapshot);
+            });
         }
         catch (Exception exception)
         {
@@ -49,7 +54,10 @@ public final class ActiveSessionCheckpoint
     {
         try
         {
-            return load(stateFile(worldId));
+            Path target = stateFile(worldId);
+            JsonObject pending = PENDING.get(target);
+            if (pending != null) return pending.size() == 0 ? null : deserialize(pending);
+            return load(target);
         }
         catch (Exception exception)
         {
@@ -61,17 +69,20 @@ public final class ActiveSessionCheckpoint
     public static void clear(String worldId)
     {
         Path target = stateFile(worldId);
-        AsyncPersistence.cancel(persistenceKey(target));
-        AsyncPersistence.flush(java.time.Duration.ofSeconds(1L));
-        try
-        {
-            Files.deleteIfExists(target);
-            Files.deleteIfExists(AtomicJsonStorage.backupPath(target));
-        }
-        catch (Exception exception)
-        {
-            MMM.LOGGER.warn("[MMM] Failed to clear active session checkpoint: {}", exception.getMessage());
-        }
+        JsonObject tombstone = new JsonObject();
+        PENDING.put(target, tombstone);
+        AsyncPersistence.submitOrdered(persistenceKey(target), () -> {
+            try
+            {
+                Files.deleteIfExists(target);
+                Files.deleteIfExists(AtomicJsonStorage.backupPath(target));
+                PENDING.remove(target, tombstone);
+            }
+            catch (Exception exception)
+            {
+                throw new IllegalStateException("Could not retire active session checkpoint", exception);
+            }
+        });
     }
 
     static void save(Path target, State state) throws Exception
@@ -123,6 +134,11 @@ public final class ActiveSessionCheckpoint
         }
 
         JsonObject root = result.value();
+        return deserialize(root);
+    }
+
+    private static State deserialize(JsonObject root)
+    {
         String serialized = stringValue(root, "session");
         SessionData session = SessionData.deserialise(serialized);
         if (session == null)
@@ -153,7 +169,26 @@ public final class ActiveSessionCheckpoint
         {
             safeWorldId = "default";
         }
-        return SharedStoragePaths.root().resolve("active-sessions").resolve(safeWorldId + ".json");
+        Path target = AccountSessionStorage.root().resolve("active-sessions").resolve(safeWorldId + ".json");
+        // One-time copy only for the established owner. Never guess the save that
+        // produced the old shared "." checkpoint.
+        Path legacy = AccountSessionStorage.legacyFile("active-sessions", safeWorldId + ".json");
+        if (!safeWorldId.equals(".") && !safeWorldId.equals("..") && legacy != null
+                && !Files.exists(target) && Files.isRegularFile(legacy))
+        {
+            Path marker = target.resolveSibling(target.getFileName() + ".migrated");
+            try
+            {
+                if (!Files.exists(marker))
+                {
+                    Files.createDirectories(target.getParent());
+                    Files.copy(legacy, target);
+                    Files.writeString(marker, "legacy checkpoint copied");
+                }
+            }
+            catch (Exception error) { MMM.LOGGER.warn("[MMM] Could not migrate active checkpoint", error); }
+        }
+        return target;
     }
 
     private static String persistenceKey(Path target)

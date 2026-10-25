@@ -1,6 +1,7 @@
 package com.mmm.storage;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.LinkedHashSet;
@@ -32,6 +33,13 @@ public final class WorldIdentity
         return normalizedHost.isBlank()
                 ? MULTIPLAYER_PREFIX + "unknown"
                 : MULTIPLAYER_PREFIX + shortHash(normalizedHost);
+    }
+
+    public static String singleplayerWorldId(Path saveRoot)
+    {
+        String location = saveRoot.toAbsolutePath().normalize().toString();
+        if (java.io.File.separatorChar == '\\') location = location.toLowerCase(Locale.ROOT);
+        return "ssp_" + shortHash(location);
     }
 
     public static Set<String> legacyWorldIds(String canonicalWorldId, String kind, String host)

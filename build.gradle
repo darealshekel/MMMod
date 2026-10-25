@@ -67,7 +67,9 @@ if (project.hasProperty('smokeTest')) {
     loom.mods {
         smoke { sourceSet sourceSets.smoke }
     }
+    if (project.hasProperty('reliabilitySmoke')) loom.runs.client.runDir('run-reliability-smoke')
     tasks.named('runClient') {
+        if (project.hasProperty('reliabilitySmoke')) jvmArgs '-Dmmm.reliabilitySmoke=true'
         if (project.hasProperty('smokeJavaExecutable')) {
             executable = project.property('smokeJavaExecutable')
         }

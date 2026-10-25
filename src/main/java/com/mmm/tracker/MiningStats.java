@@ -139,7 +139,17 @@ public final class MiningStats
         currentSession.captureBestHourBlocks(MmmTimerState.getBestHourBlocks());
         if (wasActive && shouldPersistSession(currentSession))
         {
-            SessionHistory.save(currentSession);
+            if (!SessionHistory.save(currentSession))
+            {
+                // Keep the session recoverable and paused until ending it can be retried.
+                sessionPaused = true;
+                pausedAtMs = now;
+                checkpointActiveSession(now, true);
+                MinecraftClient client = MinecraftClient.getInstance();
+                if (client != null && client.player != null)
+                    com.mmm.util.MmmMessages.error("Session could not be saved. It is paused; check disk space and try ending it again.");
+                return currentSession;
+            }
         }
 
         SessionData finished = currentSession;
@@ -303,6 +313,7 @@ public final class MiningStats
 
     public static void startNewSession()
     {
+        if (sessionActive) return;
         resetSession();
         resetRollingMetrics();
         MiningSpeedTracker.resetSession();
@@ -326,7 +337,7 @@ public final class MiningStats
         if (sessionActive)
         {
             finaliseSession();
-            return false;
+            return sessionActive;
         }
 
         startNewSession();
@@ -546,7 +557,8 @@ public final class MiningStats
 
     public static long getGlobalTotalMinedForDisplay()
     {
-        long websiteTotal = Math.max(0L, Configs.websiteGlobalTotalBlocks);
+        long websiteTotal = com.mmm.sync.WebsiteProfileTotals.ownsCachedTotal()
+                ? Math.max(0L, Configs.websiteGlobalTotalBlocks) : 0L;
         return websiteTotal > 0L ? websiteTotal : Math.max(0L, Configs.totalBlocksMined);
     }
 
@@ -1186,8 +1198,8 @@ public final class MiningStats
             Configs.fastest100kMs = durationMs;
             Configs.fastest100kStartedAtMs = Math.max(0L, startedAtMs);
             Configs.fastest100kFinishedAtMs = Math.max(0L, finishedAtMs);
-            Configs.saveToFile();
-            CloudSyncManager.syncHeartbeat();
+            // The normal periodic save/heartbeat includes the latest record. Avoid a
+            // full config snapshot and network request for every improving block.
         }
     }
 
@@ -1552,6 +1564,14 @@ public final class MiningStats
     private static boolean restoreActiveSession(long now)
     {
         ActiveSessionCheckpoint.State checkpoint = ActiveSessionCheckpoint.load(currentWorldId);
+        if (checkpoint != null && SessionHistory.getHistory().stream()
+                .anyMatch(saved -> saved.startTimeMs == checkpoint.session().startTimeMs
+                        && saved.endTimeMs >= checkpoint.session().endTimeMs
+                        && saved.totalBlocks >= checkpoint.session().totalBlocks))
+        {
+            ActiveSessionCheckpoint.clear(currentWorldId);
+            return false;
+        }
         if (checkpoint == null || checkpoint.session() == null)
         {
             return false;
