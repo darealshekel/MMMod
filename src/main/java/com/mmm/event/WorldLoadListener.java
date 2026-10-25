@@ -87,8 +87,11 @@ public final class WorldLoadListener
 
         PerimeterWallDigHelper.refreshFromConfig();
         if (client.getSession().getUuidOrNull() != null)
+        {
             SessionHistory.activateAccount(client.getSession().getUuidOrNull().toString(),
                     com.mmm.config.Configs.websiteLinkedMinecraftUuid);
+            com.mmm.config.Configs.activatePersonalStats(client.getSession().getUuidOrNull().toString());
+        }
         String previousWorldId = WorldSessionContext.getCurrentWorldId();
         WorldSessionContext.update(client);
         com.mmm.tracker.PlaytimeTracker.onJoin(client);

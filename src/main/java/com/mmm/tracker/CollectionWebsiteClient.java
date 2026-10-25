@@ -21,6 +21,9 @@ public final class CollectionWebsiteClient
     private static final Map<String, Cached> CACHE = new LinkedHashMap<>();
 
     private CollectionWebsiteClient() {}
+    public static synchronized void invalidate(String playerKey) {
+        CACHE.keySet().removeIf(key -> key.startsWith(playerKey + ":"));
+    }
 
     public static synchronized CompletableFuture<Snapshot> load(String playerKey, String username)
     {

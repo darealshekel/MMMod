@@ -56,7 +56,47 @@ public final class PublicChatClient
             .build();
     private static final Set<String> SEEN_EVENT_IDS = new HashSet<>();
     private static final Deque<String> SEEN_EVENT_ORDER = new ArrayDeque<>();
-    private static final Deque<String> PENDING_ADVANCEMENT_MESSAGES = new ArrayDeque<>();
+    private record Announcement(String player, String username, String message) {}
+    private static final Deque<Announcement> PENDING_ADVANCEMENT_MESSAGES = new ArrayDeque<>();
+    private static boolean announcementsLoaded;
+
+    private static void loadAnnouncements()
+    {
+        if (announcementsLoaded) return;
+        announcementsLoaded = true;
+        try {
+            var saved = com.mmm.storage.AtomicJsonStorage.readObjectWithBackup(
+                    com.mmm.storage.SharedStoragePaths.root().resolve("chat-advancements.json")).value();
+            if (saved == null || !saved.has("messages")) return;
+            for (var entry : saved.getAsJsonArray("messages")) {
+                if (PENDING_ADVANCEMENT_MESSAGES.size() >= 512) break;
+                try {
+                    var item = entry.getAsJsonObject();
+                    String player = com.mmm.storage.AccountSessionStorage.normalize(item.get("player").getAsString());
+                    String message = item.get("message").getAsString();
+                    if (!player.isEmpty() && !message.isBlank() && message.length() <= MAX_MESSAGE_LENGTH)
+                        PENDING_ADVANCEMENT_MESSAGES.add(new Announcement(player, item.get("username").getAsString(), message));
+                } catch (RuntimeException ignored) { }
+            }
+        } catch (Exception error) { MMM.LOGGER.warn("[MMM] Cannot load pending advancements: {}", error.getMessage()); }
+    }
+
+    private static void saveAnnouncements()
+    {
+        var snapshot = new JsonObject();
+        var messages = new com.google.gson.JsonArray();
+        for (var entry : PENDING_ADVANCEMENT_MESSAGES) {
+            var item = new JsonObject();
+            item.addProperty("player", entry.player()); item.addProperty("username", entry.username());
+            item.addProperty("message", entry.message()); messages.add(item);
+        }
+        snapshot.add("messages", messages);
+        var path = com.mmm.storage.SharedStoragePaths.root().resolve("chat-advancements.json");
+        com.mmm.storage.AsyncPersistence.submit("chat-advancements:" + path, () -> {
+            try { com.mmm.storage.AtomicJsonStorage.write(path, snapshot, true); }
+            catch (Exception error) { throw new IllegalStateException("Cannot save pending advancements", error); }
+        });
+    }
 
     private static volatile InputStream activeStream;
     private static volatile boolean connecting;
@@ -67,6 +107,8 @@ public final class PublicChatClient
     private static volatile long lastPresenceSentAtMs;
     private static volatile long generation;
     private static volatile long nextConnectionAttemptMs;
+    private static volatile long lastStreamActivityMs;
+    private static volatile java.util.concurrent.CompletableFuture<?> connectingRequest;
     private static int tickCounter;
     private static long nextAdvancementSendMs;
 
@@ -91,6 +133,11 @@ public final class PublicChatClient
             return;
         }
         sendPendingAdvancement();
+        if ((connecting || connected) && streamExpired(System.currentTimeMillis(), lastStreamActivityMs))
+        {
+            disconnect();
+            nextConnectionAttemptMs = System.currentTimeMillis() + RECONNECT_DELAY_MS;
+        }
         if (connected)
         {
             sendPresence(client);
@@ -103,7 +150,7 @@ public final class PublicChatClient
         connect(client);
     }
 
-    public static void sendMessage(String rawMessage)
+    public static boolean sendMessage(String rawMessage)
     {
         MinecraftClient client = MinecraftClient.getInstance();
         String message = normalizeMessage(rawMessage);
@@ -112,11 +159,13 @@ public final class PublicChatClient
                 || WebsiteLinkManager.isCurrentPlayerLinked() == false)
         {
             showLocalError("Website link required.");
-            return;
+            return false;
         }
-        if (message.isBlank() || message.length() > MAX_MESSAGE_LENGTH || sending)
+        String validation = validateDraft(message, sending);
+        if (!validation.isEmpty())
         {
-            return;
+            showLocalError(validation);
+            return false;
         }
 
         JsonObject payload = new JsonObject();
@@ -168,7 +217,21 @@ public final class PublicChatClient
         {
             sending = false;
             showLocalError("Could not send that message.");
+            return false;
         }
+        return true;
+    }
+
+    static String validateDraft(String message, boolean busy)
+    {
+        if (message.isBlank()) return "Enter a message.";
+        if (message.length() > MAX_MESSAGE_LENGTH) return "MMM messages can contain up to 200 characters.";
+        return busy ? "A message is still sending. Your draft has been kept; try again shortly." : "";
+    }
+
+    static boolean streamExpired(long now, long lastActivity)
+    {
+        return lastActivity > 0 && now - lastActivity > 75_000L;
     }
 
     public static java.util.concurrent.CompletableFuture<Boolean> sendCollectionMessage(String message)
@@ -263,9 +326,12 @@ public final class PublicChatClient
         {
             synchronized (PENDING_ADVANCEMENT_MESSAGES)
             {
-                if (PENDING_ADVANCEMENT_MESSAGES.size() < 32)
+                loadAnnouncements();
+                if (PENDING_ADVANCEMENT_MESSAGES.size() < 512)
                 {
-                    PENDING_ADVANCEMENT_MESSAGES.addLast(message);
+                    PENDING_ADVANCEMENT_MESSAGES.addLast(new Announcement(com.mmm.storage.AccountSessionStorage.normalize(client.player.getUuidAsString()),
+                            client.player.getName().getString(), message));
+                    saveAnnouncements();
                 }
             }
             return;
@@ -283,15 +349,24 @@ public final class PublicChatClient
         {
             return;
         }
-        String message;
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.player == null) return;
+        Announcement message;
         synchronized (PENDING_ADVANCEMENT_MESSAGES)
         {
-            message = PENDING_ADVANCEMENT_MESSAGES.pollFirst();
+            loadAnnouncements();
+            message = PENDING_ADVANCEMENT_MESSAGES.stream()
+                    .filter(item -> item.player().equals(com.mmm.storage.AccountSessionStorage.normalize(client.player.getUuidAsString()))).findFirst().orElse(null);
         }
         if (message != null)
         {
             nextAdvancementSendMs = now + 2_500L;
-            sendMessage(message);
+            sendCollectionMessage(message.message()).whenComplete((accepted, error) -> client.execute(() -> {
+                synchronized (PENDING_ADVANCEMENT_MESSAGES) {
+                    if (Boolean.TRUE.equals(accepted) && PENDING_ADVANCEMENT_MESSAGES.remove(message)) saveAnnouncements();
+                }
+                if (!Boolean.TRUE.equals(accepted)) nextAdvancementSendMs = System.currentTimeMillis() + 30_000L;
+            }));
         }
     }
 
@@ -302,6 +377,9 @@ public final class PublicChatClient
             return;
         }
         generation += 1L;
+        var request = connectingRequest;
+        connectingRequest = null;
+        if (request != null) request.cancel(true);
         connecting = false;
         connected = false;
         InputStream stream = activeStream;
@@ -327,6 +405,7 @@ public final class PublicChatClient
         }
 
         connecting = true;
+        lastStreamActivityMs = System.currentTimeMillis();
         long connectionGeneration = generation;
         String endpoint = BASE_ENDPOINT + "/events?room=" + encode(PUBLIC_ROOM_ID)
                 + "&minecraftUuid=" + encode(client.player.getUuidAsString())
@@ -335,13 +414,15 @@ public final class PublicChatClient
         {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(endpoint))
+                    .timeout(Duration.ofSeconds(15))
                     .header("Accept", "text/event-stream")
                     .header("Cache-Control", "no-cache")
                     .header("x-mmm-client-sync-token", Configs.websiteSyncToken)
                     .GET()
                     .build();
-            HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream())
-                    .whenComplete((response, error) -> handleConnectionResponse(connectionGeneration, response, error));
+            var future = HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
+            connectingRequest = future;
+            future.whenComplete((response, error) -> handleConnectionResponse(connectionGeneration, response, error));
         }
         catch (Exception exception)
         {
@@ -384,6 +465,8 @@ public final class PublicChatClient
             }
             connecting = false;
             connected = true;
+            connectingRequest = null;
+            lastStreamActivityMs = System.currentTimeMillis();
             activeStream = response.body();
             lastPresenceValue = null;
             lastPresenceSentAtMs = 0L;
@@ -400,6 +483,7 @@ public final class PublicChatClient
             String line;
             while ((line = reader.readLine()) != null && connectionGeneration == generation)
             {
+                lastStreamActivityMs = System.currentTimeMillis();
                 if (line.isEmpty())
                 {
                     if (data.isEmpty() == false)
@@ -466,6 +550,10 @@ public final class PublicChatClient
         if (MmmChatIgnoreList.isIgnored(username))
         {
             return;
+        }
+        synchronized (PENDING_ADVANCEMENT_MESSAGES) {
+            if (PENDING_ADVANCEMENT_MESSAGES.removeIf(item -> item.username().equalsIgnoreCase(username)
+                    && (item.message().equals(message) || item.message().equals(rawMessage)))) saveAnnouncements();
         }
         showChatMessage(username, message, rawMessage);
     }

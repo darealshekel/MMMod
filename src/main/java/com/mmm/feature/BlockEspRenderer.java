@@ -93,7 +93,7 @@ public final class BlockEspRenderer
         try
         {
             RenderSystem.setShader(GameRenderer::getPositionColorProgram);
-            BufferBuilder fillBuffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+            BufferBuilder fillBuffer = Tessellator.getInstance().begin(VertexFormat.DrawMode.TRIANGLE_STRIP, VertexFormats.POSITION_COLOR);
             WorldRenderer.renderFilledBox(matrices, fillBuffer, minX, minY, minZ, maxX, maxY, maxZ, fill.r, fill.g, fill.b, fill.a);
             BufferRenderer.drawWithGlobalProgram(fillBuffer.end());
 

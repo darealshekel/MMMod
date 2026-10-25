@@ -33,6 +33,7 @@ public final class MiningCalendarStore
     private static boolean dirty;
     private static long lastSaveAtMs;
     private static String activePlayerKey = "";
+    private static int bestQualifiedStreakDays;
 
     private MiningCalendarStore()
     {
@@ -100,7 +101,17 @@ public final class MiningCalendarStore
     public static synchronized int longestQualifiedMiningStreakDays()
     {
         activateCurrentPlayer();
-        return longestMiningStreakDays(DAYS, STREAK_DAY_MINIMUM_BLOCKS);
+        retainBestStreak();
+        return bestQualifiedStreakDays;
+    }
+
+    private static void retainBestStreak()
+    {
+        int best = longestMiningStreakDays(DAYS, STREAK_DAY_MINIMUM_BLOCKS);
+        if (best > bestQualifiedStreakDays) {
+            bestQualifiedStreakDays = best;
+            dirty = true;
+        }
     }
 
     static int longestMiningStreakDays(Map<String, Long> days)
@@ -236,6 +247,7 @@ public final class MiningCalendarStore
         }
         DAYS.clear();
         SYNCED_DAYS.clear();
+        bestQualifiedStreakDays = 0;
         loaded = false;
         dirty = false;
         activePlayerKey = normalized;
@@ -269,10 +281,12 @@ public final class MiningCalendarStore
                 return;
             }
             JsonObject root = result.value();
+            if (root.has("best_qualified_streak_days"))
+                bestQualifiedStreakDays = Math.max(0, root.get("best_qualified_streak_days").getAsInt());
             readDayMap(root.getAsJsonObject("days"), DAYS);
             readDayMap(root.getAsJsonObject("synced_days"), SYNCED_DAYS);
             trimOldDays();
-            dirty = result.recoveredFromBackup();
+            dirty |= result.recoveredFromBackup();
             if (result.recoveredFromBackup())
             {
                 MMM.LOGGER.warn("[MMM] Recovered mining calendar state from backup.");
@@ -311,6 +325,7 @@ public final class MiningCalendarStore
 
     private static void trimOldDays()
     {
+        retainBestStreak();
         List<String> keys = sortedDayKeys();
         int removeCount = Math.max(0, keys.size() - MAX_DAYS);
         for (int index = 0; index < removeCount; index++)
@@ -379,6 +394,8 @@ public final class MiningCalendarStore
         Path path = SharedStoragePaths.miningCalendarFile(activePlayerKey);
         JsonObject root = new JsonObject();
         root.addProperty("version", 1);
+        retainBestStreak();
+        root.addProperty("best_qualified_streak_days", bestQualifiedStreakDays);
         root.add("days", mapJson(DAYS));
         root.add("synced_days", mapJson(SYNCED_DAYS));
         lastSaveAtMs = System.currentTimeMillis();

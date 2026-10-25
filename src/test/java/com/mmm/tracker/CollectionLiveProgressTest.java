@@ -14,6 +14,7 @@ class CollectionLiveProgressTest {
         progress.mined(regular);
         progress.mined(special);
         progress = CollectionLiveProgress.load(progress.save());
+        progress.acknowledge(progress.receipt(""));
         progress.reconcile(Map.of(regular, 100001L));
         assertEquals(100001L, progress.counts().get(regular));
         assertEquals(1L, progress.counts().get(special));
@@ -25,6 +26,7 @@ class CollectionLiveProgressTest {
         progress.reconcile(Map.of("minecraft:tube_coral_block", 5000L, "minecraft:dead_brain_coral_block", 4999L));
         assertEquals(List.of(10000L), progress.mined("minecraft:tube_coral_block"));
         progress = CollectionLiveProgress.load(progress.save());
+        progress.acknowledge(progress.receipt(""));
         progress.reconcile(Map.of("minecraft:tube_coral_block", 5001L, "minecraft:dead_brain_coral_block", 4999L));
         assertEquals(10000L, progress.counts().get("mmm:coral"));
         assertTrue(progress.mined("minecraft:dead_brain_coral_block").isEmpty());
@@ -48,6 +50,7 @@ class CollectionLiveProgressTest {
         progress.reconcile(Map.of(STONE, 9999L));
         assertEquals(10000L, progress.counts().get(STONE));
         progress = CollectionLiveProgress.load(progress.save());
+        progress.acknowledge(progress.receipt(""));
         progress.reconcile(Map.of(STONE, 10000L));
         assertEquals(10000L, progress.counts().get(STONE));
         assertTrue(progress.mined(STONE).isEmpty());
@@ -65,6 +68,7 @@ class CollectionLiveProgressTest {
         var progress = new CollectionLiveProgress();
         progress.reconcile(Map.of(STONE, 100L));
         for (int i = 0; i < 10; i++) progress.mined(STONE);
+        progress.acknowledge(progress.receipt(""));
         progress.reconcile(Map.of(STONE, 104L));
         assertEquals(110L, progress.counts().get(STONE));
         progress.reconcile(Map.of(STONE, 104L));
@@ -78,6 +82,7 @@ class CollectionLiveProgressTest {
         progress.mined(STONE);
         progress.reconcile(Map.of(STONE, 80L));
         assertEquals(101L, progress.counts().get(STONE));
+        progress.acknowledge(progress.receipt(""));
         progress.reconcile(Map.of(STONE, 101L));
         assertEquals(101L, progress.counts().get(STONE));
     }
@@ -141,6 +146,7 @@ class CollectionLiveProgressTest {
         progress.reconcile(Map.of(STONE, 2499L));
         assertEquals(List.of(2500L), progress.mined(STONE));
         progress = CollectionLiveProgress.load(progress.save());
+        progress.acknowledge(progress.receipt(""));
         progress.reconcile(Map.of(STONE, 2500L, "minecraft:oak_log", 100000L));
         assertEquals(new CollectionLiveProgress.CatchUpSummary(6, 2), progress.finishCatchUp());
         assertEquals(2500L, progress.counts().get(STONE));

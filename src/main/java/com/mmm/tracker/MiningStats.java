@@ -1592,6 +1592,7 @@ public final class MiningStats
                 currentSession.startTimeMs,
                 (sessionPaused ? pausedAtMs : now) - pausedAccumulatedMs);
         currentSession.wallDurationMs = Math.max(currentSession.wallDurationMs, now - currentSession.startTimeMs);
+        MmmTimerState.restoreSessionClock(currentSession.getActiveDurationMs(), now, sessionPaused);
         lastSessionCheckpointMs = now;
         autoMiningStreakStartMs = 0L;
         lastValidBlockMineMs = 0L;

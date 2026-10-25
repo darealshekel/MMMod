@@ -60,12 +60,51 @@ final class RuntimeChecks
         if (!channel.getBoolean(null)) throw new AssertionError("MMM tab did not select");
         chat.charTyped('b', 0);
         if (!input.getText().equals("ab")) throw new AssertionError("MMM chat typing failed");
+        chat.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0);
+        if (client.currentScreen != chat || !input.getText().equals("ab"))
+            throw new AssertionError("Rejected MMM draft was discarded");
         client.setScreen(null);
         client.setScreen(new ChatScreen(""));
         if (channel.getBoolean(null)) throw new AssertionError("Chat channel did not reset");
         client.setScreen(new AdvancementsScreen(client.getNetworkHandler().getAdvancementHandler()));
         SessionHistory.getLifetimeSummary();
         checkRankOvertakeHud(client);
+        checkAccountStats(client);
+        checkAnnouncementRecovery(client);
+    }
+
+    private static void checkAccountStats(MinecraftClient client) {
+        String owner = client.player.getUuidAsString();
+        long total = com.mmm.config.Configs.totalBlocksMined;
+        long record = com.mmm.config.Configs.personalRecordDailyBlocks;
+        int worlds = com.mmm.config.Configs.WORLD_STATS.size();
+        com.mmm.config.Configs.activatePersonalStats("abcdefab-cdef-abcd-efab-cdefabcdefab");
+        if (com.mmm.config.Configs.totalBlocksMined != 0 || !com.mmm.config.Configs.WORLD_STATS.isEmpty())
+            throw new AssertionError("Personal stats leaked to another account");
+        com.mmm.config.Configs.activatePersonalStats(owner);
+        if (com.mmm.config.Configs.totalBlocksMined != total
+                || com.mmm.config.Configs.personalRecordDailyBlocks != record
+                || com.mmm.config.Configs.WORLD_STATS.size() != worlds)
+            throw new AssertionError("Switching back did not restore personal stats");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void checkAnnouncementRecovery(MinecraftClient client) throws Exception {
+        Class<?> type = com.mmm.social.PublicChatClient.class;
+        var load = type.getDeclaredMethod("loadAnnouncements"); load.setAccessible(true); load.invoke(null);
+        var queueField = type.getDeclaredField("PENDING_ADVANCEMENT_MESSAGES"); queueField.setAccessible(true);
+        var queue = (java.util.Deque<Object>) queueField.get(null);
+        var entry = Class.forName(type.getName() + "$Announcement").getDeclaredConstructors()[0]; entry.setAccessible(true);
+        queue.add(entry.newInstance(com.mmm.storage.AccountSessionStorage.normalize(client.player.getUuidAsString()),
+                client.player.getName().getString(), "earned a smoke-test advancement"));
+        int expected = queue.size();
+        var save = type.getDeclaredMethod("saveAnnouncements"); save.setAccessible(true); save.invoke(null);
+        com.mmm.storage.AsyncPersistence.flush(java.time.Duration.ofSeconds(3));
+        queue.clear();
+        var loaded = type.getDeclaredField("announcementsLoaded"); loaded.setAccessible(true); loaded.setBoolean(null, false);
+        load.invoke(null);
+        if (queue.size() != expected) throw new AssertionError("Pending announcement lost on restart");
+        queue.clear(); save.invoke(null);
     }
 
     private static void checkRankOvertakeHud(MinecraftClient client) throws Exception

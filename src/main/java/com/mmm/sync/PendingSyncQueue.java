@@ -2,6 +2,7 @@ package com.mmm.sync;
 
 import com.google.gson.JsonObject;
 import com.mmm.MMM;
+import com.mmm.storage.AsyncPersistence;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ public final class PendingSyncQueue
 
     private final Object lock = new Object();
     private final PendingSyncStore store;
+    private final String persistenceKey;
     private final Sender sender;
     private final Listener listener;
     private final ExecutorService flushExecutor;
@@ -78,6 +80,7 @@ public final class PendingSyncQueue
     PendingSyncQueue(Path storePath, Sender sender, Listener listener, Predicate<QueuedSyncItem> dueItemFilter, ThreadFactory threadFactory)
     {
         this.store = new PendingSyncStore(storePath);
+        this.persistenceKey = "sync-queue:" + storePath.toAbsolutePath().normalize();
         this.sender = sender;
         this.listener = listener;
         this.dueItemFilter = dueItemFilter == null ? (item -> true) : dueItemFilter;
@@ -129,6 +132,7 @@ public final class PendingSyncQueue
             this.flushExecutor.shutdownNow();
             Thread.currentThread().interrupt();
         }
+        AsyncPersistence.flush(java.time.Duration.ofSeconds(3));
     }
 
     int removeMatching(Predicate<QueuedSyncItem> predicate)
@@ -343,23 +347,19 @@ public final class PendingSyncQueue
                 return;
             }
 
+            if (result.outcome() != SyncSendResult.Outcome.RETRY
+                    && !current.payload.equals(attemptedItem.payload))
+            {
+                current.nextRetryAtMs = 0L;
+                current.retryCount = 0;
+                persistLocked();
+                if (result.outcome() == SyncSendResult.Outcome.SUCCESS)
+                    notifyListenerSafely("item-succeeded", () -> this.listener.onItemSucceeded(attemptedItem, result, snapshotLocked()));
+                return;
+            }
+
             if (result.outcome() == SyncSendResult.Outcome.SUCCESS)
             {
-                if (current.payload.equals(attemptedItem.payload) == false)
-                {
-                    current.nextRetryAtMs = 0L;
-                    current.retryCount = 0;
-                    persistLocked();
-                    MMM.LOGGER.info(
-                            "{} item-retained-newer-payload id={} type={} note=payload_changed_during_send queueSize={}",
-                            LOG_PREFIX,
-                            attemptedItem.id,
-                            attemptedItem.type,
-                            snapshotLocked().queueSize()
-                    );
-                    return;
-                }
-
                 this.items.removeIf(item -> item.id.equals(attemptedItem.id));
                 this.lastSuccessfulSyncAtMs = now;
                 persistLocked();
@@ -508,7 +508,7 @@ public final class PendingSyncQueue
         long successfulSyncSnapshot = this.lastSuccessfulSyncAtMs;
         try
         {
-            this.flushExecutor.execute(() -> {
+            AsyncPersistence.submit(this.persistenceKey, () -> {
                 try
                 {
                     this.store.save(itemSnapshot, successfulSyncSnapshot);

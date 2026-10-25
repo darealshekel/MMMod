@@ -47,11 +47,7 @@ public final class CollectionLiveProgress {
             var value = blocks.computeIfAbsent(id, ignored -> new RankLocalProgress(0, 0));
             long incoming = Math.max(0, published.getOrDefault(id, 0L));
             if (!websiteReady) {
-                long missing = Math.max(0, value.website() - incoming);
-                long pending = Math.min(Long.MAX_VALUE - incoming, missing);
-                pending += Math.min(Long.MAX_VALUE - incoming - pending, value.pending());
-                value = new RankLocalProgress(incoming, pending);
-                blocks.put(id, value);
+                value.initializeWebsite(incoming);
             } else value.reconcile(incoming);
             // Imported history and website refreshes are not new local achievements.
             markExisting(id, value.total());
@@ -59,10 +55,25 @@ public final class CollectionLiveProgress {
         websiteReady = true;
     }
     public List<Long> mined(String id) {
+        return mined(id, "");
+    }
+    public JsonObject receipt(String world) {
+        var result = new JsonObject();
+        blocks.forEach((id, value) -> result.add(id, value.receipt(world)));
+        return result;
+    }
+    public void acknowledge(JsonObject receipt) {
+        if (receipt == null) return;
+        receipt.entrySet().forEach(entry -> {
+            var value = blocks.get(entry.getKey());
+            if (value != null) value.acknowledge(entry.getValue().getAsJsonObject());
+        });
+    }
+    public List<Long> mined(String id, String world) {
         id = CollectionProgress.collectionId(id);
         var value = blocks.computeIfAbsent(id, ignored -> new RankLocalProgress(0, 0));
         if (catchUpPending && value.total() < Long.MAX_VALUE) catchUpMined.merge(id, 1L, CollectionProgress::add);
-        value.mined();
+        value.mined(world);
         long previous = announced.getOrDefault(id, 0L);
         var reached = CollectionProgress.milestones(id).stream()
                 .filter(goal -> goal > previous && value.total() >= goal).toList();
@@ -90,9 +101,7 @@ public final class CollectionLiveProgress {
         catchUpMined.forEach(mined::addProperty);
         result.add("_catchUpMined", mined);
         blocks.forEach((id, value) -> {
-            var item = new JsonObject();
-            item.addProperty("website", value.website());
-            item.addProperty("pending", value.pending());
+            var item = value.save();
             item.addProperty("announced", announced.getOrDefault(id, 0L));
             result.add(id, item);
         });
@@ -121,8 +130,9 @@ public final class CollectionLiveProgress {
             try {
                 var item = entry.getValue().getAsJsonObject();
                 String id = CollectionProgress.collectionId(entry.getKey());
-                var existing = result.blocks.getOrDefault(id, new RankLocalProgress(0, 0));
-                result.blocks.put(id, new RankLocalProgress(CollectionProgress.add(existing.website(), Math.max(0, item.get("website").getAsLong())),
+                var existing = result.blocks.get(id);
+                result.blocks.put(id, existing == null ? RankLocalProgress.load(item) : new RankLocalProgress(
+                        CollectionProgress.add(existing.website(), Math.max(0, item.get("website").getAsLong())),
                         CollectionProgress.add(existing.pending(), Math.max(0, item.get("pending").getAsLong()))));
                 result.announced.merge(id, Math.max(0, item.get("announced").getAsLong()), Math::max);
             } catch (RuntimeException ignored) { }

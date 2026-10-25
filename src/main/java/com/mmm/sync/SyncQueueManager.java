@@ -75,6 +75,11 @@ public final class SyncQueueManager
         }
     }
 
+    public static void shutdown()
+    {
+        if (queue != null) queue.shutdown();
+    }
+
     public static void requestFlush(String reason)
     {
         if (queue == null)
@@ -112,8 +117,20 @@ public final class SyncQueueManager
         }
 
         initialize();
-        queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, "cloud-live-state", payload, true, triggerReason);
+        queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, liveStateKey(payload), payload, true, triggerReason);
         requestFlush("enqueue cloud live state");
+    }
+
+    static String liveStateKey(JsonObject payload)
+    {
+        JsonObject world = payload != null && payload.has("world") && payload.get("world").isJsonObject()
+                ? payload.getAsJsonObject("world") : new JsonObject();
+        com.google.gson.JsonArray identity = new com.google.gson.JsonArray();
+        identity.add(payloadUuid(payload).toLowerCase(Locale.ROOT));
+        identity.add(world.has("key") ? world.get("key") : com.google.gson.JsonNull.INSTANCE);
+        identity.add(world.has("source_key") ? world.get("source_key") : com.google.gson.JsonNull.INSTANCE);
+        identity.add(payload != null && payload.has("sync_scope") ? payload.get("sync_scope") : com.google.gson.JsonNull.INSTANCE);
+        return "cloud-live-state:" + identity;
     }
 
     public static void enqueueCloudFinishedSession(String sessionKey, JsonObject payload)
@@ -262,7 +279,9 @@ public final class SyncQueueManager
                 headers.put("x-mmm-client-sync-token", Configs.websiteSyncToken);
             }
 
-            String requestBody = item.payload.toString();
+            JsonObject wirePayload = item.payload.deepCopy();
+            wirePayload.remove("_local_progress");
+            String requestBody = wirePayload.toString();
             long requestStartedAtMs = System.currentTimeMillis();
             notifyUploading(item);
             MmmDebugLogger.info(

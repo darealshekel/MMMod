@@ -126,7 +126,22 @@ public abstract class ScoreboardChatScreenMixin extends Screen
             return;
         }
 
-        PublicChatClient.sendMessage(normalized);
+        if (PublicChatClient.sendMessage(normalized) && addToHistory)
+            client.inGameHud.getChatHud().addToMessageHistory(normalized);
+    }
+
+    @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
+    private void mmm$keepRejectedDraft(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir)
+    {
+        if (!mmm$channelTabsEnabled() || !mmm$publicChannelSelected || this.chatField == null
+                || keyCode != org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER && keyCode != org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ENTER) return;
+        MinecraftClient client = MinecraftClient.getInstance();
+        String message = this.chatField.getText().trim();
+        if (PublicChatClient.sendMessage(message)) {
+            client.inGameHud.getChatHud().addToMessageHistory(message);
+            client.setScreen(null);
+        }
+        cir.setReturnValue(true);
     }
 
     @Redirect(

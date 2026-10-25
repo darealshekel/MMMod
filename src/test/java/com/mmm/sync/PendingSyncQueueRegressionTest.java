@@ -163,6 +163,7 @@ class PendingSyncQueueRegressionTest
         PendingSyncQueue first = new PendingSyncQueue(store, item -> SyncSendResult.success(200, "{}"), new PendingSyncQueue.Listener() {});
         first.initialize();
         first.enqueue(SyncItemType.CLOUD_LIVE_STATE, "first", payload(1), true, "first saved item");
+        assertTrue(com.mmm.storage.AsyncPersistence.flush(java.time.Duration.ofSeconds(3)));
         first.enqueue(SyncItemType.PLAYER_TOTAL_DIGS, "second", payload(2), true, "creates backup");
         first.shutdown();
 

@@ -127,13 +127,12 @@ public final class MmmTimerState
         {
             paused = false;
             pausedAtMs = 0L;
-            long remaining = getRemainingMs(System.currentTimeMillis());
-            if (remaining <= 0L)
-            {
-                running = false;
-                expired = true;
-                remainingPausedMs = 0L;
-            }
+            long now = System.currentTimeMillis();
+            long elapsed = Math.max(0L, durationMs - remainingPausedMs);
+            startedAtMs = now - elapsed;
+            runStartedAtMs = now - elapsed;
+            hourStartTimeMs = now - elapsed % HOUR_MS;
+            sessionPausedAtMs = now;
         }
         else if (paused && pausedAtMs <= 0L)
         {
@@ -352,6 +351,11 @@ public final class MmmTimerState
         }
 
         long now = System.currentTimeMillis();
+        if (client.player == null || client.world == null)
+        {
+            if (sessionPausedAtMs <= 0L) sessionPausedAtMs = now;
+            return;
+        }
         syncSessionPauseClock(now);
         if (running)
         {
@@ -440,6 +444,19 @@ public final class MmmTimerState
         boolean pending = creditsPending;
         creditsPending = false;
         return pending;
+    }
+
+    public static void restoreSessionClock(long activeMs, long now, boolean sessionPaused)
+    {
+        // A stopped client is not session IGT. A countdown keeps its own saved
+        // elapsed time when it was started partway through the session.
+        long elapsed = running || paused ? Math.max(0L, durationMs - getRemainingMs(now)) : Math.max(0L, activeMs);
+        runStartedAtMs = now - elapsed;
+        hourStartTimeMs = now - elapsed % HOUR_MS;
+        if (running) startedAtMs = now - elapsed;
+        if (paused) pausedAtMs = now;
+        sessionPausedAtMs = sessionPaused ? now : 0L;
+        completedHour = (int) Math.min(Integer.MAX_VALUE, elapsed / HOUR_MS);
     }
 
     public static boolean hasNotification(long now)
@@ -703,7 +720,7 @@ public final class MmmTimerState
 
     private static boolean shouldCountBlockStats()
     {
-        if (expired || paused)
+        if (expired || paused || MiningStats.isSessionPaused())
         {
             return false;
         }

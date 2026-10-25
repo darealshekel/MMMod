@@ -17,7 +17,9 @@ class RankLocalProgressTest
 
     @Test void syncConsumesOnlyBlocksAlreadyPublished()
     {
-        var progress = new RankLocalProgress(1000, 150);
+        var progress = new RankLocalProgress(1000, 0);
+        for (int i = 0; i < 150; i++) progress.mined();
+        progress.acknowledge(progress.receipt(""));
         progress.reconcile(1100);
         assertEquals(50, progress.pending());
         assertEquals(1150, progress.total());
@@ -29,8 +31,11 @@ class RankLocalProgressTest
 
     @Test void newBlocksWhileRequestIsRunningArePreserved()
     {
-        var progress = new RankLocalProgress(1000, 10);
+        var progress = new RankLocalProgress(1000, 0);
+        for (int i = 0; i < 10; i++) progress.mined("world-a");
+        var receipt = progress.receipt("world-a");
         progress.mined();
+        progress.acknowledge(receipt);
         progress.reconcile(1010);
         assertEquals(1011, progress.total());
     }
@@ -40,6 +45,55 @@ class RankLocalProgressTest
         var progress = new RankLocalProgress(1000, 10);
         progress.reconcile(900);
         assertEquals(910, progress.total());
+    }
+
+    @Test void unrelatedGainsNeverAcknowledgePendingMining() {
+        var progress = new RankLocalProgress(1000, 0);
+        for (int i = 0; i < 1000; i++) progress.mined("a");
+        progress.reconcile(2000);
+        assertEquals(3000, progress.total());
+        progress.acknowledge(progress.receipt("b"));
+        progress.reconcile(2100);
+        assertEquals(3100, progress.total());
+    }
+
+    @Test void receiptsAreWorldScopedDurableAndIdempotent() {
+        var progress = new RankLocalProgress(1000, 0);
+        for (int i = 0; i < 10; i++) progress.mined("a");
+        var receipt = progress.receipt("a");
+        progress.mined("a");
+        progress.mined("b");
+        progress.acknowledge(receipt);
+        progress = RankLocalProgress.load(progress.save());
+        progress.acknowledge(receipt);
+        progress.reconcile(1010);
+        assertEquals(2, progress.pending());
+        progress.acknowledge(receipt);
+        progress.reconcile(1015);
+        assertEquals(2, progress.pending());
+    }
+
+    @Test void websiteRefreshBeforeReceiptDoesNotDoubleCount() {
+        var progress = new RankLocalProgress(1000, 0);
+        for (int i = 0; i < 10; i++) progress.mined("a");
+        var receipt = progress.receipt("a");
+        progress.reconcile(1010);
+        assertEquals(1020, progress.total());
+        progress.acknowledge(receipt);
+        assertEquals(1010, progress.total());
+        progress.mined("b");
+        progress.acknowledge(receipt);
+        assertEquals(1011, progress.total());
+    }
+
+    @Test void migrationDoesNotConvertNewMiningIntoLegacyProgress() {
+        var state = new com.google.gson.JsonObject();
+        state.addProperty("website", 1000); state.addProperty("pending", 10);
+        var progress = RankLocalProgress.load(state);
+        progress.mined("a");
+        progress = RankLocalProgress.load(progress.save());
+        progress.reconcile(1100);
+        assertEquals(1101, progress.total());
     }
 
     @Test void restoreRetainsProgressAcrossSessionAndWorldChanges()

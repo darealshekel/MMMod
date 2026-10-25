@@ -1025,6 +1025,11 @@ public final class CloudSyncManager
         if (client != null && !WebsiteProfileTotals.activeUuid().equals(
                 com.mmm.storage.AccountSessionStorage.normalize(getString(payload, "minecraft_uuid", "")))) return;
         applySyncResponse(responseBody);
+        if (responseBoolean(responseBody, "accepted_public_totals") && payload != null && payload.has("_local_progress")) {
+            JsonObject receipt = payload.getAsJsonObject("_local_progress");
+            RankOvertakeClient.acknowledge(receipt.getAsJsonObject("rank"));
+            com.mmm.tracker.LiveCollections.acknowledge(receipt.getAsJsonObject("collections"));
+        }
         WebsiteProfileTotals.refresh(true);
         RankOvertakeClient.onWebsiteSync();
         long cadenceAnchorMs = sourceSyncCadenceAnchor(responseBody);
@@ -1305,6 +1310,10 @@ public final class CloudSyncManager
         payload.addProperty("game_mode", SyncQueueManager.currentGameMode());
         payload.addProperty("sync_scope", includeSource ? "source" : "personal");
         payload.add("world", buildWorld(worldInfo));
+        JsonObject receipt = new JsonObject();
+        receipt.add("rank", RankOvertakeClient.syncReceipt(worldInfo.id()));
+        receipt.add("collections", com.mmm.tracker.LiveCollections.syncReceipt(worldInfo.id()));
+        payload.add("_local_progress", receipt);
         payload.add("lifetime_totals", buildLifetimeTotals());
         payload.add("mining_records", buildMiningRecords());
         JsonArray dailyMining = MiningCalendarStore.pendingEntries();
@@ -1376,18 +1385,10 @@ public final class CloudSyncManager
 
         String primarySessionKey = primarySession == null ? "" : sessionKey(primarySession);
         List<SessionData> pendingSessions = new ArrayList<>();
-        for (SessionHistory.WorldHistory history : SessionHistory.getWorldHistories())
+        if (WorldIdentity.matchesCurrentWorld(SessionHistory.getCurrentWorldId(),
+                worldInfo.id(), worldInfo.kind(), worldInfo.host()))
         {
-            if (WorldIdentity.matchesCurrentWorld(
-                    history.worldId(),
-                    worldInfo.id(),
-                    worldInfo.kind(),
-                    worldInfo.host()) == false)
-            {
-                continue;
-            }
-
-            for (SessionData savedSession : history.sessions())
+            for (SessionData savedSession : SessionHistory.getHistory())
             {
                 String savedSessionKey = sessionKey(savedSession);
                 if (SessionHistory.isQualifyingSession(savedSession) == false

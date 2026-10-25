@@ -39,7 +39,7 @@ public class ClientTickHandler
         PublicChatClient.onClientTick(mc);
         TierTagManager.onClientTick(mc);
 
-        if (MmmTimerState.consumeCreditsPending() && mc.currentScreen == null)
+        if (mc.currentScreen == null && MmmTimerState.consumeCreditsPending())
         {
             mc.setScreen(new TimerCreditsScreen(null));
             return;

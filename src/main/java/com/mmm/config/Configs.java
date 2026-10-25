@@ -495,6 +495,30 @@ public class Configs
     public static final String BLOCK_BREAKDOWN_SOURCE_MINECRAFT_STATS = "minecraft_stats";
     public static final String BLOCK_BREAKDOWN_SOURCE_LOCAL_OBSERVED = "local_observed";
     private static long settingsMigrationVersion;
+    private static JsonObject personalStatsAccounts = new JsonObject();
+    private static String personalStatsOwner = "";
+    private static String activeStatsAccount = "";
+
+    public static synchronized void activatePersonalStats(String uuid)
+    {
+        String account = com.mmm.storage.AccountSessionStorage.normalize(uuid);
+        if (account.isEmpty() || account.equals(activeStatsAccount)) return;
+        JsonObject root = new JsonObject();
+        writeCustomState(root);
+        String previousOwner = activeStatsAccount.isEmpty()
+                ? com.mmm.storage.AccountSessionStorage.normalize(personalStatsOwner.isEmpty()
+                        ? websiteLinkedMinecraftUuid : personalStatsOwner) : activeStatsAccount;
+        JsonObject selected = PlayerStatsAccounts.select(personalStatsAccounts, previousOwner, root.getAsJsonObject("State"), account);
+        selected.remove("personalStatsAccounts");
+        selected.addProperty("personalStatsOwner", account);
+        root.add("State", selected);
+        activeStatsAccount = account;
+        readCustomState(root);
+        LEGACY_WORLD_ID_ALIASES.clear();
+        readCrossVersionState();
+        onConfigLoaded();
+        saveToFile();
+    }
 
     public static void onConfigLoaded()
     {
@@ -625,6 +649,7 @@ public class Configs
 
     public static synchronized void loadFromFile()
     {
+        activeStatsAccount = "";
         File configFile = getPrimaryConfigFile();
         JsonObject primaryRoot = readJsonObject(configFile.toPath(), "primary config", true);
         long storedMigrationVersion = readMigrationVersion(primaryRoot);
@@ -669,7 +694,7 @@ public class Configs
         // Legacy instance files are migration inputs only. Once the shared state exists,
         // reading them again can restore counters that were intentionally reset.
         boolean sharedStateExists = hasReadableCrossVersionState();
-        boolean importedLegacySharedState = sharedStateExists == false && importLegacyCrossVersionStateCandidates();
+        boolean importedLegacySharedState = personalStatsOwner.isEmpty() && sharedStateExists == false && importLegacyCrossVersionStateCandidates();
         boolean sharedStateLoaded = readCrossVersionState();
         if (storedMigrationVersion < SOURCE_SYNC_ACCEPTANCE_RECEIPT_MIGRATION_VERSION)
         {
@@ -678,6 +703,10 @@ public class Configs
             clearSourceSyncCooldowns();
         }
         onConfigLoaded();
+
+        var client = net.minecraft.client.MinecraftClient.getInstance();
+        if (client != null && client.getSession() != null && client.getSession().getUuidOrNull() != null)
+            activatePersonalStats(client.getSession().getUuidOrNull().toString());
 
         if (sharedStateLoaded == false || importedLegacySharedState)
         {
@@ -805,7 +834,7 @@ public class Configs
     {
         try
         {
-            return AtomicJsonStorage.readObjectWithBackup(SharedStoragePaths.crossVersionStateFile()).value() != null;
+            return AtomicJsonStorage.readObjectWithBackup(crossVersionStatePath(personalStatsOwner)).value() != null;
         }
         catch (Exception ignored)
         {
@@ -832,7 +861,7 @@ public class Configs
 
         Path target = getPrimaryConfigFile().toPath();
         JsonObject shared = captureCrossVersionState();
-        AsyncPersistence.submit("config", () -> {
+        AsyncPersistence.submit("config:" + target.toAbsolutePath().normalize() + ":" + personalStatsOwner, () -> {
             try { AtomicJsonStorage.write(target, root, true); }
             catch (Exception e) { MMM.LOGGER.error("[MMM] Failed to save config {}: {}", target, e.getMessage()); }
             writeCrossVersionState(shared);
@@ -1005,6 +1034,9 @@ public class Configs
         if (root.has("State") && root.get("State").isJsonObject())
         {
             JsonObject state = root.getAsJsonObject("State");
+            personalStatsOwner = readString(state, "personalStatsOwner", personalStatsOwner, "config State");
+            if (state.has("personalStatsAccounts") && state.get("personalStatsAccounts").isJsonObject())
+                personalStatsAccounts = state.getAsJsonObject("personalStatsAccounts").deepCopy();
             settingsMigrationVersion = readLong(state, "settingsMigrationVersion", settingsMigrationVersion, "config State");
             dailyProgress = readLong(state, "dailyProgress", dailyProgress, "config State");
             dailyGoalLastResetMs = readLong(state, "dailyGoalLastResetMs", dailyGoalLastResetMs, "config State");
@@ -1096,7 +1128,7 @@ public class Configs
 
     private static boolean readCrossVersionState()
     {
-        Path statePath = SharedStoragePaths.crossVersionStateFile();
+        Path statePath = crossVersionStatePath(personalStatsOwner);
         try
         {
             AtomicJsonStorage.ReadResult result = AtomicJsonStorage.readObjectWithBackup(statePath);
@@ -1294,12 +1326,13 @@ public class Configs
     private static synchronized void writeCrossVersionState()
     {
         JsonObject snapshot = captureCrossVersionState();
-        AsyncPersistence.submit("cross-version-config", () -> writeCrossVersionState(snapshot));
+        AsyncPersistence.submit("cross-version-config:" + personalStatsOwner, () -> writeCrossVersionState(snapshot));
     }
 
     private static JsonObject captureCrossVersionState()
     {
         JsonObject state = new JsonObject();
+        state.addProperty("personalStatsOwner", personalStatsOwner);
         state.addProperty("dailyGoal", Generic.DAILY_GOAL.getIntegerValue());
         state.addProperty("dailyProgress", dailyProgress);
         state.addProperty("dailyGoalLastResetMs", dailyGoalLastResetMs);
@@ -1315,7 +1348,7 @@ public class Configs
 
     private static void writeCrossVersionState(JsonObject snapshot)
     {
-        Path statePath = SharedStoragePaths.crossVersionStateFile();
+        Path statePath = crossVersionStatePath(snapshot.has("personalStatsOwner") ? snapshot.get("personalStatsOwner").getAsString() : "");
         Path lockPath = statePath.resolveSibling(statePath.getFileName() + ".lock");
 
         try
@@ -1351,6 +1384,13 @@ public class Configs
     private static int clampDailyGoal(long value)
     {
         return (int) Math.max(MIN_DAILY_GOAL, Math.min(1_000_000L, value));
+    }
+
+    private static Path crossVersionStatePath(String uuid)
+    {
+        String account = com.mmm.storage.AccountSessionStorage.normalize(uuid);
+        return account.isEmpty() ? SharedStoragePaths.crossVersionStateFile()
+                : SharedStoragePaths.root().resolve("players").resolve(account).resolve("cross-version-state.json");
     }
 
     private static void writeCustomState(JsonObject root)
@@ -1429,6 +1469,9 @@ public class Configs
             worldStats.add(object);
         }
         state.add("worldStats", worldStats);
+        state.addProperty("personalStatsOwner", personalStatsOwner);
+        if (!activeStatsAccount.isEmpty()) personalStatsAccounts.add(activeStatsAccount, PlayerStatsAccounts.capture(state));
+        state.add("personalStatsAccounts", personalStatsAccounts.deepCopy());
         root.add("State", state);
     }
 

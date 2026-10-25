@@ -41,11 +41,16 @@ public final class RankOvertakeClient
     private RankOvertakeClient() {}
     public static List<String> hudLines() { return lines; }
     public static void onWebsiteSync() { SYNCED.set(true); }
+    public static JsonObject syncReceipt(String world) {
+        if (dirty) save(System.currentTimeMillis());
+        return progress.receipt(world);
+    }
+    public static void acknowledge(JsonObject receipt) { progress.acknowledge(receipt); dirty = true; onWebsiteSync(); }
     public static void onAcceptedBlock()
     {
         if (progress.website() >= 0)
         {
-            progress.mined();
+            progress.mined(com.mmm.storage.WorldSessionContext.getCurrentWorldId());
             dirty = true;
         }
     }
@@ -105,7 +110,7 @@ public final class RankOvertakeClient
         try
         {
             JsonObject saved = AtomicJsonStorage.readObjectWithBackup(statePath()).value();
-            if (saved != null) progress = new RankLocalProgress(saved.get("website").getAsLong(), saved.get("pending").getAsLong());
+            if (saved != null) progress = RankLocalProgress.load(saved);
         }
         catch (Exception error) { com.mmm.MMM.LOGGER.warn("[MMM] Could not read rank estimate state: {}", error.getMessage()); }
     }
@@ -118,9 +123,7 @@ public final class RankOvertakeClient
     private static void save(long now)
     {
         Path path = statePath();
-        JsonObject snapshot = new JsonObject();
-        snapshot.addProperty("website", progress.website());
-        snapshot.addProperty("pending", progress.pending());
+        JsonObject snapshot = progress.save();
         AsyncPersistence.submit("rank-estimate:" + path, () -> {
             try { AtomicJsonStorage.write(path, snapshot, true); }
             catch (Exception error) { throw new IllegalStateException("Could not save rank estimate", error); }

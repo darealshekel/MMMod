@@ -26,6 +26,16 @@ public final class LiveCollections {
     private static boolean loading, sending, dirty;
     private static long refreshAt, saveAt, sendAt;
     private LiveCollections() {}
+    public static JsonObject syncReceipt(String world) {
+        if (dirty) persist();
+        return progress.receipt(world);
+    }
+    public static void acknowledge(JsonObject receipt) {
+        progress.acknowledge(receipt);
+        CollectionWebsiteClient.invalidate(account);
+        dirty = true;
+        refreshAt = 0;
+    }
 
     private static boolean activate(MinecraftClient client) {
         if (client == null || client.player == null) return false;
@@ -110,7 +120,7 @@ public final class LiveCollections {
         var client = MinecraftClient.getInstance();
         if (!activate(client) || (!BlockBreakdownCatalog.isValid(block) && !block.equals("mmm:non_insta_deepslate"))) return;
         if (!WebsiteLinkManager.isCurrentPlayerLinked()) finishCatchUp(client);
-        var milestones = progress.mined(block);
+        var milestones = progress.mined(block, com.mmm.storage.WorldSessionContext.getCurrentWorldId());
         dirty = true;
         for (long goal : milestones) {
             String collection = CollectionProgress.collectionId(block);

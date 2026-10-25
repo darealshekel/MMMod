@@ -39,6 +39,7 @@ public final class InitHandler
             com.mmm.tracker.MiningStats.finaliseSession();
             Configs.saveToFile();
             com.mmm.tracker.PlaytimeTracker.save();
+            com.mmm.sync.SyncQueueManager.shutdown();
             com.mmm.storage.AsyncPersistence.flush(java.time.Duration.ofSeconds(2));
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

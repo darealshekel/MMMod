@@ -21,10 +21,14 @@ class MiningCalendarStoreTest
         Map<String, Long> synced = (Map<String, Long>) syncedField.get(null);
         Map<String, Long> originalDays = new LinkedHashMap<>(days);
         Map<String, Long> originalSynced = new LinkedHashMap<>(synced);
+        var bestField = MiningCalendarStore.class.getDeclaredField("bestQualifiedStreakDays");
+        bestField.setAccessible(true);
+        int originalBest = bestField.getInt(null);
         try
         {
             days.clear();
             synced.clear();
+            bestField.setInt(null, 0);
             var format = java.time.format.DateTimeFormatter.ofPattern("dd-MM-uuuu");
             LocalDate start = LocalDate.of(2025, 12, 1);
             for (int index = 400; index >= 0; index--)
@@ -38,6 +42,7 @@ class MiningCalendarStoreTest
             trim.invoke(null);
             assertEquals(400, days.size());
             assertEquals(400, synced.size());
+            assertEquals(401, bestField.getInt(null));
             org.junit.jupiter.api.Assertions.assertFalse(days.containsKey(start.format(format)));
             org.junit.jupiter.api.Assertions.assertTrue(days.containsKey(start.plusDays(400).format(format)));
             var sorted = MiningCalendarStore.class.getDeclaredMethod("sortedDayKeys");
@@ -52,6 +57,7 @@ class MiningCalendarStoreTest
             days.putAll(originalDays);
             synced.clear();
             synced.putAll(originalSynced);
+            bestField.setInt(null, originalBest);
         }
     }
 
