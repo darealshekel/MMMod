@@ -49,6 +49,11 @@ public final class ClientSmoke implements ClientModInitializer {
                 } else if (phase == 2 && client.player != null && client.level != null && client.gui.screen() == null) {
                     client.options.pauseOnLostFocus = false;
                     MiningStats.startNewSession();
+                    if (Boolean.getBoolean("mmm.reliabilitySmoke")) {
+                        done = true;
+                        new ReliabilitySmoke().install();
+                        return;
+                    }
                     checkMining(client);
                     client.gui.setScreen(new CollectionBookScreen(null));
                     phase = 3; ticks = 0;
@@ -173,10 +178,11 @@ public final class ClientSmoke implements ClientModInitializer {
         String world = com.mmm.storage.WorldSessionContext.getCurrentWorldId();
         long before = LiveCollections.localCounts(Map.of(), world).get("mmm:non_insta_deepslate");
         client.level.setBlock(pos, Blocks.DEEPSLATE.defaultBlockState(), 3);
-        com.mmm.timer.MmmBlockBreakDetector.trackAttack(pos);
+        var attempt = com.mmm.timer.MmmBlockBreakDetector.beginBreak(pos);
+            com.mmm.timer.MmmBlockBreakDetector.completeBreak(attempt, true);
         client.level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
-        com.mmm.timer.MmmBlockBreakDetector.onClientTick(client);
-        com.mmm.timer.MmmBlockBreakDetector.onClientTick(client);
+        com.mmm.timer.MmmBlockBreakDetector.acknowledged(client.level, pos, Blocks.AIR.defaultBlockState());
+        com.mmm.timer.MmmBlockBreakDetector.acknowledged(client.level, pos, Blocks.AIR.defaultBlockState());
         if (LiveCollections.localCounts(Map.of(), world).get("mmm:non_insta_deepslate") != before + 1)
             throw new AssertionError("Non-instant Deepslate not counted exactly once");
         client.level.setBlock(pos, previous, 3);
