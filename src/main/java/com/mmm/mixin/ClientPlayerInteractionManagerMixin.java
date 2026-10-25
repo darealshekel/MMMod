@@ -15,6 +15,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ClientPlayerInteractionManager.class)
 public class ClientPlayerInteractionManagerMixin
 {
+    @org.spongepowered.asm.mixin.Unique private MmmBlockBreakDetector.BreakAttempt mmm$breakAttempt;
+
+    @Inject(method = "breakBlock", at = @At("HEAD"))
+    private void mmm$captureBreak(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
+        mmm$breakAttempt = MmmBlockBreakDetector.beginBreak(pos);
+    }
+
+    @Inject(method = "breakBlock", at = @At("RETURN"))
+    private void mmm$finishBreak(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
+        MmmBlockBreakDetector.completeBreak(mmm$breakAttempt, cir.getReturnValueZ());
+        mmm$breakAttempt = null;
+    }
+
     @Inject(method = "attackBlock(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)
     private void mmm$blockAttackBelowFeet(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir)
     {
@@ -25,7 +38,7 @@ public class ClientPlayerInteractionManagerMixin
             return;
         }
 
-        MmmBlockBreakDetector.trackAttack(pos);
+
     }
 
     @Inject(method = "updateBlockBreakingProgress(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)
