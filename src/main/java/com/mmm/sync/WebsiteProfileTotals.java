@@ -15,20 +15,17 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.client.Minecraft;
 
 public final class WebsiteProfileTotals
 {
     private static final String PROFILE_API = "https://www.mmmaniacs.com/api/player-detail?slug=%s&view=total&refreshCache=1&liveTs=%d";
-    private static final long MIN_REFRESH_INTERVAL_MS = 30L * 60L * 1_000L;
     private static final long REFRESH_LOG_INTERVAL_MS = 30_000L;
     private static final long JSON_PARSE_DEBUG_LOG_INTERVAL_MS = 30_000L;
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(8L))
             .build();
-    private static final AtomicBoolean REFRESH_IN_FLIGHT = new AtomicBoolean(false);
-    private static volatile long lastRefreshAttemptMs;
+    private static final ProfileRequestIdentity REQUESTS = new ProfileRequestIdentity();
 
     private WebsiteProfileTotals()
     {
@@ -36,24 +33,27 @@ public final class WebsiteProfileTotals
 
     public static void refresh(boolean force)
     {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null) return;
+        if (!client.isSameThread()) { client.execute(() -> refresh(force)); return; }
         long now = System.currentTimeMillis();
-        if (!force && now - lastRefreshAttemptMs < MIN_REFRESH_INTERVAL_MS)
+        String identity = requestIdentity();
+        String uuid = activeUuid();
+        if (uuid.isEmpty()) return;
+        if (!uuid.equals(Configs.websiteGlobalTotalOwner))
         {
-            return;
+            Configs.websiteGlobalTotalBlocks = 0;
+            Configs.websiteGlobalTotalUpdatedAtMs = 0;
+            Configs.websiteGlobalTotalOwner = uuid;
         }
-
         String username = resolveUsername();
         if (username.isBlank())
         {
             return;
         }
 
-        if (!REFRESH_IN_FLIGHT.compareAndSet(false, true))
-        {
-            return;
-        }
-
-        lastRefreshAttemptMs = now;
+        long ticket = REQUESTS.begin(identity, now, force);
+        if (ticket == 0) return;
         String encodedUsername = URLEncoder.encode(username.toLowerCase(), StandardCharsets.UTF_8);
         String url = String.format(PROFILE_API, encodedUsername, now);
         HttpRequest request = HttpRequest.newBuilder()
@@ -65,7 +65,8 @@ public final class WebsiteProfileTotals
                 .build();
 
         HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .whenComplete((response, throwable) -> {
+                .whenComplete((response, throwable) -> client.execute(() -> {
+                    if (!REQUESTS.finish(ticket, requestIdentity())) return;
                     try
                     {
                         if (throwable != null || response == null || response.statusCode() < 200 || response.statusCode() >= 300)
@@ -81,12 +82,12 @@ public final class WebsiteProfileTotals
                         }
 
                         JsonObject profileTotal = parseProfileTotal(response.body());
-                        applyMiningRecords(profileTotal);
                         long blocksNum = extractBlocksNum(profileTotal);
                         if (blocksNum < 0L || !isAuthoritative(profileTotal))
                         {
                             return;
                         }
+                        applyMiningRecords(profileTotal);
 
                         long currentTotal = Math.max(0L, Configs.websiteGlobalTotalBlocks);
                         long profileUpdatedAtMs = extractUpdatedAtMs(profileTotal);
@@ -94,6 +95,7 @@ public final class WebsiteProfileTotals
                         if (blocksNum != currentTotal && (blocksNum >= currentTotal || currentTotal <= 0L || newerCorrection))
                         {
                             Configs.websiteGlobalTotalBlocks = blocksNum;
+                            Configs.websiteGlobalTotalOwner = uuid;
                             Configs.websiteGlobalTotalUpdatedAtMs = Math.max(System.currentTimeMillis(), profileUpdatedAtMs);
                             Configs.saveToFile();
                         }
@@ -104,11 +106,11 @@ public final class WebsiteProfileTotals
                                 username,
                                 blocksNum);
                     }
-                    finally
+                    catch (RuntimeException error)
                     {
-                        REFRESH_IN_FLIGHT.set(false);
+                        MMM.LOGGER.warn("[MMM] Invalid website profile response: {}", error.getMessage());
                     }
-                });
+                }));
     }
 
     private static JsonObject parseProfileTotal(String body)
@@ -216,11 +218,6 @@ public final class WebsiteProfileTotals
 
     private static String resolveUsername()
     {
-        if (Configs.websiteLinkedMinecraftUsername != null && !Configs.websiteLinkedMinecraftUsername.isBlank())
-        {
-            return Configs.websiteLinkedMinecraftUsername.trim();
-        }
-
         Minecraft client = Minecraft.getInstance();
         if (client == null || client.getUser() == null)
         {
@@ -241,5 +238,22 @@ public final class WebsiteProfileTotals
                     e.getMessage());
             return "";
         }
+    }
+
+    public static String activeUuid()
+    {
+        Minecraft client = Minecraft.getInstance();
+        return client == null || client.getUser() == null || client.getUser().getProfileId() == null ? ""
+                : com.mmm.storage.AccountSessionStorage.normalize(client.getUser().getProfileId().toString());
+    }
+
+    private static String requestIdentity()
+    {
+        return activeUuid() + "|" + Configs.websiteLinkedMinecraftUuid + "|" + Configs.websiteLinkedAtMs;
+    }
+
+    public static boolean ownsCachedTotal()
+    {
+        return !activeUuid().isEmpty() && activeUuid().equals(Configs.websiteGlobalTotalOwner);
     }
 }
