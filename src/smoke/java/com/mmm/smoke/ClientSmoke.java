@@ -29,7 +29,7 @@ public final class ClientSmoke implements ClientModInitializer
             {
                 if (System.currentTimeMillis() - started > 180_000L)
                     throw new AssertionError("Runtime test timed out in phase " + phase);
-                if (phase == 0 && client.currentScreen instanceof TitleScreen)
+                if (phase == 0 && client.getOverlay() == null && System.currentTimeMillis() - started > 8000L)
                 {
                     phase = 1;
                     CreateWorldScreen.create(client, client.currentScreen);
@@ -51,6 +51,11 @@ public final class ClientSmoke implements ClientModInitializer
                     if (Boolean.getBoolean("mmm.breakingIndicatorSmoke")) {
                         phase = 4;
                         new BreakingIndicatorSmoke().install();
+                        return;
+                    }
+                    if (Boolean.getBoolean("mmm.reliabilitySmoke")) {
+                        phase = 4;
+                        new ReliabilitySmoke().install();
                         return;
                     }
                     RuntimeChecks.run(client);

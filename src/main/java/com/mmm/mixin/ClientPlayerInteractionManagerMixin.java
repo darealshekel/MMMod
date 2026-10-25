@@ -23,10 +23,12 @@ public class ClientPlayerInteractionManagerMixin
 {
     @Unique private Box mmm$indicatorBounds;
     @Unique private ClientWorld mmm$indicatorWorld;
+    @Unique private MmmBlockBreakDetector.BreakAttempt mmm$breakAttempt;
 
     @Inject(method = "breakBlock", at = @At("HEAD"))
     private void mmm$captureIndicator(BlockPos pos, CallbackInfoReturnable<Boolean> cir)
     {
+        mmm$breakAttempt = MmmBlockBreakDetector.beginBreak(pos);
         mmm$indicatorBounds = null;
         mmm$indicatorWorld = null;
         MinecraftClient client = MinecraftClient.getInstance();
@@ -43,6 +45,8 @@ public class ClientPlayerInteractionManagerMixin
     @Inject(method = "breakBlock", at = @At("RETURN"))
     private void mmm$completeIndicator(BlockPos pos, CallbackInfoReturnable<Boolean> cir)
     {
+        MmmBlockBreakDetector.completeBreak(mmm$breakAttempt, cir.getReturnValueZ());
+        mmm$breakAttempt = null;
         MinecraftClient client = MinecraftClient.getInstance();
         if (cir.getReturnValueZ() && mmm$indicatorBounds != null && client.world == mmm$indicatorWorld)
             BreakingIndicatorRenderer.completed(client, pos, mmm$indicatorBounds);
@@ -60,7 +64,6 @@ public class ClientPlayerInteractionManagerMixin
             return;
         }
 
-        MmmBlockBreakDetector.trackAttack(pos);
     }
 
     @Inject(method = "updateBlockBreakingProgress(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)
