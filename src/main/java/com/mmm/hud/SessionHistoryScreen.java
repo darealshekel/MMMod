@@ -49,16 +49,11 @@ public class SessionHistoryScreen extends Screen
     private static final int INSET = MmmUi.INSET;
     private static final int BORDER = MmmUi.BORDER;
     private static final int BORDER_SOFT = MmmUi.BORDER_SOFT;
-    private static final int ACCENT = MmmUi.ACCENT;
     private static final int TEXT = MmmUi.TEXT;
     private static final int LABEL = MmmUi.LABEL;
     private static final int MUTED = MmmUi.MUTED;
     private static final int INACTIVE = MmmUi.INACTIVE;
-    private static final int ROW_SEL = MmmUi.ROW_SELECTED;
-    private static final int ROW_HOVER = MmmUi.ROW_HOVER;
     private static final int ROW_ALT = MmmUi.ROW_ALT;
-    private static final int GRAPH_FILL = MmmUi.GRAPH_FILL;
-    private static final int GRAPH_GRID = MmmUi.GRAPH_GRID;
     private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("dd/MM/yy  HH:mm");
 
     private final Screen parent;
@@ -111,8 +106,11 @@ public class SessionHistoryScreen extends Screen
         MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "HISTORY");
         card(context, l.panelX, l.panelY, l.panelWidth, l.panelHeight, PANEL, BORDER);
         context.drawText(this.textRenderer, Text.literal("Session History"), l.contentX, l.headerY, TEXT, true);
-        pill(context, l.contentX, l.headerY + 18, Math.min(220, l.contentWidth / 2), 16, this.worldName);
-        context.drawText(this.textRenderer, Text.literal("Review previous runs with the same MMM website visual system."), l.contentX + 2, l.headerY + 40, LABEL, false);
+        if (!l.compact)
+        {
+            pill(context, l.contentX, l.headerY + 18, Math.min(220, l.contentWidth / 2), 16, this.worldName);
+            MmmUi.drawTextWithin(context, this.textRenderer, "Review previous runs with the same MMM website visual system.", l.contentX + 2, l.headerY + 40, l.contentWidth, LABEL, false);
+        }
         drawWorldTabs(context, l, mouseX, mouseY);
         drawList(context, l, mouseX, mouseY);
         drawDetail(context, l, mouseX, mouseY);
@@ -198,7 +196,7 @@ public class SessionHistoryScreen extends Screen
     @Override public boolean mouseReleased(double mouseX, double mouseY, int button){ if(button==0){draggingList=false; draggingDetail=false; draggingBreakdown=false;} return super.mouseReleased(mouseX, mouseY, button); }
     @Override public boolean keyPressed(int keyCode, int scanCode, int modifiers){ if(keyCode==256){close(); return true;} if(keyCode==264||keyCode==341){moveSelection(1); return true;} if(keyCode==265||keyCode==328){moveSelection(-1); return true;} return super.keyPressed(keyCode, scanCode, modifiers); }
     @Override public void close(){ MinecraftClient.getInstance().setScreen(this.parent); }
-    @Override public boolean shouldPause(){ return false; }
+    @Override public boolean shouldPause(){ return MmmUi.shouldPauseGame(); }
     @Override public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta){}
 
     private void ensureCursorVisible(){ MinecraftClient client=MinecraftClient.getInstance(); if(client!=null&&client.mouse!=null) client.mouse.unlockCursor(); }
@@ -223,8 +221,8 @@ public class SessionHistoryScreen extends Screen
             int tabX = x + i * (tabWidth + gap);
             boolean selected = i == this.selectedWorldIndex;
             boolean hovered = mouseX >= tabX && mouseX <= tabX + tabWidth && mouseY >= y && mouseY <= y + TH;
-            int fill = selected ? MmmUi.ROW_SELECTED : hovered ? MmmUi.ROW_HOVER : MmmUi.INSET;
-            int border = selected ? ACCENT : BORDER_SOFT;
+            int fill = selected ? MmmUi.rowSelected() : hovered ? MmmUi.rowHover() : MmmUi.INSET;
+            int border = selected ? MmmUi.accent() : BORDER_SOFT;
             context.fill(tabX, y, tabX + tabWidth, y + TH, fill);
             context.drawBorder(tabX, y, tabWidth, TH, border);
 
@@ -271,7 +269,7 @@ public class SessionHistoryScreen extends Screen
 
     private int getWorldTabsY(Layout l)
     {
-        return l.headerY + 60;
+        return l.headerY + (l.compact ? 18 : 60);
     }
 
     private int resolveInitialWorldIndex()
@@ -346,10 +344,10 @@ public class SessionHistoryScreen extends Screen
             SessionData session = this.sessions.get(index);
             int rowY = drawY + row * RH;
             boolean hovered = mouseX >= x && mouseX <= x + viewportWidth && mouseY >= rowY && mouseY <= rowY + RH - 4;
-            int rowColor = index == this.selectedIndex ? ROW_SEL : hovered ? ROW_HOVER : ((row & 1) == 0 ? ROW_ALT : INSET);
+            int rowColor = index == this.selectedIndex ? MmmUi.rowSelected() : hovered ? MmmUi.rowHover() : ((row & 1) == 0 ? ROW_ALT : INSET);
             context.fill(x + 4, rowY, x + viewportWidth - 4, rowY + RH - 4, rowColor);
             MmmUi.drawTextWithin(context, this.textRenderer, "#" + (index + 1) + "  " + DATE_FMT.format(new Date(session.startTimeMs)), x + 12, rowY + 6, viewportWidth - 24, TEXT, false);
-            MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatCompact(session.totalBlocks) + " blocks  |  " + session.getDurationString() + "  |  " + UiFormat.formatCompact(session.getAverageBlocksPerHour()) + "/hr", x + 12, rowY + 19, viewportWidth - 24, MUTED, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatCompact(session.totalBlocks) + " blocks  |  IGT " + session.getDurationString() + "  |  Time " + session.getWallDurationString(), x + 12, rowY + 19, viewportWidth - 24, MUTED, false);
         }
         context.disableScissor();
         drawListBar(context, x + width - SBW, y, height, mouseX, mouseY, visibleRows);
@@ -371,10 +369,12 @@ public class SessionHistoryScreen extends Screen
         int cardWidth = (vw - G) / 2;
         int statY = drawY + 16;
         stat(context, vx, statY, cardWidth, 50, "Total Mined", UiFormat.formatCompact(session.totalBlocks), "blocks");
-        stat(context, vx + cardWidth + G, statY, cardWidth, 50, "Active Time", formatClock(session.getDurationMs()), "session");
-        stat(context, vx, statY + 56, cardWidth, 50, "Avg Rate", UiFormat.formatCompact(session.getAverageBlocksPerHour()), "blocks/hr");
-        stat(context, vx + cardWidth + G, statY + 56, cardWidth, 50, "Peak Rate", UiFormat.formatCompact(session.getPeakBlocksPerHour()), "blocks/hr");
-        int graphY = statY + 118;
+        stat(context, vx + cardWidth + G, statY, cardWidth, 50, "Best Hour", UiFormat.formatCompact(session.getBestHourBlocks()), "blocks mined");
+        stat(context, vx, statY + 56, cardWidth, 50, "Session IGT", formatClock(session.getActiveDurationMs()), "pauses excluded");
+        stat(context, vx + cardWidth + G, statY + 56, cardWidth, 50, "Session Time", formatClock(session.getWallDurationMs()), "pauses included");
+        stat(context, vx, statY + 112, cardWidth, 50, "Avg Rate", UiFormat.formatCompact(session.getAverageBlocksPerHour()), "blocks/hr");
+        stat(context, vx + cardWidth + G, statY + 112, cardWidth, 50, "Best Streak", session.bestStreakSeconds + "s", "active mining");
+        int graphY = statY + 174;
         card(context, vx, graphY, vw, PACE_CARD_HEIGHT, SOFT, BORDER_SOFT);
         MmmUi.drawTextWithin(context, this.textRenderer, "Session Pace", vx + 10, graphY + 8, vw - 20, TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Blocks per hour across the session", vx + 10, graphY + 20, vw - 20, MUTED, false);
@@ -384,9 +384,8 @@ public class SessionHistoryScreen extends Screen
             MmmUi.drawTextRightWithin(context, this.textRenderer, rateLabel, vx + vw - 10, graphY + 8, Math.max(72, vw / 2), Configs.getHudNumberColor(), false);
         }
         int infoY = graphY + PACE_CARD_HEIGHT + 10;
-        row(context, vx, vx + vw, infoY, "Best Streak", session.bestStreakSeconds + "s");
-        row(context, vx, vx + vw, infoY + 16, "Top Block", getTopBlock(session));
-        drawBreakdown(context, vx, infoY + 38, vw, session, mouseX, mouseY);
+        row(context, vx, vx + vw, infoY, "Top Block", getTopBlock(session));
+        drawBreakdown(context, vx, infoY + 22, vw, session, mouseX, mouseY);
         context.disableScissor();
         drawDetailBar(context, l, mouseX, mouseY);
     }
@@ -474,7 +473,7 @@ public class SessionHistoryScreen extends Screen
         for (int i = 0; i <= 4; i++)
         {
             int ly = plotY + (plotH * i) / 4;
-            c.fill(plotX, ly, plotX + plotW, ly + 1, GRAPH_GRID);
+            c.fill(plotX, ly, plotX + plotW, ly + 1, MmmUi.graphGrid());
         }
 
         int bottom = plotY + plotH - 1;
@@ -514,9 +513,9 @@ public class SessionHistoryScreen extends Screen
         {
             int markerX = px[hoveredColumn];
             int markerY = Math.round(py[hoveredColumn]);
-            c.fill(markerX, plotY, markerX + 1, plotY + plotH, GRAPH_GRID);
+            c.fill(markerX, plotY, markerX + 1, plotY + plotH, MmmUi.graphGrid());
             c.fill(markerX - 3, markerY - 3, markerX + 4, markerY + 4, TEXT);
-            c.fill(markerX - 2, markerY - 2, markerX + 3, markerY + 3, ACCENT);
+            c.fill(markerX - 2, markerY - 2, markerX + 3, markerY + 3, MmmUi.accent());
         }
 
         drawGraphAxes(c, plotX, plotY, plotW, plotH, axisLeft, axisMax, s);
@@ -611,11 +610,11 @@ public class SessionHistoryScreen extends Screen
     }
     private void row(DrawContext c,int lx,int rx,int y,String label,String value){ int width=rx-lx; int valueWidth=Math.min(this.textRenderer.getWidth(value), Math.max(32, width/2)); MmmUi.drawTextWithin(c,this.textRenderer,label,lx,y,Math.max(0,width-valueWidth-8),LABEL,false); MmmUi.drawTextRightWithin(c,this.textRenderer,value,rx,y,valueWidth,TEXT,false); }
     private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ int tw=w-C*2; card(c,x,y,w,h,SOFT,BORDER_SOFT); MmmUi.drawTextWithin(c,this.textRenderer,l,x+C,y+9,tw,LABEL,false); int valueColor=inactiveValueColor(v)==INACTIVE?INACTIVE:Configs.getHudNumberColor(); MmmUi.drawTextWithin(c,this.textRenderer,v,x+C,y+24,tw,valueColor,false); MmmUi.drawTextWithin(c,this.textRenderer,s,x+C,y+38,tw,MUTED,false); }
-    private void pill(DrawContext c,int x,int y,int w,int h,String t){ String clipped=MmmUi.truncate(this.textRenderer,t,w-8); card(c,x,y,w,h,CARD,ACCENT); c.drawText(this.textRenderer, Text.literal(clipped), x+Math.max(4,(w-this.textRenderer.getWidth(clipped))/2), y+4, ACCENT, false); }
+    private void pill(DrawContext c,int x,int y,int w,int h,String t){ String clipped=MmmUi.truncate(this.textRenderer,t,w-8); card(c,x,y,w,h,CARD,MmmUi.accent()); c.drawText(this.textRenderer, Text.literal(clipped), x+Math.max(4,(w-this.textRenderer.getWidth(clipped))/2), y+4, MmmUi.accent(), false); }
     private void card(DrawContext c,int x,int y,int w,int h,int fill,int border){ MmmUi.card(c,x,y,w,h,fill,border); }
-    private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); int col=this.draggingList?MmmUi.SCROLLBAR_THUMB_ACTIVE:isOverListBar(mx,my)?MmmUi.SCROLLBAR_THUMB_HOVER:MmmUi.SCROLLBAR_THUMB; c.fill(x+1,ty,x+SBW-1,ty+th,col); }
+    private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); c.fill(x+1,ty,x+SBW-1,ty+th,MmmUi.scrollbarThumb()); }
     private void drawDetailBar(DrawContext c,Layout l,int mx,int my){ int max=Math.max(0,getDetailContentHeight()-(l.contentHeight-40)); if(max<=0) return; int x=l.detailX+l.detailWidth-C-SBW,y=l.contentY+28,h=l.contentHeight-40,th=Math.max(SBM,Math.min(h,(int)Math.round((h/(double)getDetailContentHeight())*h))), off=(int)Math.round((this.detailScroll/(double)max)*(h-th)); simpleBar(c,x,y,h,th,off,this.draggingDetail||isOverDetailBar(mx,my)); }
-    private void simpleBar(DrawContext c,int x,int y,int h,int th,int off,boolean active){ c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); c.fill(x+1,y+off,x+SBW-1,y+off+th,active?MmmUi.SCROLLBAR_THUMB_ACTIVE:MmmUi.SCROLLBAR_THUMB); }
+    private void simpleBar(DrawContext c,int x,int y,int h,int th,int off,boolean active){ c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); c.fill(x+1,y+off,x+SBW-1,y+off+th,MmmUi.scrollbarThumb()); }
     private int getVisibleRows(Layout l){ return Math.max(1, (l.contentHeight - 68) / RH); }
     private boolean isInList(double mx,double my){ Layout l=layout(); return mx>=l.contentX+C&&mx<=l.contentX+l.leftWidth-C&&my>=l.contentY+44&&my<=l.contentY+l.contentHeight-12; }
     private boolean isInDetail(double mx,double my){ Layout l=layout(); return mx>=l.detailX+C&&mx<=l.detailX+l.detailWidth-C&&my>=l.contentY+28&&my<=l.contentY+l.contentHeight-12; }
@@ -629,7 +628,7 @@ public class SessionHistoryScreen extends Screen
     private void dragBreakdown(double mouseY){ BreakdownMetrics m=metrics(); int count=this.breakdownEntryCount, max=getBreakdownMax(count,m.listHeight); if(max<=0){this.breakdownScroll=0; return;} int th=getBreakdownThumb(m.listHeight,count), travel=Math.max(1,m.listHeight-th); double n=Math.max(0.0D, Math.min(1.0D, ((mouseY-th/2.0D)-m.listY)/travel)); setBreakdownScroll((int)Math.round(n*max)); }
     private int getListThumb(int h,int vis){ if(this.sessions.isEmpty()) return h; int th=(int)Math.round((vis/(double)this.sessions.size())*h); return Math.max(SBM, Math.min(h, th)); }
     private int getListOffset(int h,int th,int max){ return max<=0?0:(int)Math.round((this.listScroll/(double)max)*(h-th)); }
-    private int getDetailContentHeight(){ return 578; }
+    private int getDetailContentHeight(){ return 634; }
     private int getBreakdownMax(int count,int h){ return Math.max(0, count*14-h); }
     private int getBreakdownThumb(int h,int count){ int ch=Math.max(1, count*14); return Math.max(SBM, Math.min(h, (int)Math.round((h/(double)ch)*h))); }
     private int getBreakdownOffset(int h,int count){ int max=getBreakdownMax(count,h), th=getBreakdownThumb(h,count); return max<=0?0:(int)Math.round((this.breakdownScroll/(double)max)*(h-th)); }
@@ -640,7 +639,7 @@ public class SessionHistoryScreen extends Screen
     private float openAnim(){ if(this.openedAtMs<=0L) return 1.0F; long elapsed=System.currentTimeMillis()-this.openedAtMs; float n=MathHelper.clamp(elapsed/280.0F,0.0F,1.0F); return n*n*(3.0F-2.0F*n); }
     private void select(int index){ if(index<0||index>=this.sessions.size()) return; if(this.selectedIndex!=index){ this.selectedIndex=index; this.detailScroll=0; this.breakdownScroll=0; playClick(); } }
     private void playClick(){ MinecraftClient client=MinecraftClient.getInstance(); if(client!=null&&client.getSoundManager()!=null) client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK,1.0F)); }
-    private void curve(DrawContext c,float sx,float sy,float ex,float ey,float py,float ny){ int steps=Math.max(6,Math.round(Math.abs(ex-sx)*1.5F)); for(int s=0;s<=steps;s++){ float t=s/(float)steps, px=MathHelper.lerp(t,sx,ex), ts=(ey-py)*0.5F, te=(ny-sy)*0.5F, t2=t*t, t3=t2*t; float yy=(2.0F*t3-3.0F*t2+1.0F)*sy+(t3-2.0F*t2+t)*ts+(-2.0F*t3+3.0F*t2)*ey+(t3-t2)*te; int ix=Math.round(px), iy=Math.round(yy); c.fill(ix,iy,ix+2,iy+2,ACCENT); c.fill(ix,iy+2,ix+2,iy+3,GRAPH_FILL);} }
+    private void curve(DrawContext c,float sx,float sy,float ex,float ey,float py,float ny){ int steps=Math.max(6,Math.round(Math.abs(ex-sx)*1.5F)); for(int s=0;s<=steps;s++){ float t=s/(float)steps, px=MathHelper.lerp(t,sx,ex), ts=(ey-py)*0.5F, te=(ny-sy)*0.5F, t2=t*t, t3=t2*t; float yy=(2.0F*t3-3.0F*t2+1.0F)*sy+(t3-2.0F*t2+t)*ts+(-2.0F*t3+3.0F*t2)*ey+(t3-t2)*te; int ix=Math.round(px), iy=Math.round(yy); c.fill(ix,iy,ix+2,iy+2,MmmUi.accent()); c.fill(ix,iy+2,ix+2,iy+3,MmmUi.graphFill());} }
     private String formatGraphTimeLabel(long durationMs){ long totalSeconds=Math.max(0L,durationMs/1000L), minutes=totalSeconds/60L; if(totalSeconds<60L) return totalSeconds+"s"; if(minutes<60L) return minutes+"m"; long hours=minutes/60L, remainingMinutes=minutes%60L; return remainingMinutes==0L?hours+"h":hours+"h "+remainingMinutes+"m"; }
     private String formatClock(long ms){ long s=Math.max(0L,ms/1000L), h=s/3600L, m=(s%3600L)/60L, sec=s%60L; return String.format("%02d:%02d:%02d",h,m,sec); }
     private static int inactiveValueColor(String value){ String text=value==null?"":value.trim(); return "--".equals(text)||"Paused".equals(text)||"00:00:00".equals(text)?INACTIVE:TEXT; }
@@ -648,7 +647,7 @@ public class SessionHistoryScreen extends Screen
     private String getTopBlock(SessionData session){ String id=null; long count=0L; for(Map.Entry<String,Long> e:session.blockBreakdown.entrySet()) if(e.getValue()>count){ id=e.getKey(); count=e.getValue(); } return id==null?"No breakdown":resolveName(id)+" ("+UiFormat.formatCompact(count)+")"; }
     private String resolveName(String id){ try{ Identifier i=Identifier.tryParse(id); if(i!=null){ var b=net.minecraft.registry.Registries.BLOCK.get(i); if(b!=null) return b.getName().getString(); } }catch(Exception ignored){} return id; }
     private String truncate(String value,int maxWidth){ return MmmUi.truncate(this.textRenderer, value, maxWidth); }
-    private Layout layout(){ int availableWidth=Math.max(340,MmmUi.contentWidth(this.width)-M), topY=MmmUi.TOP_BAR_HEIGHT+10, availableHeight=Math.max(260,this.height-topY-12); int panelWidth=Math.min(840,Math.max(540,availableWidth)), panelHeight=Math.min(Math.min(560,Math.max(380,availableHeight)),availableHeight), panelX=MmmUi.centerContentX(this.width,panelWidth), panelY=topY+Math.max(0,(availableHeight-panelHeight)/2), contentX=panelX+P, contentWidth=panelWidth-P*2, headerY=panelY+P, contentY=headerY+88, overviewY=headerY+58, leftWidth=Math.min(Math.max(280,(int)(contentWidth*0.54F))-G/2,Math.max(260,contentWidth-G-300)), detailX=contentX+leftWidth+G, detailWidth=contentWidth-leftWidth-G, contentHeight=panelY+panelHeight-P-contentY; return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight); }
-    private record Layout(int panelX,int panelY,int panelWidth,int panelHeight,int panelRight,int contentX,int contentWidth,int headerY,int overviewY,int contentY,int leftWidth,int detailX,int detailWidth,int contentHeight){ private Layout move(int delta){ return new Layout(panelX,panelY+delta,panelWidth,panelHeight,panelRight,contentX,contentWidth,headerY+delta,overviewY+delta,contentY+delta,leftWidth,detailX,detailWidth,contentHeight); } }
+    private Layout layout(){ boolean compact=this.height<400||MmmUi.contentWidth(this.width)<540; int padding=compact?8:P, availableWidth=Math.max(1,MmmUi.contentWidth(this.width)-M), topY=MmmUi.TOP_BAR_HEIGHT+10, availableHeight=Math.max(1,this.height-topY-12); int panelWidth=Math.min(840,availableWidth), panelHeight=Math.min(560,availableHeight), panelX=MmmUi.centerContentX(this.width,panelWidth), panelY=topY+Math.max(0,(availableHeight-panelHeight)/2), contentX=panelX+padding, contentWidth=Math.max(1,panelWidth-padding*2), headerY=panelY+padding, contentY=headerY+(compact?42:88), overviewY=headerY+(compact?18:58), leftWidth=Math.max(48,(contentWidth-G)/2), detailX=contentX+leftWidth+G, detailWidth=Math.max(48,contentWidth-leftWidth-G), contentHeight=Math.max(1,panelY+panelHeight-padding-contentY); return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight,compact); }
+    private record Layout(int panelX,int panelY,int panelWidth,int panelHeight,int panelRight,int contentX,int contentWidth,int headerY,int overviewY,int contentY,int leftWidth,int detailX,int detailWidth,int contentHeight,boolean compact){ private Layout move(int delta){ return new Layout(panelX,panelY+delta,panelWidth,panelHeight,panelRight,contentX,contentWidth,headerY+delta,overviewY+delta,contentY+delta,leftWidth,detailX,detailWidth,contentHeight,compact); } }
     private record BreakdownMetrics(int listX,int listY,int listHeight,int viewportWidth,int scrollbarX){}
 }
