@@ -6,6 +6,7 @@ public enum HudModuleId
     TIMER("Timer"),
     HOURLY("Hourly Stats"),
     BLOCK_STATS("Block Stats"),
+    ACTIVE_DIGGERS("Active Diggers"),
     NOTIFICATION("Notification");
 
     private final String label;

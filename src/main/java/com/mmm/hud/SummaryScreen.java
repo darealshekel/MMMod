@@ -9,6 +9,8 @@ import java.util.Map;
 
 import com.mmm.config.Configs;
 import com.mmm.storage.SessionData;
+import com.mmm.storage.EfficiencyStore;
+import com.mmm.tracker.SessionEfficiency;
 import com.mmm.storage.WorldSessionContext;
 import com.mmm.tracker.MiningStats;
 import com.mmm.ui.MmmUi;
@@ -47,9 +49,6 @@ public class SummaryScreen extends Screen
     private static final int COLOR_INSET = MmmUi.INSET;
     private static final int COLOR_BORDER = MmmUi.BORDER;
     private static final int COLOR_BORDER_SOFT = MmmUi.BORDER_SOFT;
-    private static final int COLOR_ACCENT = MmmUi.ACCENT;
-    private static final int COLOR_GRAPH_FILL = MmmUi.GRAPH_FILL;
-    private static final int COLOR_GRAPH_GRID = MmmUi.GRAPH_GRID;
     private static final int COLOR_VALUE = MmmUi.TEXT;
     private static final int COLOR_LABEL = MmmUi.LABEL;
     private static final int COLOR_MUTED = MmmUi.MUTED;
@@ -68,9 +67,15 @@ public class SummaryScreen extends Screen
     private final List<BlockBreakdownEntry> filteredEntries = new ArrayList<>();
 
     private TextFieldWidget searchField;
+    private int contentScroll;
+    private int maxContentScroll;
+    private boolean efficiencyRequested;
+    private boolean efficiencyLoading;
+    private String efficiencyError;
     private boolean clipboardMessageVisible;
     private int breakdownScrollOffset;
     private boolean draggingScrollbar;
+    private boolean draggingContentScrollbar;
     private long openedAtMs;
 
     public SummaryScreen(SessionData session, Screen parent)
@@ -111,13 +116,17 @@ public class SummaryScreen extends Screen
         this.searchField = new TextFieldWidget(this.textRenderer, layout.breakdownX + CARD_PADDING, layout.breakdownY + 28, layout.breakdownWidth - CARD_PADDING * 2, SEARCH_HEIGHT, Text.empty());
         this.searchField.setMaxLength(64);
         this.searchField.setDrawsBackground(false);
-        this.searchField.setCentered(false);
+
         this.searchField.setEditableColor(COLOR_VALUE);
         this.searchField.setUneditableColor(COLOR_MUTED);
         this.searchField.setChangedListener(value -> refreshFilteredEntries());
         this.addDrawableChild(this.searchField);
+        loadEfficiency();
 
         int actionY = layout.headerY;
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Share"), button ->
+                MinecraftClient.getInstance().setScreen(com.mmm.ui.ProgressShareScreen.session(this, session, worldName)))
+                .dimensions(layout.panelRight - 208, actionY - 2, 50, BUTTON_HEIGHT).build());
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Copy"), button ->
         {
             MinecraftClient.getInstance().keyboard.setClipboard(buildShareText());
@@ -126,6 +135,7 @@ public class SummaryScreen extends Screen
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(layout.panelRight - 74, actionY - 2, 64, BUTTON_HEIGHT).build());
 
         refreshFilteredEntries();
+        updateDynamicWidgetBounds(layout);
     }
 
     @Override
@@ -146,15 +156,18 @@ public class SummaryScreen extends Screen
         fillRoundedCard(context, layout.panelX, animatedPanelY, layout.panelWidth, layout.panelHeight, COLOR_PANEL, COLOR_BORDER);
 
         drawHeader(context, animatedLayout);
+        context.enableScissor(layout.panelX + 1, contentTop(animatedLayout), layout.panelRight - 1, animatedLayout.panelBottom - 8);
         drawStatCards(context, animatedLayout);
         drawGraphCard(context, animatedLayout, mouseX, mouseY, animation);
         drawGoalCard(context, animatedLayout);
+        drawEfficiency(context, animatedLayout);
         drawBreakdownCard(context, animatedLayout, mouseX, mouseY);
         drawSearchFieldShell(context);
+        context.disableScissor();
 
         super.render(context, mouseX, mouseY, delta);
 
-        if (this.searchField != null && this.searchField.getText().isBlank() && this.searchField.isFocused() == false)
+        if (this.searchField != null && this.searchField.visible && this.searchField.getText().isBlank() && this.searchField.isFocused() == false)
         {
             String placeholder = MmmUi.truncate(this.textRenderer, SEARCH_PLACEHOLDER, this.searchField.getWidth() - 12);
             int placeholderX = this.searchField.getX() + 6;
@@ -169,17 +182,25 @@ public class SummaryScreen extends Screen
         {
             MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
         }
+        drawContentScrollbar(context, animatedLayout);
+        drawEfficiencyTooltip(context, animatedLayout, mouseX, mouseY);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
     {
-        if (isMouseInsideBreakdown(mouseX, mouseY))
+        Layout layout = computeLayout();
+        if (!isInsideContent(layout, mouseX, mouseY)) return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        if (isMouseInsideBreakdown(mouseX, mouseY) && this.contentScroll == this.maxContentScroll
+                && (verticalAmount < 0 && this.breakdownScrollOffset < getMaxBreakdownScroll()
+                    || verticalAmount > 0 && this.breakdownScrollOffset > 0))
         {
             setBreakdownScrollOffset(this.breakdownScrollOffset + (verticalAmount < 0 ? BREAKDOWN_ROW_HEIGHT : -BREAKDOWN_ROW_HEIGHT));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        this.contentScroll = MathHelper.clamp(this.contentScroll - (int) (verticalAmount * 30), 0, this.maxContentScroll);
+        updateDynamicWidgetBounds(computeLayout());
+        return true;
     }
 
     @Override
@@ -190,7 +211,16 @@ public class SummaryScreen extends Screen
             return true;
         }
 
-        if (button == 0 && isOverScrollbar(mouseX, mouseY))
+        Layout layout = computeLayout();
+        if (button == 0 && this.maxContentScroll > 0 && isInsideContent(layout, mouseX, mouseY)
+                && mouseX >= layout.panelRight - 8)
+        {
+            this.draggingContentScrollbar = true;
+            updateContentScrollFromMouse(mouseY);
+            return true;
+        }
+
+        if (button == 0 && isInsideContent(computeLayout(), mouseX, mouseY) && isOverScrollbar(mouseX, mouseY))
         {
             this.draggingScrollbar = true;
             updateScrollFromMouse(mouseY);
@@ -202,6 +232,11 @@ public class SummaryScreen extends Screen
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY)
     {
+        if (this.draggingContentScrollbar)
+        {
+            updateContentScrollFromMouse(mouseY);
+            return true;
+        }
         if (this.draggingScrollbar)
         {
             updateScrollFromMouse(mouseY);
@@ -216,6 +251,7 @@ public class SummaryScreen extends Screen
         if (button == 0)
         {
             this.draggingScrollbar = false;
+            this.draggingContentScrollbar = false;
         }
         return super.mouseReleased(mouseX, mouseY, button);
     }
@@ -229,7 +265,7 @@ public class SummaryScreen extends Screen
     @Override
     public boolean shouldPause()
     {
-        return false;
+        return MmmUi.shouldPauseGame();
     }
 
     @Override
@@ -248,24 +284,37 @@ public class SummaryScreen extends Screen
 
     private void drawHeader(DrawContext context, Layout layout)
     {
-        MmmUi.drawTextWithin(context, this.textRenderer, this.heading, layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
-        drawPill(context, layout.contentX, layout.headerY + 18, Math.min(200, layout.graphWidth - 20), 16, this.worldName, COLOR_CARD, COLOR_ACCENT);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Session pace, goals, and block mix in the MMM website style.", layout.contentX + 2, layout.headerY + 40, layout.contentWidth - 4, COLOR_LABEL, false);
+        int titleWidth = Math.max(0, layout.contentWidth - 212);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.heading, layout.contentX, layout.headerY, titleWidth, COLOR_VALUE, true);
+        if (!layout.compact)
+        {
+            drawPill(context, layout.contentX, layout.headerY + 18, Math.min(200, layout.graphWidth - 20), 16, this.worldName, COLOR_CARD, MmmUi.accent());
+            MmmUi.drawTextWithin(context, this.textRenderer, "Session pace, goals, and block mix in the MMM website style.", layout.contentX + 2, layout.headerY + 40, layout.contentWidth - 4, COLOR_LABEL, false);
+        }
     }
 
     private void drawStatCards(DrawContext context, Layout layout)
     {
         int cardY = layout.statY;
-        int cardWidth = (layout.contentWidth - CARD_GAP * 3) / 4;
-
-        drawStatCard(context, layout.contentX, cardY, cardWidth, 54, "Total Mined", UiFormat.formatCompact(this.session.totalBlocks), "blocks");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP), cardY, cardWidth, 54, "Active Time", formatClock(this.session.getDurationMs()), "pauses excluded");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 2, cardY, cardWidth, 54, "Avg Rate", UiFormat.formatCompact(this.session.getAverageBlocksPerHour()), "blocks/hr");
-        drawStatCard(context, layout.contentX + (cardWidth + CARD_GAP) * 3, cardY, cardWidth, 54, "Peak Rate", UiFormat.formatCompact(this.session.getPeakBlocksPerHour()), "blocks/hr");
+        int columns = layout.contentWidth < 480 ? 2 : 5;
+        int cardWidth = (layout.contentWidth - CARD_GAP * (columns - 1)) / columns;
+        int cardHeight = layout.compact ? 40 : 54;
+        String[] labels = {"Total Mined", "Session IGT", "Session Time", "Avg Rate", "Best Hour"};
+        String[] values = {UiFormat.formatCompact(this.session.totalBlocks), formatClock(this.session.getActiveDurationMs()),
+                formatClock(this.session.getWallDurationMs()), UiFormat.formatCompact(this.session.getAverageBlocksPerHour()),
+                UiFormat.formatCompact(this.session.getBestHourBlocks())};
+        String[] units = {"blocks", "pauses excluded", "pauses included", "blocks/hr", "blocks mined"};
+        for (int i = 0; i < labels.length; i++)
+            drawStatCard(context, layout.contentX + i % columns * (cardWidth + CARD_GAP),
+                    cardY + i / columns * (cardHeight + CARD_GAP), cardWidth, cardHeight, labels[i], values[i], units[i]);
     }
 
     private void drawGraphCard(DrawContext context, Layout layout, int mouseX, int mouseY, float animation)
     {
+        if (layout.compact)
+        {
+            return;
+        }
         fillRoundedCard(context, layout.graphX, layout.graphY, layout.graphWidth, layout.graphHeight, COLOR_CARD, COLOR_BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, "Mining Rate", layout.graphX + CARD_PADDING, layout.graphY + 10, layout.graphWidth - CARD_PADDING * 2, COLOR_VALUE, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Blocks per hour over active session time", layout.graphX + CARD_PADDING, layout.graphY + 24, layout.graphWidth - CARD_PADDING * 2, COLOR_LABEL, false);
@@ -279,6 +328,10 @@ public class SummaryScreen extends Screen
 
     private void drawGoalCard(DrawContext context, Layout layout)
     {
+        if (layout.compact)
+        {
+            return;
+        }
         fillRoundedCard(context, layout.goalX, layout.goalY, layout.goalWidth, layout.goalHeight, COLOR_CARD, COLOR_BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, "Daily Goal", layout.goalX + CARD_PADDING, layout.goalY + 10, layout.goalWidth - CARD_PADDING * 2, COLOR_VALUE, false);
 
@@ -293,9 +346,10 @@ public class SummaryScreen extends Screen
         int barX = layout.goalX + CARD_PADDING;
         int barY = layout.goalY + 42;
         int barWidth = layout.goalWidth - CARD_PADDING * 2;
-        int percentWidth = this.textRenderer.getWidth(progress.getPercent() + "%");
+        String percentText = UiFormat.formatGoalPercent(progress);
+        int percentWidth = this.textRenderer.getWidth(percentText);
         MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatProgress(progress.current(), progress.target()), barX, layout.goalY + 27, Math.max(0, barWidth - percentWidth - 8), COLOR_VALUE, false);
-        MmmUi.drawTextRightWithin(context, this.textRenderer, progress.getPercent() + "%", barX + barWidth, layout.goalY + 27, percentWidth, goalColor, false);
+        MmmUi.drawTextRightWithin(context, this.textRenderer, percentText, barX + barWidth, layout.goalY + 27, percentWidth, goalColor, false);
 
         int fillWidth = progress.target() <= 0 ? 0 : (int) Math.round(barWidth * Math.min(1.0D, progress.current() / (double) progress.target()));
         context.fill(barX, barY, barX + barWidth, barY + 8, MmmUi.INSET);
@@ -312,7 +366,6 @@ public class SummaryScreen extends Screen
     {
         fillRoundedCard(context, layout.breakdownX, layout.breakdownY, layout.breakdownWidth, layout.breakdownHeight, COLOR_CARD_SOFT, COLOR_BORDER);
         MmmUi.drawTextWithin(context, this.textRenderer, "Block Breakdown", layout.breakdownX + CARD_PADDING, layout.breakdownY + 10, layout.breakdownWidth - CARD_PADDING * 2, COLOR_VALUE, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Search and scan the blocks that shaped the run.", layout.breakdownX + CARD_PADDING, layout.breakdownY + 21, layout.breakdownWidth - CARD_PADDING * 2, COLOR_MUTED, false);
 
         int listX = layout.breakdownX + CARD_PADDING;
         int listY = layout.breakdownY + 60;
@@ -368,7 +421,7 @@ public class SummaryScreen extends Screen
         for (int i = 0; i < 4; i++)
         {
             int lineY = y + (height * i) / 4;
-            context.fill(x, lineY, x + width, lineY + 1, COLOR_GRAPH_GRID);
+            context.fill(x, lineY, x + width, lineY + 1, MmmUi.graphGrid());
         }
 
         if (rates.isEmpty())
@@ -419,7 +472,7 @@ public class SummaryScreen extends Screen
         {
             int pointX = pointsX[column];
             int pointY = Math.round(pointsY[column]);
-            context.fill(pointX, pointY, pointX + 2, fillBaseY, MmmUi.ACCENT_SOFT);
+            context.fill(pointX, pointY, pointX + 2, fillBaseY, MmmUi.accentSoft());
         }
 
         for (int column = 0; column < revealColumns - 1; column++)
@@ -435,7 +488,7 @@ public class SummaryScreen extends Screen
             int markerX = pointsX[lastVisibleIndex];
             int markerY = Math.round(pointsY[lastVisibleIndex]);
             context.fill(markerX - 2, markerY - 2, markerX + 3, markerY + 3, COLOR_VALUE);
-            context.fill(markerX - 1, markerY - 1, markerX + 2, markerY + 2, COLOR_ACCENT);
+            context.fill(markerX - 1, markerY - 1, markerX + 2, markerY + 2, MmmUi.accent());
         }
 
         String maxLabel = UiFormat.formatCompact(Math.round(maxRate)) + "/hr";
@@ -456,7 +509,7 @@ public class SummaryScreen extends Screen
         MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y + 9, textWidth, COLOR_LABEL, false);
         int valueColor = inactiveValueColor(value) == COLOR_INACTIVE ? COLOR_INACTIVE : Configs.getHudNumberColor();
         MmmUi.drawTextWithin(context, this.textRenderer, value, x + CARD_PADDING, y + 24, textWidth, valueColor, false);
-        if (suffix.isBlank() == false)
+        if (height >= 50 && suffix.isBlank() == false)
         {
             MmmUi.drawTextWithin(context, this.textRenderer, suffix, x + CARD_PADDING, y + 38, textWidth, COLOR_MUTED, false);
         }
@@ -473,7 +526,7 @@ public class SummaryScreen extends Screen
         int y = this.searchField.getY() - 1;
         int width = this.searchField.getWidth() + 2;
         int height = SEARCH_HEIGHT;
-        fillRoundedCard(context, x, y, width, height, COLOR_INSET, this.searchField.isFocused() ? COLOR_ACCENT : COLOR_BORDER_SOFT);
+        fillRoundedCard(context, x, y, width, height, COLOR_INSET, this.searchField.isFocused() ? MmmUi.accent() : COLOR_BORDER_SOFT);
     }
 
     private void drawScrollbar(DrawContext context, int x, int y, int height, int mouseX, int mouseY)
@@ -488,7 +541,7 @@ public class SummaryScreen extends Screen
         int thumbY = y + getScrollbarThumbOffset(height, thumbHeight);
         context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, MmmUi.SCROLLBAR_TRACK);
         context.drawBorder(x, y, SCROLLBAR_WIDTH, height, COLOR_BORDER_SOFT);
-        int thumbColor = this.draggingScrollbar ? MmmUi.SCROLLBAR_THUMB_ACTIVE : isOverScrollbar(mouseX, mouseY) ? MmmUi.SCROLLBAR_THUMB_HOVER : MmmUi.SCROLLBAR_THUMB;
+        int thumbColor = MmmUi.scrollbarThumb();
         context.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight, thumbColor);
     }
 
@@ -497,7 +550,7 @@ public class SummaryScreen extends Screen
         fillRoundedCard(context, x, y, width, height, fillColor, borderColor);
         String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
         int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, COLOR_ACCENT, false);
+        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, MmmUi.accent(), false);
     }
 
     private void fillRoundedCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
@@ -537,7 +590,117 @@ public class SummaryScreen extends Screen
             this.searchField.setX(layout.breakdownX + CARD_PADDING);
             this.searchField.setY(layout.breakdownY + 32);
             this.searchField.setWidth(layout.breakdownWidth - CARD_PADDING * 2);
+            this.searchField.visible = this.searchField.getY() >= contentTop(layout)
+                    && this.searchField.getY() + SEARCH_HEIGHT <= layout.panelBottom - 8;
+            if (!this.searchField.visible) this.searchField.setFocused(false);
         }
+    }
+
+    private void loadEfficiency()
+    {
+        if (this.efficiencyRequested || this.session.efficiency.tracked() > 0
+                || this.session == MiningStats.getCurrentSession()) return;
+        this.efficiencyRequested = true;
+        this.efficiencyLoading = true;
+        var game = this.client;
+        EfficiencyStore.load(this.session).whenComplete((data, failure) -> game.execute(() -> {
+            this.efficiencyLoading = false;
+            if (failure == null) this.session.efficiency = data;
+            else this.efficiencyError = "Saved activity data unavailable";
+        }));
+    }
+
+    private static int efficiencyHeight(int width)
+    {
+        return 42 + (width >= 480 ? 4 : 7) * 34;
+    }
+
+    private void drawEfficiency(DrawContext context, Layout layout)
+    {
+        int height = efficiencyHeight(layout.contentWidth);
+        int top = layout.breakdownY - CARD_GAP - height;
+        int x = layout.contentX + CARD_PADDING;
+        int width = layout.contentWidth - CARD_PADDING * 2;
+        fillRoundedCard(context, layout.contentX, top, layout.contentWidth, height, COLOR_CARD, COLOR_BORDER);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Mining Efficiency", x, top + 10, width, COLOR_VALUE, false);
+        long duration = this.session.getActiveDurationMs();
+        String status = this.efficiencyLoading ? "Loading activity..." : this.efficiencyError != null ? this.efficiencyError
+                : this.session.efficiency.tracked() == 0 ? "No activity recorded; time is untracked"
+                : "Session IGT breakdown / pauses excluded";
+        MmmUi.drawTextWithin(context, this.textRenderer, status, x, top + 23, width, COLOR_LABEL, false);
+        int columns = layout.contentWidth >= 480 ? 2 : 1;
+        int cellWidth = (width - (columns - 1) * 20) / columns;
+        var activities = SessionEfficiency.Activity.values();
+        for (int i = 0; i <= activities.length; i++)
+        {
+            var activity = i < activities.length ? activities[i] : null;
+            long time = activity == null ? this.session.efficiency.untracked(duration) : this.session.efficiency.time(activity);
+            int cellX = x + (i % columns) * (cellWidth + 20);
+            int y = top + 40 + (i / columns) * 34;
+            MmmUi.drawTextWithin(context, this.textRenderer, activity == null ? "Untracked time" : activity.label,
+                    cellX, y, cellWidth, COLOR_VALUE, false);
+            String value = formatClock(time) + " / " + String.format(Locale.ROOT, "%.1f%%", duration <= 0 ? 0 : Math.min(100, time * 100.0 / duration));
+            MmmUi.drawTextWithin(context, this.textRenderer, value, cellX, y + 11, cellWidth, COLOR_LABEL, false);
+            context.fill(cellX, y + 24, cellX + cellWidth, y + 27, COLOR_INSET);
+            int fill = duration <= 0 ? 0 : (int) (cellWidth * Math.min(1, time / (double) duration));
+            context.fill(cellX, y + 24, cellX + fill, y + 27, activity == null ? COLOR_INACTIVE : activity.color);
+        }
+    }
+
+    private static int contentTop(Layout layout)
+    {
+        return layout.headerY + (layout.compact ? 24 : 58);
+    }
+
+    private static boolean isInsideContent(Layout layout, double x, double y)
+    {
+        return x >= layout.contentX && x < layout.panelRight && y >= contentTop(layout) && y < layout.panelBottom - 8;
+    }
+
+    private void drawContentScrollbar(DrawContext context, Layout layout)
+    {
+        if (this.maxContentScroll == 0) return;
+        int top = contentTop(layout);
+        int height = layout.panelBottom - 8 - top;
+        int thumb = Math.max(16, height * height / (height + this.maxContentScroll));
+        int y = top + (height - thumb) * this.contentScroll / this.maxContentScroll;
+        context.fill(layout.panelRight - 5, top, layout.panelRight - 3, top + height, COLOR_BORDER);
+        context.fill(layout.panelRight - 5, y, layout.panelRight - 3, y + thumb, MmmUi.accent());
+    }
+
+    private void updateContentScrollFromMouse(double mouseY)
+    {
+        Layout layout = computeLayout();
+        int top = contentTop(layout);
+        int height = layout.panelBottom - 8 - top;
+        int thumb = Math.max(16, height * height / (height + this.maxContentScroll));
+        double progress = (mouseY - top - thumb / 2.0) / Math.max(1, height - thumb);
+        this.contentScroll = (int) Math.round(MathHelper.clamp(progress, 0, 1) * this.maxContentScroll);
+        updateDynamicWidgetBounds(computeLayout());
+    }
+
+    private void drawEfficiencyTooltip(DrawContext context, Layout layout, int mouseX, int mouseY)
+    {
+        if (!isInsideContent(layout, mouseX, mouseY)) return;
+        int top = layout.breakdownY - CARD_GAP - efficiencyHeight(layout.contentWidth) + 40;
+        int x = layout.contentX + CARD_PADDING;
+        int columns = layout.contentWidth >= 480 ? 2 : 1;
+        int cellWidth = (layout.contentWidth - CARD_PADDING * 2 - (columns - 1) * 20) / columns;
+        int row = (mouseY - top) / 34;
+        int column = (mouseX - x) / (cellWidth + 20);
+        int index = row * columns + column;
+        if (mouseY < top || mouseX < x || column >= columns || index < 0 || index >= 7
+                || mouseX - x - column * (cellWidth + 20) >= cellWidth) return;
+        String[] notes = {
+                "Mining without an observed multi-tick break, including a short interval after an accepted harvest.",
+                "Breaking a block that needs more than one tick with your current tool and effects.",
+                "Movement without mining. This can include falling or knockback.",
+                "Inventory or container open during unpaused Session IGT.",
+                "Other menu or chat open during unpaused Session IGT.",
+                "No mining, movement or menu activity observed. This does not necessarily mean AFK.",
+                "Older session time and gaps longer than 250ms cannot be classified reliably. Pauses are excluded."
+        };
+        context.drawOrderedTooltip(this.textRenderer, this.textRenderer.wrapLines(Text.literal(notes[index]), Math.min(260, layout.contentWidth)), mouseX, mouseY);
     }
 
     private void drawCurveSegment(DrawContext context, float startX, float startY, float endX, float endY, float previousY, float nextY)
@@ -558,8 +721,8 @@ public class SummaryScreen extends Screen
                     (t3 - t2) * tangentEnd;
             int ix = Math.round(pointX);
             int iy = Math.round(pointY);
-            context.fill(ix, iy, ix + 2, iy + 2, COLOR_ACCENT);
-            context.fill(ix, iy + 2, ix + 2, iy + 3, COLOR_GRAPH_FILL);
+            context.fill(ix, iy, ix + 2, iy + 2, MmmUi.accent());
+            context.fill(ix, iy + 2, ix + 2, iy + 3, MmmUi.graphFill());
         }
     }
 
@@ -587,26 +750,32 @@ public class SummaryScreen extends Screen
 
     private Layout computeLayout()
     {
-        int availableWidth = this.showChrome ? Math.max(340, MmmUi.contentWidth(this.width) - PANEL_MARGIN) : Math.max(340, this.width - PANEL_MARGIN * 2);
-        int minPanelWidth = this.showChrome ? 520 : Math.min(520, availableWidth);
-        int panelWidth = Math.min(760, Math.max(minPanelWidth, availableWidth));
+        boolean compact = this.height < 400 || (this.showChrome && MmmUi.contentWidth(this.width) < 540);
+        int availableWidth = this.showChrome ? Math.max(1, MmmUi.contentWidth(this.width) - PANEL_MARGIN) : Math.max(1, this.width - PANEL_MARGIN * 2);
+        int panelWidth = Math.min(760, availableWidth);
         int topY = this.showChrome ? MmmUi.TOP_BAR_HEIGHT + 10 : PANEL_MARGIN;
-        int availableHeight = Math.max(260, this.height - topY - (this.showChrome ? 12 : PANEL_MARGIN));
-        int panelHeight = Math.min(540, Math.max(360, availableHeight));
-        panelHeight = Math.min(panelHeight, availableHeight);
+        int availableHeight = Math.max(1, this.height - topY - (this.showChrome ? 12 : PANEL_MARGIN));
+        int panelHeight = Math.min(720, availableHeight);
         int panelX = this.showChrome ? MmmUi.centerContentX(this.width, panelWidth) : Math.max(PANEL_MARGIN, (this.width - panelWidth) / 2);
         int panelY = topY + Math.max(0, (availableHeight - panelHeight) / 2);
-        int contentX = panelX + PANEL_PADDING;
-        int contentWidth = panelWidth - PANEL_PADDING * 2;
-        int headerY = panelY + PANEL_PADDING;
-        int statY = headerY + 58;
+        int padding = compact ? 8 : PANEL_PADDING;
+        int contentX = panelX + padding;
+        int contentWidth = panelWidth - padding * 2;
+        int headerY = panelY + padding;
+        int statY = headerY + (compact ? 24 : 58);
         int cardWidth = (contentWidth - CARD_GAP * 3) / 4;
-        int graphY = statY + 54 + CARD_GAP;
-        int goalWidth = Math.min(190, Math.max(172, contentWidth / 4));
+        int graphY = statY + (contentWidth < 480 ? 3 : 1) * ((compact ? 40 : 54) + CARD_GAP);
+        int goalWidth = Math.min(190, Math.max(84, contentWidth / 4));
         int graphWidth = contentWidth - goalWidth - CARD_GAP;
-        int graphHeight = 140;
-        int breakdownY = graphY + graphHeight + CARD_GAP;
-        int breakdownHeight = panelY + panelHeight - PANEL_PADDING - breakdownY;
+        int graphHeight = compact ? 0 : 140;
+        int efficiencyY = compact ? graphY : graphY + graphHeight + CARD_GAP;
+        int breakdownY = efficiencyY + efficiencyHeight(contentWidth) + CARD_GAP;
+        int breakdownHeight = Math.max(152, panelY + panelHeight - padding - breakdownY);
+        this.maxContentScroll = Math.max(0, breakdownY + breakdownHeight - (panelY + panelHeight - 8));
+        this.contentScroll = MathHelper.clamp(this.contentScroll, 0, this.maxContentScroll);
+        statY -= this.contentScroll;
+        graphY -= this.contentScroll;
+        breakdownY -= this.contentScroll;
 
         return new Layout(
                 panelX,
@@ -631,7 +800,8 @@ public class SummaryScreen extends Screen
                 contentX,
                 breakdownY,
                 contentWidth,
-                breakdownHeight);
+                breakdownHeight,
+                compact);
     }
 
     private boolean isMouseInsideBreakdown(double mouseX, double mouseY)
@@ -716,15 +886,16 @@ public class SummaryScreen extends Screen
         builder.append(this.heading).append('\n');
         builder.append("World/Server: ").append(this.worldName).append('\n');
         builder.append("Total Mined: ").append(UiFormat.formatBlocks(this.session.totalBlocks)).append('\n');
-        builder.append("Session Time: ").append(formatClock(this.session.getDurationMs())).append('\n');
+        builder.append("Session IGT: ").append(formatClock(this.session.getActiveDurationMs())).append('\n');
+        builder.append("Session Time: ").append(formatClock(this.session.getWallDurationMs())).append('\n');
         builder.append("Average Rate: ").append(UiFormat.formatBlocksPerHour(this.session.getAverageBlocksPerHour())).append('\n');
-        builder.append("Peak Rate: ").append(UiFormat.formatBlocksPerHour(this.session.getPeakBlocksPerHour())).append('\n');
+        builder.append("Best Hour: ").append(UiFormat.formatBlocks(this.session.getBestHourBlocks())).append(" blocks\n");
         builder.append("Best Streak: ").append(this.session.bestStreakSeconds).append("s\n");
 
         MiningStats.GoalProgress dailyGoal = MiningStats.getDailyGoalProgress();
         if (dailyGoal.enabled())
         {
-            builder.append(dailyGoal.label()).append(": ").append(UiFormat.formatProgress(dailyGoal.current(), dailyGoal.target())).append(" (").append(dailyGoal.getPercent()).append("%)\n");
+            builder.append(dailyGoal.label()).append(": ").append(UiFormat.formatProgress(dailyGoal.current(), dailyGoal.target())).append(" (").append(UiFormat.formatGoalPercent(dailyGoal)).append(")\n");
         }
 
         for (BlockBreakdownEntry entry : this.allEntries)
@@ -854,7 +1025,8 @@ public class SummaryScreen extends Screen
             int breakdownX,
             int breakdownY,
             int breakdownWidth,
-            int breakdownHeight)
+            int breakdownHeight,
+            boolean compact)
     {
         private Layout withPanelY(int newPanelY)
         {
@@ -882,7 +1054,8 @@ public class SummaryScreen extends Screen
                     this.breakdownX,
                     this.breakdownY + delta,
                     this.breakdownWidth,
-                    this.breakdownHeight);
+                    this.breakdownHeight,
+                    this.compact);
         }
     }
 }

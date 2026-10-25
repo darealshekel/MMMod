@@ -16,9 +16,12 @@ public class SessionData
 
     public final long startTimeMs;
     public long endTimeMs;
+    public long wallDurationMs;
     public long totalBlocks;
     public long bestStreakSeconds;
     public int peakBlocksPerHour;
+    public int bestHourBlocks;
+    public com.mmm.tracker.SessionEfficiency efficiency = new com.mmm.tracker.SessionEfficiency();
     public Map<String, Long> blockBreakdown = new LinkedHashMap<>();
     public List<Integer> miningRateBuckets = new ArrayList<>();
 
@@ -33,9 +36,28 @@ public class SessionData
         return Math.max(0L, this.endTimeMs - this.startTimeMs);
     }
 
+    public long getActiveDurationMs()
+    {
+        return this.getDurationMs();
+    }
+
+    public long getWallDurationMs()
+    {
+        return Math.max(this.getActiveDurationMs(), this.wallDurationMs);
+    }
+
     public String getDurationString()
     {
-        long elapsed = this.getDurationMs();
+        return formatDuration(this.getActiveDurationMs());
+    }
+
+    public String getWallDurationString()
+    {
+        return formatDuration(this.getWallDurationMs());
+    }
+
+    private static String formatDuration(long elapsed)
+    {
         long hours = elapsed / 3_600_000L;
         long minutes = (elapsed % 3_600_000L) / 60_000L;
         long seconds = (elapsed % 60_000L) / 1_000L;
@@ -59,6 +81,62 @@ public class SessionData
                 : clampBlocksPerHour(this.peakBlocksPerHour);
     }
 
+    public int getBestHourBlocks()
+    {
+        if (this.bestHourBlocks > 0)
+        {
+            return clampBlocksPerHour(this.bestHourBlocks);
+        }
+
+        return calculateBestHourBlocksFromBuckets();
+    }
+
+    public void captureBestHourBlocks(long value)
+    {
+        this.bestHourBlocks = Math.max(this.bestHourBlocks, clampBlocksPerHour(value));
+    }
+
+    private int calculateBestHourBlocksFromBuckets()
+    {
+        if (this.miningRateBuckets.isEmpty())
+        {
+            return clampBlocksPerHour(this.peakBlocksPerHour);
+        }
+
+        long windowTotal = 0L;
+        long bestTotal = 0L;
+        for (int index = 0; index < this.miningRateBuckets.size(); index++)
+        {
+            windowTotal += Math.max(0, this.miningRateBuckets.get(index));
+            if (index >= 60)
+            {
+                windowTotal -= Math.max(0, this.miningRateBuckets.get(index - 60));
+            }
+            bestTotal = Math.max(bestTotal, windowTotal);
+        }
+        return clampBlocksPerHour(bestTotal);
+    }
+
+    public int getCurrentHourBlocks()
+    {
+        if (this.miningRateBuckets.isEmpty())
+        {
+            return 0;
+        }
+
+        long windowTotal = 0L;
+        int latestBucket = Math.max(
+                this.miningRateBuckets.size() - 1,
+                (int) Math.max(0L, this.getActiveDurationMs() / RATE_BUCKET_DURATION_MS));
+        int firstBucket = Math.max(0, latestBucket - 59);
+        int lastStoredBucket = Math.min(latestBucket, this.miningRateBuckets.size() - 1);
+        for (int index = firstBucket; index <= lastStoredBucket; index++)
+        {
+            windowTotal += Math.max(0, this.miningRateBuckets.get(index));
+        }
+        return clampBlocksPerHour(windowTotal);
+    }
+
     public void updatePeakBlocksPerHour(long value)
     {
         this.peakBlocksPerHour = Math.max(this.getPeakBlocksPerHour(), clampBlocksPerHour(value));
@@ -79,6 +157,33 @@ public class SessionData
         recordMinedAmount(activeElapsedMs, 1L);
     }
 
+    public boolean repairInflatedTotalFromBreakdown()
+    {
+        if (this.blockBreakdown == null || this.blockBreakdown.isEmpty())
+        {
+            return false;
+        }
+
+        long breakdownTotal = 0L;
+        for (long amount : this.blockBreakdown.values())
+        {
+            long safeAmount = Math.max(0L, amount);
+            breakdownTotal = Long.MAX_VALUE - breakdownTotal < safeAmount
+                    ? Long.MAX_VALUE
+                    : breakdownTotal + safeAmount;
+        }
+
+        if (this.totalBlocks <= breakdownTotal)
+        {
+            return false;
+        }
+
+        this.totalBlocks = breakdownTotal;
+        this.miningRateBuckets.clear();
+        this.peakBlocksPerHour = 0;
+        return true;
+    }
+
     public void recordMinedAmount(long activeElapsedMs, long amount)
     {
         if (amount <= 0L)
@@ -94,55 +199,16 @@ public class SessionData
         updatePeakBlocksPerHour(this.getBucketBlocksPerHour(bucketBlocks));
     }
 
-    public void recordMinedAmountOverInterval(long startActiveElapsedMs, long endActiveElapsedMs, long amount)
-    {
-        if (amount <= 0L)
-        {
-            return;
-        }
-
-        long startMs = Math.max(0L, startActiveElapsedMs);
-        long endMs = Math.max(startMs, endActiveElapsedMs);
-        if (endMs <= startMs)
-        {
-            recordMinedAmount(endMs, amount);
-            return;
-        }
-
-        long durationMs = endMs - startMs;
-        int startBucket = (int) Math.max(0L, startMs / RATE_BUCKET_DURATION_MS);
-        int endBucket = (int) Math.max(startBucket, (endMs - 1L) / RATE_BUCKET_DURATION_MS);
-        long allocated = 0L;
-        long coveredMs = 0L;
-
-        for (int bucket = startBucket; bucket <= endBucket; bucket++)
-        {
-            long bucketStartMs = (long) bucket * RATE_BUCKET_DURATION_MS;
-            long bucketEndMs = bucketStartMs + RATE_BUCKET_DURATION_MS;
-            long overlapMs = Math.max(0L, Math.min(endMs, bucketEndMs) - Math.max(startMs, bucketStartMs));
-            if (overlapMs <= 0L)
-            {
-                continue;
-            }
-
-            coveredMs += overlapMs;
-            long cumulative = bucket == endBucket ? amount : Math.round(amount * (coveredMs / (double) durationMs));
-            long bucketAmount = Math.max(0L, cumulative - allocated);
-            allocated += bucketAmount;
-            recordMinedAmount(bucketStartMs, bucketAmount);
-        }
-    }
-
     public String serialise()
     {
-        return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.getPeakBlocksPerHour() + "," + this.serialiseBreakdown() + "," + this.serialiseRateBuckets();
+        return this.startTimeMs + "," + this.endTimeMs + "," + this.totalBlocks + "," + this.bestStreakSeconds + "," + this.getPeakBlocksPerHour() + "," + this.serialiseBreakdown() + "," + this.serialiseRateBuckets() + "," + this.getWallDurationMs() + "," + this.getBestHourBlocks();
     }
 
     public static SessionData deserialise(String line)
     {
         try
         {
-            String[] parts = line.split(",", 7);
+            String[] parts = line.split(",", 9);
             SessionData session = new SessionData(Long.parseLong(parts[0]));
             session.endTimeMs = Long.parseLong(parts[1]);
             session.totalBlocks = Long.parseLong(parts[2]);
@@ -155,6 +221,13 @@ public class SessionData
             if (parts.length >= 7)
             {
                 session.miningRateBuckets = deserialiseRateBuckets(parts[6]);
+            }
+            session.wallDurationMs = parts.length >= 8
+                    ? Math.max(session.getActiveDurationMs(), Long.parseLong(parts[7]))
+                    : session.getActiveDurationMs();
+            if (parts.length >= 9)
+            {
+                session.bestHourBlocks = clampBlocksPerHour(Long.parseLong(parts[8]));
             }
             return session;
         }

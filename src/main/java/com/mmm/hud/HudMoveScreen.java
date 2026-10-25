@@ -104,6 +104,10 @@ public class HudMoveScreen extends Screen
 
         for (HudModuleId module : movableModules())
         {
+            if (module != HudModuleId.MAIN && !TimerHudRenderer.isVisible(module) && module != this.selected)
+            {
+                continue;
+            }
             int[] bounds = TimerHudRenderer.getBounds(client, module);
             if (mouseX >= bounds[0] && mouseX <= bounds[2] && mouseY >= bounds[1] && mouseY <= bounds[3])
             {
@@ -171,7 +175,7 @@ public class HudMoveScreen extends Screen
     @Override
     public boolean shouldPause()
     {
-        return false;
+        return MmmUi.shouldPauseGame();
     }
 
     @Override
@@ -190,8 +194,8 @@ public class HudMoveScreen extends Screen
         for (HudModuleId module : movableModules())
         {
             boolean active = module == this.selected;
-            int rowFill = active ? 0x33E00000 : MmmUi.INSET;
-            int border = active ? MmmUi.RED : MmmUi.BORDER_SOFT;
+            int rowFill = active ? MmmUi.accentSoft() : MmmUi.INSET;
+            int border = active ? MmmUi.accent() : MmmUi.BORDER_SOFT;
             context.fill(layout.x() + 12, rowY, layout.x() + layout.width() - 12, rowY + 20, rowFill);
             context.drawBorder(layout.x() + 12, rowY, layout.width() - 24, 20, border);
             MmmUi.drawTextWithin(context, this.textRenderer, module.label(), layout.x() + 20, rowY + 6, layout.width() - 94, active ? MmmUi.TEXT : MmmUi.MUTED, false);
@@ -199,26 +203,26 @@ public class HudMoveScreen extends Screen
             {
                 String visibility = TimerHudRenderer.isVisible(module) ? "ON" : "OFF";
                 int toggleX = layout.x() + layout.width() - 58;
-                context.drawBorder(toggleX, rowY + 3, 38, 14, TimerHudRenderer.isVisible(module) ? MmmUi.RED : MmmUi.BORDER_SOFT);
+                context.drawBorder(toggleX, rowY + 3, 38, 14, TimerHudRenderer.isVisible(module) ? MmmUi.accent() : MmmUi.BORDER_SOFT);
                 MmmUi.drawTextWithin(context, this.textRenderer, visibility, toggleX + 8, rowY + 6, 26, TimerHudRenderer.isVisible(module) ? MmmUi.TEXT : MmmUi.MUTED, false);
             }
             rowY += 25;
         }
 
         String size = "Size: " + Math.round(getSelectedScale() * 100D) + "%";
-        MmmUi.drawTextWithin(context, this.textRenderer, size, layout.x() + 70, layout.y() + layout.height() - 22, 90, MmmUi.ACCENT_BRIGHT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, size, layout.x() + 70, layout.y() + layout.height() - 22, 90, MmmUi.accent(), false);
     }
 
     private void drawModuleBounds(DrawContext context, MinecraftClient client)
     {
-        for (HudModuleId module : HudModuleId.values())
+        for (HudModuleId module : movableModules())
         {
             if (module != HudModuleId.MAIN && TimerHudRenderer.isVisible(module) == false && module != this.selected)
             {
                 continue;
             }
             int[] bounds = TimerHudRenderer.getBounds(client, module);
-            int color = module == this.selected ? MmmUi.RED : 0x88E00000;
+            int color = module == this.selected ? MmmUi.accent() : MmmUi.accentSoft();
             context.drawBorder(bounds[0] - 2, bounds[1] - 2, bounds[2] - bounds[0] + 4, bounds[3] - bounds[1] + 4, color);
         }
     }
@@ -227,7 +231,7 @@ public class HudMoveScreen extends Screen
     {
         if (this.selected == HudModuleId.MAIN)
         {
-            Configs.Generic.HUD_SCALE.setDoubleValue(Math.max(0.75D, Math.min(1.75D, Configs.Generic.HUD_SCALE.getDoubleValue() + delta)));
+            Configs.Generic.HUD_SCALE.setDoubleValue(Math.max(0.25D, Math.min(1.75D, Configs.Generic.HUD_SCALE.getDoubleValue() + delta)));
             Configs.saveToFile();
             return;
         }
@@ -243,6 +247,7 @@ public class HudMoveScreen extends Screen
             case HOURLY -> Configs.Generic.HOURLY_STATS_SCALE.getDoubleValue();
             case BLOCK_STATS -> Configs.Generic.BLOCK_STATS_SCALE.getDoubleValue();
             case NOTIFICATION -> Configs.Generic.TIMER_NOTIFICATION_SCALE.getDoubleValue();
+            case ACTIVE_DIGGERS -> Configs.Generic.ACTIVE_DIGGERS_SCALE.getDoubleValue();
         };
     }
 
@@ -284,6 +289,6 @@ public class HudMoveScreen extends Screen
 
     private static HudModuleId[] movableModules()
     {
-        return new HudModuleId[] { HudModuleId.MAIN, HudModuleId.TIMER, HudModuleId.BLOCK_STATS };
+        return new HudModuleId[] { HudModuleId.MAIN, HudModuleId.TIMER, HudModuleId.BLOCK_STATS, HudModuleId.ACTIVE_DIGGERS };
     }
 }
