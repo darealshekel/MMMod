@@ -1,6 +1,7 @@
 package com.mmm.timer;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
@@ -9,6 +10,10 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallba
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import com.mmm.config.Configs;
+import com.mmm.scoreboard.ScoreboardService;
+import com.mmm.scoreboard.ScoreboardState;
+import com.mmm.social.MmmChatIgnoreList;
 
 public final class MmmClientCommands
 {
@@ -18,9 +23,110 @@ public final class MmmClientCommands
 
     public static void register()
     {
-        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> dispatcher.register(
-                ClientCommandManager.literal("mmm")
-                        .then(buildTimerCommand())));
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
+            dispatcher.register(ClientCommandManager.literal("mmm")
+                    .then(ClientCommandManager.literal("leaderboard").executes(context -> {
+                        var client = net.minecraft.client.MinecraftClient.getInstance();
+                        client.send(() -> client.setScreen(new com.mmm.ui.LeaderboardScreen(null)));
+                        return 1;
+                    }))
+                    .then(buildTimerCommand())
+                    .then(ClientCommandManager.literal("collections").executes(context -> {
+                        var client = net.minecraft.client.MinecraftClient.getInstance();
+                        client.send(() -> client.setScreen(new com.mmm.ui.CollectionBookScreen(null)));
+                        return 1;
+                    }))
+                    .then(ClientCommandManager.literal("efficiency").executes(context -> {
+                        var client = net.minecraft.client.MinecraftClient.getInstance();
+                        client.send(() -> client.setScreen(new com.mmm.hud.SummaryScreen(com.mmm.tracker.MiningStats.getCurrentSession(), null)));
+                        return 1;
+                    }))
+                    .then(buildChatCommand())
+                    .then(buildScoreboardCommand()));
+            dispatcher.register(ClientCommandManager.literal("sbhelper")
+                    .then(ClientCommandManager.literal("maxDisplayCount")
+                            .then(ClientCommandManager.argument("count", IntegerArgumentType.integer(0, 100))
+                                    .executes(context -> setScoreboardRows(context,
+                                            IntegerArgumentType.getInteger(context, "count"))))));
+        });
+    }
+
+    private static LiteralArgumentBuilder<FabricClientCommandSource> buildChatCommand()
+    {
+        return ClientCommandManager.literal("chat")
+                .then(ClientCommandManager.literal("ignore")
+                        .then(ClientCommandManager.argument("player", StringArgumentType.word())
+                                .executes(context -> ignorePlayer(context, StringArgumentType.getString(context, "player")))))
+                .then(ClientCommandManager.literal("unignore")
+                        .then(ClientCommandManager.argument("player", StringArgumentType.word())
+                                .executes(context -> unignorePlayer(context, StringArgumentType.getString(context, "player")))))
+                .then(ClientCommandManager.literal("ignored")
+                        .executes(MmmClientCommands::showIgnoredPlayers));
+    }
+
+    private static int ignorePlayer(CommandContext<FabricClientCommandSource> context, String username)
+    {
+        if (!MmmChatIgnoreList.isValidUsername(username))
+        {
+            feedback(context, Formatting.RED, "Enter a valid Minecraft username.");
+            return 0;
+        }
+        if (!MmmChatIgnoreList.add(username))
+        {
+            feedback(context, Formatting.YELLOW, username + " is already ignored.");
+            return 0;
+        }
+        feedback(context, Formatting.GREEN, "Ignoring MMM messages from " + username + ".");
+        return 1;
+    }
+
+    private static int unignorePlayer(CommandContext<FabricClientCommandSource> context, String username)
+    {
+        if (!MmmChatIgnoreList.remove(username))
+        {
+            feedback(context, Formatting.YELLOW, username + " is not ignored.");
+            return 0;
+        }
+        feedback(context, Formatting.GREEN, "Showing MMM messages from " + username + " again.");
+        return 1;
+    }
+
+    private static int showIgnoredPlayers(CommandContext<FabricClientCommandSource> context)
+    {
+        var ignored = MmmChatIgnoreList.entries();
+        feedback(context, Formatting.YELLOW, ignored.isEmpty()
+                ? "No MMM players are ignored."
+                : "Ignored MMM players: " + String.join(", ", ignored));
+        return 1;
+    }
+
+    private static LiteralArgumentBuilder<FabricClientCommandSource> buildScoreboardCommand()
+    {
+        return ClientCommandManager.literal("scoreboard")
+                .then(ClientCommandManager.literal("max")
+                        .then(ClientCommandManager.argument("count", IntegerArgumentType.integer(0, 100))
+                                .executes(context -> setScoreboardRows(context, IntegerArgumentType.getInteger(context, "count")))))
+                .then(ClientCommandManager.literal("pageUp")
+                        .executes(context -> {
+                            feedback(context, Formatting.YELLOW,
+                                    ScoreboardService.pageUp() ? "Showing the previous scoreboard page." : "Already on the first page.");
+                            return 1;
+                        }))
+                .then(ClientCommandManager.literal("pageDown")
+                        .executes(context -> {
+                            feedback(context, Formatting.YELLOW,
+                                    ScoreboardService.pageDown() ? "Showing the next scoreboard page." : "Already on the last page.");
+                            return 1;
+                        }));
+    }
+
+    private static int setScoreboardRows(CommandContext<FabricClientCommandSource> context, int count)
+    {
+        Configs.Generic.SCOREBOARD_MAX_ENTRIES.setIntegerValue(count);
+        ScoreboardState.resetPage();
+        Configs.saveToFile();
+        feedback(context, Formatting.GREEN, "Scoreboard rows per page set to " + count + ".");
+        return count;
     }
 
     private static LiteralArgumentBuilder<FabricClientCommandSource> buildTimerCommand()
@@ -48,6 +154,16 @@ public final class MmmClientCommands
 
         return timer
                 .then(startCommand)
+                .then(ClientCommandManager.literal("pause")
+                        .executes(context -> {
+                            if (MmmTimerState.pause())
+                            {
+                                feedback(context, Formatting.YELLOW, "Timer paused. Time and run stats are frozen.");
+                                return 1;
+                            }
+                            feedback(context, Formatting.RED, "Timer is not running.");
+                            return 0;
+                        }))
                 .then(ClientCommandManager.literal("stop")
                         .executes(context -> {
                             MmmTimerState.stop();
@@ -63,7 +179,9 @@ public final class MmmClientCommands
                 .then(setCommand)
                 .then(ClientCommandManager.literal("status")
                         .executes(context -> {
-                            String state = MmmTimerState.isRunning() ? "running" : MmmTimerState.isExpired() ? "expired" : "paused";
+                            String state = MmmTimerState.isRunning()
+                                    ? "running"
+                                    : MmmTimerState.isPaused() ? "paused" : MmmTimerState.isExpired() ? "expired" : "stopped";
                             feedback(context, Formatting.YELLOW,
                                     "Timer " + state
                                             + " | " + MmmTimerState.formatTime(MmmTimerState.getRemainingMs())
@@ -77,8 +195,11 @@ public final class MmmClientCommands
         try
         {
             Long duration = durationText == null ? null : MmmTimerState.parseDurationMs(durationText);
+            boolean resuming = duration == null && MmmTimerState.isPaused();
             MmmTimerState.start(duration);
-            feedback(context, Formatting.GREEN, "Timer started: " + MmmTimerState.formatTime(MmmTimerState.getRemainingMs()) + ".");
+            feedback(context, Formatting.GREEN,
+                    (resuming ? "Timer resumed: " : "Timer started: ")
+                            + MmmTimerState.formatTime(MmmTimerState.getRemainingMs()) + ".");
             return 1;
         }
         catch (RuntimeException exception)

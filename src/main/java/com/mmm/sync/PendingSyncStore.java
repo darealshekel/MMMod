@@ -3,9 +3,8 @@ package com.mmm.sync;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mmm.MMM;
-import java.nio.file.Files;
+import com.mmm.storage.AtomicJsonStorage;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -22,18 +21,17 @@ final class PendingSyncStore
 
     StoredState load() throws Exception
     {
-        if (Files.exists(this.path) == false)
+        AtomicJsonStorage.ReadResult result = AtomicJsonStorage.readObjectWithBackup(this.path);
+        if (result.value() == null)
         {
             return new StoredState(List.of(), 0L);
         }
-
-        String json = Files.readString(this.path);
-        if (json == null || json.isBlank())
+        if (result.recoveredFromBackup())
         {
-            return new StoredState(List.of(), 0L);
+            MMM.LOGGER.warn("[MMM_SYNC] queue-state-recovered-from-backup source={}", result.source());
         }
 
-        StoredState state = GSON.fromJson(json, StoredState.class);
+        StoredState state = GSON.fromJson(result.value(), StoredState.class);
         if (state == null)
         {
             return new StoredState(List.of(), 0L);
@@ -55,32 +53,19 @@ final class PendingSyncStore
                 .comparingLong((QueuedSyncItem item) -> item.nextRetryAtMs)
                 .thenComparingLong(item -> item.createdAtMs));
 
-        return new StoredState(validItems, Math.max(0L, state.lastSuccessfulSyncAtMs));
+        long lastSuccessfulSyncAtMs = Math.max(0L, state.lastSuccessfulSyncAtMs);
+        if (result.recoveredFromBackup())
+        {
+            save(validItems, lastSuccessfulSyncAtMs);
+        }
+        return new StoredState(validItems, lastSuccessfulSyncAtMs);
     }
 
     void save(List<QueuedSyncItem> items, long lastSuccessfulSyncAtMs) throws Exception
     {
-        Path parent = this.path.getParent();
-        if (parent != null)
-        {
-            Files.createDirectories(parent);
-        }
-
         StoredState state = new StoredState(copyItems(items), Math.max(0L, lastSuccessfulSyncAtMs));
-        Path tempPath = this.path.resolveSibling(this.path.getFileName() + ".tmp");
-        Files.writeString(tempPath, GSON.toJson(state));
-
-        try
-        {
-            Files.move(tempPath, this.path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        }
-        catch (Exception e)
-        {
-            MMM.LOGGER.warn("[MMM_SYNC] atomic queue save move failed for {}; retrying non-atomic move: {}", this.path, e.getMessage());
-            Files.move(tempPath, this.path, StandardCopyOption.REPLACE_EXISTING);
-        }
+        AtomicJsonStorage.write(this.path, GSON.toJsonTree(state), true);
     }
-
     private List<QueuedSyncItem> copyItems(List<QueuedSyncItem> items)
     {
         List<QueuedSyncItem> copy = new ArrayList<>();
