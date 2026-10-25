@@ -8,6 +8,7 @@
     "ClientPlayNetworkHandlerMixin",
     "ClientPlayerInteractionManagerAccessor",
     "ClientPlayerInteractionManagerMixin",
+    "ClientWorldMixin",
     "DecorationParameterMixin",
     "HeldItemRendererMixin",
     "HandledScreenAccessor",
