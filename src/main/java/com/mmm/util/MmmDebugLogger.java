@@ -1,14 +1,14 @@
 package com.mmm.util;
 
-import com.mmm.MMM;
+import com.mmm.util.MmmLog;
 import com.mmm.config.Configs;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public final class MmmDebugLogger
 {
     private static final long GLOBAL_DEBUG_LOG_INTERVAL_MS = 10_000L;
-    private static final Map<String, Long> LAST_LOG_MS = new ConcurrentHashMap<>();
+    private static final Map<String, Long> LAST_LOG_MS = new HashMap<>();
     private static volatile long lastAnyLogMs;
 
     private MmmDebugLogger()
@@ -49,7 +49,7 @@ public final class MmmDebugLogger
     {
         if (shouldLog(key, intervalMs))
         {
-            MMM.LOGGER.info(message, args);
+            MmmLog.LOGGER.info(message, args);
         }
     }
 
@@ -57,7 +57,7 @@ public final class MmmDebugLogger
     {
         if (shouldLog(key, intervalMs))
         {
-            MMM.LOGGER.debug(message, args);
+            MmmLog.LOGGER.debug(message, args);
         }
     }
 }

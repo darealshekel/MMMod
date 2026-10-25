@@ -3,14 +3,14 @@
   "id": "mmm",
   "version": "${version}",
   "name": "MMM",
-  "description": "A Tweakeroo-style companion addon that adds mining tracking, HUD stats, projects, goals, notifications, and session summaries.",
+  "description": "The Manual Mining Maniacs companion mod for mining stats, goals, sessions, HUD tools, and website sync.",
   "authors": [
     "Shekel"
   ],
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
-    "client": [
+    "init": [
       "com.mmm.MMM"
     ],
     "modmenu": [
@@ -21,10 +21,9 @@
     "mmm.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.14",
-    "fabric-api": ">=0.128.2",
-    "minecraft": "${minecraft_dependency}",
-    "malilib": ">=0.25.7",
-    "tweakeroo": ">=0.25.6"
+    "fabricloader": ">=0.19.3",
+    "osl-entrypoints": ">=0.6.1",
+    "java": ">=21",
+    "minecraft": "${minecraft_dependency}"
   }
 }

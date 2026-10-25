@@ -1,158 +1,94 @@
 package com.mmm.tracker;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.Locale;
 
 import com.mmm.config.Configs;
+import com.mmm.legacy.achievement.GoalMilestones;
+import com.mmm.legacy.social.LegacySocialText;
 import com.mmm.config.FeatureToggle;
+import com.mmm.social.PublicChatClient;
+import com.mmm.sound.GoalSoundLibrary;
+import com.mmm.util.UiFormat;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.Text;
+import net.minecraft.client.Minecraft;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 
 public final class GoalNotificationManager
 {
-    private static final List<String> MESSAGES_25 = List.of(
-            "LET’S GO! You’re officially on the board!",
-            "Good start! KEEP DIGGING!",
-            "Momentum is building! Don’t stop now!",
-            "You’ve begun! Stay locked in!",
-            "This is where it starts! KEEP PUSHING!"
-    );
-    private static final List<String> MESSAGES_50 = List.of(
-            "HALFWAY THERE! KEEP GOING!",
-            "You’re deep in it now! DON’T SLOW DOWN!",
-            "This is where most quit! YOU WON’T!",
-            "Strong progress! DOUBLE IT!",
-            "Stay focused! FINISH THIS!"
-    );
-    private static final List<String> MESSAGES_75 = List.of(
-            "YOU’RE SO CLOSE! DON’T STOP NOW!",
-            "FINAL STRETCH! GIVE IT EVERYTHING!",
-            "LOCK IN! BRING IT HOME!",
-            "THIS IS YOUR MOMENT! FINISH IT!",
-            "NO BREAKS! PUSH THROUGH!"
-    );
-    private static final List<String> MESSAGES_100 = List.of(
-            "GOAL COMPLETE! LET’S GOOO!!!",
-            "YOU DID IT! ABSOLUTE GRIND!",
-            "MISSION DONE! WHAT’S NEXT?!",
-            "ANOTHER ONE DOWN! KEEP CLIMBING!",
-            "DISCIPLINE WINS! YOU PROVED IT!!!"
-    );
+    private static final GoalMilestones MILESTONES = new GoalMilestones();
 
-    private static final Set<Integer> TRIGGERED_THRESHOLDS = new HashSet<>();
-    private static long lastObservedProgress;
-    private static long lastObservedTarget;
-
-    private GoalNotificationManager()
-    {
-    }
+    private GoalNotificationManager() {}
 
     public static void onGoalProgressChanged(long oldProgress, MiningStats.GoalProgress progress)
     {
-        if (progress.target() <= 0)
+        GoalMilestones.Result crossed = MILESTONES.advance(oldProgress, progress.current(), progress.target(),
+                FeatureToggle.MMM_SOUND_ALERTS.getBooleanValue());
+        triggerPickaxeMilestone(crossed.milestone());
+        if (crossed.soundMilestone() > 0) GoalSoundLibrary.play(crossed.soundMilestone());
+        if (crossed.milestone() > 0) {
+            PublicChatClient.publishMilestone(crossed.milestone(), progress);
+            if (FeatureToggle.MMM_NOTIFICATIONS.getBooleanValue()) showThresholdAnnouncement(crossed.milestone(), progress);
+        }
+    }
+
+    public static void clear() { MILESTONES.clear(); }
+
+    private static void triggerPickaxeMilestone(int milestone)
+    {
+        if (milestone <= 0
+                || Configs.Generic.GOAL_PICKAXE_ANIMATION.getBooleanValue() == false
+                || FeatureToggle.MMM_DAILY_GOAL.getBooleanValue() == false)
         {
             return;
         }
 
-        if (progress.target() != lastObservedTarget || progress.current() < lastObservedProgress)
+        Item pickaxe = switch (milestone)
         {
-            clear();
-        }
-
-        int oldPercent = (int) Math.min(100, (oldProgress * 100) / progress.target());
-        int newPercent = progress.getPercent();
-
-        lastObservedProgress = progress.current();
-        lastObservedTarget = progress.target();
-
-        for (Integer threshold : Configs.getNotificationThresholds())
+            case 25 -> Items.STONE_PICKAXE;
+            case 50 -> Items.IRON_PICKAXE;
+            case 75 -> Items.DIAMOND_PICKAXE;
+            default -> Items.DIAMOND_PICKAXE;
+        };
+        Minecraft client = Minecraft.getInstance();
+        if (client != null && client.player != null)
         {
-            if (!TRIGGERED_THRESHOLDS.contains(threshold) && oldPercent < threshold && newPercent >= threshold)
+            ItemStack stack = new ItemStack(pickaxe);
+            if (milestone > 100)
             {
-                TRIGGERED_THRESHOLDS.add(threshold);
-                if (FeatureToggle.TWEAK_NOTIFICATIONS.getBooleanValue())
-                {
-                    showThresholdAnnouncement(threshold);
-                    if (FeatureToggle.TWEAK_SOUND_ALERTS.getBooleanValue())
-                    {
-                        playLevelUpSound();
-                    }
-                }
-                return;
+                stack.addEnchantment(net.minecraft.enchantment.Enchantments.EFFICIENCY, 1);
             }
-        }
-
-        if (FeatureToggle.TWEAK_SOUND_ALERTS.getBooleanValue() &&
-            oldPercent < Configs.Generic.SOUND_ALERT_THRESHOLD.getIntegerValue() &&
-            newPercent >= Configs.Generic.SOUND_ALERT_THRESHOLD.getIntegerValue())
-        {
-            playLevelUpSound();
+            client.executeTask(() -> client.gameRenderer.displayItemOverlay(stack));
         }
     }
 
-    public static void render(DrawContext context, MinecraftClient client)
+    private static void showThresholdAnnouncement(int threshold, MiningStats.GoalProgress progress)
     {
-    }
-
-    public static void clear()
-    {
-        TRIGGERED_THRESHOLDS.clear();
-        lastObservedProgress = 0L;
-        lastObservedTarget = 0L;
-    }
-
-    private static void playLevelUpSound()
-    {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client.player != null)
         {
-            client.player.playSound(SoundEvents.ENTITY_PLAYER_LEVELUP, 1.0F, 1.0F);
+            int color = UiFormat.getGoalProgressColor(progress) & 0x00FFFFFF;
+            String message = String.format(
+                    Locale.US,
+                    "[MMM] %s (%,d / %,d blocks).",
+                    getMilestoneMessage(threshold),
+                    progress.current(),
+                    progress.target()
+            );
+            client.player.addMessage(LegacySocialText.rgb(message, color), false);
         }
     }
 
-    private static void showThresholdAnnouncement(int threshold)
+    private static String getMilestoneMessage(int threshold)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player != null)
+        return switch (threshold)
         {
-            String message = "You reached " + threshold + "%! " + getRandomMessage(threshold);
-            client.player.sendMessage(Text.literal("[MMM] ").formatted(net.minecraft.util.Formatting.GOLD)
-                    .append(Text.literal(message).formatted(getFormattingForThreshold(threshold))), false);
-        }
-    }
-
-    private static String getRandomMessage(int threshold)
-    {
-        List<String> pool = threshold >= 100 ? MESSAGES_100
-                : threshold >= 75 ? MESSAGES_75
-                : threshold >= 50 ? MESSAGES_50
-                : MESSAGES_25;
-        return pool.get(ThreadLocalRandom.current().nextInt(pool.size()));
-    }
-
-    private static net.minecraft.util.Formatting getFormattingForThreshold(int threshold)
-    {
-        if (threshold >= 100)
-        {
-            return net.minecraft.util.Formatting.BLUE;
-        }
-        if (threshold <= 25)
-        {
-            return net.minecraft.util.Formatting.RED;
-        }
-        if (threshold <= 50)
-        {
-            return net.minecraft.util.Formatting.YELLOW;
-        }
-        if (threshold <= 75)
-        {
-            return net.minecraft.util.Formatting.GREEN;
-        }
-        return net.minecraft.util.Formatting.DARK_GREEN;
+            case 25 -> "Daily goal started - 25% reached";
+            case 50 -> "Halfway through today's goal - 50% reached";
+            case 75 -> "Final stretch - 75% reached";
+            case 100 -> "Daily goal complete - 100% reached";
+            default -> "Daily goal exceeded - " + threshold + "% reached";
+        };
     }
 }

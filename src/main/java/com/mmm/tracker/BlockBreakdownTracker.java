@@ -6,9 +6,8 @@ import com.mmm.util.MmmDebugLogger;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.block.Block;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket;
-import net.minecraft.registry.Registries;
 import net.minecraft.stat.Stats;
 
 public final class BlockBreakdownTracker
@@ -30,7 +29,7 @@ public final class BlockBreakdownTracker
         pendingWorldId = WorldSessionContext.getCurrentWorldId();
     }
 
-    public static void onClientTick(MinecraftClient client, long now)
+    public static void onClientTick(Minecraft client, long now)
     {
         if (statsRequestPending == false || now < nextStatsRequestAtMs)
         {
@@ -49,36 +48,40 @@ public final class BlockBreakdownTracker
             return;
         }
 
-        client.getNetworkHandler().sendPacket(new ClientStatusC2SPacket(ClientStatusC2SPacket.Mode.REQUEST_STATS));
+        client.getNetworkHandler().sendPacket(new ClientStatusC2SPacket(ClientStatusC2SPacket.Status.REQUEST_STATS));
         statsRequestPending = false;
 
         MmmDebugLogger.info(
                 "requested-vanilla-mined-stats",
                 STATS_DEBUG_LOG_INTERVAL_MS,
-                "[MMM_DEBUG] requested-vanilla-mined-stats worldId={}",
-                WorldSessionContext.getCurrentWorldId());
+                "[MMM_DEBUG] requested-vanilla-mined-stats sourceName={}",
+                WorldSessionContext.getCurrentWorldName());
     }
 
-    public static void captureVanillaStats(MinecraftClient client, long now)
+    public static void captureVanillaStats(Minecraft client, long now)
     {
-        if (client == null || client.player == null)
+        if (client == null || client.player == null || client.player.isCreative() || client.player.isSpectator())
         {
             return;
         }
 
         Map<String, Long> minedBlocks = new LinkedHashMap<>();
-        for (Block block : Registries.BLOCK)
+        for (Block block : Block.REGISTRY)
         {
-            int count = client.player.getStatHandler().getStat(Stats.MINED, block);
+            // Pre-flattening stats cannot distinguish variants; retain observed states instead.
+            if (com.mmm.legacy.LegacyBlockIds.hasAmbiguousMinedStat(Block.REGISTRY.getKey(block).toString())) continue;
+            net.minecraft.stat.Stat stat = Stats.blockMined(block);
+            if (stat == null) continue;
+            int count = client.player.getStats().get(stat);
             if (count <= 0)
             {
                 continue;
             }
 
-            String blockId = Registries.BLOCK.getId(block).toString();
+            String blockId = com.mmm.legacy.LegacyBlockIds.canonicalId(block.defaultState());
             if (BlockBreakdownCatalog.isValid(blockId))
             {
-                minedBlocks.put(blockId, (long) count);
+                minedBlocks.merge(blockId, (long) count, Math::max);
             }
         }
 
@@ -87,14 +90,14 @@ public final class BlockBreakdownTracker
             return;
         }
 
-        MiningStats.applyMinecraftStatsBlockBreakdown(minedBlocks, now);
+        MiningStats.mergeLegacyStatsBlockBreakdown(minedBlocks, now);
 
         long total = minedBlocks.values().stream().mapToLong(Long::longValue).sum();
         MmmDebugLogger.info(
                 "captured-vanilla-mined-stats",
                 STATS_DEBUG_LOG_INTERVAL_MS,
-                "[MMM_DEBUG] captured-vanilla-mined-stats worldId={} blockTypes={} total={}",
-                WorldSessionContext.getCurrentWorldId(),
+                "[MMM_DEBUG] captured-vanilla-mined-stats sourceName={} blockTypes={} total={}",
+                WorldSessionContext.getCurrentWorldName(),
                 minedBlocks.size(),
                 total);
     }

@@ -102,7 +102,7 @@ public class TimerCreditsScreen extends Screen
     @Override
     public boolean shouldPause()
     {
-        return false;
+        return MmmUi.shouldPauseGame();
     }
 
     private void drawStat(DrawContext context, int x, int y, String label, String value)

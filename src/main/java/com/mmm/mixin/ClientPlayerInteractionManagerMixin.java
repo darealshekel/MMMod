@@ -1,10 +1,10 @@
 package com.mmm.mixin;
 
-import com.mmm.tweak.FlatDigger;
-import com.mmm.tweak.PerimeterWallDigHelper;
+import com.mmm.feature.FlatDigger;
+import com.mmm.feature.PerimeterWallDigHelper;
 import com.mmm.timer.MmmBlockBreakDetector;
 
-import net.minecraft.client.network.ClientPlayerInteractionManager;
+import net.minecraft.client.ClientPlayerInteractionManager;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ClientPlayerInteractionManager.class)
 public class ClientPlayerInteractionManagerMixin
 {
-    @Inject(method = "attackBlock(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "startMiningBlock(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)
     private void mmm$blockAttackBelowFeet(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir)
     {
         if (FlatDigger.shouldBlock(pos) || PerimeterWallDigHelper.isPositionDisallowed(pos))
@@ -28,7 +28,7 @@ public class ClientPlayerInteractionManagerMixin
         MmmBlockBreakDetector.trackAttack(pos);
     }
 
-    @Inject(method = "updateBlockBreakingProgress(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "tickBlockMining(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/util/math/Direction;)Z", at = @At("HEAD"), cancellable = true)
     private void mmm$blockProgressBelowFeet(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir)
     {
         if (FlatDigger.shouldBlock(pos) || PerimeterWallDigHelper.isPositionDisallowed(pos))

@@ -1,12 +1,5 @@
 .gradle/
 build/
 run/
-.aider*
-gradle/
-gradlew
-gradlew.bat
-.codex/
-.claude/
-.planning/
-CLAUDE.md
-AGENTS.md
+tools/gradle-*/
+tools/*.zip

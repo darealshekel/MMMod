@@ -4,7 +4,6 @@ public enum HudModuleId
 {
     MAIN("Main HUD"),
     TIMER("Timer"),
-    HOURLY("Hourly Stats"),
     BLOCK_STATS("Block Stats"),
     NOTIFICATION("Notification");
 

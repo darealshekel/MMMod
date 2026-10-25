@@ -2,11 +2,11 @@ package com.mmm.hud;
 
 import com.mmm.config.Configs;
 import com.mmm.tracker.MiningSpeedTracker;
-import com.mmm.ui.MmmUi;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.render.TextRenderer;
+import com.mmm.legacy.LegacyDrawContext;
 
 public final class SpeedGraphRenderer
 {
@@ -21,7 +21,7 @@ public final class SpeedGraphRenderer
     {
     }
 
-    public static void render(DrawContext context, MinecraftClient client)
+    public static void render(LegacyDrawContext context, Minecraft client)
     {
         int count = MiningSpeedTracker.getHistoryCount();
         if (count == 0) return;
@@ -31,7 +31,7 @@ public final class SpeedGraphRenderer
         int[] hudBounds = MiningHudRenderer.getBounds(client);
         int x = hudBounds[0];
         int width = hudBounds[2] - hudBounds[0];
-        int screenHeight = client.getWindow().getScaledHeight();
+        int screenHeight = new net.minecraft.client.render.Window(client).getHeight();
         boolean graphFitsBelow = hudBounds[3] + GAP + GRAPH_HEIGHT <= screenHeight;
         int y = graphFitsBelow ? hudBounds[3] + GAP : hudBounds[1] - GAP - GRAPH_HEIGHT;
 
@@ -63,7 +63,7 @@ public final class SpeedGraphRenderer
         float opacity = computeOpacity();
 
         float bgOpacity = Configs.getGraphBgOpacity();
-        int bgColor = applyOpacity(MmmUi.INSET, opacity * bgOpacity);
+        int bgColor = applyOpacity(0xFF111111, opacity * bgOpacity);
         context.fill(x, y, x + width, y + GRAPH_HEIGHT, bgColor);
 
         int baseFillAlpha = Math.round(Configs.getGraphFillOpacity() * 255);
@@ -89,7 +89,7 @@ public final class SpeedGraphRenderer
             context.fill(colX, colTop, colX + 1, colTop + 1, lineColor);
         }
 
-        int screenWidth = client.getWindow().getScaledWidth();
+        int screenWidth = new net.minecraft.client.render.Window(client).getWidth();
         boolean labelsOnLeft = (x + width / 2) > screenWidth / 2;
         renderGridLines(context, client.textRenderer, x, y, width, floor, ceiling, opacity, scaleStep, labelsOnLeft);
     }
@@ -124,7 +124,7 @@ public final class SpeedGraphRenderer
         return (newAlpha << 24) | (argbColor & 0x00FFFFFF);
     }
 
-    private static void renderGridLines(DrawContext context, TextRenderer font,
+    private static void renderGridLines(LegacyDrawContext context, TextRenderer font,
             int startX, int startY, int width, float floor, float ceiling, float opacity, float scaleStep, boolean labelsOnLeft)
     {
         if (ceiling <= floor) return;
@@ -138,7 +138,7 @@ public final class SpeedGraphRenderer
 
         int baseGridAlpha = Math.round(Configs.getGraphGridOpacity() * 255);
         int gridColor = applyOpacity((baseGridAlpha << 24) | (Configs.getGraphGridColor() & 0x00FFFFFF), opacity);
-        int labelColor = applyOpacity(MmmUi.MUTED, opacity);
+        int labelColor = applyOpacity(0xFFAAAAAA, opacity);
 
         int steps = Math.round((ceiling - floor) / step);
         for (int i = 0; i <= steps; i++)

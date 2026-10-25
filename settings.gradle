@@ -1,13 +1,8 @@
 pluginManagement {
     repositories {
-        maven { url = 'https://maven.fabricmc.net/' }
-        maven { url = 'https://api.modrinth.com/maven' }
-        mavenCentral()
+        maven { url = 'https://maven.wagyourtail.xyz/releases' }
         gradlePluginPortal()
+        mavenCentral()
     }
 }
-
-rootProject.name = 'MiningTrackerTweakerooAddon'
-
-include 'server-sync'
-include 'server-sync-1.21.4'
+rootProject.name = 'MMMod-LiteLoader'

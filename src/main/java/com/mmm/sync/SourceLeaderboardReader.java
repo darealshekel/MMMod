@@ -1,6 +1,6 @@
 package com.mmm.sync;
 
-import com.mmm.MMM;
+import com.mmm.util.MmmLog;
 import com.mmm.config.Configs;
 import com.mmm.storage.WorldSessionContext;
 import java.util.ArrayList;
@@ -9,9 +9,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
+
 import net.minecraft.scoreboard.ScoreboardObjective;
 
 public final class SourceLeaderboardReader
@@ -23,13 +23,13 @@ public final class SourceLeaderboardReader
     {
     }
 
-    public static SourceLeaderboardSnapshot read(MinecraftClient client)
+    public static SourceLeaderboardSnapshot read(Minecraft client)
     {
         List<SourceLeaderboardSnapshot> snapshots = readAll(client);
         return snapshots.isEmpty() ? null : snapshots.get(0);
     }
 
-    public static List<SourceLeaderboardSnapshot> readAll(MinecraftClient client)
+    public static List<SourceLeaderboardSnapshot> readAll(Minecraft client)
     {
         if (client == null || client.world == null || client.player == null)
         {
@@ -44,17 +44,49 @@ public final class SourceLeaderboardReader
                 worldInfo
         );
 
+        if (SyncScoreboardSelector.hasManualSelection())
+        {
+            ScoreboardObjective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
+            if (selected == null)
+            {
+                debug("Skipping source sync because the selected scoreboard is unavailable.");
+                return List.of();
+            }
+
+            ScoreboardParser.Candidate selectedCandidate = ScoreboardParser.parse(
+                    username,
+                    detectedServerName,
+                    selected,
+                    scoreboard.getScores(selected));
+            if (selectedCandidate == null || selectedCandidate.snapshot().isValid() == false)
+            {
+                debug("Skipping source sync because the selected scoreboard is not a valid mining leaderboard.");
+                return List.of();
+            }
+
+            SourceLeaderboardSnapshot snapshot = selectedCandidate.snapshot();
+            return List.of(new SourceLeaderboardSnapshot(
+                    detectedServerName,
+                    snapshot.objectiveTitle(),
+                    snapshot.capturedAtMs(),
+                    snapshot.totalDigs(),
+                    snapshot.entries()));
+        }
+
         List<ScoreboardParser.Candidate> candidates = new ArrayList<>();
-        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
-        addCandidate(candidates, ScoreboardParser.parse(
-                username,
-                detectedServerName,
-                sidebar,
-                sidebar == null ? List.of() : scoreboard.getScoreboardEntries(sidebar)));
+        ScoreboardObjective sidebar = scoreboard.getDisplayObjective(1);
+        if (SyncScoreboardSelector.isEligible(sidebar))
+        {
+            addCandidate(candidates, ScoreboardParser.parse(
+                    username,
+                    detectedServerName,
+                    sidebar,
+                    scoreboard.getScores(sidebar)));
+        }
 
         for (ScoreboardObjective objective : scoreboard.getObjectives())
         {
-            if (objective == sidebar)
+            if (objective == sidebar || SyncScoreboardSelector.isEligible(objective) == false)
             {
                 continue;
             }
@@ -62,7 +94,7 @@ public final class SourceLeaderboardReader
                     username,
                     detectedServerName,
                     objective,
-                    scoreboard.getScoreboardEntries(objective)));
+                    scoreboard.getScores(objective)));
         }
 
         if (candidates.isEmpty())
@@ -137,19 +169,29 @@ public final class SourceLeaderboardReader
     {
         List<SourceLeaderboardSnapshot> partials = new ArrayList<>();
         SourceLeaderboardSnapshot pickUses = bestPartialSnapshot(snapshots, ToolUseKind.PICKAXE);
-        SourceLeaderboardSnapshot axeUses = bestPartialSnapshot(snapshots, ToolUseKind.AXE);
         SourceLeaderboardSnapshot shovelUses = bestPartialSnapshot(snapshots, ToolUseKind.SHOVEL);
+        SourceLeaderboardSnapshot axeUses = bestPartialSnapshot(snapshots, ToolUseKind.AXE);
+        SourceLeaderboardSnapshot hoeUses = bestPartialSnapshot(snapshots, ToolUseKind.HOE);
+        SourceLeaderboardSnapshot shearsUses = bestPartialSnapshot(snapshots, ToolUseKind.SHEARS);
         if (pickUses != null)
         {
             partials.add(pickUses);
+        }
+        if (shovelUses != null)
+        {
+            partials.add(shovelUses);
         }
         if (axeUses != null)
         {
             partials.add(axeUses);
         }
-        if (shovelUses != null)
+        if (hoeUses != null)
         {
-            partials.add(shovelUses);
+            partials.add(hoeUses);
+        }
+        if (shearsUses != null)
+        {
+            partials.add(shearsUses);
         }
         if (partials.size() < 2)
         {
@@ -161,7 +203,7 @@ public final class SourceLeaderboardReader
         {
             addPartialEntries(combined, partial);
         }
-        if (combined.size() < 3)
+        if (combined.isEmpty())
         {
             return null;
         }
@@ -179,7 +221,7 @@ public final class SourceLeaderboardReader
         long total = partials.stream().mapToLong(SourceLeaderboardReader::partialSnapshotTotal).sum();
         return new SourceLeaderboardSnapshot(
                 sourceName,
-                combinedToolUseTitle(pickUses, axeUses, shovelUses),
+                combinedToolUseTitle(pickUses, shovelUses, axeUses, hoeUses, shearsUses),
                 partials.stream().mapToLong(SourceLeaderboardSnapshot::capturedAtMs).max().orElse(System.currentTimeMillis()),
                 total,
                 entries
@@ -203,25 +245,37 @@ public final class SourceLeaderboardReader
             case PICKAXE -> ScoreboardParser.isPickUsesObjective(objectiveTitle);
             case AXE -> ScoreboardParser.isAxeUsesObjective(objectiveTitle);
             case SHOVEL -> ScoreboardParser.isShovelUsesObjective(objectiveTitle);
+            case HOE -> ScoreboardParser.isHoeUsesObjective(objectiveTitle);
+            case SHEARS -> ScoreboardParser.isShearsUsesObjective(objectiveTitle);
         };
     }
 
     private static String combinedToolUseTitle(SourceLeaderboardSnapshot pickUses,
+                                               SourceLeaderboardSnapshot shovelUses,
                                                SourceLeaderboardSnapshot axeUses,
-                                               SourceLeaderboardSnapshot shovelUses)
+                                               SourceLeaderboardSnapshot hoeUses,
+                                               SourceLeaderboardSnapshot shearsUses)
     {
         List<String> labels = new ArrayList<>();
         if (pickUses != null)
         {
             labels.add("Pickaxe Uses");
         }
+        if (shovelUses != null)
+        {
+            labels.add("Shovel Uses");
+        }
         if (axeUses != null)
         {
             labels.add("Axe Uses");
         }
-        if (shovelUses != null)
+        if (hoeUses != null)
         {
-            labels.add("Shovel Uses");
+            labels.add("Hoe Uses");
+        }
+        if (shearsUses != null)
+        {
+            labels.add("Shears Uses");
         }
         return String.join(" + ", labels);
     }
@@ -265,7 +319,7 @@ public final class SourceLeaderboardReader
         }
 
         lastDebugLogMs = now;
-        MMM.LOGGER.info(message, args);
+        MmmLog.LOGGER.info(message, args);
     }
 
     private record CombinedEntry(String username, long digs)
@@ -276,6 +330,8 @@ public final class SourceLeaderboardReader
     {
         PICKAXE,
         AXE,
-        SHOVEL
+        SHOVEL,
+        HOE,
+        SHEARS
     }
 }

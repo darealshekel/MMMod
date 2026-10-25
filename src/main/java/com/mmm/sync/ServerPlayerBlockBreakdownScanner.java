@@ -12,9 +12,10 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.block.Block;
+import net.minecraft.resource.Identifier;
+import com.mmm.legacy.LegacyBlockIds;
 
 public final class ServerPlayerBlockBreakdownScanner
 {
@@ -26,7 +27,7 @@ public final class ServerPlayerBlockBreakdownScanner
     {
     }
 
-    public static JsonObject scan(MinecraftClient client, WorldSessionContext.WorldInfo worldInfo)
+    public static JsonObject scan(Minecraft client, WorldSessionContext.WorldInfo worldInfo)
     {
         if (client == null || client.world == null || worldInfo == null)
         {
@@ -118,24 +119,26 @@ public final class ServerPlayerBlockBreakdownScanner
         }
 
         String normalized = criterionName.toLowerCase(Locale.ROOT);
-        if (normalized.startsWith(MINED_CRITERION_PREFIX) == false)
+        String prefix = normalized.startsWith("stat.mineblock.") ? "stat.mineblock." : MINED_CRITERION_PREFIX;
+        if (normalized.startsWith(prefix) == false)
         {
             return null;
         }
 
-        String statBlockName = normalized.substring(MINED_CRITERION_PREFIX.length());
+        String statBlockName = normalized.substring(prefix.length());
         Identifier identifier = resolveStatIdentifier(statBlockName);
-        if (identifier == null || Registries.BLOCK.getOptionalValue(identifier).isEmpty())
+        if (identifier == null || !Block.REGISTRY.keySet().contains(identifier))
         {
             return null;
         }
-        return identifier.toString();
+        if (LegacyBlockIds.hasAmbiguousMinedStat(identifier.toString())) return null;
+        return LegacyBlockIds.canonicalId(Block.REGISTRY.get(identifier).defaultState());
     }
 
     private static Identifier resolveStatIdentifier(String statBlockName)
     {
-        Identifier direct = Identifier.tryParse(statBlockName);
-        if (direct != null && Registries.BLOCK.getOptionalValue(direct).isPresent())
+        Identifier direct = parseIdentifier(statBlockName);
+        if (direct != null && Block.REGISTRY.keySet().contains(direct))
         {
             return direct;
         }
@@ -147,7 +150,12 @@ public final class ServerPlayerBlockBreakdownScanner
         }
 
         String blockId = statBlockName.substring(0, namespaceSeparator) + ":" + statBlockName.substring(namespaceSeparator + 1);
-        return Identifier.tryParse(blockId);
+        return parseIdentifier(blockId);
+    }
+
+    private static Identifier parseIdentifier(String value)
+    {
+        return value != null && value.matches("[a-z0-9_.-]+(?::[a-z0-9_./-]+)?") ? new Identifier(value) : null;
     }
 
     private static boolean isUsername(String owner)

@@ -5,14 +5,12 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.mmm.MMM;
+import com.mmm.util.MmmLog;
 import com.mmm.Reference;
+import com.mmm.storage.AtomicJsonStorage;
 import com.mmm.util.MmmDebugLogger;
-import fi.dy.masa.malilib.util.FileUtils;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
+import com.mmm.liteloader.LiteLoaderEnvironment;
+import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -365,20 +363,6 @@ final class SyncDeltaStore
         return target;
     }
 
-    private static JsonArray buildItems(Map<String, Long> counts)
-    {
-        JsonArray items = new JsonArray();
-        counts.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry.comparingByKey()))
-                .forEach(entry -> {
-                    JsonObject item = new JsonObject();
-                    item.addProperty("block_id", entry.getKey());
-                    item.addProperty("count", entry.getValue());
-                    items.add(item);
-                });
-        return items;
-    }
-
     private static JsonArray buildDeltaItems(Map<String, Long> deltas, Map<String, Long> previous, Map<String, Long> current)
     {
         JsonArray items = new JsonArray();
@@ -513,14 +497,18 @@ final class SyncDeltaStore
             return;
         }
         loaded = true;
-        File file = stateFile();
-        if (file.isFile() == false)
+        try
         {
-            return;
-        }
-        try (FileReader reader = new FileReader(file))
-        {
-            JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+            AtomicJsonStorage.ReadResult result = AtomicJsonStorage.readObjectWithBackup(stateFile());
+            if (result.value() == null)
+            {
+                return;
+            }
+            if (result.recoveredFromBackup())
+            {
+                MmmLog.LOGGER.warn("[MMM_SYNC] sync-state-recovered-from-backup source={}", result.source());
+            }
+            JsonObject root = result.value();
             if (root.has("sectionFingerprints") && root.get("sectionFingerprints").isJsonObject())
             {
                 for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("sectionFingerprints").entrySet())
@@ -551,10 +539,14 @@ final class SyncDeltaStore
                     }
                 }
             }
+            if (result.recoveredFromBackup())
+            {
+                save();
+            }
         }
         catch (Exception exception)
         {
-            MMM.LOGGER.warn("[MMM_SYNC] sync-state-load-failed error={}", exception.getMessage());
+            MmmLog.LOGGER.warn("[MMM_SYNC] sync-state-load-failed error={}", exception.getMessage());
         }
     }
 
@@ -587,14 +579,8 @@ final class SyncDeltaStore
     {
         try
         {
-            File file = stateFile();
-            File parent = file.getParentFile();
-            if (parent != null && parent.isDirectory() == false)
-            {
-                parent.mkdirs();
-            }
-
             JsonObject root = new JsonObject();
+
             JsonObject sections = new JsonObject();
             for (Map.Entry<String, String> entry : SECTION_FINGERPRINTS.entrySet())
             {
@@ -621,19 +607,17 @@ final class SyncDeltaStore
             }
             root.add("aeternumLeaderboards", leaderboards);
 
-            try (FileWriter writer = new FileWriter(file))
-            {
-                GSON.toJson(root, writer);
-            }
+            AtomicJsonStorage.write(stateFile(), root, true);
+
         }
         catch (Exception exception)
         {
-            MMM.LOGGER.warn("[MMM_SYNC] sync-state-save-failed error={}", exception.getMessage());
+            MmmLog.LOGGER.warn("[MMM_SYNC] sync-state-save-failed error={}", exception.getMessage());
         }
     }
 
-    private static File stateFile()
+    private static Path stateFile()
     {
-        return new File(FileUtils.getConfigDirectory(), STATE_FILE_NAME);
+        return LiteLoaderEnvironment.configDirectory().resolve(STATE_FILE_NAME);
     }
 }

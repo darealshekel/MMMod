@@ -1,100 +1,69 @@
-# MMMod
+# MMM 1.12.2 LiteLoader Port
 
-MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmaniacs.com). It tracks mining stats, sessions, goals, block breakdowns, and optional website sync.
+MMMod 1.0.20 for Minecraft 1.12.2 and LiteLoader (Java 8).
 
-## Supported Versions
+- Fixed MMM messages replaying when switching dimensions or reconnecting.
+- Collections now show only blocks available in 1.12.2.
+- Fixed legacy log, leaf and mushroom item metadata used by collection icons.
 
-| Minecraft | Release jar |
-| --- | --- |
-| 1.21 | `mmm-1.0.18.1+1.21.jar` |
-| 1.21.1 | `mmm-1.0.18.1+1.21.1.jar` |
-| 1.21.4 | `mmm-1.0.18.1+1.21.4.jar` |
-| 1.21.6 | `mmm-1.0.18.1+1.21.6.jar` |
-| 1.21.11 | `mmm-1.0.18.1+1.21.11.jar` |
-
-## Install
-
-1. Install Fabric Loader 0.16.14 or newer.
-2. Put the jar for your Minecraft version in the `mods` folder.
-3. Start Minecraft and press `X + V`.
-
-Fabric API is included. Mod Menu is optional.
-
-## Features
-
-- Tracks valid mined blocks, source totals, block breakdowns, and mining pace.
-- Records sessions with blocks, Session IGT, total Session Time, best hour, fastest 100k, and source/world history.
-- Shows Blocks/hr, Blocks/min, Blocks/sec, daily and weekly progress, records, projects, and timer data.
-- Automatically starts, pauses, and resumes sessions from valid mining activity.
-- Provides configurable HUD modules, colors, scale, position, background, and visibility.
-- Supports daily goals, XP-bar progress, milestone sounds, pickaxe animations, and shared milestones.
-- Includes projects, a 24-hour challenge timer, Block ESP, Flat Digger, Perimeter Wall Dig Helper, Small Dig Items, static tools, translucent lava, and breaking indicators.
-- Includes scoreboard sorting, paging, formatting, export, editing, movement, transparency, and Tier / Name Tags.
-- Includes global MMM Chat for website-linked players.
-- Saves shared records and sessions across supported MMMod versions.
-
-## Website Sync
-
-Website sync is optional and **off by default**.
-
-- Link the mod with a code generated on the MMM website.
-- Select the correct total-mined scoreboard for each source.
-- MMMod queues changed totals, scoreboard evidence, block breakdowns, and eligible sessions.
-- Failed requests stay queued for a later retry.
-- The MMM API validates data before publishing it.
-
-MMMod is client-side evidence, not a server-authoritative anticheat.
-
-## Timer Commands
-
-```text
-/mmm timer start [duration]
-/mmm timer pause
-/mmm timer stop
-/mmm timer reset
-/mmm timer set <duration>
-/mmm timer status
-```
-
-Durations support `s`, `m`, and `h`, up to 24 hours.
-
-## Default Hotkeys
-
-| Action | Default |
-| --- | --- |
-| Open MMMod | `X + V` |
-| Session summary | `Left Alt + S` |
-| Session history | `Left Alt + H` |
-| Pause/resume session | `Left Alt + P` |
-| Start/end session | `Left Alt + T` |
-| Scoreboard page | `Page Up` / `Page Down` |
-
-All hotkeys are editable. `Escape` clears an assignment.
-
-## Data Location
-
-- Windows: `%APPDATA%\ManualMiningManiacs`
-- Linux/macOS: `~/.manual-mining-maniacs`
+The current local 1.21 source is preserved in `reference-1.21`. Collections,
+leaderboards, social/chat, advancements, visual features, full settings, sessions
+and sync have legacy implementations. This is not a claim of certified exact
+1:1 gameplay parity: see [PORT-STATUS.md](PORT-STATUS.md) for verification and
+platform differences.
 
 ## Build
 
-MMMod uses Java 21:
+Use JDK 21 and the checked Gradle 8.7 distribution:
 
-```text
-gradle clean build
+```powershell
+$env:JAVA_HOME = 'C:/Users/mult0/AppData/Roaming/PrismLauncher/java/java-runtime-delta'
+./tools/gradle-8.7/bin/gradle.bat releaseLiteMod
 ```
 
-The release jar is written to `build/libs`.
+Output: `build/libs/mmm-1.0.20+1.12.2-liteloader.litemod`.
 
-## Credits
+Install the `.litemod` file into a Minecraft 1.12.2 LiteLoader instance's mods folder.
+It is not a Fabric/Ornithe JAR. Do not install another MMM version beside it.
+MMM's shared cross-version storage is retained, so back up existing MMM settings
+and history before testing with a real account.
 
-- **Shekel** - creator and lead developer
-- **MMM community** - testing and feedback
-- **BlockTimer**, **I-See-Lava**, and **ScoreboardHelper** - MIT-licensed feature references
-- **Fabric API** and **Mod Menu** - Fabric platform and optional config integration
+Compilation uses Java 21. JvmDowngrader converts the packaged code and includes
+the required Java API implementations for Java 8. Artifact checks validate
+bytecode, metadata, licenses, mixin package isolation and refmaps, and ensure
+the normal output excludes the optional runtime harness.
 
-MMMod is an independent community project and is not affiliated with Mojang Studios or Microsoft.
+Gson is privately relocated so Minecraft retains its own version. Fabric API,
+Fabric Loader, OSL, MaLiLib and Tweakeroo are not required or bundled.
+See [THIRD-PARTY.md](THIRD-PARTY.md) for library notices.
 
-## License
+The Gradle 8.7 distribution SHA-256 is
+`544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d`.
 
-[MIT](LICENSE)
+## Runtime Verification
+
+```powershell
+# Normal production-loader startup, isolated from regular instances.
+./tools/smoke-client.ps1
+
+# Test-only helper creates a flat singleplayer test world and exercises screens.
+./tools/gradle-8.7/bin/gradle.bat check -PruntimeProbe
+./tools/smoke-client.ps1 -RuntimeProbe -TimeoutSeconds 180
+
+# Packaged HTTP backport, tested under Java 8 against a local HTTP server.
+./tools/gradle-8.7/bin/gradle.bat compileJava8Probe
+./tools/smoke-client.ps1 -TransportProbe -TimeoutSeconds 35
+
+# Rebuild without the helper before giving anyone an artifact.
+./tools/gradle-8.7/bin/gradle.bat testingLiteMod
+```
+
+The smoke script uses installed Prism libraries but its own game directory,
+APPDATA, user home, config and test username under `build`. It never uses an
+account token or enables website sync. Public leaderboard/tag lookups are
+read-only. Logs are under `build`; screenshots are under
+`build/smoke-game/screenshots`.
+
+Authenticated sync/chat, other mods and resource-pack compatibility still need
+account-specific gameplay checks. Automated checks do not certify exact parity
+with every modern-version interaction. See PORT-STATUS.md for the tested scope.

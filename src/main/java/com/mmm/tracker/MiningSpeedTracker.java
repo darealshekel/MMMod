@@ -2,7 +2,7 @@ package com.mmm.tracker;
 
 import com.mmm.mixin.ClientPlayerInteractionManagerAccessor;
 
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import net.minecraft.util.math.BlockPos;
 
 public final class MiningSpeedTracker
@@ -23,7 +23,7 @@ public final class MiningSpeedTracker
     {
     }
 
-    public static void tick(MinecraftClient client)
+    public static void tick(Minecraft client)
     {
         if (MiningStats.isSessionActive() == false)
         {
@@ -54,7 +54,7 @@ public final class MiningSpeedTracker
 
         if (!blockPos.equals(lastBlockPos))
         {
-            lastBlockPos = blockPos.toImmutable();
+            lastBlockPos = blockPos.immutable();
         }
 
         if (!MiningStats.isSessionPaused())
