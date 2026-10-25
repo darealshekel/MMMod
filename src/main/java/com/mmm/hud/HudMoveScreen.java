@@ -7,12 +7,12 @@ import com.mmm.timer.TimerHudRenderer;
 import com.mmm.ui.MmmUi;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.DrawContext;
+import com.mmm.compat.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
-public class HudMoveScreen extends Screen
+public class HudMoveScreen extends com.mmm.compat.MmmScreen
 {
     private final Screen parent;
     private HudModuleId selected = HudModuleId.MAIN;
@@ -154,7 +154,7 @@ public class HudMoveScreen extends Screen
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount)
+    public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)
     {
         adjustScale(verticalAmount > 0 ? 0.05D : -0.05D);
         return true;
@@ -171,11 +171,11 @@ public class HudMoveScreen extends Screen
     @Override
     public boolean shouldPause()
     {
-        return false;
+        return MmmUi.shouldPauseGame();
     }
 
     @Override
-    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta)
+    public void renderBackground(DrawContext context)
     {
     }
 
@@ -190,8 +190,8 @@ public class HudMoveScreen extends Screen
         for (HudModuleId module : movableModules())
         {
             boolean active = module == this.selected;
-            int rowFill = active ? 0x33E00000 : MmmUi.INSET;
-            int border = active ? MmmUi.RED : MmmUi.BORDER_SOFT;
+            int rowFill = active ? MmmUi.accentSoft() : MmmUi.INSET;
+            int border = active ? MmmUi.accent() : MmmUi.BORDER_SOFT;
             context.fill(layout.x() + 12, rowY, layout.x() + layout.width() - 12, rowY + 20, rowFill);
             context.drawBorder(layout.x() + 12, rowY, layout.width() - 24, 20, border);
             MmmUi.drawTextWithin(context, this.textRenderer, module.label(), layout.x() + 20, rowY + 6, layout.width() - 94, active ? MmmUi.TEXT : MmmUi.MUTED, false);
@@ -199,26 +199,26 @@ public class HudMoveScreen extends Screen
             {
                 String visibility = TimerHudRenderer.isVisible(module) ? "ON" : "OFF";
                 int toggleX = layout.x() + layout.width() - 58;
-                context.drawBorder(toggleX, rowY + 3, 38, 14, TimerHudRenderer.isVisible(module) ? MmmUi.RED : MmmUi.BORDER_SOFT);
+                context.drawBorder(toggleX, rowY + 3, 38, 14, TimerHudRenderer.isVisible(module) ? MmmUi.accent() : MmmUi.BORDER_SOFT);
                 MmmUi.drawTextWithin(context, this.textRenderer, visibility, toggleX + 8, rowY + 6, 26, TimerHudRenderer.isVisible(module) ? MmmUi.TEXT : MmmUi.MUTED, false);
             }
             rowY += 25;
         }
 
         String size = "Size: " + Math.round(getSelectedScale() * 100D) + "%";
-        MmmUi.drawTextWithin(context, this.textRenderer, size, layout.x() + 70, layout.y() + layout.height() - 22, 90, MmmUi.ACCENT_BRIGHT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, size, layout.x() + 70, layout.y() + layout.height() - 22, 90, MmmUi.accent(), false);
     }
 
     private void drawModuleBounds(DrawContext context, MinecraftClient client)
     {
-        for (HudModuleId module : HudModuleId.values())
+        for (HudModuleId module : movableModules())
         {
             if (module != HudModuleId.MAIN && TimerHudRenderer.isVisible(module) == false && module != this.selected)
             {
                 continue;
             }
             int[] bounds = TimerHudRenderer.getBounds(client, module);
-            int color = module == this.selected ? MmmUi.RED : 0x88E00000;
+            int color = module == this.selected ? MmmUi.accent() : MmmUi.accentSoft();
             context.drawBorder(bounds[0] - 2, bounds[1] - 2, bounds[2] - bounds[0] + 4, bounds[3] - bounds[1] + 4, color);
         }
     }
@@ -227,7 +227,7 @@ public class HudMoveScreen extends Screen
     {
         if (this.selected == HudModuleId.MAIN)
         {
-            Configs.Generic.HUD_SCALE.setDoubleValue(Math.max(0.75D, Math.min(1.75D, Configs.Generic.HUD_SCALE.getDoubleValue() + delta)));
+            Configs.Generic.HUD_SCALE.setDoubleValue(Math.max(0.25D, Math.min(1.75D, Configs.Generic.HUD_SCALE.getDoubleValue() + delta)));
             Configs.saveToFile();
             return;
         }
