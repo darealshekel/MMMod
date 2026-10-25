@@ -35,6 +35,11 @@ public final class InitHandler
             worldListener.onDisconnect(client);
             updates.onDisconnect();
         });
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            com.mmm.tracker.MiningStats.finaliseSession();
+            Configs.saveToFile();
+            com.mmm.storage.AsyncPersistence.flush(java.time.Duration.ofSeconds(3));
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             worldListener.pollWorldChange(client);
             tickHandler.onClientTick(client);

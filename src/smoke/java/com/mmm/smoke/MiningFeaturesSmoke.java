@@ -347,10 +347,11 @@ final class MiningFeaturesSmoke
             client.interactionManager.setGameMode(net.minecraft.world.GameMode.SURVIVAL);
             client.player.setStackInHand(net.minecraft.util.Hand.MAIN_HAND, net.minecraft.item.ItemStack.EMPTY);
             client.world.setBlockState(pos, net.minecraft.block.Blocks.DEEPSLATE.getDefaultState());
-            com.mmm.timer.MmmBlockBreakDetector.trackAttack(pos);
+            var attempt = com.mmm.timer.MmmBlockBreakDetector.beginBreak(pos);
+            com.mmm.timer.MmmBlockBreakDetector.completeBreak(attempt, true);
             client.world.setBlockState(pos, net.minecraft.block.Blocks.AIR.getDefaultState());
-            com.mmm.timer.MmmBlockBreakDetector.onClientTick(client);
-            com.mmm.timer.MmmBlockBreakDetector.onClientTick(client);
+            com.mmm.timer.MmmBlockBreakDetector.acknowledged(client.world, pos, net.minecraft.block.Blocks.AIR.getDefaultState());
+            com.mmm.timer.MmmBlockBreakDetector.acknowledged(client.world, pos, net.minecraft.block.Blocks.AIR.getDefaultState());
             if (LiveCollections.localCounts(Map.of(), world).get("mmm:non_insta_deepslate") != before + 1)
                 throw new AssertionError("Non-insta Deepslate was missed or counted twice");
         } finally {
