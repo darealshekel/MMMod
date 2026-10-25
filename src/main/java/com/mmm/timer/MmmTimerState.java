@@ -652,11 +652,12 @@ public final class MmmTimerState
             return;
         }
         long elapsed = getElapsedMs(now);
-        int nextCompletedHour = (int) Math.min(23L, elapsed / HOUR_MS);
-        while (completedHour < nextCompletedHour)
+        int nextCompletedHour = (int) Math.min(Integer.MAX_VALUE, elapsed / HOUR_MS);
+        if (completedHour < nextCompletedHour)
         {
+            int hoursPassed = nextCompletedHour - completedHour;
             completedHour++;
-            lastHourBlocks = currentHourBlocks;
+            lastHourBlocks = hoursPassed == 1 ? currentHourBlocks : 0L;
             bestHourBlocks = Math.max(bestHourBlocks, currentHourBlocks);
             if (currentHourBlocks > 0L && Configs.Generic.TIMER_NOTIFICATIONS.getBooleanValue())
             {
@@ -667,6 +668,7 @@ public final class MmmTimerState
             }
             currentHourBlocks = 0L;
             hourStartTimeMs = now;
+            completedHour = nextCompletedHour;
         }
     }
 

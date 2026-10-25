@@ -13,7 +13,7 @@ import com.mmm.tracker.BlockBreakdownTracker;
 import com.mmm.tracker.GoalNotificationManager;
 import com.mmm.tracker.MiningStats;
 import com.mmm.util.MmmDebugLogger;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.world.ClientWorld;
 
 public final class WorldLoadListener
@@ -23,13 +23,13 @@ public final class WorldLoadListener
     private static String pendingSummaryName = "Unknown";
     private ClientWorld observedWorld;
 
-    public void onJoin(MinecraftClient client)
+    public void onJoin(Minecraft client)
     {
         this.observedWorld = client.world;
         handleWorldAvailable(client);
     }
 
-    public void onDisconnect(MinecraftClient client)
+    public void onDisconnect(Minecraft client)
     {
         handleWorldExit();
         this.observedWorld = null;
@@ -40,7 +40,7 @@ public final class WorldLoadListener
         MmmBlockBreakDetector.clear();
     }
 
-    public void pollWorldChange(MinecraftClient client)
+    public void pollWorldChange(Minecraft client)
     {
         if (client.world == this.observedWorld)
         {
@@ -75,7 +75,7 @@ public final class WorldLoadListener
         MmmBlockBreakDetector.clear();
     }
 
-    private void handleWorldAvailable(MinecraftClient client)
+    private void handleWorldAvailable(Minecraft client)
     {
         if (client.world == null)
         {

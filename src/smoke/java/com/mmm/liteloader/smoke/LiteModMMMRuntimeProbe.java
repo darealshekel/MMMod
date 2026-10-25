@@ -33,6 +33,7 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
     private int ticks, screenIndex = -1;
     private boolean started, ready, failed;
     private long pausedAt;
+    private final LegacyReliabilityProbe reliability = new LegacyReliabilityProbe();
     @Override public String getName() { return "MMM Runtime Probe"; }
     @Override public String getVersion() { return "test-only"; }
     @Override public void init(File configPath) {}
@@ -56,21 +57,13 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
             if (client.world == null || client.player == null) return;
             if (!ready) {
                 if (++ticks < 80) return;
+                if (!reliability.tick(client)) return;
                 ready = true; ticks = 0;
                 client.openScreen(null);
                 FeatureToggle.MMM_MINING_TRACKER.setBooleanValue(true);
                 FeatureToggle.MMM_HUD.setBooleanValue(true);
                 Configs.Generic.BREAKING_INDICATORS.setBooleanValue(true);
                 FeatureToggle.MMM_BLOCK_ESP.setBooleanValue(true);
-                MiningStats.startNewSession();
-                BlockPos pos = new BlockPos(client.player.x + 2, client.player.y + 1, client.player.z);
-                client.world.setBlockState(pos, Blocks.STONE.getStateFromMetadata(3));
-                long before = MiningStats.getSessionTotal();
-                if (!client.interactionManager.finishMiningBlock(pos)) throw new AssertionError("Mining failed");
-                if (MiningStats.getSessionTotal() != before + 1) throw new AssertionError("Mining hook did not count exactly once");
-                if (!Long.valueOf(1).equals(MiningStats.getCurrentSession().blockBreakdown.get("minecraft:diorite")))
-                    throw new AssertionError("Diorite metadata was lost");
-                System.out.println("MMM_RUNTIME_MINING_OK");
                 verifyWorldTotal(client);
                 add("hud", () -> null);
                 add("hud-pinned", () -> {
@@ -234,7 +227,7 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
         score.set(183900);
         com.mmm.sync.DigsSyncManager.onClientTick(now + 100);
         if (MiningStats.getCurrentSourceTotalMined() != 183900L) throw new AssertionError("World total ignored a scoreboard correction");
-        if (MiningStats.getSessionTotal() != 1) throw new AssertionError("Scoreboard total inflated the mining session");
+        if (MiningStats.getSessionTotal() != 2) throw new AssertionError("Scoreboard total inflated the mining session");
         System.out.println("MMM_RUNTIME_WORLD_TOTAL_OK");
     }
 

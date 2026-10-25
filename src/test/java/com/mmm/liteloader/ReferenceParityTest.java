@@ -32,6 +32,9 @@ class ReferenceParityTest {
                 .replace("MMM.LOGGER", "MmmLog.LOGGER")
                 .replace("import net.fabricmc.loader.api.FabricLoader;", "import com.mmm.liteloader.LiteLoaderEnvironment;")
                 .replace("FabricLoader.getInstance().getConfigDir()", "LiteLoaderEnvironment.configDirectory()")
+                .replace("net.minecraft.client.MinecraftClient", "net.minecraft.client.Minecraft")
+                .replace("isOnThread()", "isOnSameThread()")
+                .replace("client.execute(", "client.executeTask(")
                 .trim();
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(source.getBytes(StandardCharsets.UTF_8)));
     }

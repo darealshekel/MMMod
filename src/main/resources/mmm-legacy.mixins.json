@@ -3,6 +3,6 @@
   "package": "com.mmm.legacy.mixin",
   "compatibilityLevel": "JAVA_8",
   "refmap": "mmm.refmap.json",
-  "client": ["LegacyMiningMixin", "LegacyGameGuiMixin", "LegacyLifecycleMixin", "LegacyStatsMixin"],
+  "client": ["LegacyMiningMixin", "LegacyGameGuiMixin", "LegacyLifecycleMixin", "LegacyStatsMixin", "LegacyBreakAckMixin"],
   "injectors": { "defaultRequire": 1 }
 }

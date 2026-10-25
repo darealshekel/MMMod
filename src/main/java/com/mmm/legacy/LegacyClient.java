@@ -37,6 +37,9 @@ public final class LegacyClient {
         if (!initialized) return;
         if (client.world != null && client.player != null) {
             if (client.world != observedWorld || activeWorld == null) {
+                com.mmm.timer.MmmBlockBreakDetector.clear();
+                if (client.getSession().getProfile().getId() != null)
+                    SessionHistory.activateAccount(client.getSession().getProfile().getId().toString(), Configs.websiteLinkedMinecraftUuid);
                 WorldSessionContext.update(client);
                 String world = WorldSessionContext.getCurrentWorldId();
                 if (!world.equals(activeWorld)) {
@@ -60,6 +63,7 @@ public final class LegacyClient {
         com.mmm.legacy.command.LegacyCommands.tick(client);
         com.mmm.leaderboard.LeaderboardSidebar.tick(client);
         MiningStats.onClientTick();
+        com.mmm.timer.MmmBlockBreakDetector.onClientTick(client);
         LiveCollections.tick(client);
         EfficiencyTracker.tick(client);
         PinnedCollection.tick(client);
@@ -86,6 +90,7 @@ public final class LegacyClient {
         if (client.world == null || client.player == null) return;
         if (MiningStats.isSessionActive()) {
             SessionData finished = MiningStats.finaliseSession();
+            if (MiningStats.isSessionActive()) return;
             client.openScreen(new LegacySessionScreen(client.screen, finished));
         } else MiningStats.startNewSession();
     }
@@ -99,12 +104,13 @@ public final class LegacyClient {
         SyncQueueManager.requestFlush("world exit");
         MmmTimerState.save();
         LiveCollections.flush();
-        if (FeatureToggle.MMM_SUMMARY_ON_EXIT.getBooleanValue() && finished.totalBlocks > 0) {
+        if (!MiningStats.isSessionActive() && FeatureToggle.MMM_SUMMARY_ON_EXIT.getBooleanValue() && finished.totalBlocks > 0) {
             pendingSummary = finished;
             summaryWorld = name;
         }
         activeWorld = null;
         observedWorld = null;
+        com.mmm.timer.MmmBlockBreakDetector.clear();
         CloudSyncManager.resetForDisconnect();
         DigsSyncManager.resetForDisconnect();
         com.mmm.social.PublicChatClient.disconnect();

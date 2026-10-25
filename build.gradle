@@ -44,6 +44,7 @@ sourceSets {
         java.include 'com/mmm/sync/**', 'com/mmm/tracker/**', 'com/mmm/hotkey/**', 'com/mmm/util/**'
         java.include 'com/mmm/Reference.java', 'com/mmm/hud/MiningHudRenderer.java', 'com/mmm/timer/MmmTimerState.java'
         java.include 'com/mmm/hud/HudModuleId.java', 'com/mmm/hud/SpeedGraphRenderer.java', 'com/mmm/timer/TimerHudRenderer.java'
+        java.include 'com/mmm/timer/MmmBlockBreakDetector.java', 'com/mmm/timer/ConfirmedBreaks.java'
         java.include 'com/mmm/feature/PerimeterWallDigHelper.java', 'com/mmm/feature/FlatDigger.java'
         java.include 'com/mmm/feature/**', 'com/mmm/scoreboard/**', 'com/mmm/social/**', 'com/mmm/tags/**'
         java.include 'com/mmm/advancement/**', 'com/mmm/sound/**', 'com/mmm/update/**', 'com/mmm/leaderboard/**'

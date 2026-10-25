@@ -125,7 +125,7 @@ public final class WorldSessionContext
             String folderName = client.getServer().getWorldSaveName();
             if (folderName != null && !folderName.isBlank())
             {
-                return sanitise(folderName);
+                return WorldIdentity.singleplayerWorldId(client.gameDir.toPath().resolve("saves").resolve(folderName));
             }
         }
         catch (Exception e)

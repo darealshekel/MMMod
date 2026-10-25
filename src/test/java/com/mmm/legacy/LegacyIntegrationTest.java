@@ -55,6 +55,9 @@ class LegacyIntegrationTest {
         singleton.setAccessible(true);
         previousClient = singleton.get(null);
         client = (net.minecraft.client.Minecraft) allocator().allocateInstance(net.minecraft.client.Minecraft.class);
+        Field thread = net.minecraft.client.Minecraft.class.getDeclaredField("thread");
+        thread.setAccessible(true);
+        thread.set(client, Thread.currentThread());
         client.player = (HeadlessPlayer) allocator().allocateInstance(HeadlessPlayer.class);
         singleton.set(null, client);
         Configs.WORLD_STATS.clear();

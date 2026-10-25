@@ -458,6 +458,7 @@ public class Configs
     public static String websiteSyncTier = "free";
     public static long websiteSyncIntervalMs = DEFAULT_WEBSITE_SYNC_INTERVAL_MS;
     public static long websiteGlobalTotalBlocks = 0L;
+    public static String websiteGlobalTotalOwner = "";
     public static long websiteGlobalTotalUpdatedAtMs = 0L;
     public static long websiteLastSuccessfulSyncMs = 0L;
     private static final Map<String, Long> SOURCE_LAST_SUCCESSFUL_SYNC_MS = new LinkedHashMap<>();
@@ -792,27 +793,30 @@ public class Configs
     }
     public static synchronized void saveToFile()
     {
+        var client = net.minecraft.client.Minecraft.getInstance();
+        if (client != null && !client.isOnSameThread())
+        {
+            client.executeTask(Configs::saveToFile);
+            return;
+        }
         JsonObject root = new JsonObject();
         MmmConfigIO.writeConfigBase(root, "Generic", Generic.PERSISTED_OPTIONS);
         MmmConfigIO.writeHotkeys(root, "GenericHotkeys", Hotkeys.HOTKEY_LIST);
         MmmConfigIO.writeHotkeyToggleOptions(root, MmmConfigMigration.HOTKEYS_SECTION, MmmConfigMigration.TOGGLES_SECTION, FeatureToggle.VALUES);
         writeCustomState(root);
 
-        try
-        {
-            AtomicJsonStorage.write(getPrimaryConfigFile().toPath(), root, true);
-        }
-        catch (Exception e)
-        {
-            MmmLog.LOGGER.error("[MMM] Failed to atomically save config {}: {}", getPrimaryConfigFile(), e.getMessage());
-        }
-
-        writeCrossVersionState();
+        Path target = getPrimaryConfigFile().toPath();
+        JsonObject shared = captureCrossVersionState();
+        AsyncPersistence.submit("config", () -> {
+            try { AtomicJsonStorage.write(target, root, true); }
+            catch (Exception e) { MmmLog.LOGGER.error("[MMM] Failed to save config {}: {}", target, e.getMessage()); }
+            writeCrossVersionState(shared);
+        });
     }
 
     public static void requestSave()
     {
-        AsyncPersistence.submit("config", Configs::saveToFile);
+        saveToFile();
     }
 
 
@@ -1008,6 +1012,8 @@ public class Configs
             websiteSyncTier = readString(state, "websiteSyncTier", websiteSyncTier, "config State");
             websiteSyncIntervalMs = readLong(state, "websiteSyncIntervalMs", websiteSyncIntervalMs, "config State");
             websiteGlobalTotalBlocks = readLong(state, "websiteGlobalTotalBlocks", websiteGlobalTotalBlocks, "config State");
+            websiteGlobalTotalOwner = com.mmm.storage.AccountSessionStorage.normalize(
+                    readString(state, "websiteGlobalTotalOwner", websiteLinkedMinecraftUuid, "config State"));
             websiteGlobalTotalUpdatedAtMs = readLong(state, "websiteGlobalTotalUpdatedAtMs", websiteGlobalTotalUpdatedAtMs, "config State");
             websiteLastSuccessfulSyncMs = readLong(state, "websiteLastSuccessfulSyncMs", websiteLastSuccessfulSyncMs, "config State");
             readSourceSyncTimestamps(state);
@@ -1262,6 +1268,28 @@ public class Configs
 
     private static synchronized void writeCrossVersionState()
     {
+        JsonObject snapshot = captureCrossVersionState();
+        AsyncPersistence.submit("cross-version-config", () -> writeCrossVersionState(snapshot));
+    }
+
+    private static JsonObject captureCrossVersionState()
+    {
+        JsonObject state = new JsonObject();
+        state.addProperty("dailyGoal", Generic.DAILY_GOAL.getIntegerValue());
+        state.addProperty("dailyProgress", dailyProgress);
+        state.addProperty("dailyGoalLastResetMs", dailyGoalLastResetMs);
+        state.addProperty("dailyBlocksMined", dailyBlocksMined);
+        state.addProperty("dailyBlocksDate", dailyBlocksDate == null ? "" : dailyBlocksDate);
+        state.addProperty("weeklyBlocksMined", weeklyBlocksMined);
+        state.addProperty("weeklyBlocksWeek", weeklyBlocksWeek == null ? "" : weeklyBlocksWeek);
+        state.addProperty("weeklyLastResetMs", weeklyLastResetMs);
+        state.addProperty("personalRecordDailyBlocks", personalRecordDailyBlocks);
+        state.addProperty("personalRecordWeeklyBlocks", personalRecordWeeklyBlocks);
+        return state;
+    }
+
+    private static void writeCrossVersionState(JsonObject snapshot)
+    {
         Path statePath = SharedStoragePaths.crossVersionStateFile();
         Path lockPath = statePath.resolveSibling(statePath.getFileName() + ".lock");
 
@@ -1280,21 +1308,10 @@ public class Configs
                 }
                 // Merge while holding the cross-process lock so another game instance
                 // cannot replace a newer period value with a stale in-memory snapshot.
-                int dailyGoal = Generic.DAILY_GOAL.getIntegerValue();
-                readCrossVersionState();
-                Generic.DAILY_GOAL.setIntegerValue(clampDailyGoal(dailyGoal));
-
-                JsonObject state = new JsonObject();
-                state.addProperty("dailyGoal", Generic.DAILY_GOAL.getIntegerValue());
-                state.addProperty("dailyProgress", dailyProgress);
-                state.addProperty("dailyGoalLastResetMs", dailyGoalLastResetMs);
-                state.addProperty("dailyBlocksMined", dailyBlocksMined);
-                state.addProperty("dailyBlocksDate", dailyBlocksDate == null ? "" : dailyBlocksDate);
-                state.addProperty("weeklyBlocksMined", weeklyBlocksMined);
-                state.addProperty("weeklyBlocksWeek", weeklyBlocksWeek == null ? "" : weeklyBlocksWeek);
-                state.addProperty("weeklyLastResetMs", weeklyLastResetMs);
-                state.addProperty("personalRecordDailyBlocks", personalRecordDailyBlocks);
-                state.addProperty("personalRecordWeeklyBlocks", personalRecordWeeklyBlocks);
+                JsonObject disk = AtomicJsonStorage.readObjectWithBackup(statePath).value();
+                JsonObject state = CrossVersionSnapshot.merge(snapshot,
+                        disk != null && disk.has("State") && disk.get("State").isJsonObject()
+                                ? disk.getAsJsonObject("State") : null, System.currentTimeMillis());
 
                 JsonObject root = new JsonObject();
                 root.add("State", state);
@@ -1346,6 +1363,7 @@ public class Configs
         state.addProperty("websiteSyncTier", normalizeWebsiteSyncTier(websiteSyncTier));
         state.addProperty("websiteSyncIntervalMs", normalizeWebsiteSyncIntervalMs(websiteSyncIntervalMs));
         state.addProperty("websiteGlobalTotalBlocks", websiteGlobalTotalBlocks);
+        state.addProperty("websiteGlobalTotalOwner", websiteGlobalTotalOwner);
         state.addProperty("websiteGlobalTotalUpdatedAtMs", websiteGlobalTotalUpdatedAtMs);
         state.addProperty("websiteLastSuccessfulSyncMs", websiteLastSuccessfulSyncMs);
         JsonObject sourceSyncTimestamps = new JsonObject();
