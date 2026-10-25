@@ -6,11 +6,12 @@ MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmania
 
 | Minecraft | Release jar |
 | --- | --- |
-| 1.21 | `mmm-1.0.18.1+1.21.jar` |
-| 1.21.1 | `mmm-1.0.18.1+1.21.1.jar` |
-| 1.21.4 | `mmm-1.0.18.1+1.21.4.jar` |
-| 1.21.6 | `mmm-1.0.18.1+1.21.6.jar` |
-| 1.21.11 | `mmm-1.0.18.1+1.21.11.jar` |
+| 1.20.1 | `mmm-1.0.20.1+1.20.1.jar` |
+| 1.21 | `mmm-1.0.20.1+1.21.jar` |
+| 1.21.1 | `mmm-1.0.20.1+1.21.1.jar` |
+| 1.21.4 | `mmm-1.0.20.1+1.21.4.jar` |
+| 1.21.6 | `mmm-1.0.20.1+1.21.6.jar` |
+| 1.21.11 | `mmm-1.0.20.1+1.21.11.jar` |
 
 ## Install
 
@@ -30,7 +31,8 @@ Fabric API is included. Mod Menu is optional.
 - Supports daily goals, XP-bar progress, milestone sounds, pickaxe animations, and shared milestones.
 - Includes projects, a 24-hour challenge timer, Block ESP, Flat Digger, Perimeter Wall Dig Helper, Small Dig Items, static tools, translucent lava, and breaking indicators.
 - Includes scoreboard sorting, paging, formatting, export, editing, movement, transparency, and Tier / Name Tags.
-- Includes global MMM Chat for website-linked players.
+- Includes global MMM Chat for website-linked players, with optional censoring and per-player ignores.
+- Adds an MMM advancement tree for session hours, streaks, Best Hour speed, endurance, and precision.
 - Saves shared records and sessions across supported MMMod versions.
 
 ## Website Sync
@@ -40,6 +42,8 @@ Website sync is optional and **off by default**.
 - Link the mod with a code generated on the MMM website.
 - Select the correct total-mined scoreboard for each source.
 - MMMod queues changed totals, scoreboard evidence, block breakdowns, and eligible sessions.
+- Each source can publish one complete scoreboard snapshot per UTC day.
+- Visible Tab players include UUID evidence, and confirmed Carpet fake players are excluded from complete snapshots.
 - Failed requests stay queued for a later retry.
 - The MMM API validates data before publishing it.
 

@@ -25,7 +25,7 @@ public final class MmmBlockBreakDetector
 
     public static void trackAttack(BlockPos pos)
     {
-        if (FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue() == false || pos == null)
+        if (FeatureToggle.MMM_MINING_TRACKER.getBooleanValue() == false || pos == null)
         {
             return;
         }

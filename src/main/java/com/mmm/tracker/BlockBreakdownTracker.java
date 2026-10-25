@@ -55,13 +55,13 @@ public final class BlockBreakdownTracker
         MmmDebugLogger.info(
                 "requested-vanilla-mined-stats",
                 STATS_DEBUG_LOG_INTERVAL_MS,
-                "[MMM_DEBUG] requested-vanilla-mined-stats worldId={}",
-                WorldSessionContext.getCurrentWorldId());
+                "[MMM_DEBUG] requested-vanilla-mined-stats sourceName={}",
+                WorldSessionContext.getCurrentWorldName());
     }
 
     public static void captureVanillaStats(MinecraftClient client, long now)
     {
-        if (client == null || client.player == null)
+        if (client == null || client.player == null || client.player.isCreative() || client.player.isSpectator())
         {
             return;
         }
@@ -93,8 +93,8 @@ public final class BlockBreakdownTracker
         MmmDebugLogger.info(
                 "captured-vanilla-mined-stats",
                 STATS_DEBUG_LOG_INTERVAL_MS,
-                "[MMM_DEBUG] captured-vanilla-mined-stats worldId={} blockTypes={} total={}",
-                WorldSessionContext.getCurrentWorldId(),
+                "[MMM_DEBUG] captured-vanilla-mined-stats sourceName={} blockTypes={} total={}",
+                WorldSessionContext.getCurrentWorldName(),
                 minedBlocks.size(),
                 total);
     }
