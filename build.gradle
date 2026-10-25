@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.14.10'
+    id 'fabric-loom' version '1.15.5'
     id 'maven-publish'
 }
 
@@ -20,10 +20,17 @@ dependencies {
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    include "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    modImplementation "maven.modrinth:modmenu:${project.modmenu_version}"
-    modImplementation "maven.modrinth:malilib:${project.malilib_version}"
-    modImplementation "maven.modrinth:tweakeroo:${project.tweakeroo_version}"
+    modCompileOnly "maven.modrinth:modmenu:${project.modmenu_version}"
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 processResources {
@@ -47,4 +54,25 @@ java {
     withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
+}
+
+// Opt-in checks in an isolated game directory, excluded from release jars.
+if (project.hasProperty('smokeTest')) {
+    sourceSets {
+        smoke {
+            compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+            runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+        }
+    }
+    loom.mods {
+        smoke { sourceSet sourceSets.smoke }
+    }
+    tasks.named('runClient') {
+        dependsOn tasks.named('smokeClasses')
+        classpath += sourceSets.smoke.output
+        environment 'APPDATA', file('build/smoke-appdata').absolutePath
+        jvmArgs '-Duser.home=' + file('build/smoke-home').absolutePath
+        if (project.hasProperty('leaderboardSmoke')) jvmArgs '-Dmmm.leaderboardSmoke=true'
+        if (project.hasProperty('miningFeaturesSmoke')) jvmArgs '-Dmmm.miningFeaturesSmoke=true'
+    }
 }

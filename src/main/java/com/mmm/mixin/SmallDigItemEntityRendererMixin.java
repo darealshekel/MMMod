@@ -1,6 +1,6 @@
 package com.mmm.mixin;
 
-import com.mmm.tweak.SmallDigItemRenderer;
+import com.mmm.feature.SmallDigItemRenderer;
 
 import net.minecraft.client.render.entity.ItemEntityRenderer;
 import net.minecraft.client.render.entity.state.ItemEntityRenderState;

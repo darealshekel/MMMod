@@ -25,7 +25,7 @@ public final class MmmBlockBreakDetector
 
     public static void trackAttack(BlockPos pos)
     {
-        if (FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue() == false || pos == null)
+        if (FeatureToggle.MMM_MINING_TRACKER.getBooleanValue() == false || pos == null)
         {
             return;
         }
@@ -48,7 +48,9 @@ public final class MmmBlockBreakDetector
             return;
         }
 
-        trackedBlocks.put(pos.toImmutable(), new TrackedBlock(block, state, System.currentTimeMillis()));
+        float breakingDelta = state.calcBlockBreakingDelta(client.player, client.world, pos);
+        boolean nonInstant = block == net.minecraft.block.Blocks.DEEPSLATE && breakingDelta > 0 && breakingDelta < 1;
+        trackedBlocks.put(pos.toImmutable(), new TrackedBlock(block, state, System.currentTimeMillis(), nonInstant));
     }
 
     public static void onClientTick(MinecraftClient client)
@@ -73,7 +75,7 @@ public final class MmmBlockBreakDetector
 
             if (client.world.getBlockState(pos).isAir())
             {
-                MiningStats.recordBlockMined(tracked.block(), pos, tracked.state());
+                MiningStats.recordBlockMined(tracked.block(), pos, tracked.state(), tracked.nonInstant());
                 iterator.remove();
             }
         }
@@ -95,5 +97,5 @@ public final class MmmBlockBreakDetector
         return gameMode == GameMode.SURVIVAL && client.player.isCreative() == false && client.player.isSpectator() == false;
     }
 
-    private record TrackedBlock(Block block, BlockState state, long createdAtMs) {}
+    private record TrackedBlock(Block block, BlockState state, long createdAtMs, boolean nonInstant) {}
 }
