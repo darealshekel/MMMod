@@ -28,7 +28,7 @@ import com.mmm.config.Configs;
 public final class SessionHistory
 {
     public static final long MIN_SESSION_BLOCKS = 10_000L;
-    private static final Path ROOT_DIR = SharedStoragePaths.sessionsDir();
+    private static volatile Path ROOT_DIR = AccountSessionStorage.root().resolve("sessions");
     private static final List<SessionData> HISTORY = new ArrayList<>();
     private static SessionData best = null;
     private static LifetimeSummary cachedLifetimeSummary;
@@ -51,6 +51,16 @@ public final class SessionHistory
     {
     }
 
+    public static synchronized void activateAccount(String uuid, String linkedUuid)
+    {
+        if (!AccountSessionStorage.activate(uuid, linkedUuid)) return;
+        ROOT_DIR = AccountSessionStorage.root().resolve("sessions");
+        HISTORY.clear();
+        best = null;
+        legacyMigrationAttempted = false;
+        invalidateLifetimeSummary();
+    }
+
     public static synchronized void loadForWorld(String worldId)
     {
         invalidateLifetimeSummary();
@@ -67,36 +77,43 @@ public final class SessionHistory
         }
     }
 
-    public static synchronized void save(SessionData session)
+    public static synchronized boolean save(SessionData session)
     {
         repairInflatedSession(session);
         if (isQualifyingSession(session) == false)
         {
-            return;
+            return true;
         }
 
         migrateLegacySessionsIfNeeded();
         Path saveFile = getSaveFile();
+        if (!saveDurably(saveFile, session)) return false;
+        HISTORY.clear();
+        HISTORY.addAll(loadSessions(saveFile));
+        EfficiencyStore.save(session);
+        best = findBest(HISTORY);
+        invalidateLifetimeSummary();
+        return true;
+    }
+
+    static boolean saveDurably(Path saveFile, SessionData session)
+    {
         try
         {
-            List<SessionData> persisted = withSessionFileLock(saveFile, () -> {
+            withSessionFileLock(saveFile, () -> {
                 List<SessionData> current = loadSessions(saveFile);
                 current.removeIf(existing -> existing.startTimeMs == session.startTimeMs);
                 current.add(session);
                 current.sort(Comparator.comparingLong(value -> value.startTimeMs));
                 writeSessions(saveFile, current);
-                return List.copyOf(current);
+                return null;
             });
-
-            HISTORY.clear();
-            HISTORY.addAll(persisted);
-            EfficiencyStore.save(session);
-            best = findBest(HISTORY);
-            invalidateLifetimeSummary();
+            return true;
         }
         catch (IOException e)
         {
             MMM.LOGGER.warn("[MMM] Failed to save session history to {}: {}", saveFile, e.getMessage());
+            return false;
         }
     }
 
@@ -282,15 +299,16 @@ public final class SessionHistory
 
     private static List<Path> getLifetimeSessionFiles()
     {
+        Path root = ROOT_DIR;
         List<Path> files = new ArrayList<>();
-        Path rootFile = ROOT_DIR.resolve("sessions.csv");
+        Path rootFile = root.resolve("sessions.csv");
         if (Files.isRegularFile(rootFile))
         {
             files.add(rootFile);
         }
-        if (Files.isDirectory(ROOT_DIR))
+        if (Files.isDirectory(root))
         {
-            try (var paths = Files.list(ROOT_DIR))
+            try (var paths = Files.list(root))
             {
                 paths.filter(Files::isDirectory)
                         .map(path -> path.resolve("sessions.csv"))
@@ -531,6 +549,7 @@ public final class SessionHistory
             return;
         }
         legacyMigrationAttempted = true;
+        if (!AccountSessionStorage.ownsLegacy()) return;
 
         for (Path legacyRootDir : findLegacySessionRoots())
         {
@@ -542,6 +561,9 @@ public final class SessionHistory
             try (var paths = Files.list(legacyRootDir))
             {
                 paths.filter(Files::isDirectory).forEach(SessionHistory::mergeLegacyWorldSessions);
+                Path unattributed = legacyRootDir.resolve("sessions.csv");
+                if (Files.isRegularFile(unattributed))
+                    mergeSessionFiles(ROOT_DIR.resolve("sessions.csv"), unattributed);
             }
             catch (IOException e)
             {
@@ -553,6 +575,7 @@ public final class SessionHistory
     private static Set<Path> findLegacySessionRoots()
     {
         Set<Path> roots = new LinkedHashSet<>();
+        roots.add(SharedStoragePaths.sessionsDir().toAbsolutePath().normalize());
         for (Path configDir : SharedStoragePaths.legacyConfigDirs())
         {
             roots.add(configDir.resolve(Reference.STORAGE_ID).resolve("sessions").toAbsolutePath().normalize());
