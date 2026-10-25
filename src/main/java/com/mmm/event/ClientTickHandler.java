@@ -1,41 +1,45 @@
 package com.mmm.event;
 
+import com.mmm.sync.WebsiteProfileTotals;
+
 import com.mmm.hud.SummaryScreen;
+import com.mmm.social.PublicChatClient;
 import com.mmm.storage.SessionData;
+import com.mmm.tags.TierTagManager;
 import com.mmm.timer.MmmBlockBreakDetector;
 import com.mmm.timer.MmmTimerState;
 import com.mmm.timer.TimerCreditsScreen;
-import com.mmm.tracker.MiningSpeedTracker;
+import net.minecraft.client.Minecraft;
+import com.mmm.hotkey.MmmHotkeyManager;
 
-import fi.dy.masa.malilib.interfaces.IClientTickHandler;
-import net.minecraft.client.MinecraftClient;
-
-public class ClientTickHandler implements IClientTickHandler
+public class ClientTickHandler
 {
-    @Override
-    public void onClientTick(MinecraftClient mc)
+    public void onClientTick(Minecraft mc)
     {
         if (mc == null)
         {
             return;
         }
 
+        MmmHotkeyManager.tick(mc);
         com.mmm.tracker.MiningStats.onClientTick();
+        WebsiteProfileTotals.refresh(false);
         MmmBlockBreakDetector.onClientTick(mc);
         MmmTimerState.onClientTick(mc);
-        MiningSpeedTracker.tick(mc);
+        PublicChatClient.onClientTick(mc);
+        TierTagManager.onClientTick(mc);
 
-        if (MmmTimerState.consumeCreditsPending() && mc.currentScreen == null)
+        if (MmmTimerState.consumeCreditsPending() && mc.screen == null)
         {
             mc.setScreen(new TimerCreditsScreen(null));
             return;
         }
 
         SessionData pending = WorldLoadListener.consumePendingSummary();
-        if (pending != null && mc.player == null && mc.world == null)
+        if (pending != null && mc.player == null && mc.level == null)
         {
             String worldName = WorldLoadListener.consumePendingSummaryName();
-            mc.setScreen(SummaryScreen.worldExit(pending, mc.currentScreen, worldName));
+            mc.setScreen(SummaryScreen.worldExit(pending, mc.screen, worldName));
             return;
         }
     }
