@@ -8,6 +8,7 @@ final class QueuedSyncItem
     String id;
     SyncItemType type;
     String dedupeKey;
+    String triggerReason;
     JsonObject payload;
     long createdAtMs;
     int retryCount;
@@ -20,11 +21,17 @@ final class QueuedSyncItem
 
     static QueuedSyncItem create(SyncItemType type, String dedupeKey, JsonObject payload, long now)
     {
+        return create(type, dedupeKey, payload, now, "unspecified");
+    }
+
+    static QueuedSyncItem create(SyncItemType type, String dedupeKey, JsonObject payload, long now, String triggerReason)
+    {
         QueuedSyncItem item = new QueuedSyncItem();
         item.id = UUID.randomUUID().toString();
         item.type = type;
         item.dedupeKey = dedupeKey == null ? "" : dedupeKey;
-        item.payload = payload == null ? new JsonObject() : payload.deepCopy();
+        item.triggerReason = sanitizeTrigger(triggerReason);
+        item.payload = payload == null ? new JsonObject() : com.mmm.compat.GsonCompat.copy(payload);
         item.createdAtMs = now;
         item.retryCount = 0;
         item.lastRetryAtMs = 0L;
@@ -48,7 +55,8 @@ final class QueuedSyncItem
         item.id = this.id;
         item.type = this.type;
         item.dedupeKey = this.dedupeKey;
-        item.payload = this.payload == null ? null : this.payload.deepCopy();
+        item.triggerReason = this.triggerReason == null ? "legacy queue item" : this.triggerReason;
+        item.payload = this.payload == null ? null : com.mmm.compat.GsonCompat.copy(this.payload);
         item.createdAtMs = this.createdAtMs;
         item.retryCount = this.retryCount;
         item.lastRetryAtMs = this.lastRetryAtMs;
@@ -58,6 +66,17 @@ final class QueuedSyncItem
 
     String summary()
     {
-        return this.type + (this.dedupeKey == null || this.dedupeKey.isBlank() ? "" : " [" + this.dedupeKey + "]");
+        return this.type
+                + (this.dedupeKey == null || this.dedupeKey.isBlank() ? "" : " [" + this.dedupeKey + "]")
+                + " trigger=" + sanitizeTrigger(this.triggerReason);
+    }
+
+    private static String sanitizeTrigger(String triggerReason)
+    {
+        if (triggerReason == null || triggerReason.isBlank())
+        {
+            return "unspecified";
+        }
+        return triggerReason.trim();
     }
 }

@@ -2,10 +2,10 @@ package com.mmm.sync;
 
 import java.util.Comparator;
 import java.util.List;
+import com.mmm.compat.ScoreboardCompat;
+import com.mmm.compat.ScoreboardCompat.Entry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.scoreboard.Scoreboard;
-import net.minecraft.scoreboard.ScoreboardDisplaySlot;
-import net.minecraft.scoreboard.ScoreboardEntry;
 import net.minecraft.scoreboard.ScoreboardObjective;
 
 public final class ScoreboardReader
@@ -22,14 +22,14 @@ public final class ScoreboardReader
         }
 
         Scoreboard scoreboard = client.world.getScoreboard();
-        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(ScoreboardDisplaySlot.SIDEBAR);
+        ScoreboardObjective sidebar = scoreboard.getObjectiveForSlot(Scoreboard.SIDEBAR_DISPLAY_SLOT_ID);
 
         return scoreboard.getObjectives().stream()
                 .map(objective -> new ObjectiveSnapshot(
                         cleanup(objective.getDisplayName().getString()),
                         objective.getCriterion().getName(),
                         sidebar != null && objective.equals(sidebar),
-                        scoreboard.getScoreboardEntries(objective).stream()
+                        ScoreboardCompat.entries(objective).stream()
                         .map(ScoreboardReader::toLine)
                         .filter(line -> line != null)
                         .sorted(Comparator.comparingInt(ScoreboardLine::scoreValue).reversed())
@@ -39,10 +39,10 @@ public final class ScoreboardReader
                         .toList();
     }
 
-    private static ScoreboardLine toLine(ScoreboardEntry entry)
+    private static ScoreboardLine toLine(Entry entry)
     {
         String owner = cleanup(entry.owner());
-        String raw = entry.display() != null ? entry.display().getString() : entry.name().getString();
+        String raw = entry.name().getString();
         if (raw == null || raw.isBlank())
         {
             raw = owner;

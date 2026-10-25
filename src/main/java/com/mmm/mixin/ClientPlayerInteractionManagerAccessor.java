@@ -13,4 +13,7 @@ public interface ClientPlayerInteractionManagerAccessor
 
     @Accessor("currentBreakingPos")
     BlockPos mmm$getCurrentBreakingPos();
+
+    @Accessor("currentBreakingProgress")
+    float mmm$getCurrentBreakingProgress();
 }

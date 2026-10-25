@@ -5,14 +5,12 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.mmm.MMM;
 import com.mmm.Reference;
+import com.mmm.storage.AtomicJsonStorage;
 import com.mmm.util.MmmDebugLogger;
-import fi.dy.masa.malilib.util.FileUtils;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
+import net.fabricmc.loader.api.FabricLoader;
+import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -120,7 +118,7 @@ final class SyncDeltaStore
         JsonObject previous = AETERNUM_LEADERBOARDS.get(key);
         if (previous == null || previous.has("entries") == false || previous.get("entries").isJsonArray() == false)
         {
-            JsonObject full = fullPayload.deepCopy();
+            JsonObject full = com.mmm.compat.GsonCompat.copy(fullPayload);
             full.addProperty("mode", "full");
             return full;
         }
@@ -147,7 +145,7 @@ final class SyncDeltaStore
             JsonObject previousRow = previousRows.get(usernameKey);
             if (previousRow == null || GSON.toJson(previousRow).equals(GSON.toJson(row)) == false)
             {
-                changedRows.add(row.deepCopy());
+                changedRows.add(com.mmm.compat.GsonCompat.copy(row));
             }
         }
 
@@ -250,7 +248,7 @@ final class SyncDeltaStore
         String mode = stringValue(payload, "mode");
         JsonObject next = "delta".equals(mode)
                 ? mergeAeternumLeaderboardSnapshot(AETERNUM_LEADERBOARDS.get(key), payload)
-                : payload.deepCopy();
+                : com.mmm.compat.GsonCompat.copy(payload);
         next.remove("mode");
         AETERNUM_LEADERBOARDS.put(key, next);
         markSectionSynced(key, GSON.toJson(next));
@@ -258,7 +256,7 @@ final class SyncDeltaStore
 
     private static JsonObject mergeAeternumLeaderboardSnapshot(JsonObject previous, JsonObject delta)
     {
-        JsonObject next = previous == null ? copyLeaderboardEnvelope(delta) : previous.deepCopy();
+        JsonObject next = previous == null ? copyLeaderboardEnvelope(delta) : com.mmm.compat.GsonCompat.copy(previous);
         copyIfPresent(delta, next, "server_name");
         copyIfPresent(delta, next, "objective_title");
         copyIfPresent(delta, next, "captured_at");
@@ -280,7 +278,7 @@ final class SyncDeltaStore
                 String usernameKey = stringValue(row, "username").toLowerCase(java.util.Locale.ROOT);
                 if (usernameKey.isBlank() == false)
                 {
-                    rows.put(usernameKey, row.deepCopy());
+                    rows.put(usernameKey, com.mmm.compat.GsonCompat.copy(row));
                 }
             }
         }
@@ -332,7 +330,7 @@ final class SyncDeltaStore
             String usernameKey = stringValue(row, "username").toLowerCase(java.util.Locale.ROOT);
             if (usernameKey.isBlank() == false)
             {
-                rows.put(usernameKey, row.deepCopy());
+                rows.put(usernameKey, com.mmm.compat.GsonCompat.copy(row));
             }
         }
         return rows;
@@ -348,7 +346,7 @@ final class SyncDeltaStore
 
     private static JsonObject withMode(JsonObject fullBreakdown, String mode)
     {
-        JsonObject copy = fullBreakdown.deepCopy();
+        JsonObject copy = com.mmm.compat.GsonCompat.copy(fullBreakdown);
         copy.addProperty("mode", mode);
         return copy;
     }
@@ -363,20 +361,6 @@ final class SyncDeltaStore
         copyIfPresent(source, target, "source");
         copyIfPresent(source, target, "total_count");
         return target;
-    }
-
-    private static JsonArray buildItems(Map<String, Long> counts)
-    {
-        JsonArray items = new JsonArray();
-        counts.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry.comparingByKey()))
-                .forEach(entry -> {
-                    JsonObject item = new JsonObject();
-                    item.addProperty("block_id", entry.getKey());
-                    item.addProperty("count", entry.getValue());
-                    items.add(item);
-                });
-        return items;
     }
 
     private static JsonArray buildDeltaItems(Map<String, Long> deltas, Map<String, Long> previous, Map<String, Long> current)
@@ -502,7 +486,7 @@ final class SyncDeltaStore
     {
         if (from.has(key))
         {
-            to.add(key, from.get(key).deepCopy());
+            to.add(key, com.mmm.compat.GsonCompat.copy(from.get(key)));
         }
     }
 
@@ -513,14 +497,18 @@ final class SyncDeltaStore
             return;
         }
         loaded = true;
-        File file = stateFile();
-        if (file.isFile() == false)
+        try
         {
-            return;
-        }
-        try (FileReader reader = new FileReader(file))
-        {
-            JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
+            AtomicJsonStorage.ReadResult result = AtomicJsonStorage.readObjectWithBackup(stateFile());
+            if (result.value() == null)
+            {
+                return;
+            }
+            if (result.recoveredFromBackup())
+            {
+                MMM.LOGGER.warn("[MMM_SYNC] sync-state-recovered-from-backup source={}", result.source());
+            }
+            JsonObject root = result.value();
             if (root.has("sectionFingerprints") && root.get("sectionFingerprints").isJsonObject())
             {
                 for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject("sectionFingerprints").entrySet())
@@ -547,9 +535,13 @@ final class SyncDeltaStore
                 {
                     if (entry.getValue().isJsonObject())
                     {
-                        AETERNUM_LEADERBOARDS.put(entry.getKey(), entry.getValue().getAsJsonObject().deepCopy());
+                        AETERNUM_LEADERBOARDS.put(entry.getKey(), com.mmm.compat.GsonCompat.copy(entry.getValue().getAsJsonObject()));
                     }
                 }
+            }
+            if (result.recoveredFromBackup())
+            {
+                save();
             }
         }
         catch (Exception exception)
@@ -587,14 +579,8 @@ final class SyncDeltaStore
     {
         try
         {
-            File file = stateFile();
-            File parent = file.getParentFile();
-            if (parent != null && parent.isDirectory() == false)
-            {
-                parent.mkdirs();
-            }
-
             JsonObject root = new JsonObject();
+
             JsonObject sections = new JsonObject();
             for (Map.Entry<String, String> entry : SECTION_FINGERPRINTS.entrySet())
             {
@@ -617,14 +603,12 @@ final class SyncDeltaStore
             JsonObject leaderboards = new JsonObject();
             for (Map.Entry<String, JsonObject> entry : AETERNUM_LEADERBOARDS.entrySet())
             {
-                leaderboards.add(entry.getKey(), entry.getValue().deepCopy());
+                leaderboards.add(entry.getKey(), com.mmm.compat.GsonCompat.copy(entry.getValue()));
             }
             root.add("aeternumLeaderboards", leaderboards);
 
-            try (FileWriter writer = new FileWriter(file))
-            {
-                GSON.toJson(root, writer);
-            }
+            AtomicJsonStorage.write(stateFile(), root, true);
+
         }
         catch (Exception exception)
         {
@@ -632,8 +616,8 @@ final class SyncDeltaStore
         }
     }
 
-    private static File stateFile()
+    private static Path stateFile()
     {
-        return new File(FileUtils.getConfigDirectory(), STATE_FILE_NAME);
+        return FabricLoader.getInstance().getConfigDir().resolve(STATE_FILE_NAME);
     }
 }

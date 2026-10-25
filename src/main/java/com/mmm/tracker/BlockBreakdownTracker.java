@@ -8,7 +8,7 @@ import java.util.Map;
 import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.network.packet.c2s.play.ClientStatusC2SPacket;
-import net.minecraft.registry.Registries;
+import net.minecraft.util.registry.Registry;
 import net.minecraft.stat.Stats;
 
 public final class BlockBreakdownTracker
@@ -55,19 +55,19 @@ public final class BlockBreakdownTracker
         MmmDebugLogger.info(
                 "requested-vanilla-mined-stats",
                 STATS_DEBUG_LOG_INTERVAL_MS,
-                "[MMM_DEBUG] requested-vanilla-mined-stats worldId={}",
-                WorldSessionContext.getCurrentWorldId());
+                "[MMM_DEBUG] requested-vanilla-mined-stats sourceName={}",
+                WorldSessionContext.getCurrentWorldName());
     }
 
     public static void captureVanillaStats(MinecraftClient client, long now)
     {
-        if (client == null || client.player == null)
+        if (client == null || client.player == null || client.player.isCreative() || client.player.isSpectator())
         {
             return;
         }
 
         Map<String, Long> minedBlocks = new LinkedHashMap<>();
-        for (Block block : Registries.BLOCK)
+        for (Block block : Registry.BLOCK)
         {
             int count = client.player.getStatHandler().getStat(Stats.MINED, block);
             if (count <= 0)
@@ -75,7 +75,7 @@ public final class BlockBreakdownTracker
                 continue;
             }
 
-            String blockId = Registries.BLOCK.getId(block).toString();
+            String blockId = Registry.BLOCK.getId(block).toString();
             if (BlockBreakdownCatalog.isValid(blockId))
             {
                 minedBlocks.put(blockId, (long) count);
@@ -93,8 +93,8 @@ public final class BlockBreakdownTracker
         MmmDebugLogger.info(
                 "captured-vanilla-mined-stats",
                 STATS_DEBUG_LOG_INTERVAL_MS,
-                "[MMM_DEBUG] captured-vanilla-mined-stats worldId={} blockTypes={} total={}",
-                WorldSessionContext.getCurrentWorldId(),
+                "[MMM_DEBUG] captured-vanilla-mined-stats sourceName={} blockTypes={} total={}",
+                WorldSessionContext.getCurrentWorldName(),
                 minedBlocks.size(),
                 total);
     }

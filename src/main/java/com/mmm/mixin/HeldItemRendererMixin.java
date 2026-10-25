@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(HeldItemRenderer.class)
@@ -24,17 +25,20 @@ public class HeldItemRendererMixin
     @Shadow
     private ItemStack offHand;
 
-    @Inject(method = "applySwingOffset", at = @At("HEAD"), cancellable = true)
-    private void mmm$disableMiningToolSwing(MatrixStack matrices, Arm arm, float swingProgress, CallbackInfo ci)
+    @ModifyVariable(method = "renderFirstPersonItem", at = @At("HEAD"), argsOnly = true, ordinal = 2)
+    private float mmm$staticMiningToolSwingProgress(float swingProgress)
     {
-        if (Configs.Generic.NO_SWINGING_ANIMATION.getBooleanValue() && mmm$isMiningToolArm(arm))
-        {
-            ci.cancel();
-        }
+        return mmm$shouldKeepMiningToolStatic() ? 0.0F : swingProgress;
     }
 
-    @Inject(method = "applyEquipOffset", at = @At("HEAD"), cancellable = true)
-    private void mmm$disableMiningToolEquipDip(MatrixStack matrices, Arm arm, float equipProgress, CallbackInfo ci)
+    @ModifyVariable(method = "renderFirstPersonItem", at = @At("HEAD"), argsOnly = true, ordinal = 3)
+    private float mmm$staticMiningToolEquipProgress(float equipProgress)
+    {
+        return mmm$shouldKeepMiningToolStatic() ? 0.0F : equipProgress;
+    }
+
+    @Inject(method = "applySwingOffset", at = @At("HEAD"), cancellable = true)
+    private void mmm$disableMiningToolSwing(MatrixStack matrices, Arm arm, float swingProgress, CallbackInfo ci)
     {
         if (Configs.Generic.NO_SWINGING_ANIMATION.getBooleanValue() && mmm$isMiningToolArm(arm))
         {
@@ -53,6 +57,13 @@ public class HeldItemRendererMixin
 
         ItemStack stack = client.player.getMainArm() == arm ? this.mainHand : this.offHand;
         return mmm$isMiningToolStack(stack);
+    }
+
+    @Unique
+    private boolean mmm$shouldKeepMiningToolStatic()
+    {
+        return Configs.Generic.NO_SWINGING_ANIMATION.getBooleanValue()
+                && (mmm$isMiningToolStack(this.mainHand) || mmm$isMiningToolStack(this.offHand));
     }
 
     @Unique
