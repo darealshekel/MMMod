@@ -7,7 +7,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'MiningTrackerTweakerooAddon'
-
-include 'server-sync'
-include 'server-sync-1.21.4'
+rootProject.name = 'MMMod'

@@ -14,6 +14,14 @@ import java.util.Locale;
 
 public final class PeriodKeys
 {
+    public enum Relation
+    {
+        MISSING,
+        INVALID,
+        OLDER,
+        CURRENT,
+        FUTURE
+    }
     public static final ZoneId UTC = ZoneId.of("UTC");
     private static final DateTimeFormatter DISPLAY_KEY = new DateTimeFormatterBuilder()
             .appendPattern("dd-MM-")
@@ -66,36 +74,76 @@ public final class PeriodKeys
 
     public static boolean isCurrentDailyKey(String value, long now)
     {
-        String raw = clean(value);
-        if (raw.isBlank())
-        {
-            return false;
-        }
-
-        LocalDate parsed = parseDateKey(raw);
-        return parsed != null && format(parsed).equals(currentDailyKey(now));
+        return dailyRelation(value, now) == Relation.CURRENT;
     }
 
     public static boolean isCurrentWeeklyKey(String value, long now)
     {
+        return weeklyRelation(value, now) == Relation.CURRENT;
+    }
+
+    public static Relation dailyRelation(String value, long now)
+    {
         String raw = clean(value);
         if (raw.isBlank())
         {
-            return false;
-        }
-        if (raw.equals(legacyIsoWeekKey(now)))
-        {
-            return true;
+            return Relation.MISSING;
         }
 
         LocalDate parsed = parseDateKey(raw);
-        if (parsed != null)
+        if (parsed == null)
         {
-            return weeklyKeyForDate(parsed).equals(currentWeeklyKey(now));
+            return Relation.INVALID;
         }
 
-        parsed = parseLegacyIsoWeek(raw);
-        return parsed != null && weeklyKeyForDate(parsed).equals(currentWeeklyKey(now));
+        LocalDate current = LocalDate.ofInstant(Instant.ofEpochMilli(now), UTC);
+        return compare(parsed, current);
+    }
+
+    public static Relation weeklyRelation(String value, long now)
+    {
+        String raw = clean(value);
+        if (raw.isBlank())
+        {
+            return Relation.MISSING;
+        }
+
+        LocalDate parsed = parseDateKey(raw);
+        if (parsed == null)
+        {
+            parsed = parseLegacyIsoWeek(raw);
+        }
+        if (parsed == null)
+        {
+            return Relation.INVALID;
+        }
+
+        LocalDate storedStart = weeklyStartForDate(parsed);
+        LocalDate currentStart = weeklyStartForDate(LocalDate.ofInstant(Instant.ofEpochMilli(now), UTC));
+        return compare(storedStart, currentStart);
+    }
+
+    public static long nextWeeklyBoundaryMs(long now)
+    {
+        LocalDate current = LocalDate.ofInstant(Instant.ofEpochMilli(now), UTC);
+        return weeklyStartForDate(current).plusDays(7L).atStartOfDay(UTC).toInstant().toEpochMilli();
+    }
+
+    public static long nextDailyBoundaryMs(long now)
+    {
+        LocalDate current = LocalDate.ofInstant(Instant.ofEpochMilli(now), UTC);
+        return current.plusDays(1L).atStartOfDay(UTC).toInstant().toEpochMilli();
+    }
+
+    public static long currentDailyStartMs(long now)
+    {
+        LocalDate current = LocalDate.ofInstant(Instant.ofEpochMilli(now), UTC);
+        return current.atStartOfDay(UTC).toInstant().toEpochMilli();
+    }
+    public static long currentWeeklyStartMs(long now)
+    {
+        LocalDate current = LocalDate.ofInstant(Instant.ofEpochMilli(now), UTC);
+        return weeklyStartForDate(current).atStartOfDay(UTC).toInstant().toEpochMilli();
     }
 
     public static String legacyIsoWeekKey(long now)
@@ -109,8 +157,13 @@ public final class PeriodKeys
 
     private static String weeklyKeyForDate(LocalDate date)
     {
+        return format(weeklyStartForDate(date));
+    }
+
+    private static LocalDate weeklyStartForDate(LocalDate date)
+    {
         int diff = (date.getDayOfWeek().getValue() - DayOfWeek.WEDNESDAY.getValue() + 7) % 7;
-        return format(date.minusDays(diff));
+        return date.minusDays(diff);
     }
 
     private static String format(LocalDate date)
@@ -173,5 +226,18 @@ public final class PeriodKeys
     private static String clean(String value)
     {
         return value == null ? "" : value.trim();
+    }
+
+    private static Relation compare(LocalDate stored, LocalDate current)
+    {
+        if (stored.isBefore(current))
+        {
+            return Relation.OLDER;
+        }
+        if (stored.isAfter(current))
+        {
+            return Relation.FUTURE;
+        }
+        return Relation.CURRENT;
     }
 }

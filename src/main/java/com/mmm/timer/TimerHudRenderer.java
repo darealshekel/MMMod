@@ -5,14 +5,12 @@ import java.util.List;
 import java.util.Map;
 
 import com.mmm.config.Configs;
-import com.mmm.config.FeatureToggle;
 import com.mmm.hud.HudModuleId;
-import com.mmm.tracker.MiningStats;
 import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
 
-import fi.dy.masa.malilib.config.IConfigDouble;
-import fi.dy.masa.malilib.config.IConfigInteger;
+import com.mmm.config.value.IConfigDouble;
+import com.mmm.config.value.IConfigInteger;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
@@ -27,10 +25,9 @@ import net.minecraft.util.Identifier;
 
 public final class TimerHudRenderer
 {
-    private static final int CARD_BG = 0xE9050505;
     private static final int CARD_BORDER = 0xFF1F1F1F;
     private static final int WIDTH_TIMER = 150;
-    private static final int HEIGHT_TIMER = 30;
+    private static final int HEIGHT_TIMER = 16;
     private static final int TIMER_BAR_WIDTH = 140;
     private static final int TIMER_BAR_HEIGHT = 4;
     private static final int WIDTH_HOURLY = 172;
@@ -57,7 +54,8 @@ public final class TimerHudRenderer
             return;
         }
 
-        if ((MmmTimerState.isTimerDisplayActive() || shouldShowDailyGoalInTimerSlot()) && isPlayerListOpen(client) == false)
+        boolean timerActive = MmmTimerState.isTimerDisplayActive();
+        if (timerActive && isPlayerListOpen(client) == false)
         {
             drawModule(context, client, HudModuleId.TIMER, false);
         }
@@ -100,7 +98,7 @@ public final class TimerHudRenderer
         }
 
         int width = rawWidth(module);
-        int height = rawHeight(module);
+        int height = rawHeight(client, module);
         double scale = getScale(module);
         int scaledW = (int) Math.round(width * scale);
         int scaledH = (int) Math.round(height * scale);
@@ -114,7 +112,7 @@ public final class TimerHudRenderer
         return switch (module)
         {
             case MAIN -> Configs.Generic.HUD_SCALE.getDoubleValue() > 0D;
-            case TIMER -> MmmTimerState.isTimerDisplayActive() || shouldShowDailyGoalInTimerSlot();
+            case TIMER -> MmmTimerState.isTimerDisplayActive();
             case HOURLY -> Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue();
             case BLOCK_STATS -> Configs.Generic.BLOCK_STATS_VISIBLE.getBooleanValue();
             case NOTIFICATION -> Configs.Generic.TIMER_NOTIFICATIONS.getBooleanValue();
@@ -184,9 +182,8 @@ public final class TimerHudRenderer
 
     private static void drawTimer(DrawContext context, MinecraftClient client, boolean preview)
     {
-        if (MmmTimerState.isTimerDisplayActive() == false)
+        if (preview == false && MmmTimerState.isTimerDisplayActive() == false)
         {
-            drawDailyGoalTimerSlot(context, client);
             return;
         }
 
@@ -219,31 +216,6 @@ public final class TimerHudRenderer
         }
     }
 
-    private static void drawDailyGoalTimerSlot(DrawContext context, MinecraftClient client)
-    {
-        MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
-        if (progress.enabled() == false)
-        {
-            return;
-        }
-
-        double ratio = progress.target() <= 0L ? 0D : progress.current() / (double) progress.target();
-        float clamped = Math.max(0F, Math.min(1F, (float) ratio));
-        int color = UiFormat.getGoalColor(progress);
-        int barX = (WIDTH_TIMER - TIMER_BAR_WIDTH) / 2;
-        int barY = 0;
-        context.fill(barX, barY, barX + TIMER_BAR_WIDTH, barY + TIMER_BAR_HEIGHT, 0xFF333333);
-        int filledWidth = (int) (TIMER_BAR_WIDTH * clamped);
-        if (filledWidth > 0)
-        {
-            context.fill(barX, barY, barX + filledWidth, barY + TIMER_BAR_HEIGHT, color);
-        }
-
-        String text = "Daily Goal " + UiFormat.formatProgress(progress.current(), progress.target()) + " (" + progress.getPercent() + "%)";
-        int textWidth = client.textRenderer.getWidth(text);
-        drawTextShadow(context, client.textRenderer, text, (WIDTH_TIMER - textWidth) / 2, barY + TIMER_BAR_HEIGHT + 3, color);
-    }
-
     private static void drawHourly(DrawContext context, MinecraftClient client, boolean preview)
     {
         drawCard(context, WIDTH_HOURLY, HEIGHT_HOURLY, "HOURLY STATS");
@@ -252,7 +224,7 @@ public final class TimerHudRenderer
         drawMetric(context, renderer, "Estimated Blocks/hr", MmmTimerState.getEstimatedBlocksPerHour(), 34);
         drawMetric(context, renderer, "Best Hour", MmmTimerState.getBestHourBlocks(), 46);
         drawText(context, renderer, "Blocks/min", 12, 58, Configs.getHudTextColor());
-        drawTextRight(context, renderer, String.format(java.util.Locale.ROOT, "%.1f", MmmTimerState.getBlocksPerMinute()), WIDTH_HOURLY - 12, 58, Configs.getHudNumberColor());
+        drawTextRight(context, renderer, UiFormat.formatBlocksPerMinute(MmmTimerState.getBlocksPerMinute()), WIDTH_HOURLY - 12, 58, Configs.getHudNumberColor());
     }
 
     private static void drawBlockStats(DrawContext context, MinecraftClient client, boolean preview)
@@ -260,6 +232,11 @@ public final class TimerHudRenderer
         List<MmmTimerState.BlockCount> blocks = MmmTimerState.getTopBlocks();
         if (blocks.isEmpty())
         {
+            if (preview)
+            {
+                String header = "Block Statistics";
+                drawTextShadow(context, client.textRenderer, header, WIDTH_BLOCKS - client.textRenderer.getWidth(header), 0, 0xFFDDDDDD);
+            }
             return;
         }
 
@@ -343,7 +320,7 @@ public final class TimerHudRenderer
         long blocks = MmmTimerState.getNotificationBlocks();
         double bpm = MmmTimerState.getNotificationBlocksPerMinute();
         drawText(context, client.textRenderer, UiFormat.formatCompact(blocks) + " blocks", 12, 23, Configs.getHudNumberColor());
-        drawTextRight(context, client.textRenderer, String.format(java.util.Locale.ROOT, "%.1f/min", bpm), WIDTH_NOTIFICATION - 12, 23, Configs.getHudTextColor());
+        drawTextRight(context, client.textRenderer, UiFormat.formatBlocksPerMinute(bpm) + "/min", WIDTH_NOTIFICATION - 12, 23, Configs.getHudTextColor());
     }
 
     private static void drawMetric(DrawContext context, TextRenderer renderer, String label, long value, int y)
@@ -354,37 +331,25 @@ public final class TimerHudRenderer
 
     private static void drawCard(DrawContext context, int width, int height, String title)
     {
-        context.fill(0, 0, width, height, CARD_BG);
+        context.fill(0, 0, width, height, Configs.getHudBackgroundColor());
         context.drawBorder(0, 0, width, height, CARD_BORDER);
         context.fill(8, 8, 11, 18, MmmUi.RED);
         drawText(context, MinecraftClient.getInstance().textRenderer, title, 17, 8, Configs.getHudTitleColor());
     }
 
-    private static void drawBlockStatsShell(DrawContext context, int width, int height, String title)
-    {
-        if (Configs.Generic.BLOCK_STATS_BACKGROUND.getBooleanValue())
-        {
-            drawCard(context, width, height, title);
-            return;
-        }
-
-        context.fill(0, 8, 3, 18, MmmUi.RED);
-        drawText(context, MinecraftClient.getInstance().textRenderer, title, 12, 8, Configs.getHudTitleColor());
-    }
-
     private static void drawText(DrawContext context, TextRenderer renderer, String text, int x, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), x, y, color, false);
+        context.drawText(renderer, Text.literal(text), x, y, color, Configs.useHudTextShadow());
     }
 
     private static void drawTextShadow(DrawContext context, TextRenderer renderer, String text, int x, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), x, y, color, true);
+        context.drawText(renderer, Text.literal(text), x, y, color, Configs.useHudTextShadow());
     }
 
     private static void drawTextRight(DrawContext context, TextRenderer renderer, String text, int rightX, int y, int color)
     {
-        context.drawText(renderer, Text.literal(text), rightX - renderer.getWidth(text), y, color, false);
+        context.drawText(renderer, Text.literal(text), rightX - renderer.getWidth(text), y, color, Configs.useHudTextShadow());
     }
 
     private static int rawWidth(HudModuleId module)
@@ -399,11 +364,11 @@ public final class TimerHudRenderer
         };
     }
 
-    private static int rawHeight(HudModuleId module)
+    private static int rawHeight(MinecraftClient client, HudModuleId module)
     {
         return switch (module)
         {
-            case TIMER -> HEIGHT_TIMER;
+            case TIMER -> HEIGHT_TIMER + (MmmTimerState.isExpired() ? client.textRenderer.fontHeight + 2 : 0);
             case HOURLY -> HEIGHT_HOURLY;
             case BLOCK_STATS -> blockStatsHeight(MmmTimerState.getTopBlocks().size());
             case NOTIFICATION -> HEIGHT_NOTIFICATION;
@@ -449,7 +414,7 @@ public final class TimerHudRenderer
 
     private static double getScale(HudModuleId module)
     {
-        return Math.max(0.5D, Math.min(3.0D, scaleConfig(module).getDoubleValue()));
+        return Math.max(0.25D, Math.min(3.0D, scaleConfig(module).getDoubleValue()));
     }
 
     private static int resolveX(MinecraftClient client, IConfigInteger config, int scaledWidth)
@@ -471,22 +436,12 @@ public final class TimerHudRenderer
         int lineHeight = showIcons ? 18 : MinecraftClient.getInstance().textRenderer.fontHeight + 2;
         int visibleEntries = isStatic ? Math.min(BLOCK_STATS_STATIC_SIZE, entries) : Math.min(BLOCK_STATS_PAGE_SIZE, entries);
         int pageLine = isStatic || entries <= BLOCK_STATS_PAGE_SIZE ? 0 : 1;
-        return Math.max(lineHeight * 2, lineHeight * (1 + Math.max(0, visibleEntries) + pageLine));
+        return Math.max(lineHeight, lineHeight * (1 + Math.max(0, visibleEntries) + pageLine));
     }
 
     private static boolean isPlayerListOpen(MinecraftClient client)
     {
         return client != null && client.options != null && client.options.playerListKey.isPressed();
-    }
-
-    private static boolean shouldShowDailyGoalInTimerSlot()
-    {
-        return FeatureToggle.TWEAK_MINING_TRACKER.getBooleanValue()
-                && FeatureToggle.TWEAK_HUD.getBooleanValue()
-                && FeatureToggle.TWEAK_DAILY_GOAL.getBooleanValue()
-                && FeatureToggle.TWEAK_HUD_GOAL_PROGRESS.getBooleanValue()
-                && MiningStats.getDailyGoalProgress().enabled()
-                && MmmTimerState.isTimerDisplayActive() == false;
     }
 
     private static String blockName(String id)
