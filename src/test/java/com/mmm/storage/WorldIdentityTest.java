@@ -5,9 +5,20 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
+import java.nio.file.Path;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class WorldIdentityTest
 {
+    @Test
+    void singleplayerRootsStayDistinctAndIgnoreTrailingDot()
+    {
+        Path first = Path.of("saves", "WorldA");
+        assertEquals(WorldIdentity.singleplayerWorldId(first), WorldIdentity.singleplayerWorldId(first.resolve(".")));
+        assertNotEquals(WorldIdentity.singleplayerWorldId(first), WorldIdentity.singleplayerWorldId(Path.of("saves", "WorldB")));
+        assertNotEquals(WorldIdentity.singleplayerWorldId(first), WorldIdentity.singleplayerWorldId(Path.of("other-instance", "saves", "WorldA")));
+        assertTrue(WorldIdentity.singleplayerWorldId(first).matches("ssp_[a-f0-9]+"));
+    }
     @Test
     void rawLegacyHostAndCurrentHashResolveToOneServer()
     {

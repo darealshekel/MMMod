@@ -96,6 +96,7 @@ public final class Callbacks
         }
 
         SessionData finished = MiningStats.finaliseSession();
+        if (MiningStats.isSessionActive()) return;
         if (SessionHistory.isQualifyingSession(finished))
         {
             MmmMessages.actionbar("Mining session ended and saved");

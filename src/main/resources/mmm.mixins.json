@@ -6,6 +6,8 @@
     "ClientPlayNetworkHandlerMixin",
     "ClientPlayerInteractionManagerAccessor",
     "ClientPlayerInteractionManagerMixin",
+    "ClientWorldMixin",
+    "ClientWorldMixin",
     "DecorationParameterMixin",
     "ExperienceBarMixin",
     "FluidStateModelSetMixin",

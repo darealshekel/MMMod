@@ -125,15 +125,7 @@ public final class WorldSessionContext
         try
         {
             Path savePath = client.getSingleplayerServer().getWorldPath(LevelResource.ROOT);
-            Path folderPath = savePath.getFileName();
-            if (folderPath != null)
-            {
-                String folderName = folderPath.toString();
-                if (!folderName.isBlank())
-                {
-                    return sanitise(folderName);
-                }
-            }
+            return WorldIdentity.singleplayerWorldId(savePath);
         }
         catch (Exception e)
         {
