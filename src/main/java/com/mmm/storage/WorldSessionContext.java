@@ -3,18 +3,16 @@ package com.mmm.storage;
 import com.mmm.sync.ScoreboardSourceResolver;
 import com.mmm.MMM;
 import com.mmm.config.Configs;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.WorldSavePath;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.storage.LevelResource;
 
 public final class WorldSessionContext
 {
     private static String currentWorldId = "default";
     private static String currentWorldName = "Unknown";
     private static String currentWorldKind = "unknown";
+    private static String currentWorldSourceType = "server";
     private static String currentWorldHost = "";
     private static String lastDebugFingerprint = "";
 
@@ -22,22 +20,23 @@ public final class WorldSessionContext
     {
     }
 
-    public static void update(MinecraftClient client)
+    public static void update(Minecraft client)
     {
         WorldInfo info = resolve(client);
         maybeDebugResolvedWorld(info);
         currentWorldId = info.id();
         currentWorldName = info.displayName();
         currentWorldKind = info.kind();
+        currentWorldSourceType = info.sourceType();
         currentWorldHost = info.host();
     }
 
-    public static WorldInfo resolve(MinecraftClient client)
+    public static WorldInfo resolve(Minecraft client)
     {
-        if (client.getCurrentServerEntry() != null)
+        if (client.getCurrentServer() != null)
         {
-            String address = client.getCurrentServerEntry().address;
-            String displayName = client.getCurrentServerEntry().name;
+            String address = client.getCurrentServer().ip;
+            String displayName = client.getCurrentServer().name;
             if (displayName == null || displayName.isBlank())
             {
                 displayName = "Multiplayer Server";
@@ -45,18 +44,18 @@ public final class WorldSessionContext
 
             String host = address == null ? "" : address.trim();
             // Keep local history stable without leaking raw server IPs/domains into paths or exports.
-            String resolvedId = host.isBlank() ? sanitise(displayName) : "server_" + shortHash(host);
-            return new WorldInfo(resolvedId, displayName.trim(), "multiplayer", host);
+            String resolvedId = host.isBlank() ? sanitise(displayName) : WorldIdentity.multiplayerWorldId(host);
+            return new WorldInfo(resolvedId, displayName.trim(), "multiplayer", host, "server");
         }
 
-        if (client.getServer() != null)
+        if (client.getSingleplayerServer() != null)
         {
-            String levelName = client.getServer().getSaveProperties().getLevelName();
+            String levelName = client.getSingleplayerServer().getWorldData().getLevelName();
             String worldKey = resolveSingleplayerWorldKey(client, levelName);
-            return new WorldInfo(worldKey, levelName, "singleplayer", "");
+            return new WorldInfo(worldKey, levelName, "singleplayer", "", resolveSingleplayerSourceType(client));
         }
 
-        return new WorldInfo(currentWorldId, currentWorldName, currentWorldKind, currentWorldHost);
+        return new WorldInfo(currentWorldId, currentWorldName, currentWorldKind, currentWorldHost, currentWorldSourceType);
     }
 
     public static String getCurrentWorldId()
@@ -71,7 +70,22 @@ public final class WorldSessionContext
 
     public static WorldInfo getCurrentWorldInfo()
     {
-        return new WorldInfo(currentWorldId, currentWorldName, currentWorldKind, currentWorldHost);
+        return new WorldInfo(currentWorldId, currentWorldName, currentWorldKind, currentWorldHost, currentWorldSourceType);
+    }
+
+    private static String resolveSingleplayerSourceType(Minecraft client)
+    {
+        try
+        {
+            return client.getSingleplayerServer() != null && client.getSingleplayerServer().getWorldData().isHardcore()
+                    ? "hsp"
+                    : "ssp";
+        }
+        catch (RuntimeException exception)
+        {
+            MMM.LOGGER.debug("[MMM] Could not read hardcore world state: {}", exception.getMessage());
+            return "ssp";
+        }
     }
 
     private static String sanitise(String value)
@@ -99,36 +113,18 @@ public final class WorldSessionContext
 
         lastDebugFingerprint = fingerprint;
         MMM.LOGGER.info(
-                "[MMM_DEBUG] world-context-resolved worldId={} displayName={} kind={} host=redacted",
-                info.id(),
+                "[MMM_DEBUG] world-context-resolved displayName={} kind={} sourceType={}",
                 info.displayName(),
-                info.kind()
+                info.kind(),
+                info.sourceType()
         );
     }
 
-    private static String shortHash(String value)
+    private static String resolveSingleplayerWorldKey(Minecraft client, String levelName)
     {
         try
         {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.trim().toLowerCase().getBytes(StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder();
-            for (int i = 0; i < Math.min(6, digest.length); i++)
-            {
-                builder.append(String.format("%02x", digest[i]));
-            }
-            return builder.toString();
-        }
-        catch (NoSuchAlgorithmException exception)
-        {
-            return Integer.toHexString(value.trim().toLowerCase().hashCode());
-        }
-    }
-
-    private static String resolveSingleplayerWorldKey(MinecraftClient client, String levelName)
-    {
-        try
-        {
-            Path savePath = client.getServer().getSavePath(WorldSavePath.ROOT);
+            Path savePath = client.getSingleplayerServer().getWorldPath(LevelResource.ROOT);
             Path folderPath = savePath.getFileName();
             if (folderPath != null)
             {
@@ -147,5 +143,16 @@ public final class WorldSessionContext
         return sanitise(levelName);
     }
 
-    public record WorldInfo(String id, String displayName, String kind, String host) {}
+    public record WorldInfo(String id, String displayName, String kind, String host, String sourceType)
+    {
+        public WorldInfo(String id, String displayName, String kind, String host)
+        {
+            this(id, displayName, kind, host, sourceTypeForKind(kind));
+        }
+
+        private static String sourceTypeForKind(String kind)
+        {
+            return "singleplayer".equals(kind) ? "ssp" : "server";
+        }
+    }
 }
