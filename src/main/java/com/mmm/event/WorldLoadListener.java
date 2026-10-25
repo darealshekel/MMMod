@@ -26,7 +26,7 @@ public final class WorldLoadListener
     public void onJoin(MinecraftClient client)
     {
         this.observedWorld = client.world;
-        handleWorldAvailable(client);
+        handleWorldAvailable(client, true);
         BlockBreakdownTracker.requestStatsOnWorldJoin();
     }
 
@@ -59,7 +59,8 @@ public final class WorldLoadListener
             }
             return;
         }
-        handleWorldAvailable(client);
+        MmmBlockBreakDetector.clear();
+        handleWorldAvailable(client, previous == null);
     }
 
     private void handleWorldExit()
@@ -68,7 +69,7 @@ public final class WorldLoadListener
         CloudSyncManager.requestScheduledSync("world exit");
         DigsSyncManager.requestScheduledSync("world exit");
         SyncQueueManager.requestFlush("world exit");
-        if (FeatureToggle.MMM_SUMMARY_ON_EXIT.getBooleanValue() && finished.totalBlocks > 0)
+        if (!MiningStats.isSessionActive() && FeatureToggle.MMM_SUMMARY_ON_EXIT.getBooleanValue() && finished.totalBlocks > 0)
         {
             pendingSummary = finished;
             pendingSummaryName = WorldSessionContext.getCurrentWorldName();
@@ -77,7 +78,7 @@ public final class WorldLoadListener
         MmmBlockBreakDetector.clear();
     }
 
-    private void handleWorldAvailable(MinecraftClient client)
+    private void handleWorldAvailable(MinecraftClient client, boolean joined)
     {
         if (client.world == null)
         {
@@ -85,11 +86,14 @@ public final class WorldLoadListener
         }
 
         PerimeterWallDigHelper.refreshFromConfig();
+        if (client.getSession().getUuidOrNull() != null)
+            SessionHistory.activateAccount(client.getSession().getUuidOrNull().toString(),
+                    com.mmm.config.Configs.websiteLinkedMinecraftUuid);
         String previousWorldId = WorldSessionContext.getCurrentWorldId();
         WorldSessionContext.update(client);
         com.mmm.tracker.PlaytimeTracker.onJoin(client);
         String nextWorldId = WorldSessionContext.getCurrentWorldId();
-        if (!previousWorldId.equals(nextWorldId))
+        if (joined || !previousWorldId.equals(nextWorldId))
         {
             debugWorldSwitch(previousWorldId, nextWorldId);
             DigsSyncManager.resetForWorldChange(nextWorldId);

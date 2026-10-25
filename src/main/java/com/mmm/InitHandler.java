@@ -36,6 +36,8 @@ public final class InitHandler
             updates.onDisconnect();
         });
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            com.mmm.tracker.MiningStats.finaliseSession();
+            Configs.saveToFile();
             com.mmm.tracker.PlaytimeTracker.save();
             com.mmm.storage.AsyncPersistence.flush(java.time.Duration.ofSeconds(2));
         });

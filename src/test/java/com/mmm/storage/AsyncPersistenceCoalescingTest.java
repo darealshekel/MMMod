@@ -12,6 +12,29 @@ import org.junit.jupiter.api.Test;
 
 class AsyncPersistenceCoalescingTest
 {
+    @Test
+    void orderedRetirementCannotBeSkippedOrDeleteTheNextSession() throws Exception
+    {
+        var started = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var operations = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        String key = "ordered-" + System.nanoTime();
+        try
+        {
+            AsyncPersistence.submit(key, () -> {
+                started.countDown();
+                try { release.await(5, TimeUnit.SECONDS); }
+                catch (InterruptedException exception) { Thread.currentThread().interrupt(); }
+                operations.add("old-write");
+            });
+            assertTrue(started.await(2, TimeUnit.SECONDS));
+            AsyncPersistence.submitOrdered(key, () -> operations.add("delete"));
+            AsyncPersistence.submit(key, () -> operations.add("new-write"));
+        }
+        finally { release.countDown(); }
+        assertTrue(AsyncPersistence.flush(Duration.ofSeconds(5)));
+        assertEquals(java.util.List.of("old-write", "delete", "new-write"), operations);
+    }
     private static int retainedKeys() throws Exception
     {
         var field = AsyncPersistence.class.getDeclaredField("PENDING");

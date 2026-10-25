@@ -70,6 +70,9 @@ if (project.hasProperty('smokeTest')) {
     if (project.hasProperty('growthSmoke')) {
         loom.runs.client.runDir('run-growth-smoke')
     }
+    if (project.hasProperty('reliabilitySmoke')) {
+        loom.runs.client.runDir('run-reliability-smoke')
+    }
     tasks.named('runClient') {
         dependsOn tasks.named('smokeClasses')
         classpath += sourceSets.smoke.output
@@ -80,5 +83,6 @@ if (project.hasProperty('smokeTest')) {
         if (project.hasProperty('breakingIndicatorSmoke')) jvmArgs '-Dmmm.breakingIndicatorSmoke=true'
         if (project.hasProperty('playtimeSmoke')) jvmArgs '-Dmmm.playtimeSmoke=true'
         if (project.hasProperty('growthSmoke')) jvmArgs '-Dmmm.growthSmoke=true'
+        if (project.hasProperty('reliabilitySmoke')) jvmArgs '-Dmmm.reliabilitySmoke=true'
     }
 }

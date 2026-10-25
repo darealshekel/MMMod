@@ -34,7 +34,7 @@ public final class ClientSmoke implements ClientModInitializer
                 {
                     client.setScreen(new TitleScreen());
                 }
-                if (phase == 0 && client.currentScreen instanceof TitleScreen)
+                if (phase == 0 && client.getOverlay() == null && System.currentTimeMillis() - started > 8000L)
                 {
                     phase = 1;
                     CreateWorldScreen.create(client, client.currentScreen);
@@ -53,6 +53,11 @@ public final class ClientSmoke implements ClientModInitializer
                 }
                 else if (phase == 2 && client.player != null && client.world != null && client.currentScreen == null)
                 {
+                    if (Boolean.getBoolean("mmm.reliabilitySmoke")) {
+                        phase = 4;
+                        new ReliabilitySmoke().install();
+                        return;
+                    }
                     if (Boolean.getBoolean("mmm.playtimeSmoke")) {
                         phase = 4;
                         new PlaytimeSmoke().install();

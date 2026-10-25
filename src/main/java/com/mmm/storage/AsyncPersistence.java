@@ -3,6 +3,7 @@ package com.mmm.storage;
 import com.mmm.MMM;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.ArrayDeque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,11 +26,23 @@ public final class AsyncPersistence
 
     public static void submit(String key, Runnable operation)
     {
+        enqueue(key, operation, true);
+    }
+
+    public static void submitOrdered(String key, Runnable operation)
+    {
+        enqueue(key, operation, false);
+    }
+
+    private static void enqueue(String key, Runnable operation, boolean coalescible)
+    {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(operation, "operation");
         PENDING.compute(key, (ignored, current) -> {
             PendingOperation pending = current == null ? new PendingOperation() : current;
-            pending.latest.set(operation);
+            Operation last = pending.operations.peekLast();
+            if (coalescible && last != null && last.coalescible()) pending.operations.removeLast();
+            pending.operations.addLast(new Operation(operation, coalescible));
             schedule(key, pending);
             return pending;
         });
@@ -42,7 +55,7 @@ public final class AsyncPersistence
             return;
         }
         PENDING.computeIfPresent(key, (ignored, pending) -> {
-            pending.latest.set(null);
+            pending.operations.removeIf(Operation::coalescible);
             return pending;
         });
     }
@@ -82,35 +95,47 @@ public final class AsyncPersistence
     {
         try
         {
-            Runnable operation;
-            while ((operation = pending.latest.getAndSet(null)) != null)
+        while (true)
+        {
+            AtomicReference<Operation> next = new AtomicReference<>();
+            PENDING.computeIfPresent(key, (ignored, current) -> {
+                if (current != pending) return current;
+                next.set(pending.operations.pollFirst());
+                if (next.get() == null)
+                {
+                    pending.scheduled.set(false);
+                    return null;
+                }
+                return pending;
+            });
+            if (next.get() == null) return;
+            try
             {
-                try
-                {
-                    operation.run();
-                }
-                catch (RuntimeException exception)
-                {
-                    MMM.LOGGER.warn("[MMM] Background persistence failed for {}: {}", key, exception.getMessage());
-                }
+                next.get().action().run();
             }
+            catch (RuntimeException exception)
+            {
+                MMM.LOGGER.warn("[MMM] Background persistence failed for {}: {}", key, exception.getMessage());
+            }
+        }
         }
         finally
         {
-            // Submit and retirement share the per-key lock so a new write cannot be orphaned.
             PENDING.computeIfPresent(key, (ignored, current) -> {
                 if (current != pending) return current;
                 pending.scheduled.set(false);
-                if (pending.latest.get() == null) return null;
+                if (pending.operations.isEmpty()) return null;
                 schedule(key, pending);
                 return pending;
             });
         }
     }
 
+    private record Operation(Runnable action, boolean coalescible) {}
+
     private static final class PendingOperation
     {
-        private final AtomicReference<Runnable> latest = new AtomicReference<>();
+        private final ArrayDeque<Operation> operations = new ArrayDeque<>();
         private final AtomicBoolean scheduled = new AtomicBoolean();
     }
 }

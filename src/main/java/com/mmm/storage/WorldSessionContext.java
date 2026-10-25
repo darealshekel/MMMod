@@ -125,15 +125,8 @@ public final class WorldSessionContext
         try
         {
             Path savePath = client.getServer().getSavePath(WorldSavePath.ROOT);
-            Path folderPath = savePath.getFileName();
-            if (folderPath != null)
-            {
-                String folderName = folderPath.toString();
-                if (!folderName.isBlank())
-                {
-                    return sanitise(folderName);
-                }
-            }
+            // The old trailing-dot identity is ambiguous; never copy it into every save.
+            return WorldIdentity.singleplayerWorldId(savePath);
         }
         catch (Exception e)
         {
