@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.atomic.AtomicReference;
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 public final class WebsiteLinkManager
 {
@@ -29,6 +29,19 @@ public final class WebsiteLinkManager
     public static void reset()
     {
         STATE.set(LinkState.idle());
+    }
+
+    static void invalidatePersistedLink(String detail)
+    {
+        Configs.websiteLinkedMinecraftUuid = "";
+        Configs.websiteLinkedMinecraftUsername = "";
+        Configs.websiteSyncToken = "";
+        Configs.websiteLinkedAtMs = 0L;
+        Configs.clearSourceSyncCooldowns();
+        Configs.saveToFile();
+        STATE.set(LinkState.error(detail == null || detail.isBlank()
+                ? "Website link expired. Generate a new mod link code."
+                : detail));
     }
 
     public static boolean hasPersistedLink()
@@ -51,18 +64,18 @@ public final class WebsiteLinkManager
 
     public static boolean isCurrentPlayerLinked()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null || hasPersistedLink() == false)
         {
             return false;
         }
 
-        return client.player.getUuidAsString().equalsIgnoreCase(Configs.websiteLinkedMinecraftUuid);
+        return client.player.getStringUUID().equalsIgnoreCase(Configs.websiteLinkedMinecraftUuid);
     }
 
     public static void claimCode(String rawCode)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
         if (client == null || client.player == null)
         {
             STATE.set(LinkState.error("Join a world or server before linking."));
@@ -78,7 +91,7 @@ public final class WebsiteLinkManager
 
         JsonObject payload = buildPayload(client, code);
         STATE.set(LinkState.submitting(code));
-        SyncQueueManager.enqueueWebsiteLinkClaim("website-link|" + client.player.getUuidAsString() + "|" + code, payload);
+        SyncQueueManager.enqueueWebsiteLinkClaim("website-link|" + client.player.getStringUUID() + "|" + code, payload);
         SyncQueueManager.forceFlush("website link request");
     }
 
@@ -96,8 +109,18 @@ public final class WebsiteLinkManager
             STATE.set(LinkState.error("The website did not return a sync credential. Generate a new link code."));
             return;
         }
-        persistLink(linkedUsername, syncToken);
+        if (persistLink(payload, linkedUsername, syncToken) == false)
+        {
+            STATE.set(LinkState.error("The saved link request did not contain a Minecraft identity. Generate a new link code."));
+            return;
+        }
         STATE.set(LinkState.success(linkedUsername));
+        Minecraft client = Minecraft.getInstance();
+        client.execute(() -> {
+            SyncQueueManager.updateGameMode(client);
+            CloudSyncManager.requestPersonalSync();
+            CloudSyncManager.requestScheduledSync("website link completed");
+        });
     }
 
     static void onQueueRetry(String detail, long nextRetryAtMs)
@@ -111,10 +134,10 @@ public final class WebsiteLinkManager
         STATE.set(LinkState.error(detail == null || detail.isBlank() ? "Could not claim link code." : detail));
     }
 
-    private static JsonObject buildPayload(MinecraftClient client, String code)
+    private static JsonObject buildPayload(Minecraft client, String code)
     {
         String username = resolveUsername(client);
-        String uuid = client.player.getUuidAsString();
+        String uuid = client.player.getStringUUID();
 
         JsonObject payload = new JsonObject();
         payload.addProperty("code", code);
@@ -167,11 +190,11 @@ public final class WebsiteLinkManager
         return "";
     }
 
-    private static String resolveUsername(MinecraftClient client)
+    private static String resolveUsername(Minecraft client)
     {
         try
         {
-            String username = client.getSession().getUsername();
+            String username = client.getUser().getName();
             if (username != null && username.isBlank() == false)
             {
                 return username;
@@ -194,29 +217,54 @@ public final class WebsiteLinkManager
         return rawCode == null ? "" : rawCode.toUpperCase().replaceAll("[^A-Z0-9]", "");
     }
 
-    private static void persistLink(String linkedUsername, String syncToken)
+    private static boolean persistLink(JsonObject payload, String linkedUsername, String syncToken)
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null || client.player == null)
+        String nextUuid = payloadString(payload, "minecraft_uuid");
+        if (nextUuid.isBlank())
         {
-            return;
+            nextUuid = payloadString(payload, "minecraftUuid");
+        }
+        if (nextUuid.isBlank())
+        {
+            return false;
         }
 
-        String nextUuid = client.player.getUuidAsString();
-        String nextUsername = linkedUsername == null || linkedUsername.isBlank() ? resolveUsername(client) : linkedUsername;
+        String payloadUsername = payloadString(payload, "username");
+        String nextUsername = linkedUsername == null || linkedUsername.isBlank() ? payloadUsername : linkedUsername;
         boolean identityChanged = nextUuid.equalsIgnoreCase(Configs.websiteLinkedMinecraftUuid) == false
                 || nextUsername.equalsIgnoreCase(Configs.websiteLinkedMinecraftUsername) == false;
         Configs.websiteLinkedMinecraftUuid = nextUuid;
         Configs.websiteLinkedMinecraftUsername = nextUsername;
         Configs.websiteSyncToken = syncToken == null ? "" : syncToken.trim();
         Configs.websiteLinkedAtMs = System.currentTimeMillis();
+        Configs.Generic.WEBSITE_SYNC_ENABLED.setBooleanValue(true);
         if (identityChanged)
         {
             Configs.websiteGlobalTotalBlocks = 0L;
             Configs.websiteGlobalTotalUpdatedAtMs = 0L;
             Configs.websiteLastSuccessfulSyncMs = 0L;
+            Configs.clearSourceSyncCooldowns();
+            SyncQueueManager.discardMiningItemsForOtherPlayers(nextUuid);
         }
         Configs.saveToFile();
+        return true;
+    }
+
+    private static String payloadString(JsonObject payload, String key)
+    {
+        if (payload == null || key == null || payload.has(key) == false || payload.get(key).isJsonPrimitive() == false)
+        {
+            return "";
+        }
+        try
+        {
+            String value = payload.get(key).getAsString();
+            return value == null ? "" : value.trim();
+        }
+        catch (RuntimeException ignored)
+        {
+            return "";
+        }
     }
 
     public record LinkState(Status status, String code, String detail, String linkedUsername)

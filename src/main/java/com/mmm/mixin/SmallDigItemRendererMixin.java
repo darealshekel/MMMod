@@ -1,37 +1,34 @@
 package com.mmm.mixin;
 
-import com.mmm.tweak.SmallDigItemRenderer;
-
-import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.item.ItemRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.item.ItemDisplayContext;
-import net.minecraft.item.ItemStack;
-import net.minecraft.world.World;
-
+import com.mmm.feature.SmallDigItemRenderer;
+import net.minecraft.client.renderer.item.ItemModelResolver;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.world.entity.ItemOwner;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(ItemRenderer.class)
+@Mixin(ItemModelResolver.class)
 public class SmallDigItemRendererMixin
 {
     @Inject(
-            method = "renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;Lnet/minecraft/world/World;III)V",
+            method = "appendItemLayers(Lnet/minecraft/client/renderer/item/ItemStackRenderState;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/ItemOwner;I)V",
             at = @At("HEAD")
     )
-    private void mmm$beginSmallDigItemRender(LivingEntity entity, ItemStack stack, ItemDisplayContext displayContext, MatrixStack matrices, VertexConsumerProvider vertexConsumers, World world, int light, int overlay, int seed, CallbackInfo ci)
+    private void mmm$beginSmallDigItemRender(ItemStackRenderState state, ItemStack stack, ItemDisplayContext displayContext, Level world, ItemOwner context, int seed, CallbackInfo ci)
     {
         SmallDigItemRenderer.begin(stack, displayContext);
     }
 
     @Inject(
-            method = "renderItem(Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemDisplayContext;Lnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider;Lnet/minecraft/world/World;III)V",
+            method = "appendItemLayers(Lnet/minecraft/client/renderer/item/ItemStackRenderState;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemDisplayContext;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/ItemOwner;I)V",
             at = @At("RETURN")
     )
-    private void mmm$endSmallDigItemRender(LivingEntity entity, ItemStack stack, ItemDisplayContext displayContext, MatrixStack matrices, VertexConsumerProvider vertexConsumers, World world, int light, int overlay, int seed, CallbackInfo ci)
+    private void mmm$endSmallDigItemRender(ItemStackRenderState state, ItemStack stack, ItemDisplayContext displayContext, Level world, ItemOwner context, int seed, CallbackInfo ci)
     {
         SmallDigItemRenderer.end();
     }
