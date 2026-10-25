@@ -1,87 +1,87 @@
 package com.mmm.timer;
 
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 import com.mmm.config.FeatureToggle;
 import com.mmm.tracker.MiningStats;
 import com.mmm.util.BlockBreakdownCatalog;
 
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.world.ClientWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.GameMode;
 
 public final class MmmBlockBreakDetector
 {
-    private static final long TRACKED_BLOCK_TTL_MS = 10_000L;
-    private static final Map<BlockPos, TrackedBlock> trackedBlocks = new LinkedHashMap<>();
+    private static final ConfirmedBreaks<BlockPos, BreakAttempt> PENDING = new ConfirmedBreaks<>();
 
     private MmmBlockBreakDetector()
     {
     }
 
-    public static void trackAttack(BlockPos pos)
+    public record BreakAttempt(ClientWorld world, BlockPos position, BlockState state, boolean nonInstant) {}
+
+    public static BreakAttempt beginBreak(BlockPos pos)
     {
         if (FeatureToggle.MMM_MINING_TRACKER.getBooleanValue() == false || pos == null)
         {
-            return;
+            return null;
         }
 
         MinecraftClient client = MinecraftClient.getInstance();
         if (isSurvivalMiningMode(client) == false || client.world == null)
         {
-            return;
+            return null;
         }
 
         BlockState state = client.world.getBlockState(pos);
         if (state == null || state.isAir())
         {
-            return;
+            return null;
         }
 
         Block block = state.getBlock();
         if (BlockBreakdownCatalog.isValid(block) == false)
         {
-            return;
+            return null;
         }
 
-        trackedBlocks.put(pos.toImmutable(), new TrackedBlock(block, state, System.currentTimeMillis()));
+        float breakingDelta = state.calcBlockBreakingDelta(client.player, client.world, pos);
+        boolean nonInstant = block == net.minecraft.block.Blocks.DEEPSLATE && breakingDelta > 0 && breakingDelta < 1;
+        return new BreakAttempt(client.world, pos.toImmutable(), state, nonInstant);
+    }
+
+    public static void completeBreak(BreakAttempt attempt, boolean success)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (success && attempt != null && client.world == attempt.world())
+            PENDING.completed(attempt.world(), attempt.position(), attempt, System.currentTimeMillis());
+    }
+
+    public static void acknowledged(ClientWorld world, BlockPos pos, BlockState serverState)
+    {
+        acknowledged(world, pos, serverState, true);
+    }
+
+    public static void acknowledged(ClientWorld world, BlockPos pos, BlockState serverState, boolean approved)
+    {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client == null || client.world != world) return;
+        boolean removed = approved && (serverState.isAir() || serverState.isOf(Blocks.WATER) || serverState.isOf(Blocks.LAVA));
+        BreakAttempt attempt = PENDING.confirm(world, pos, removed, System.currentTimeMillis());
+        if (attempt != null && FeatureToggle.MMM_MINING_TRACKER.getBooleanValue() && isSurvivalMiningMode(client))
+            MiningStats.recordBlockMined(attempt.state().getBlock(), pos, attempt.state());
     }
 
     public static void onClientTick(MinecraftClient client)
     {
-        if (client == null || client.world == null || client.player == null || trackedBlocks.isEmpty())
-        {
-            return;
-        }
-
-        long now = System.currentTimeMillis();
-        Iterator<Map.Entry<BlockPos, TrackedBlock>> iterator = trackedBlocks.entrySet().iterator();
-        while (iterator.hasNext())
-        {
-            Map.Entry<BlockPos, TrackedBlock> entry = iterator.next();
-            BlockPos pos = entry.getKey();
-            TrackedBlock tracked = entry.getValue();
-            if (now - tracked.createdAtMs() > TRACKED_BLOCK_TTL_MS)
-            {
-                iterator.remove();
-                continue;
-            }
-
-            if (client.world.getBlockState(pos).isAir())
-            {
-                MiningStats.recordBlockMined(tracked.block(), pos, tracked.state());
-                iterator.remove();
-            }
-        }
+        PENDING.expire(client == null ? null : client.world, System.currentTimeMillis());
     }
 
     public static void clear()
     {
-        trackedBlocks.clear();
+        PENDING.clear();
     }
 
     private static boolean isSurvivalMiningMode(MinecraftClient client)
@@ -95,5 +95,4 @@ public final class MmmBlockBreakDetector
         return gameMode == GameMode.SURVIVAL && client.player.isCreative() == false && client.player.isSpectator() == false;
     }
 
-    private record TrackedBlock(Block block, BlockState state, long createdAtMs) {}
 }

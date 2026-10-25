@@ -28,6 +28,11 @@ public final class InitHandler
         ClientTickHandler tickHandler = new ClientTickHandler();
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> worldListener.onJoin(client));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> worldListener.onDisconnect(client));
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            com.mmm.tracker.MiningStats.finaliseSession();
+            Configs.saveToFile();
+            com.mmm.storage.AsyncPersistence.flush(java.time.Duration.ofSeconds(3));
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             worldListener.pollWorldChange(client);
             tickHandler.onClientTick(client);

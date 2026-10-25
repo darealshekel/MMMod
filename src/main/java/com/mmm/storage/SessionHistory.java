@@ -18,6 +18,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.mmm.MMM;
 import com.mmm.Reference;
@@ -26,9 +28,22 @@ import com.mmm.config.Configs;
 public final class SessionHistory
 {
     public static final long MIN_SESSION_BLOCKS = 10_000L;
-    private static final Path ROOT_DIR = SharedStoragePaths.sessionsDir();
+    private static volatile Path ROOT_DIR = AccountSessionStorage.root().resolve("sessions");
     private static final List<SessionData> HISTORY = new ArrayList<>();
     private static SessionData best = null;
+    private static LifetimeSummary cachedLifetimeSummary;
+    private static long cachedLifetimeSignature = Long.MIN_VALUE;
+    private static final AtomicLong LIFETIME_REVISION = new AtomicLong();
+    private static long cachedLifetimeRevision = -1L;
+    private static final AsyncRefreshCache<LifetimeSummary> LIFETIME = new AsyncRefreshCache<>(
+            Executors.newSingleThreadExecutor(task -> {
+                Thread thread = new Thread(task, "MMM-Session-History");
+                thread.setDaemon(true);
+                return thread;
+            }),
+            SessionHistory::readLifetimeSummary,
+            1_000L,
+            failure -> MMM.LOGGER.warn("[MMM] Failed to refresh lifetime sessions", failure));
     private static String currentWorldId = "default";
     private static boolean legacyMigrationAttempted = false;
 
@@ -36,8 +51,19 @@ public final class SessionHistory
     {
     }
 
+    public static synchronized void activateAccount(String uuid, String linkedUuid)
+    {
+        if (!AccountSessionStorage.activate(uuid, linkedUuid)) return;
+        ROOT_DIR = AccountSessionStorage.root().resolve("sessions");
+        HISTORY.clear();
+        best = null;
+        legacyMigrationAttempted = false;
+        invalidateLifetimeSummary();
+    }
+
     public static synchronized void loadForWorld(String worldId)
     {
+        invalidateLifetimeSummary();
         currentWorldId = normalizeWorldId(worldId);
         migrateLegacySessionsIfNeeded();
         migrateCurrentWorldIdentity();
@@ -51,34 +77,42 @@ public final class SessionHistory
         }
     }
 
-    public static synchronized void save(SessionData session)
+    public static synchronized boolean save(SessionData session)
     {
         repairInflatedSession(session);
         if (isQualifyingSession(session) == false)
         {
-            return;
+            return true;
         }
 
         migrateLegacySessionsIfNeeded();
         Path saveFile = getSaveFile();
+        if (!saveDurably(saveFile, session)) return false;
+        HISTORY.clear();
+        HISTORY.addAll(loadSessions(saveFile));
+        best = findBest(HISTORY);
+        invalidateLifetimeSummary();
+        return true;
+    }
+
+    static boolean saveDurably(Path saveFile, SessionData session)
+    {
         try
         {
-            List<SessionData> persisted = withSessionFileLock(saveFile, () -> {
+            withSessionFileLock(saveFile, () -> {
                 List<SessionData> current = loadSessions(saveFile);
                 current.removeIf(existing -> existing.startTimeMs == session.startTimeMs);
                 current.add(session);
                 current.sort(Comparator.comparingLong(value -> value.startTimeMs));
                 writeSessions(saveFile, current);
-                return List.copyOf(current);
+                return null;
             });
-
-            HISTORY.clear();
-            HISTORY.addAll(persisted);
-            best = findBest(HISTORY);
+            return true;
         }
         catch (IOException e)
         {
             MMM.LOGGER.warn("[MMM] Failed to save session history to {}: {}", saveFile, e.getMessage());
+            return false;
         }
     }
 
@@ -183,6 +217,129 @@ public final class SessionHistory
     public static synchronized SessionData getBestSession()
     {
         return best;
+    }
+
+    public static LifetimeSummary getLifetimeSummary()
+    {
+        return LIFETIME.get(System.currentTimeMillis());
+    }
+
+    private static LifetimeSummary readLifetimeSummary()
+    {
+        long revision = LIFETIME_REVISION.get();
+        List<Path> sessionFiles = getLifetimeSessionFiles();
+        long sourceSignature = lifetimeSourceSignature(sessionFiles);
+        if (cachedLifetimeSummary != null && cachedLifetimeSignature == sourceSignature && cachedLifetimeRevision == revision)
+        {
+            return cachedLifetimeSummary;
+        }
+        cachedLifetimeSummary = summarizeLifetimeSessionFiles(sessionFiles);
+        cachedLifetimeSignature = sourceSignature;
+        cachedLifetimeRevision = revision;
+        return cachedLifetimeSummary;
+    }
+
+    static LifetimeSummary summarizeLifetimeSessionFiles(List<Path> sessionFiles)
+    {
+        long totalActiveMs = 0L;
+        long longestSessionMs = 0L;
+        int bestHourBlocks = 0;
+        int sessionsAt40kBph = 0;
+        int sessionsAt50kBph = 0;
+        Map<Long, SessionData> sessionsByStart = new LinkedHashMap<>();
+        for (Path sessionFile : sessionFiles)
+        {
+            for (SessionData candidate : loadSessions(sessionFile))
+            {
+                if (candidate == null)
+                {
+                    continue;
+                }
+                SessionData existing = sessionsByStart.get(candidate.startTimeMs);
+                if (existing == null
+                        || candidate.endTimeMs > existing.endTimeMs
+                        || candidate.endTimeMs == existing.endTimeMs && candidate.totalBlocks > existing.totalBlocks)
+                {
+                    sessionsByStart.put(candidate.startTimeMs, candidate);
+                }
+            }
+        }
+        for (SessionData session : sessionsByStart.values())
+        {
+            long durationMs = Math.max(0L, session.getActiveDurationMs());
+            totalActiveMs = Long.MAX_VALUE - totalActiveMs < durationMs
+                    ? Long.MAX_VALUE
+                    : totalActiveMs + durationMs;
+            longestSessionMs = Math.max(longestSessionMs, durationMs);
+            bestHourBlocks = Math.max(bestHourBlocks, session.getBestHourBlocks());
+            int averageBph = session.getAverageBlocksPerHour();
+            if (averageBph >= 40_000)
+            {
+                sessionsAt40kBph++;
+            }
+            if (averageBph >= 50_000)
+            {
+                sessionsAt50kBph++;
+            }
+        }
+        return new LifetimeSummary(
+                totalActiveMs,
+                longestSessionMs,
+                bestHourBlocks,
+                sessionsAt40kBph,
+                sessionsAt50kBph);
+    }
+
+    private static void invalidateLifetimeSummary()
+    {
+        LIFETIME_REVISION.incrementAndGet();
+        LIFETIME.invalidate();
+    }
+
+    private static List<Path> getLifetimeSessionFiles()
+    {
+        Path root = ROOT_DIR;
+        List<Path> files = new ArrayList<>();
+        Path rootFile = root.resolve("sessions.csv");
+        if (Files.isRegularFile(rootFile))
+        {
+            files.add(rootFile);
+        }
+        if (Files.isDirectory(root))
+        {
+            try (var paths = Files.list(root))
+            {
+                paths.filter(Files::isDirectory)
+                        .map(path -> path.resolve("sessions.csv"))
+                        .filter(Files::isRegularFile)
+                        .sorted(Comparator.comparing(Path::toString))
+                        .forEach(files::add);
+            }
+            catch (IOException e)
+            {
+                MMM.LOGGER.warn("[MMM] Failed to list lifetime session files in {}: {}", ROOT_DIR, e.getMessage());
+            }
+        }
+        return files;
+    }
+
+    private static long lifetimeSourceSignature(List<Path> sessionFiles)
+    {
+        long signature = 1125899906842597L;
+        for (Path sessionFile : sessionFiles)
+        {
+            try
+            {
+                signature = 31L * signature + sessionFile.toAbsolutePath().normalize().toString().hashCode();
+                signature = 31L * signature + Files.size(sessionFile);
+                signature = 31L * signature + Files.getLastModifiedTime(sessionFile).toMillis();
+            }
+            catch (IOException e)
+            {
+                signature = 31L * signature + sessionFile.toString().hashCode();
+            }
+        }
+        return signature;
     }
 
     public static synchronized String getCurrentWorldId()
@@ -391,6 +548,7 @@ public final class SessionHistory
             return;
         }
         legacyMigrationAttempted = true;
+        if (!AccountSessionStorage.ownsLegacy()) return;
 
         for (Path legacyRootDir : findLegacySessionRoots())
         {
@@ -402,6 +560,9 @@ public final class SessionHistory
             try (var paths = Files.list(legacyRootDir))
             {
                 paths.filter(Files::isDirectory).forEach(SessionHistory::mergeLegacyWorldSessions);
+                Path unattributed = legacyRootDir.resolve("sessions.csv");
+                if (Files.isRegularFile(unattributed))
+                    mergeSessionFiles(ROOT_DIR.resolve("sessions.csv"), unattributed);
             }
             catch (IOException e)
             {
@@ -413,6 +574,7 @@ public final class SessionHistory
     private static Set<Path> findLegacySessionRoots()
     {
         Set<Path> roots = new LinkedHashSet<>();
+        roots.add(SharedStoragePaths.sessionsDir().toAbsolutePath().normalize());
         for (Path configDir : SharedStoragePaths.legacyConfigDirs())
         {
             roots.add(configDir.resolve(Reference.STORAGE_ID).resolve("sessions").toAbsolutePath().normalize());
@@ -619,4 +781,11 @@ public final class SessionHistory
         T get() throws IOException;
     }
     public record WorldHistory(String worldId, String displayName, List<SessionData> sessions, SessionData bestSession) {}
+
+    public record LifetimeSummary(
+            long totalActiveMs,
+            long longestSessionMs,
+            int bestHourBlocks,
+            int sessionsAt40kBph,
+            int sessionsAt50kBph) {}
 }

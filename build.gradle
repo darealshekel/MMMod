@@ -55,3 +55,20 @@ java {
     sourceCompatibility = JavaVersion.VERSION_16
     targetCompatibility = JavaVersion.VERSION_16
 }
+
+if (project.hasProperty('smokeTest')) {
+    sourceSets {
+        smoke {
+            compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+            runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+        }
+    }
+    loom.mods { smoke { sourceSet sourceSets.smoke } }
+    loom.runs.client.runDir('run-reliability-smoke')
+    tasks.named('runClient') {
+        dependsOn tasks.named('smokeClasses')
+        classpath += sourceSets.smoke.output
+        environment 'APPDATA', file('build/smoke-appdata').absolutePath
+        jvmArgs '-Duser.home=' + file('build/smoke-home').absolutePath
+    }
+}

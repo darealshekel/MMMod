@@ -1011,6 +1011,15 @@ public final class CloudSyncManager
 
     static void applySuccessfulSyncResponse(JsonObject payload, String responseBody)
     {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null && !client.isOnThread())
+        {
+            JsonObject snapshot = payload == null ? null : new JsonParser().parse(payload.toString()).getAsJsonObject();
+            client.execute(() -> applySuccessfulSyncResponse(snapshot, responseBody));
+            return;
+        }
+        if (client != null && !WebsiteProfileTotals.activeUuid().equals(
+                com.mmm.storage.AccountSessionStorage.normalize(getString(payload, "minecraft_uuid", "")))) return;
         applySyncResponse(responseBody);
         WebsiteProfileTotals.refresh(true);
         long cadenceAnchorMs = sourceSyncCadenceAnchor(responseBody);
@@ -1112,6 +1121,7 @@ public final class CloudSyncManager
                 if (playerProfile.has("global_total_blocks") && globalTotal > 0L && (currentGlobalTotal <= 0L || globalTotal >= currentGlobalTotal))
                 {
                     Configs.websiteGlobalTotalBlocks = globalTotal;
+                    Configs.websiteGlobalTotalOwner = WebsiteProfileTotals.activeUuid();
                     Configs.websiteGlobalTotalUpdatedAtMs = System.currentTimeMillis();
                     changed = true;
                 }
