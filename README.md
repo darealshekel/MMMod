@@ -1,6 +1,9 @@
 # MMM 1.12.2 LiteLoader Port
 
-MMMod 1.0.20 for Minecraft 1.12.2 and LiteLoader (Java 8).
+MMMod 1.0.20.2 for Minecraft 1.12.2 and LiteLoader (Java 8).
+
+- Fixed startup crashes when Forge is installed alongside LiteLoader.
+- Keeps LiteLoader-only compatibility. See [release notes](docs/1.0.20.2-release.md).
 
 - Fixed MMM messages replaying when switching dimensions or reconnecting.
 - Collections now show only blocks available in 1.12.2.
@@ -21,7 +24,7 @@ $env:JAVA_HOME = 'C:/Users/mult0/AppData/Roaming/PrismLauncher/java/java-runtime
 ./tools/gradle-8.7/bin/gradle.bat releaseLiteMod
 ```
 
-Output: `build/libs/mmm-1.0.20+1.12.2-liteloader.litemod`.
+Output: `build/libs/mmm-1.0.20.2+1.12.2-liteloader.litemod`.
 
 Install the `.litemod` file into a Minecraft 1.12.2 LiteLoader instance's mods folder (with or without Forge).
 It is not a Fabric/Ornithe JAR. Do not install another MMM version beside it.

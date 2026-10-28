@@ -133,7 +133,7 @@ testing with a real account.
 
 ## Artifact
 
-`build/libs/mmm-1.0.20+1.12.2-liteloader.litemod`
+`build/libs/mmm-1.0.20.2+1.12.2-liteloader.litemod`
 
 - Release checksums are included in the GitHub release assets.
 - Requires Minecraft 1.12.2 and LiteLoader, not Fabric or Ornithe. Works with or without Forge installed.

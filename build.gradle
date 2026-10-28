@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'com.mmm'
-version = '1.0.20.1+1.12.2-liteloader'
+version = '1.0.20.2+1.12.2-liteloader'
 base { archivesName = 'mmm' }
 
 repositories {

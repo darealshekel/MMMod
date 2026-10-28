@@ -16,7 +16,7 @@ public final class Reference
             if (stream == null) throw new IllegalStateException("Missing MMM build metadata");
             Properties properties = new Properties();
             properties.load(stream);
-            return properties.getProperty("version", "1.0.20.1+1.12.2-liteloader");
+            return properties.getProperty("version", "1.0.20.2+1.12.2-liteloader");
         } catch (java.io.IOException exception) {
             throw new IllegalStateException("Cannot read MMM build metadata", exception);
         }

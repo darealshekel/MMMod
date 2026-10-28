@@ -14,7 +14,7 @@ $appdata = Join-Path $root 'build/smoke-appdata'
 foreach ($directory in @($game, $natives, $smokeHome, $appdata, "$game/mods")) {
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
 }
-$mod = Join-Path $root 'build/libs/mmm-1.0.20.1+1.12.2-liteloader-development.jar'
+$mod = Join-Path $root 'build/libs/mmm-1.0.20.2+1.12.2-liteloader-development.jar'
 if (!(Test-Path -LiteralPath $mod)) { throw 'Run verifyDevelopmentArtifact first.' }
 Copy-Item -LiteralPath $mod -Destination "$game/mods/mmm-development.litemod" -Force
 if ($CompatibilityModsPath) {
