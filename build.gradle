@@ -91,6 +91,113 @@ tasks.named('remapJar') {
     archiveClassifier = 'development'
 }
 
+// LiteLoader switches Mixin to the "searge" obfuscation context when Forge is installed. With only official
+// names in the refmap every injector misses its Forge-named target and the game exits at startup, so the
+// refmap also carries SRG names (data.notch / data.searge, the layout Mixin reads per context).
+repositories {
+    maven {
+        url = 'https://maven.minecraftforge.net/'
+        content { includeGroup 'de.oceanlabs.mcp' }
+        metadataSources { artifact() }
+    }
+}
+configurations { seargeMappings }
+dependencies { seargeMappings 'de.oceanlabs.mcp:mcp:1.12.2:srg@zip' }
+
+def officialClientSha1 = '0f275bc1547d01fa5f56ba34bdc87d981ee12daf'
+def officialClient = layout.buildDirectory.file('searge-refmap/client-1.12.2.jar')
+tasks.register('downloadOfficialClient') {
+    outputs.file officialClient
+    doLast {
+        def file = officialClient.get().asFile
+        file.parentFile.mkdirs()
+        new URL("https://piston-data.mojang.com/v1/objects/$officialClientSha1/client.jar").withInputStream { file.bytes = it.bytes }
+        def sha1 = java.security.MessageDigest.getInstance('SHA-1').digest(file.bytes).encodeHex().toString()
+        if (sha1 != officialClientSha1) throw new GradleException("Unexpected Minecraft 1.12.2 client jar: $sha1")
+    }
+}
+
+tasks.named('remapJar') {
+    dependsOn tasks.named('downloadOfficialClient')
+    inputs.files(configurations.seargeMappings)
+    doLast { addSeargeRefmap(archiveFile.get().asFile, configurations.seargeMappings.singleFile, officialClient.get().asFile) }
+}
+
+def addSeargeRefmap(File jar, File srgZip, File client) {
+    def classes = [:], fields = [:], methods = [:]
+    new java.util.zip.ZipFile(srgZip).withCloseable { zip ->
+        zip.getInputStream(zip.getEntry('joined.srg')).eachLine('UTF-8') { line ->
+            def p = line.split(' ')
+            if (p[0] == 'CL:') classes[p[1]] = p[2]
+            else if (p[0] == 'FD:') fields[p[1]] = p[2].substring(p[2].lastIndexOf('/') + 1)
+            else if (p[0] == 'MD:') methods[p[1] + p[2]] = p[3].substring(p[3].lastIndexOf('/') + 1)
+        }
+    }
+    def clientZip = new java.util.zip.ZipFile(client)
+    def modZip = new java.util.zip.ZipFile(jar)
+    def readClass = { java.util.zip.ZipFile zip, String name, Closure use ->
+        def entry = zip.getEntry(name + '.class')
+        entry == null ? null : zip.getInputStream(entry).withCloseable { use(new org.objectweb.asm.ClassReader(it)) }
+    }
+    def mapClass = { String name -> classes[name] ?: name }
+    def mapDesc = { String desc -> desc.replaceAll(/L([^;]+);/) { all, name -> "L${mapClass(name)};" } }
+    // Inherited members are listed under the class that declares them, so walk up the official hierarchy.
+    def mapMember = { String owner, String name, String desc ->
+        for (def type = owner; type != null; type = readClass(clientZip, type) { it.superName }) {
+            def found = desc.startsWith('(') ? methods["$type/$name$desc"] : fields["$type/$name"]
+            if (found) return found
+        }
+        null
+    }
+    def targetsOf = { String mixin ->
+        def targets = []
+        readClass(modZip, mixin) { reader ->
+            reader.accept(new org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM9) {
+                org.objectweb.asm.AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+                    if (desc != 'Lorg/spongepowered/asm/mixin/Mixin;') return null
+                    new org.objectweb.asm.AnnotationVisitor(org.objectweb.asm.Opcodes.ASM9) {
+                        org.objectweb.asm.AnnotationVisitor visitArray(String name) {
+                            new org.objectweb.asm.AnnotationVisitor(org.objectweb.asm.Opcodes.ASM9) {
+                                void visit(String n, Object value) {
+                                    targets << (value instanceof org.objectweb.asm.Type ? value.internalName : value.replace('.', '/'))
+                                }
+                            }
+                        }
+                    }
+                }
+            }, org.objectweb.asm.ClassReader.SKIP_CODE)
+        }
+        targets
+    }
+    def convert = { String ref, List<String> targets ->
+        def m = ref =~ /^(?:L([^;]+);)?([^(:]+)([(:].*)$/
+        if (!m.matches()) return mapClass(ref)
+        String owner = m.group(1), name = m.group(2), desc = m.group(3)
+        def prefix = owner != null ? "L${mapClass(owner)};" : ''
+        def owners = owner != null ? [owner] : targets
+        if (!owners.any { classes.containsKey(it) }) return prefix + name + mapDesc(desc)
+        def names = owners.collect { mapMember(it, name, desc.startsWith(':') ? desc.substring(1) : desc) }.unique()
+        if (names.size() != 1 || names[0] == null) throw new GradleException("No SRG name for $ref (owners $owners)")
+        prefix + names[0] + mapDesc(desc)
+    }
+    def refmap
+    try {
+        refmap = new groovy.json.JsonSlurper().parse(modZip.getInputStream(modZip.getEntry('mmm.refmap.json')))
+        def searge = refmap.mappings.collectEntries { mixin, refs ->
+            def targets = targetsOf(mixin)
+            [(mixin): refs.collectEntries { key, ref -> [(key): convert(ref, targets)] }]
+        }
+        refmap.data = [notch: refmap.mappings, searge: searge]
+    } finally {
+        modZip.close()
+        clientZip.close()
+    }
+    java.nio.file.FileSystems.newFileSystem(jar.toPath(), (ClassLoader) null).withCloseable { fs ->
+        java.nio.file.Files.write(fs.getPath('mmm.refmap.json'),
+                groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(refmap)).getBytes('UTF-8'))
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.release = 21
     options.encoding = 'UTF-8'
@@ -112,6 +219,11 @@ tasks.register('verifyDevelopmentArtifact') {
             assert zip.getEntry('fabric.mod.json') == null
             assert zip.getEntry('com/mmm/liteloader/LiteModMMM.class') != null
             assert zip.getEntry('mmm.refmap.json') != null
+            def refmap = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('mmm.refmap.json')))
+            assert refmap.data.notch == refmap.mappings
+            assert refmap.data.searge.keySet() == refmap.mappings.keySet()
+            assert refmap.data.searge['com/mmm/legacy/social/mixin/SocialChatSendMixin'].values() as List ==
+                    ['Lnet/minecraft/client/gui/GuiScreen;func_175281_b(Ljava/lang/String;Z)V']
             assert zip.getEntry('LICENSE') != null
             assert zip.getEntry('THIRD-PARTY.md') != null
             assert zip.getEntry('licenses/Gson-Apache-2.0.txt') != null
