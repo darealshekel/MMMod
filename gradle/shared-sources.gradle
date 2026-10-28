@@ -1,0 +1,50 @@
+// Compile the selected shared implementation with each loader's existing mapping/toolchain.
+def repositoryRoot = projectDir.toPath().resolve('../..').normalize().toFile()
+def sourceManifest = file('source-set.json')
+def sourceMap = new groovy.json.JsonSlurper().parse(sourceManifest)
+def generatedRoot = layout.buildDirectory.dir('shared-sources')
+
+['main', 'test'].each { kind ->
+    def extraRoots = sourceSets[kind].java.srcDirs.findAll {
+        it.toPath().normalize() != file("src/${kind}/java").toPath().normalize()
+    }
+    def selected = sourceMap[kind]
+    def taskName = "assemble${kind.capitalize()}Sources"
+    def assemble = tasks.register(taskName, Sync) {
+        inputs.file sourceManifest
+        into generatedRoot.map { it.dir(kind) }
+        duplicatesStrategy = DuplicatesStrategy.FAIL
+        selected.each { logicalPath, sourcePath ->
+            def source = new File(repositoryRoot, sourcePath)
+            if (!source.isFile()) throw new GradleException("Missing shared source: ${sourcePath}")
+            from(source) { into logicalPath.substring(0, logicalPath.lastIndexOf('/')) }
+        }
+    }
+    // Existing include filters (especially LiteLoader) remain in force.
+    sourceSets[kind].java.setSrcDirs([generatedRoot.map { it.dir(kind) }] + extraRoots)
+    tasks.named(kind == 'main' ? 'compileJava' : 'compileTestJava') { dependsOn assemble }
+    tasks.withType(Jar).configureEach { dependsOn assemble }
+}
+
+tasks.withType(Test).configureEach {
+    systemProperty 'mmm.sources', generatedRoot.get().dir('main').asFile.absolutePath
+    systemProperty 'mmm.version', project.version.toString()
+}
+
+if (sourceMap.resources) {
+    def sharedResources = tasks.register('assembleSharedResources', Sync) {
+        inputs.file sourceManifest
+        into generatedRoot.map { it.dir('resources') }
+        duplicatesStrategy = DuplicatesStrategy.FAIL
+        sourceMap.resources.each { logicalPath, sourcePath ->
+            def source = new File(repositoryRoot, sourcePath)
+            if (!source.isFile()) throw new GradleException("Missing shared resource: ${sourcePath}")
+            from(source) {
+                into logicalPath.substring(0, logicalPath.lastIndexOf('/'))
+            }
+        }
+    }
+    sourceSets.main.resources.srcDir generatedRoot.map { it.dir('resources') }
+    tasks.named('processResources') { dependsOn sharedResources }
+    tasks.withType(Jar).configureEach { dependsOn sharedResources }
+}

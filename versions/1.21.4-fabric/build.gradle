@@ -1,0 +1,90 @@
+plugins {
+    id 'fabric-loom' version '1.14.10'
+    id 'maven-publish'
+}
+
+apply from: '../../gradle/release-version.gradle'
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    maven { url = 'https://api.modrinth.com/maven' }
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    include "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    modCompileOnly "maven.modrinth:modmenu:${project.modmenu_version}"
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "minecraft_dependency", project.findProperty("minecraft_dependency") ?: project.minecraft_version
+
+    filesMatching("fabric.mod.json") {
+        expand(
+                "version": project.version,
+                "minecraft_dependency": project.findProperty("minecraft_dependency") ?: project.minecraft_version
+        )
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+    it.options.encoding = "UTF-8"
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+// Opt-in checks in an isolated game directory, excluded from release jars.
+if (project.hasProperty('smokeTest')) {
+    def smokeRoot = file(project.findProperty('smokeRunRoot') ?: 'build/smoke-isolated').canonicalFile
+    if (!smokeRoot.toPath().startsWith(layout.buildDirectory.get().asFile.canonicalFile.toPath())) {
+        throw new GradleException('Smoke paths must stay inside this version build directory')
+    }
+    loom.runs.named('client') {
+        runDir project.relativePath(new File(smokeRoot, 'game'))
+        programArgs '--username', 'SmokeMiner', '--uuid', 'a9e222a1-57d2-3cdc-89b8-cabb51c08f1b', '--accessToken', '0', '--userType', 'legacy'
+    }
+    sourceSets {
+        smoke {
+            compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+            runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+        }
+    }
+    loom.mods {
+        smoke { sourceSet sourceSets.smoke }
+    }
+    tasks.named('runClient') {
+        dependsOn tasks.named('smokeClasses')
+        classpath += sourceSets.smoke.output
+        environment 'APPDATA', new File(smokeRoot, 'appdata').absolutePath
+        environment 'LOCALAPPDATA', new File(smokeRoot, 'localappdata').absolutePath
+        environment 'USERPROFILE', new File(smokeRoot, 'home').absolutePath
+        jvmArgs '-Duser.home=' + new File(smokeRoot, 'home').absolutePath
+        if (project.hasProperty('leaderboardSmoke')) jvmArgs '-Dmmm.leaderboardSmoke=true'
+        if (project.hasProperty('miningFeaturesSmoke')) jvmArgs '-Dmmm.miningFeaturesSmoke=true'
+    }
+}
+
+apply from: '../../gradle/shared-sources.gradle'

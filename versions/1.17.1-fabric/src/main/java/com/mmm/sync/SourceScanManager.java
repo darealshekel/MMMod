@@ -1,0 +1,346 @@
+package com.mmm.sync;
+
+import com.mmm.storage.WorldSessionContext;
+import com.mmm.compat.ScoreboardCompat;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ServerInfo;
+import net.minecraft.scoreboard.Scoreboard;
+import net.minecraft.scoreboard.ScoreboardObjective;
+
+public final class SourceScanManager
+{
+    private static final int COMPATIBLE_CONFIDENCE_THRESHOLD = 70;
+    private static final int MAX_SAMPLE_LINES = 10;
+
+    private SourceScanManager()
+    {
+    }
+
+    public static SourceScanResult scan(MinecraftClient client)
+    {
+        WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
+        if (client == null || client.player == null || client.world == null)
+        {
+            return empty(world);
+        }
+
+        Scoreboard scoreboard = client.world.getScoreboard();
+        String username = client.player.getGameProfile().getName();
+        String sourceDisplayName = ScoreboardSourceResolver.displayName(
+                world != null ? world.displayName() : "",
+                world
+        );
+
+        boolean manualSelection = SyncScoreboardSelector.hasManualSelection();
+        ScoreboardObjective selectedObjective = manualSelection
+                ? SyncScoreboardSelector.resolveSelectedObjective(client)
+                : null;
+        if (manualSelection && selectedObjective == null)
+        {
+            return empty(world);
+        }
+
+        ScoreboardObjective sidebar = manualSelection
+                ? selectedObjective
+                : scoreboard.getObjectiveForSlot(Scoreboard.SIDEBAR_DISPLAY_SLOT_ID);
+        List<ScoreboardParser.ObjectiveRows> objectiveRows = scoreboard.getObjectives().stream()
+                .filter(objective -> manualSelection
+                        ? objective == selectedObjective
+                        : SyncScoreboardSelector.isEligible(objective))
+                .map(objective -> new ScoreboardParser.ObjectiveRows(objective, ScoreboardCompat.entries(objective)))
+                .toList();
+
+        ScoreboardParser.Candidate sidebarCandidate = ScoreboardParser.parse(
+                username,
+                sourceDisplayName,
+                sidebar,
+                sidebar == null ? java.util.List.of() : ScoreboardCompat.entries(sidebar)
+        );
+
+        ScoreboardParser.Candidate chosen = null;
+        List<ScoreboardParser.Candidate> candidates = objectiveRows.stream()
+                .map(rows -> ScoreboardParser.parse(username, sourceDisplayName, rows.objective(), rows.entries()))
+                .filter(candidate -> candidate != null && candidate.snapshot().isValid())
+                .toList();
+
+        if (manualSelection && sidebarCandidate != null && sidebarCandidate.snapshot().isValid())
+        {
+            chosen = sidebarCandidate;
+        }
+        else if (sidebarCandidate != null && sidebarCandidate.snapshot().isValid() && sidebarCandidate.objectivePriority() >= 70)
+        {
+            chosen = sidebarCandidate;
+        }
+        else
+        {
+            Optional<ScoreboardParser.Candidate> bestTotalCandidate = candidates.stream()
+                    .filter(candidate -> candidate.objectivePriority() >= 70)
+                    .max(Comparator
+                            .comparingInt(ScoreboardParser.Candidate::objectivePriority)
+                            .thenComparingInt(ScoreboardParser.Candidate::confidence));
+
+            chosen = bestTotalCandidate.orElse(null);
+        }
+
+        if (chosen == null && manualSelection == false)
+        {
+            ScoreboardParser.Candidate combinedToolUsage = ScoreboardParser.parseCombinedToolUsage(
+                    username,
+                    sourceDisplayName,
+                    objectiveRows
+            );
+            if (combinedToolUsage != null && combinedToolUsage.snapshot().isValid())
+            {
+                chosen = combinedToolUsage;
+            }
+        }
+
+        if (chosen == null && manualSelection == false)
+        {
+            chosen = candidates.stream()
+                    .max(Comparator.comparingInt(ScoreboardParser.Candidate::confidence))
+                    .orElse(null);
+        }
+
+        PlayerDigsModel playerDigs = resolvePlayerDigs(client, sourceDisplayName);
+        boolean compatible = chosen != null
+                && chosen.snapshot().isValid()
+                && chosen.confidence() >= COMPATIBLE_CONFIDENCE_THRESHOLD;
+
+        String scoreboardTitle = chosen != null
+                ? chosen.snapshot().objectiveTitle()
+                : playerDigs != null ? playerDigs.objectiveTitle() : null;
+
+        long totalDigs = chosen != null ? chosen.snapshot().totalDigs() : 0L;
+        long playerTotalDigs = resolvePlayerTotalDigs(username, chosen, playerDigs);
+
+        List<String> sampleLines = chosen != null
+                ? chosen.lines().stream()
+                        .map(ScoreboardParser.ScoreboardLine::cleaned)
+                        .limit(MAX_SAMPLE_LINES)
+                        .toList()
+                : List.of();
+
+        List<String> detectedFields = detectFields(totalDigs, playerTotalDigs, chosen);
+        String fingerprint = buildFingerprint(world, compatible, chosen, playerTotalDigs, detectedFields);
+        String iconUrl = resolveIconUrl(client);
+
+        return new SourceScanResult(
+                compatible,
+                sourceDisplayName,
+                world != null ? world.kind() : "unknown",
+                world != null ? world.host() : "",
+                scoreboardTitle,
+                sampleLines,
+                detectedFields,
+                chosen == null ? 0 : chosen.confidence(),
+                totalDigs,
+                playerTotalDigs,
+                fingerprint,
+                iconUrl
+        );
+    }
+
+    private static SourceScanResult empty(WorldSessionContext.WorldInfo world)
+    {
+        String sourceDisplayName = ScoreboardSourceResolver.displayName(
+                world != null ? world.displayName() : "",
+                world
+        );
+
+        return new SourceScanResult(
+                false,
+                sourceDisplayName,
+                world != null ? world.kind() : "unknown",
+                world != null ? world.host() : "",
+                null,
+                List.of(),
+                List.of(),
+                0,
+                0L,
+                0L,
+                buildEmptyFingerprint(world),
+                null
+        );
+    }
+
+    private static PlayerDigsModel resolvePlayerDigs(MinecraftClient client, String sourceDisplayName)
+    {
+        if (SyncScoreboardSelector.hasManualSelection())
+        {
+            ScoreboardObjective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
+            long total = SyncScoreboardSelector.readSelectedPlayerTotal(client);
+            if (selected == null || total <= 0L)
+            {
+                return null;
+            }
+            return new PlayerDigsModel(
+                    client.player.getGameProfile().getName(),
+                    total,
+                    System.currentTimeMillis(),
+                    sourceDisplayName,
+                    selected.getDisplayName().getString());
+        }
+
+        PlayerDigsModel parsed = PlayerDigsParser.parse(client);
+        if (parsed != null && parsed.isValid())
+        {
+            return parsed;
+        }
+
+        PersonalTotalDetector.Detection detection = PersonalTotalDetector.detect(client);
+        if (detection.chosenTotal() <= 0L)
+        {
+            return null;
+        }
+
+        String objectiveTitle = switch (detection.chosenSource())
+        {
+            case "sidebar" -> detection.sidebarObjectiveTitle();
+            case "tab" -> detection.tabObjectiveTitle();
+            case "tool-uses" -> detection.toolUsageObjectiveTitle();
+            default -> "";
+        };
+        if (ScoreboardParser.isMiningEvidence(objectiveTitle) == false)
+        {
+            return null;
+        }
+
+        return new PlayerDigsModel(
+                client.player.getGameProfile().getName(),
+                detection.chosenTotal(),
+                System.currentTimeMillis(),
+                sourceDisplayName,
+                objectiveTitle
+        );
+    }
+    private static String resolveIconUrl(MinecraftClient client)
+    {
+        if (client == null)
+        {
+            return null;
+        }
+
+        ServerInfo serverInfo = client.getCurrentServerEntry();
+        if (serverInfo == null)
+        {
+            return null;
+        }
+
+        String favicon = serverInfo.getIcon();
+        if (favicon == null || favicon.isBlank())
+        {
+            return null;
+        }
+
+        return favicon.startsWith("data:") ? favicon : "data:image/png;base64," + favicon;
+    }
+
+    private static long resolvePlayerTotalDigs(String username,
+                                               ScoreboardParser.Candidate candidate,
+                                               PlayerDigsModel playerDigs)
+    {
+        if (playerDigs != null && playerDigs.isValid())
+        {
+            return playerDigs.totalDigs();
+        }
+
+        if (candidate == null || candidate.snapshot() == null)
+        {
+            return 0L;
+        }
+
+        return candidate.snapshot().entries().stream()
+                .filter(entry -> entry.username().equalsIgnoreCase(username))
+                .findFirst()
+                .map(SourceLeaderboardEntry::digs)
+                .orElse(0L);
+    }
+
+    private static List<String> detectFields(long totalDigs,
+                                             long playerTotalDigs,
+                                             ScoreboardParser.Candidate candidate)
+    {
+        LinkedHashSet<String> fields = new LinkedHashSet<>();
+
+        if (candidate != null && candidate.snapshot() != null && candidate.snapshot().entries().isEmpty() == false)
+        {
+            fields.add("leaderboard_entries");
+        }
+
+        if (totalDigs > 0L)
+        {
+            fields.add("total_digs");
+        }
+
+        if (playerTotalDigs > 0L)
+        {
+            fields.add("player_total_digs");
+        }
+
+        if (candidate != null
+                && candidate.snapshot() != null
+                && candidate.snapshot().objectiveTitle() != null
+                && candidate.snapshot().objectiveTitle().isBlank() == false)
+        {
+            fields.add("scoreboard_title");
+        }
+
+        return new ArrayList<>(fields);
+    }
+
+    private static String buildEmptyFingerprint(WorldSessionContext.WorldInfo world)
+    {
+        return ScoreboardSourceResolver.sourceKey(
+                world != null ? world.displayName() : "",
+                world
+        ) + "|empty";
+    }
+
+    private static String buildFingerprint(WorldSessionContext.WorldInfo world,
+                                           boolean compatible,
+                                           ScoreboardParser.Candidate candidate,
+                                           long playerTotalDigs,
+                                           List<String> detectedFields)
+    {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append(ScoreboardSourceResolver.sourceKey(
+                        world != null ? world.displayName() : "",
+                        world))
+                .append('|')
+                .append(world != null && world.kind() != null ? world.kind() : "unknown")
+                .append('|')
+                .append(world != null && world.host() != null ? world.host().toLowerCase(Locale.ROOT) : "")
+                .append('|')
+                .append(compatible)
+                .append('|')
+                .append(candidate == null ? "" : candidate.snapshot().objectiveTitle())
+                .append('|')
+                .append(candidate == null ? 0L : candidate.snapshot().totalDigs())
+                .append('|')
+                .append(playerTotalDigs)
+                .append('|')
+                .append(String.join(",", detectedFields));
+
+        if (candidate != null && candidate.snapshot() != null)
+        {
+            candidate.snapshot().entries().stream()
+                    .sorted(Comparator.comparingInt(SourceLeaderboardEntry::rank))
+                    .forEach(entry -> builder.append('|')
+                            .append(entry.username().toLowerCase(Locale.ROOT))
+                            .append(':')
+                            .append(entry.digs())
+                            .append(':')
+                            .append(entry.rank()));
+        }
+
+        return builder.toString();
+    }
+}

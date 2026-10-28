@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "package": "com.mmm.legacy.social.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "mmm.refmap.json",
+  "client": [
+    "SocialChatScreenMixin",
+    "SocialChatSendMixin",
+    "SocialChatTagMixin",
+    "SocialPlayerNameMixin",
+    "SocialPlayerTabMixin",
+    "SocialSidebarNameMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,6 @@
+def release = new Properties()
+file('../../release.properties').withInputStream { release.load(it) }
+def modRelease = release.getProperty('mod_version')
+if (!(modRelease ==~ /\d+(\.\d+){2,}/)) throw new GradleException('Invalid shared release version')
+def minecraft = project.findProperty('minecraft_version') ?: '1.12.2'
+version = "${modRelease}+${minecraft}" + (projectDir.name.endsWith('-liteloader') ? '-liteloader' : '')

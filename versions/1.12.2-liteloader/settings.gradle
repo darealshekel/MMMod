@@ -1,0 +1,8 @@
+pluginManagement {
+    repositories {
+        maven { url = 'https://maven.wagyourtail.xyz/releases' }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+rootProject.name = 'MMMod-LiteLoader'

@@ -1,0 +1,106 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version '1.17.2'
+    id 'maven-publish'
+}
+
+apply from: '../../gradle/release-version.gradle'
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    maven { url = 'https://api.modrinth.com/maven' }
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    include "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    compileOnly "maven.modrinth:modmenu:${project.modmenu_version}"
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+processResources {
+    inputs.property "version", project.version
+    inputs.property "minecraft_dependency", project.findProperty("minecraft_dependency") ?: project.minecraft_version
+
+    filesMatching("fabric.mod.json") {
+        expand(
+                "version": project.version,
+                "minecraft_dependency": project.findProperty("minecraft_dependency") ?: project.minecraft_version
+        )
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 25
+    it.options.encoding = "UTF-8"
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+// Test code and isolated test data are excluded from the release jar.
+tasks.named('runClient') {
+    // Match the 26.3 launcher requirement for native calls on Windows.
+    if (System.getProperty('os.name').startsWith('Windows')) jvmArgs '-XX:StackShadowPages=32'
+}
+
+if (project.hasProperty('smokeTest')) {
+    sourceSets {
+        smoke {
+            compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+            runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+        }
+    }
+    loom.mods {
+        smoke { sourceSet sourceSets.smoke }
+    }
+    tasks.named('runClient') {
+        dependsOn tasks.named('smokeClasses')
+        classpath += sourceSets.smoke.output
+        if (!project.hasProperty('verificationRunId')) {
+            environment 'APPDATA', file('build/smoke-appdata').absolutePath
+            jvmArgs '-Duser.home=' + file('build/smoke-home').absolutePath
+        }
+        if (project.hasProperty('baselineTest')) {
+            jvmArgs '-Dfabric.debug.disableModIds=mmm', '-Dmmm.smoke.baseline=true'
+        }
+    }
+}
+
+apply from: '../../gradle/shared-sources.gradle'
+
+if (project.hasProperty('verificationRunId')) {
+    def runId = project.property('verificationRunId').toString()
+    if (!(runId ==~ /[A-Za-z0-9-]+/)) throw new GradleException('Invalid verification run ID')
+    def isolatedRoot = file("build/verification-runs/${runId}")
+    loom.runs.named('client') {
+        runDir "build/verification-runs/${runId}/game"
+        programArgs '--username', 'MMMVerify', '--uuid', '00000000-0000-3000-8000-000000000022', '--accessToken', '0'
+    }
+    tasks.named('runClient') {
+        environment 'APPDATA', new File(isolatedRoot, 'appdata').absolutePath
+        environment 'LOCALAPPDATA', new File(isolatedRoot, 'localappdata').absolutePath
+        systemProperty 'user.home', new File(isolatedRoot, 'home').absolutePath
+        systemProperty 'mmm.verificationRunId', runId
+        minHeapSize = '256m'
+        maxHeapSize = '1536m'
+        jvmArgs '-XX:ActiveProcessorCount=2'
+    }
+}

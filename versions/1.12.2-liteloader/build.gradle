@@ -1,0 +1,287 @@
+plugins {
+    id 'java'
+    id 'xyz.wagyourtail.unimined' version '1.4.1'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'xyz.wagyourtail.jvmdowngrader' version '2.0.1'
+}
+
+group = 'com.mmm'
+apply from: '../../gradle/release-version.gradle'
+base { archivesName = 'mmm' }
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.spongepowered.org/maven' }
+}
+
+configurations {
+    bundled
+    implementation.extendsFrom bundled
+}
+
+unimined.minecraft {
+    version '1.12.2'
+    side 'client'
+    mappings {
+        ornitheGenVersion = 2
+        calamus()
+        feather(2)
+        // LiteLoader exposes setupCamera itself; Feather's vanilla name would
+        // collide with that wrapper while remapping the loader for development.
+        stubs(['official', 'feather']) {
+            c(['buq', 'net/minecraft/client/render/GameRenderer']) {
+                m(['a;(FI)V', 'setupCameraTransform'])
+            }
+        }
+    }
+    liteloader()
+}
+
+// Compile legacy adapters and portable MMM features, excluding modern game APIs.
+sourceSets {
+    main {
+        java.include 'com/mmm/legacy/**', 'com/mmm/liteloader/**', 'com/mmm/config/**', 'com/mmm/storage/**'
+        java.include 'com/mmm/sync/**', 'com/mmm/tracker/**', 'com/mmm/hotkey/**', 'com/mmm/util/**'
+        java.include 'com/mmm/Reference.java', 'com/mmm/hud/MiningHudRenderer.java', 'com/mmm/timer/MmmTimerState.java'
+        java.include 'com/mmm/hud/HudModuleId.java', 'com/mmm/hud/SpeedGraphRenderer.java', 'com/mmm/timer/TimerHudRenderer.java'
+        java.include 'com/mmm/timer/MmmBlockBreakDetector.java', 'com/mmm/timer/ConfirmedBreaks.java'
+        java.include 'com/mmm/feature/PerimeterWallDigHelper.java', 'com/mmm/feature/FlatDigger.java'
+        java.include 'com/mmm/feature/**', 'com/mmm/scoreboard/**', 'com/mmm/social/**', 'com/mmm/tags/**'
+        java.include 'com/mmm/advancement/**', 'com/mmm/sound/**', 'com/mmm/update/**', 'com/mmm/leaderboard/**'
+        java.include 'com/mmm/mixin/KeyboardMixin.java', 'com/mmm/mixin/ClientPlayerInteractionManagerAccessor.java'
+        resources.exclude 'fabric.mod.json', 'mmm.mixins.json', 'META-INF/**'
+    }
+    test {
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+        java.include 'com/mmm/liteloader/**', 'com/mmm/config/**', 'com/mmm/storage/**'
+        java.include 'com/mmm/sync/**', 'com/mmm/tracker/**', 'com/mmm/util/**', 'com/mmm/legacy/**'
+        java.include 'com/mmm/hotkey/**', 'com/mmm/timer/**', 'com/mmm/feature/**', 'com/mmm/scoreboard/**'
+        java.include 'com/mmm/social/**', 'com/mmm/tags/**', 'com/mmm/advancement/**', 'com/mmm/leaderboard/**'
+        java.include 'com/mmm/sound/**', 'com/mmm/update/**'
+    }
+}
+
+if (project.hasProperty('runtimeProbe')) {
+    sourceSets.main.java.srcDir 'src/smoke/java'
+}
+
+dependencies {
+    bundled 'com.google.code.gson:gson:2.10.1'
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.ow2.asm:asm-tree:9.8'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+shadowJar {
+    from('LICENSE')
+    from('THIRD-PARTY.md')
+    configurations = [project.configurations.bundled]
+    relocate 'com.google.gson', 'com.mmm.liteloader.internal.gson'
+    exclude 'META-INF/versions/**', 'module-info.class'
+    archiveClassifier = 'dev-bundled'
+}
+
+// Conversion includes Java API implementations, not only a class-version change.
+jvmdg.downgradeTo = JavaVersion.VERSION_1_8
+tasks.named('remapJar') {
+    dependsOn tasks.named('shadeDowngradedApi')
+    inputFile = tasks.named('shadeDowngradedApi').flatMap { it.archiveFile }
+    archiveClassifier = 'development'
+}
+
+// LiteLoader switches Mixin to the "searge" obfuscation context when Forge is installed. With only official
+// names in the refmap every injector misses its Forge-named target and the game exits at startup, so the
+// refmap also carries SRG names (data.notch / data.searge, the layout Mixin reads per context).
+repositories {
+    maven {
+        url = 'https://maven.minecraftforge.net/'
+        content { includeGroup 'de.oceanlabs.mcp' }
+        metadataSources { artifact() }
+    }
+}
+configurations { seargeMappings }
+dependencies { seargeMappings 'de.oceanlabs.mcp:mcp:1.12.2:srg@zip' }
+
+def officialClientSha1 = '0f275bc1547d01fa5f56ba34bdc87d981ee12daf'
+def officialClient = layout.buildDirectory.file('searge-refmap/client-1.12.2.jar')
+tasks.register('downloadOfficialClient') {
+    outputs.file officialClient
+    doLast {
+        def file = officialClient.get().asFile
+        file.parentFile.mkdirs()
+        new URL("https://piston-data.mojang.com/v1/objects/$officialClientSha1/client.jar").withInputStream { file.bytes = it.bytes }
+        def sha1 = java.security.MessageDigest.getInstance('SHA-1').digest(file.bytes).encodeHex().toString()
+        if (sha1 != officialClientSha1) throw new GradleException("Unexpected Minecraft 1.12.2 client jar: $sha1")
+    }
+}
+
+tasks.named('remapJar') {
+    dependsOn tasks.named('downloadOfficialClient')
+    inputs.files(configurations.seargeMappings)
+    doLast { addSeargeRefmap(archiveFile.get().asFile, configurations.seargeMappings.singleFile, officialClient.get().asFile) }
+}
+
+def addSeargeRefmap(File jar, File srgZip, File client) {
+    def classes = [:], fields = [:], methods = [:]
+    new java.util.zip.ZipFile(srgZip).withCloseable { zip ->
+        zip.getInputStream(zip.getEntry('joined.srg')).eachLine('UTF-8') { line ->
+            def p = line.split(' ')
+            if (p[0] == 'CL:') classes[p[1]] = p[2]
+            else if (p[0] == 'FD:') fields[p[1]] = p[2].substring(p[2].lastIndexOf('/') + 1)
+            else if (p[0] == 'MD:') methods[p[1] + p[2]] = p[3].substring(p[3].lastIndexOf('/') + 1)
+        }
+    }
+    def clientZip = new java.util.zip.ZipFile(client)
+    def modZip = new java.util.zip.ZipFile(jar)
+    def readClass = { java.util.zip.ZipFile zip, String name, Closure use ->
+        def entry = zip.getEntry(name + '.class')
+        entry == null ? null : zip.getInputStream(entry).withCloseable { use(new org.objectweb.asm.ClassReader(it)) }
+    }
+    def mapClass = { String name -> classes[name] ?: name }
+    def mapDesc = { String desc -> desc.replaceAll(/L([^;]+);/) { all, name -> "L${mapClass(name)};" } }
+    // Inherited members are listed under the class that declares them, so walk up the official hierarchy.
+    def mapMember = { String owner, String name, String desc ->
+        for (def type = owner; type != null; type = readClass(clientZip, type) { it.superName }) {
+            def found = desc.startsWith('(') ? methods["$type/$name$desc"] : fields["$type/$name"]
+            if (found) return found
+        }
+        null
+    }
+    def targetsOf = { String mixin ->
+        def targets = []
+        readClass(modZip, mixin) { reader ->
+            reader.accept(new org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM9) {
+                org.objectweb.asm.AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+                    if (desc != 'Lorg/spongepowered/asm/mixin/Mixin;') return null
+                    new org.objectweb.asm.AnnotationVisitor(org.objectweb.asm.Opcodes.ASM9) {
+                        org.objectweb.asm.AnnotationVisitor visitArray(String name) {
+                            new org.objectweb.asm.AnnotationVisitor(org.objectweb.asm.Opcodes.ASM9) {
+                                void visit(String n, Object value) {
+                                    targets << (value instanceof org.objectweb.asm.Type ? value.internalName : value.replace('.', '/'))
+                                }
+                            }
+                        }
+                    }
+                }
+            }, org.objectweb.asm.ClassReader.SKIP_CODE)
+        }
+        targets
+    }
+    def convert = { String ref, List<String> targets ->
+        def m = ref =~ /^(?:L([^;]+);)?([^(:]+)([(:].*)$/
+        if (!m.matches()) return mapClass(ref)
+        String owner = m.group(1), name = m.group(2), desc = m.group(3)
+        def prefix = owner != null ? "L${mapClass(owner)};" : ''
+        def owners = owner != null ? [owner] : targets
+        if (!owners.any { classes.containsKey(it) }) return prefix + name + mapDesc(desc)
+        def names = owners.collect { mapMember(it, name, desc.startsWith(':') ? desc.substring(1) : desc) }.unique()
+        if (names.size() != 1 || names[0] == null) throw new GradleException("No SRG name for $ref (owners $owners)")
+        prefix + names[0] + mapDesc(desc)
+    }
+    def refmap
+    try {
+        refmap = new groovy.json.JsonSlurper().parse(modZip.getInputStream(modZip.getEntry('mmm.refmap.json')))
+        def searge = refmap.mappings.collectEntries { mixin, refs ->
+            def targets = targetsOf(mixin)
+            [(mixin): refs.collectEntries { key, ref -> [(key): convert(ref, targets)] }]
+        }
+        refmap.data = [notch: refmap.mappings, searge: searge]
+    } finally {
+        modZip.close()
+        clientZip.close()
+    }
+    java.nio.file.FileSystems.newFileSystem(jar.toPath(), (ClassLoader) null).withCloseable { fs ->
+        java.nio.file.Files.write(fs.getPath('mmm.refmap.json'),
+                groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(refmap)).getBytes('UTF-8'))
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+processResources {
+    inputs.property 'version', project.version
+    filesMatching(['litemod.json', 'mmm-build.properties']) { expand(version: project.version) }
+}
+jar { from('LICENSE') }
+
+tasks.register('verifyDevelopmentArtifact') {
+    dependsOn tasks.named('remapJar')
+    doLast {
+        def artifact = tasks.named('remapJar').get().archiveFile.get().asFile
+        new java.util.zip.ZipFile(artifact).withCloseable { zip ->
+            def metadata = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('litemod.json')))
+            assert metadata.mcversion == '1.12.2'
+            assert metadata.version == project.version.toString()
+            assert zip.getEntry('fabric.mod.json') == null
+            assert zip.getEntry('com/mmm/liteloader/LiteModMMM.class') != null
+            assert zip.getEntry('mmm.refmap.json') != null
+            def refmap = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('mmm.refmap.json')))
+            assert refmap.data.notch == refmap.mappings
+            assert refmap.data.searge.keySet() == refmap.mappings.keySet()
+            assert refmap.data.searge['com/mmm/legacy/social/mixin/SocialChatSendMixin'].values() as List ==
+                    ['Lnet/minecraft/client/gui/GuiScreen;func_175281_b(Ljava/lang/String;Z)V']
+            assert zip.getEntry('LICENSE') != null
+            assert zip.getEntry('THIRD-PARTY.md') != null
+            assert zip.getEntry('licenses/Gson-Apache-2.0.txt') != null
+            assert zip.getEntry('licenses/JvmDowngrader-LGPL-2.1.txt') != null
+            if (!project.hasProperty('runtimeProbe')) {
+                assert zip.getEntry('com/mmm/liteloader/smoke/LiteModMMMRuntimeProbe.class') == null
+            }
+            def classes = zip.entries().findAll { it.name.endsWith('.class') }
+            classes.each { entry ->
+                assert !entry.name.startsWith('net/minecraft/')
+                assert !entry.name.startsWith('com/mumfrey/')
+                assert !entry.name.startsWith('com/google/gson/')
+                zip.getInputStream(entry).withCloseable { input ->
+                    def header = new DataInputStream(input)
+                    assert header.readInt() == (int) 0xCAFEBABE
+                    header.readUnsignedShort()
+                    assert header.readUnsignedShort() <= 52 : "Not Java 8: ${entry.name}"
+                }
+            }
+            metadata.mixinConfigs.each { name ->
+                def mixin = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry(name)))
+                def prefix = mixin.package.replace('.', '/') + '/'
+                def declared = mixin.client.collect { prefix + it.replace('.', '/') + '.class' }
+                declared.each { assert zip.getEntry(it) != null }
+                classes.findAll { it.name.startsWith(prefix) }.each { assert declared.contains(it.name) }
+                assert !'com.mmm.liteloader.LiteModMMM'.startsWith(mixin.package + '.')
+            }
+            logger.lifecycle("Checked ${classes.size()} Java 8 classes and loader metadata. This is not a feature-parity or in-game verification.")
+        }
+    }
+}
+
+tasks.register('compileJava8Probe', JavaCompile) {
+    source = fileTree('src/compatibility/java') { include '**/*.java' }
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('java8-probe')
+    options.release = 8
+}
+
+tasks.named('check') { dependsOn tasks.named('verifyDevelopmentArtifact') }
+test {
+    useJUnitPlatform()
+    environment 'APPDATA', file('build/test-appdata').absolutePath
+    systemProperty 'user.home', file('build/test-home').absolutePath
+    systemProperty 'junit.jupiter.extensions.autodetection.enabled', 'true'
+    systemProperty 'mmm.testGameDirectory', file('build/test-game').absolutePath
+}
+
+tasks.register('releaseLiteMod') { dependsOn tasks.named('testingLiteMod') }
+
+tasks.register('testingLiteMod', Copy) {
+    dependsOn tasks.named('check')
+    from tasks.named('remapJar').flatMap { it.archiveFile }
+    into layout.buildDirectory.dir('libs')
+    rename { "mmm-${project.version}.litemod" }
+    doFirst {
+        if (project.hasProperty('runtimeProbe')) throw new GradleException('Build the test download without -PruntimeProbe.')
+    }
+}
+
+apply from: '../../gradle/shared-sources.gradle'

@@ -1,0 +1,504 @@
+package com.mmm.ui;
+
+import java.util.List;
+
+import com.mmm.config.Configs;
+import com.mmm.sync.WebsiteLinkManager;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.util.Util;
+
+public class WebsiteLinkScreen extends CompatScreen
+{
+    private static final String WEBSITE_LOGIN_URL = "https://www.mmmaniacs.com/login";
+    private static final int PANEL_MARGIN = 20;
+    private static final int PANEL_PADDING = 20;
+    private static final int CARD_PADDING = 14;
+    private static final int CARD_GAP = 12;
+    private static final int BUTTON_HEIGHT = 20;
+    private static final int BUTTON_ROW_GAP = 10;
+    private static final int HEADER_TEXT_WIDTH = 460;
+    private static final int INPUT_HEIGHT = 24;
+    private static final int FIELD_PAD_X = 5;
+    private static final int FIELD_PAD_Y = 8;
+    private static final int COLOR_PANEL = MmmUi.PANEL;
+    private static final int COLOR_CARD = MmmUi.CARD;
+    private static final int COLOR_CARD_SOFT = MmmUi.CARD_SOFT;
+    private static final int COLOR_INSET = MmmUi.INSET;
+    private static final int COLOR_BORDER = MmmUi.BORDER;
+    private static final int COLOR_BORDER_SOFT = MmmUi.BORDER_SOFT;
+    private static final int COLOR_VALUE = MmmUi.TEXT;
+    private static final int COLOR_LABEL = MmmUi.LABEL;
+    private static final int COLOR_MUTED = MmmUi.MUTED;
+    private static final int COLOR_SUCCESS = MmmUi.SUCCESS;
+    private static final int COLOR_WARNING = MmmUi.WARNING;
+    private static final int COLOR_ERROR = MmmUi.ERROR;
+
+    private final Screen parent;
+    private EditBox codeField;
+    private Button openButton;
+    private Button submitButton;
+    private Button clearButton;
+    private Button doneButton;
+
+    public WebsiteLinkScreen(Screen parent)
+    {
+        super(Component.literal("Website Link"));
+        this.parent = parent;
+    }
+
+    @Override
+    protected void init()
+    {
+        ensureCursorVisible();
+        this.clearWidgets();
+
+        Layout layout = computeLayout();
+        int contentInnerWidth = layout.linkWidth - CARD_PADDING * 2;
+        int buttonWidth = (contentInnerWidth - CARD_GAP) / 2;
+
+        this.codeField = new EditBox(this.font, getCodeFieldX(layout) + FIELD_PAD_X, layout.linkY + 78 + FIELD_PAD_Y, getCodeFieldWidth(layout) - FIELD_PAD_X * 2, INPUT_HEIGHT, Component.empty());
+        this.codeField.setMaxLength(12);
+        this.codeField.setBordered(false);
+
+        this.codeField.setTextColor(COLOR_VALUE);
+        this.codeField.setTextColorUneditable(COLOR_MUTED);
+        this.codeField.setResponder(text -> {
+            String sanitized = text == null ? "" : text.toUpperCase().replaceAll("[^A-Z0-9]", "");
+            if (!sanitized.equals(text))
+            {
+                this.codeField.setValue(sanitized);
+                return;
+            }
+            refreshState();
+        });
+        this.codeField.setHint(Component.literal("ENTER WEBSITE CODE"));
+        this.addRenderableWidget(this.codeField);
+
+        this.openButton = this.addRenderableWidget(Button.builder(Component.literal("Open Website"), button -> Util.getPlatform().openUri(WEBSITE_LOGIN_URL))
+                .bounds(layout.linkX + CARD_PADDING, layout.linkY + 108, buttonWidth, BUTTON_HEIGHT)
+                .build());
+        this.submitButton = this.addRenderableWidget(Button.builder(Component.literal("Link Account"), button -> submitCode())
+                .bounds(layout.linkX + CARD_PADDING + buttonWidth + CARD_GAP, layout.linkY + 108, buttonWidth, BUTTON_HEIGHT)
+                .build());
+        this.clearButton = this.addRenderableWidget(Button.builder(Component.literal("Clear Link"), button -> clearPersistedLink())
+                .bounds(layout.statusButtonX, layout.statusPrimaryButtonY, layout.statusButtonWidth, BUTTON_HEIGHT)
+                .build());
+        this.doneButton = this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose())
+                .bounds(layout.statusButtonX, layout.statusSecondaryButtonY, layout.statusButtonWidth, BUTTON_HEIGHT)
+                .build());
+
+        refreshState();
+        this.setInitialFocus(this.codeField);
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
+    {
+        ensureCursorVisible();
+        Layout layout = computeLayout();
+        updateWidgetBounds(layout);
+
+        MmmUi.backdrop(context, this.width, this.height);
+        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "WEBSITE_LINK");
+        fillCard(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, COLOR_PANEL, COLOR_BORDER);
+
+        drawHeader(context, layout);
+        drawStepsCard(context, layout);
+        drawLinkCard(context, layout);
+        drawStatusCard(context, layout);
+        drawCodeFieldShell(context);
+
+        super.extractRenderState(context, mouseX, mouseY, delta);
+
+        if (this.codeField != null && this.codeField.getValue().isBlank() && this.codeField.isFocused() == false)
+        {
+            String placeholder = MmmUi.truncate(this.font, "ENTER WEBSITE CODE", this.codeField.getWidth() - 10);
+            context.text(this.font, Component.literal(placeholder), this.codeField.getX(), this.codeField.getY(), COLOR_MUTED, false);
+        }
+        MmmUi.drawMmmTopBar(context, this.font, this.width);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button)
+    {
+        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "WEBSITE_LINK"))
+        {
+            return true;
+        }
+
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public void onClose()
+    {
+        Minecraft.getInstance().gui.setScreen(this.parent);
+    }
+
+    @Override
+    public boolean isPauseScreen()
+    {
+        return MmmUi.shouldPauseGame();
+    }
+
+    @Override
+    public void extractBackground(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
+    {
+    }
+
+    private void drawHeader(GuiGraphicsExtractor context, Layout layout)
+    {
+        MmmUi.drawTextWithin(context, this.font, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
+        if (!layout.compact)
+        {
+            drawPill(context, layout.contentX, layout.headerY + 18, 126, 16, "Account Sync");
+            drawWrappedText(
+                    context,
+                    "Open the MMM website, generate a temporary code, then confirm the link here.",
+                    layout.contentX + 2,
+                    layout.headerY + 38,
+                    Math.min(HEADER_TEXT_WIDTH, layout.contentWidth - 4),
+                    COLOR_LABEL);
+        }
+    }
+
+    private void drawStepsCard(GuiGraphicsExtractor context, Layout layout)
+    {
+        if (layout.stepsHeight <= 0)
+        {
+            return;
+        }
+        fillCard(context, layout.stepsX, layout.stepsY, layout.stepsWidth, layout.stepsHeight, COLOR_CARD, COLOR_BORDER);
+        MmmUi.drawTextWithin(context, this.font, "How It Works", layout.stepsX + CARD_PADDING, layout.stepsY + 10, layout.stepsWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.font, "Three direct actions. No filler controls.", layout.stepsX + CARD_PADDING, layout.stepsY + 23, layout.stepsWidth - CARD_PADDING * 2, COLOR_MUTED, false);
+
+        int rowY = layout.stepsY + 46;
+        int rowWidth = layout.stepsWidth - CARD_PADDING * 2;
+        if (layout.stepsWidth < 240)
+        {
+            drawCompactStep(context, layout.stepsX + CARD_PADDING, rowY, rowWidth, "1", "Open website");
+            drawCompactStep(context, layout.stepsX + CARD_PADDING, rowY + 22, rowWidth, "2", "Generate code");
+            drawCompactStep(context, layout.stepsX + CARD_PADDING, rowY + 44, rowWidth, "3", "Paste and link");
+        }
+        else
+        {
+            int miniGap = 12;
+            int cardWidth = (rowWidth - miniGap * 2) / 3;
+            drawMiniStep(context, layout.stepsX + CARD_PADDING, rowY, cardWidth, "1", "Open website", "Go to the login page in your browser.");
+            drawMiniStep(context, layout.stepsX + CARD_PADDING + cardWidth + miniGap, rowY, cardWidth, "2", "Generate code", "Create a temporary mod link code there.");
+            drawMiniStep(context, layout.stepsX + CARD_PADDING + (cardWidth + miniGap) * 2, rowY, cardWidth, "3", "Paste and link", "Enter the code below and confirm.");
+        }
+    }
+
+    private void drawLinkCard(GuiGraphicsExtractor context, Layout layout)
+    {
+        fillCard(context, layout.linkX, layout.linkY, layout.linkWidth, layout.linkHeight, COLOR_CARD_SOFT, COLOR_BORDER);
+        MmmUi.drawTextWithin(context, this.font, "Link Code", layout.linkX + CARD_PADDING, layout.linkY + 10, layout.linkWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        MmmUi.drawTextWithin(context, this.font, "Paste the code from the site and finish the account link from here.", layout.linkX + CARD_PADDING, layout.linkY + 23, layout.linkWidth - CARD_PADDING * 2, COLOR_MUTED, false);
+        context.text(this.font, Component.literal("Website"), layout.linkX + CARD_PADDING, layout.linkY + 46, COLOR_LABEL, false);
+        MmmUi.drawTextWithin(context, this.font, WEBSITE_LOGIN_URL, layout.linkX + CARD_PADDING + 52, layout.linkY + 46, layout.linkWidth - CARD_PADDING * 2 - 52, MmmUi.accent(), false);
+        context.text(this.font, Component.literal("Website Code"), layout.linkX + CARD_PADDING, layout.linkY + 64, COLOR_LABEL, false);
+    }
+
+    private void drawStatusCard(GuiGraphicsExtractor context, Layout layout)
+    {
+        WebsiteLinkManager.LinkState state = WebsiteLinkManager.getState();
+        String persistedUser = WebsiteLinkManager.getPersistedUsername();
+        boolean linked = WebsiteLinkManager.hasPersistedLink();
+        String statusLine = linked
+                ? "Linked as " + (persistedUser.isBlank() ? "this Minecraft account" : persistedUser)
+                : "No website link saved yet.";
+        int statusColor = linked ? COLOR_SUCCESS : COLOR_LABEL;
+        String stateLabel = switch (state.status())
+        {
+            case SUCCESS -> "Ready";
+            case ERROR -> "Error";
+            case QUEUED -> "Queued";
+            case SUBMITTING -> "Submitting";
+            default -> linked ? "Linked" : "Idle";
+        };
+        int stateColor = switch (state.status())
+        {
+            case SUCCESS -> COLOR_SUCCESS;
+            case ERROR -> COLOR_ERROR;
+            case QUEUED -> COLOR_WARNING;
+            case SUBMITTING -> COLOR_LABEL;
+            default -> linked ? COLOR_SUCCESS : COLOR_MUTED;
+        };
+
+        fillCard(context, layout.statusX, layout.statusY, layout.statusWidth, layout.statusHeight, COLOR_CARD_SOFT, COLOR_BORDER);
+        MmmUi.drawTextWithin(context, this.font, "Saved Link", layout.statusX + CARD_PADDING, layout.statusY + 10, layout.statusWidth - CARD_PADDING * 2, COLOR_VALUE, false);
+        drawStatusChip(context, layout.statusX + CARD_PADDING, layout.statusY + 28, stateLabel, stateColor);
+
+        int summaryY = layout.statusY + 52;
+        int summaryHeight = layout.compact ? 40 : 60;
+        fillCard(context, layout.statusX + CARD_PADDING, summaryY, layout.statusWidth - CARD_PADDING * 2, summaryHeight, COLOR_INSET, COLOR_BORDER_SOFT);
+        if (layout.compact)
+        {
+            MmmUi.drawTextWithin(context, this.font, statusLine, layout.statusX + CARD_PADDING + 8, summaryY + 10, layout.statusWidth - CARD_PADDING * 2 - 16, statusColor, false);
+        }
+        else
+        {
+            drawWrappedText(context, statusLine, layout.statusX + CARD_PADDING + 10, summaryY + 10, layout.statusWidth - CARD_PADDING * 2 - 20, statusColor);
+            drawWrappedText(
+                    context,
+                    linked ? "Stored locally and ready for sync." : "Nothing is stored locally on this client yet.",
+                    layout.statusX + CARD_PADDING + 10,
+                    summaryY + 30,
+                    layout.statusWidth - CARD_PADDING * 2 - 20,
+                    COLOR_MUTED);
+        }
+
+        if (!layout.compact && state.detail().isBlank() == false)
+        {
+            int detailColor = switch (state.status())
+            {
+                case SUCCESS -> COLOR_SUCCESS;
+                case ERROR -> COLOR_ERROR;
+                case QUEUED -> COLOR_WARNING;
+                case SUBMITTING -> COLOR_LABEL;
+                default -> COLOR_MUTED;
+            };
+            fillCard(context, layout.statusX + CARD_PADDING, summaryY + 72, layout.statusWidth - CARD_PADDING * 2, 54, COLOR_INSET, COLOR_BORDER_SOFT);
+            MmmUi.drawTextWithin(context, this.font, "Latest Status", layout.statusX + CARD_PADDING + 10, summaryY + 80, layout.statusWidth - CARD_PADDING * 2 - 20, COLOR_LABEL, false);
+            drawWrappedText(context, state.detail(), layout.statusX + CARD_PADDING + 10, summaryY + 92, layout.statusWidth - CARD_PADDING * 2 - 20, detailColor);
+        }
+    }
+
+    private void drawMiniStep(GuiGraphicsExtractor context, int x, int y, int width, String number, String title, String description)
+    {
+        fillCard(context, x, y, width, 64, COLOR_INSET, COLOR_BORDER_SOFT);
+        context.text(this.font, Component.literal(number), x + 10, y + 10, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, title, x + 24, y + 10, width - 34, COLOR_VALUE, false);
+        drawWrappedText(context, description, x + 10, y + 27, width - 20, COLOR_MUTED);
+    }
+
+    private void drawCompactStep(GuiGraphicsExtractor context, int x, int y, int width, String number, String title)
+    {
+        fillCard(context, x, y, width, 18, COLOR_INSET, COLOR_BORDER_SOFT);
+        context.text(this.font, Component.literal(number), x + 7, y + 5, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, title, x + 20, y + 5, width - 27, COLOR_VALUE, false);
+    }
+
+    private void drawCodeFieldShell(GuiGraphicsExtractor context)
+    {
+        if (this.codeField == null)
+        {
+            return;
+        }
+
+        int x = this.codeField.getX() - FIELD_PAD_X;
+        int y = this.codeField.getY() - FIELD_PAD_Y;
+        int width = this.codeField.getWidth() + FIELD_PAD_X * 2;
+        int height = INPUT_HEIGHT;
+        fillCard(context, x, y, width, height, COLOR_INSET, this.codeField.isFocused() ? MmmUi.accent() : COLOR_BORDER_SOFT);
+    }
+
+    private void drawWrappedText(GuiGraphicsExtractor context, String text, int x, int y, int maxWidth, int color)
+    {
+        List<FormattedCharSequence> lines = this.font.split(Component.literal(text).setStyle(Style.EMPTY), maxWidth);
+        int lineY = y;
+        for (FormattedCharSequence line : lines)
+        {
+            context.text(this.font, line, x, lineY, color, false);
+            lineY += 10;
+        }
+    }
+
+    private void drawPill(GuiGraphicsExtractor context, int x, int y, int width, int height, String text)
+    {
+        fillCard(context, x, y, width, height, COLOR_CARD, MmmUi.accent());
+        String clipped = MmmUi.truncate(this.font, text, width - 8);
+        context.text(this.font, Component.literal(clipped), x + Math.max(4, (width - this.font.width(clipped)) / 2), y + 4, MmmUi.accent(), false);
+    }
+
+    private void drawStatusChip(GuiGraphicsExtractor context, int x, int y, String text, int borderColor)
+    {
+        int width = this.font.width(text) + 16;
+        fillCard(context, x, y, width, 16, COLOR_INSET, borderColor);
+        MmmUi.drawTextWithin(context, this.font, text, x + 8, y + 4, width - 16, COLOR_VALUE, false);
+    }
+
+    private void fillCard(GuiGraphicsExtractor context, int x, int y, int width, int height, int fillColor, int borderColor)
+    {
+        MmmUi.card(context, x, y, width, height, fillColor, borderColor);
+    }
+
+    private void updateWidgetBounds(Layout layout)
+    {
+        int contentInnerWidth = layout.linkWidth - CARD_PADDING * 2;
+        int buttonWidth = (contentInnerWidth - CARD_GAP) / 2;
+
+        if (this.codeField != null)
+        {
+            this.codeField.setX(getCodeFieldX(layout) + FIELD_PAD_X);
+            this.codeField.setY(layout.linkY + 78 + FIELD_PAD_Y);
+            this.codeField.setWidth(getCodeFieldWidth(layout) - FIELD_PAD_X * 2);
+        }
+        if (this.openButton != null)
+        {
+            this.openButton.setX(layout.linkX + CARD_PADDING);
+            this.openButton.setY(layout.linkY + 108);
+            this.openButton.setWidth(buttonWidth);
+        }
+        if (this.submitButton != null)
+        {
+            this.submitButton.setX(layout.linkX + CARD_PADDING + buttonWidth + CARD_GAP);
+            this.submitButton.setY(layout.linkY + 108);
+            this.submitButton.setWidth(buttonWidth);
+        }
+        if (this.clearButton != null)
+        {
+            this.clearButton.setX(layout.statusButtonX);
+            this.clearButton.setY(layout.statusPrimaryButtonY);
+            this.clearButton.setWidth(layout.statusButtonWidth);
+        }
+        if (this.doneButton != null)
+        {
+            this.doneButton.setX(layout.statusButtonX);
+            this.doneButton.setY(layout.statusSecondaryButtonY);
+            this.doneButton.setWidth(layout.statusButtonWidth);
+        }
+    }
+
+    private int getCodeFieldWidth(Layout layout)
+    {
+        return Math.min(240, layout.linkWidth - CARD_PADDING * 2);
+    }
+
+    private int getCodeFieldX(Layout layout)
+    {
+        return layout.linkX + (layout.linkWidth - getCodeFieldWidth(layout)) / 2;
+    }
+
+    private void ensureCursorVisible()
+    {
+        Minecraft client = Minecraft.getInstance();
+        if (client != null && client.mouseHandler != null)
+        {
+            client.mouseHandler.releaseMouse();
+        }
+    }
+
+    private void submitCode()
+    {
+        WebsiteLinkManager.claimCode(this.codeField.getValue());
+        refreshState();
+    }
+
+    private void clearPersistedLink()
+    {
+        Configs.websiteLinkedMinecraftUuid = "";
+        Configs.websiteLinkedMinecraftUsername = "";
+        Configs.websiteSyncToken = "";
+        Configs.websiteLinkedAtMs = 0L;
+        Configs.websiteGlobalTotalBlocks = 0L;
+        Configs.websiteGlobalTotalUpdatedAtMs = 0L;
+        Configs.websiteLastSuccessfulSyncMs = 0L;
+        Configs.clearSourceSyncCooldowns();
+        Configs.saveToFile();
+        WebsiteLinkManager.reset();
+        refreshState();
+    }
+
+    private void refreshState()
+    {
+        if (this.submitButton != null)
+        {
+            this.submitButton.active = this.codeField != null && this.codeField.getValue().trim().length() >= 6;
+        }
+        if (this.clearButton != null)
+        {
+            this.clearButton.active = WebsiteLinkManager.hasPersistedLink();
+        }
+    }
+
+    private Layout computeLayout()
+    {
+        boolean compact = this.height < 400 || MmmUi.contentWidth(this.width) < 540;
+        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - PANEL_MARGIN);
+        int panelWidth = Math.min(796, availableWidth);
+        int availableHeight = Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT - 8);
+        int panelHeight = Math.min(408, availableHeight);
+        int panelX = MmmUi.centerContentX(this.width, panelWidth);
+        int panelY = MmmUi.TOP_BAR_HEIGHT + Math.max(4, (availableHeight - panelHeight) / 2);
+        int padding = compact ? 8 : PANEL_PADDING;
+        int contentX = panelX + padding;
+        int contentWidth = panelWidth - padding * 2;
+        int headerY = panelY + padding;
+        int stepsY = headerY + (compact ? 24 : 66);
+        int statusWidth = Math.max(84, Math.min(252, contentWidth / 3));
+        int stepsWidth = contentWidth - statusWidth - CARD_GAP;
+        int stepsHeight = compact ? 0 : 122;
+        int linkY = compact ? stepsY : stepsY + stepsHeight + CARD_GAP;
+        int linkHeight = compact ? Math.max(140, panelY + panelHeight - padding - linkY) : 140;
+        int statusX = contentX + stepsWidth + CARD_GAP;
+        int statusY = stepsY;
+        int statusHeight = compact ? linkHeight : stepsHeight + CARD_GAP + linkHeight;
+        int statusButtonWidth = statusWidth - CARD_PADDING * 2;
+        int statusSecondaryButtonY = statusY + statusHeight - CARD_PADDING - BUTTON_HEIGHT;
+        int statusPrimaryButtonY = statusSecondaryButtonY - BUTTON_HEIGHT - BUTTON_ROW_GAP;
+        int statusButtonX = statusX + CARD_PADDING;
+
+        return new Layout(
+                panelX,
+                panelY,
+                panelWidth,
+                panelHeight,
+                contentX,
+                contentWidth,
+                headerY,
+                contentX,
+                stepsY,
+                stepsWidth,
+                stepsHeight,
+                statusX,
+                statusY,
+                statusWidth,
+                statusHeight,
+                contentX,
+                linkY,
+                contentWidth - statusWidth - CARD_GAP,
+                linkHeight,
+                statusButtonX,
+                statusButtonWidth,
+                statusPrimaryButtonY,
+                statusSecondaryButtonY,
+                compact);
+    }
+
+    private record Layout(
+            int panelX,
+            int panelY,
+            int panelWidth,
+            int panelHeight,
+            int contentX,
+            int contentWidth,
+            int headerY,
+            int stepsX,
+            int stepsY,
+            int stepsWidth,
+            int stepsHeight,
+            int statusX,
+            int statusY,
+            int statusWidth,
+            int statusHeight,
+            int linkX,
+            int linkY,
+            int linkWidth,
+            int linkHeight,
+            int statusButtonX,
+            int statusButtonWidth,
+            int statusPrimaryButtonY,
+            int statusSecondaryButtonY,
+            boolean compact)
+    {
+    }
+}

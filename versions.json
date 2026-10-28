@@ -1,0 +1,124 @@
+[
+  {
+    "id": "1.12.2-liteloader",
+    "minecraft": "1.12.2",
+    "version": "1.0.20.2",
+    "tag": "v1.0.20.2-mc1.12.2-liteloader",
+    "sourceAsset": "mmm-1.0.20.2+1.12.2-liteloader-source.zip",
+    "sha256": "c6803601b37ebadfe2863f5f10a21acfe766731f5ec7461bc66422ee36ea62c9",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.2-mc1.12.2-liteloader/mmm-1.0.20.2%2B1.12.2-liteloader-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.2-mc1.12.2-liteloader"
+  },
+  {
+    "id": "1.17.1-fabric",
+    "minecraft": "1.17.1",
+    "version": "1.0.20.1",
+    "tag": "v1.0.20.1-mc1.17.1",
+    "sourceAsset": "mmm-1.0.20.1+1.17.1-source.zip",
+    "sha256": "6e4906f3c92acabbe6665aa1f6086d0425c06c36f153100dcffe70be9af2d653",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.1-mc1.17.1/mmm-1.0.20.1%2B1.17.1-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.1-mc1.17.1"
+  },
+  {
+    "id": "1.19.4-fabric",
+    "minecraft": "1.19.4",
+    "version": "1.0.20.1",
+    "tag": "v1.0.20.1-mc1.19.4",
+    "sourceAsset": "mmm-1.0.20.1+1.19.4-source.zip",
+    "sha256": "6541d76966ee854d680432761c88b39f9ff62a9cc87e1a0adbca551aa03befac",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.1-mc1.19.4/mmm-1.0.20.1%2B1.19.4-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.1-mc1.19.4"
+  },
+  {
+    "id": "1.20.1-fabric",
+    "minecraft": "1.20.1",
+    "version": "1.0.20.1",
+    "tag": "v1.0.20.1-mc1.20.1",
+    "sourceAsset": "mmm-1.0.20.1+1.20.1-source.zip",
+    "sha256": "c776f95981ae2f9b158c9957612cf118957bb6b49cb95c26818ead1bcbf04b88",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.1-mc1.20.1/mmm-1.0.20.1%2B1.20.1-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.1-mc1.20.1"
+  },
+  {
+    "id": "1.21-fabric",
+    "minecraft": "1.21",
+    "version": "1.0.21",
+    "tag": "v1.0.21-mc1.21",
+    "sourceMethod": "git archive of release tag",
+    "sourceCommit": "0300120f10637b49a718b71976f8a740f2170ac4",
+    "sourceAsset": "mmm-1.0.21+1.21-source.zip",
+    "sha256": "4821e0a8d5476dca573fb61de586b8cd79251f50a5dc66236498c30eda45eb28",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.21-mc1.21/mmm-1.0.21%2B1.21-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.21-mc1.21"
+  },
+  {
+    "id": "1.21.1-fabric",
+    "minecraft": "1.21.1",
+    "version": "1.0.20.1",
+    "tag": "v1.0.20.1-mc1.21.1",
+    "sourceAsset": "mmm-1.0.20.1+1.21.1-source.zip",
+    "sha256": "1b58212f43fe9fb3a5cfc32d91ec655fbca6c46636f0e6493cc6d9f217bb0b93",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.1-mc1.21.1/mmm-1.0.20.1%2B1.21.1-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.1-mc1.21.1"
+  },
+  {
+    "id": "1.21.4-fabric",
+    "minecraft": "1.21.4",
+    "version": "1.0.20.1",
+    "tag": "v1.0.20.1-mc1.21.4",
+    "sourceAsset": "mmm-1.0.20.1+1.21.4-source.zip",
+    "sha256": "9d9ab5c598118eac7d4887133e308256601c607ed6075b4f2f1016da4bfbb0c0",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.1-mc1.21.4/mmm-1.0.20.1%2B1.21.4-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.1-mc1.21.4"
+  },
+  {
+    "id": "1.21.6-fabric",
+    "minecraft": "1.21.6",
+    "version": "1.0.20.1",
+    "tag": "v1.0.20.1-mc1.21.6",
+    "sourceAsset": "mmm-1.0.20.1+1.21.6-source.zip",
+    "sha256": "6c875d24747ccaf17d508990e2c52d3dd5cf12bf6d04aba27ae7bfb80878780d",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.1-mc1.21.6/mmm-1.0.20.1%2B1.21.6-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.1-mc1.21.6"
+  },
+  {
+    "id": "1.21.11-fabric",
+    "minecraft": "1.21.11",
+    "version": "1.0.20.1",
+    "tag": "v1.0.20.1-mc1.21.11",
+    "sourceAsset": "mmm-1.0.20.1+1.21.11-source.zip",
+    "sha256": "73b5f60d4a5e860e5fad3e3241bd14ab8cb00b506a97a867825982a282f53982",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.1-mc1.21.11/mmm-1.0.20.1%2B1.21.11-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.1-mc1.21.11"
+  },
+  {
+    "id": "26.1.2-fabric",
+    "minecraft": "26.1.2",
+    "version": "1.0.20.1",
+    "tag": "v1.0.20.1-mc26.1.2",
+    "sourceAsset": "mmm-1.0.20.1+26.1.2-source.zip",
+    "sha256": "b78b6c8fb104ee47e253f110becba3299e0d60e9f46ee1511376fa111668be54",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.1-mc26.1.2/mmm-1.0.20.1%2B26.1.2-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.1-mc26.1.2"
+  },
+  {
+    "id": "26.2-fabric",
+    "minecraft": "26.2",
+    "version": "1.0.20.1",
+    "tag": "v1.0.20.1-mc26.2",
+    "sourceAsset": "mmm-1.0.20.1+26.2-source.zip",
+    "sha256": "d4925142902345b20539e4a823566d90cf40fdba1381d0d6dd9ba14ce774608d",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.1-mc26.2/mmm-1.0.20.1%2B26.2-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.1-mc26.2"
+  },
+  {
+    "id": "26.3-fabric",
+    "minecraft": "26.3",
+    "version": "1.0.20.1",
+    "tag": "v1.0.20.1-mc26.3",
+    "sourceAsset": "mmm-1.0.20.1+26.3-source.zip",
+    "sha256": "df02d022fc5f571ef213c73cfb4426c1c2d4708a65ee5e47ca33ac86e508f55f",
+    "sourceUrl": "https://github.com/darealshekel/MMMod/releases/download/v1.0.20.1-mc26.3/mmm-1.0.20.1%2B26.3-source.zip",
+    "releaseUrl": "https://github.com/darealshekel/MMMod/releases/tag/v1.0.20.1-mc26.3"
+  }
+]

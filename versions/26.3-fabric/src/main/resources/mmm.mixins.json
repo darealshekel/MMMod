@@ -1,0 +1,33 @@
+{
+  "required": true,
+  "package": "com.mmm.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "AdvancementsScreenMixin",
+    "AdvancementWidgetMixin",
+    "HandledScreenAccessor",
+    "ClientPlayNetworkHandlerMixin",
+    "ClientPlayerInteractionManagerAccessor",
+    "ClientPlayerInteractionManagerMixin",
+    "DecorationParameterMixin",
+    "ExperienceBarMixin",
+    "FluidStateModelSetMixin",
+    "HeldItemRendererMixin",
+    "InGameHudMixin",
+    "KeyboardMixin",
+    "MmmPressableWidgetMixin",
+    "SmallDigItemEntityRendererMixin",
+    "SmallDigItemRenderStateMixin",
+    "SmallDigItemRendererMixin",
+    "PlayerListHudMixin",
+    "ScoreboardChatScreenMixin",
+    "ScoreboardInGameHudMixin",
+    "SoundManagerAccessor",
+    "SoundSystemAccessor",
+    "TeamMixin",
+    "WorldRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

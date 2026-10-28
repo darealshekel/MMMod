@@ -1,0 +1,22 @@
+{
+  "required": true,
+  "package": "com.mmm.legacy.visual.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "mmm.refmap.json",
+  "client": [
+    "LavaRendererMixin",
+    "LavaBlockMixin",
+    "NoSwingMixin",
+    "ScoreboardHudMixin",
+    "WorldRendererAccessor",
+    "VisualWorldMixin",
+    "VisualGameRendererMixin",
+    "VisualBreakMixin",
+    "MiningGuardMixin",
+    "TransparentTabMixin",
+    "SmallDigItemMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

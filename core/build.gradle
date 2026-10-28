@@ -1,0 +1,33 @@
+plugins { id 'java-library' }
+
+group = 'com.mmm'
+version = 'shared-core-development'
+repositories { mavenCentral() }
+dependencies {
+    implementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// This target proves the domain foundation compiles/tests with NO Minecraft or loader dependency.
+// The wrappers select compatibility implementations for services and older Java runtimes.
+def selected = new groovy.json.JsonSlurper().parse(file('standalone-sources.json'))
+['main', 'test'].each { kind ->
+    def assembled = tasks.register("assemble${kind.capitalize()}Sources", Sync) {
+        inputs.file 'standalone-sources.json'
+        into layout.buildDirectory.dir("sources/${kind}")
+        duplicatesStrategy = DuplicatesStrategy.FAIL
+        selected[kind].each { sourcePath ->
+            def logicalPath = sourcePath.substring(sourcePath.indexOf('/java/') + 6)
+            from(rootProject.file('../' + sourcePath)) {
+                into logicalPath.substring(0, logicalPath.lastIndexOf('/'))
+            }
+        }
+    }
+    sourceSets[kind].java.setSrcDirs([layout.buildDirectory.dir("sources/${kind}")])
+    tasks.named(kind == 'main' ? 'compileJava' : 'compileTestJava') { dependsOn assembled }
+}
+tasks.withType(JavaCompile).configureEach { options.release = 16; options.encoding = 'UTF-8' }
+tasks.named('compileTestJava') { options.release = 21 }
+test { useJUnitPlatform() }

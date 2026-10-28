@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "com.mmm.legacy.collection.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "mmm.refmap.json",
+  "client": [
+    "InventoryCollectionMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

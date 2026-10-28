@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "mmm",
+  "version": "${version}",
+  "name": "MMM",
+  "description": "The Manual Mining Maniacs companion mod for mining stats, goals, sessions, HUD tools, and website sync.",
+  "authors": [
+    "Shekel"
+  ],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.mmm.MMM"
+    ],
+    "modmenu": [
+      "com.mmm.gui.ModMenuCompat"
+    ]
+  },
+  "mixins": [
+    "mmm.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "fabric-api": ">=0.156.0",
+    "minecraft": "${minecraft_dependency}",
+    "java": ">=25"
+  }
+}

@@ -1,0 +1,337 @@
+package com.mmm.sync;
+
+import com.mmm.MMM;
+import com.mmm.config.Configs;
+import com.mmm.storage.WorldSessionContext;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.scores.DisplaySlot;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.Scoreboard;
+
+public final class SourceLeaderboardReader
+{
+    private static final long DEBUG_LOG_INTERVAL_MS = 10_000L;
+    private static long lastDebugLogMs;
+
+    private SourceLeaderboardReader()
+    {
+    }
+
+    public static SourceLeaderboardSnapshot read(Minecraft client)
+    {
+        List<SourceLeaderboardSnapshot> snapshots = readAll(client);
+        return snapshots.isEmpty() ? null : snapshots.get(0);
+    }
+
+    public static List<SourceLeaderboardSnapshot> readAll(Minecraft client)
+    {
+        if (client == null || client.level == null || client.player == null)
+        {
+            return List.of();
+        }
+
+        Scoreboard scoreboard = client.level.getScoreboard();
+        String username = client.player.getGameProfile().name();
+        WorldSessionContext.WorldInfo worldInfo = WorldSessionContext.getCurrentWorldInfo();
+        String detectedServerName = ScoreboardSourceResolver.displayName(
+                worldInfo != null ? worldInfo.displayName() : "",
+                worldInfo
+        );
+
+        if (SyncScoreboardSelector.hasManualSelection())
+        {
+            Objective selected = SyncScoreboardSelector.resolveSelectedObjective(client);
+            if (selected == null)
+            {
+                debug("Skipping source sync because the selected scoreboard is unavailable.");
+                return List.of();
+            }
+
+            ScoreboardParser.Candidate selectedCandidate = ScoreboardParser.parse(
+                    username,
+                    detectedServerName,
+                    selected,
+                    scoreboard.listPlayerScores(selected));
+            if (selectedCandidate == null || selectedCandidate.snapshot().isValid() == false)
+            {
+                debug("Skipping source sync because the selected scoreboard is not a valid mining leaderboard.");
+                return List.of();
+            }
+
+            SourceLeaderboardSnapshot snapshot = selectedCandidate.snapshot();
+            return List.of(new SourceLeaderboardSnapshot(
+                    detectedServerName,
+                    snapshot.objectiveTitle(),
+                    snapshot.capturedAtMs(),
+                    snapshot.totalDigs(),
+                    snapshot.entries()));
+        }
+
+        List<ScoreboardParser.Candidate> candidates = new ArrayList<>();
+        Objective sidebar = scoreboard.getDisplayObjective(DisplaySlot.SIDEBAR);
+        if (SyncScoreboardSelector.isEligible(sidebar))
+        {
+            addCandidate(candidates, ScoreboardParser.parse(
+                    username,
+                    detectedServerName,
+                    sidebar,
+                    scoreboard.listPlayerScores(sidebar)));
+        }
+
+        for (Objective objective : scoreboard.getObjectives())
+        {
+            if (objective == sidebar || SyncScoreboardSelector.isEligible(objective) == false)
+            {
+                continue;
+            }
+            addCandidate(candidates, ScoreboardParser.parse(
+                    username,
+                    detectedServerName,
+                    objective,
+                    scoreboard.listPlayerScores(objective)));
+        }
+
+        if (candidates.isEmpty())
+        {
+            debug("Skipping leaderboard sync because no valid mining scoreboard candidates were found.");
+            return List.of();
+        }
+
+        candidates.sort(Comparator
+                .comparingInt(ScoreboardParser.Candidate::objectivePriority).reversed()
+                .thenComparing(Comparator.comparingInt(ScoreboardParser.Candidate::confidence).reversed())
+                .thenComparing(candidate -> candidate.snapshot().objectiveTitle().toLowerCase(Locale.ROOT)));
+
+        String sourceName = ScoreboardSourceResolver.displayName(
+                worldInfo != null ? worldInfo.displayName() : detectedServerName,
+                worldInfo
+        );
+        Map<String, SourceLeaderboardSnapshot> byObjective = new LinkedHashMap<>();
+        for (ScoreboardParser.Candidate candidate : candidates)
+        {
+            SourceLeaderboardSnapshot snapshot = candidate.snapshot();
+            SourceLeaderboardSnapshot normalized = new SourceLeaderboardSnapshot(
+                    sourceName,
+                    snapshot.objectiveTitle(),
+                    snapshot.capturedAtMs(),
+                    snapshot.totalDigs(),
+                    snapshot.entries()
+            );
+            byObjective.putIfAbsent(normalizeObjectiveKey(normalized.objectiveTitle()), normalized);
+        }
+
+        List<SourceLeaderboardSnapshot> snapshots = new ArrayList<>(byObjective.values());
+        SourceLeaderboardSnapshot combinedToolsSnapshot = combineToolUseSnapshots(sourceName, snapshots);
+        if (combinedToolsSnapshot != null && byObjective.containsKey(normalizeObjectiveKey(combinedToolsSnapshot.objectiveTitle())) == false)
+        {
+            boolean hasAuthoritativeTotal = snapshots.stream()
+                    .anyMatch(snapshot -> ScoreboardParser.objectivePriority(snapshot.objectiveTitle()) >= 70);
+            if (hasAuthoritativeTotal)
+            {
+                snapshots.add(combinedToolsSnapshot);
+            }
+            else
+            {
+                snapshots.add(0, combinedToolsSnapshot);
+            }
+        }
+
+        SourceLeaderboardSnapshot chosen = snapshots.isEmpty() ? null : snapshots.get(0);
+        if (chosen != null)
+        {
+            debug(
+                    "Leaderboard parsed from '{}' entries={} total={} candidateCount={}",
+                    chosen.objectiveTitle(),
+                    chosen.entries().size(),
+                    chosen.totalDigs(),
+                    snapshots.size()
+            );
+        }
+
+        return snapshots;
+    }
+
+    private static void addCandidate(List<ScoreboardParser.Candidate> candidates, ScoreboardParser.Candidate candidate)
+    {
+        if (candidate != null && candidate.snapshot().isValid())
+        {
+            candidates.add(candidate);
+        }
+    }
+
+    private static SourceLeaderboardSnapshot combineToolUseSnapshots(String sourceName, List<SourceLeaderboardSnapshot> snapshots)
+    {
+        List<SourceLeaderboardSnapshot> partials = new ArrayList<>();
+        SourceLeaderboardSnapshot pickUses = bestPartialSnapshot(snapshots, ToolUseKind.PICKAXE);
+        SourceLeaderboardSnapshot shovelUses = bestPartialSnapshot(snapshots, ToolUseKind.SHOVEL);
+        SourceLeaderboardSnapshot axeUses = bestPartialSnapshot(snapshots, ToolUseKind.AXE);
+        SourceLeaderboardSnapshot hoeUses = bestPartialSnapshot(snapshots, ToolUseKind.HOE);
+        SourceLeaderboardSnapshot shearsUses = bestPartialSnapshot(snapshots, ToolUseKind.SHEARS);
+        if (pickUses != null)
+        {
+            partials.add(pickUses);
+        }
+        if (shovelUses != null)
+        {
+            partials.add(shovelUses);
+        }
+        if (axeUses != null)
+        {
+            partials.add(axeUses);
+        }
+        if (hoeUses != null)
+        {
+            partials.add(hoeUses);
+        }
+        if (shearsUses != null)
+        {
+            partials.add(shearsUses);
+        }
+        if (partials.size() < 2)
+        {
+            return null;
+        }
+
+        Map<String, CombinedEntry> combined = new LinkedHashMap<>();
+        for (SourceLeaderboardSnapshot partial : partials)
+        {
+            addPartialEntries(combined, partial);
+        }
+        if (combined.isEmpty())
+        {
+            return null;
+        }
+
+        List<CombinedEntry> sorted = combined.values().stream()
+                .sorted(Comparator.comparingLong(CombinedEntry::digs).reversed().thenComparing(CombinedEntry::username, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+        List<SourceLeaderboardEntry> entries = new ArrayList<>();
+        for (int index = 0; index < sorted.size(); index++)
+        {
+            CombinedEntry entry = sorted.get(index);
+            entries.add(new SourceLeaderboardEntry(entry.username(), entry.digs(), index + 1));
+        }
+
+        long total = partials.stream().mapToLong(SourceLeaderboardReader::partialSnapshotTotal).sum();
+        return new SourceLeaderboardSnapshot(
+                sourceName,
+                combinedToolUseTitle(pickUses, shovelUses, axeUses, hoeUses, shearsUses),
+                partials.stream().mapToLong(SourceLeaderboardSnapshot::capturedAtMs).max().orElse(System.currentTimeMillis()),
+                total,
+                entries
+        );
+    }
+
+    private static SourceLeaderboardSnapshot bestPartialSnapshot(List<SourceLeaderboardSnapshot> snapshots, ToolUseKind kind)
+    {
+        return snapshots.stream()
+                .filter(snapshot -> matchesToolUseKind(snapshot.objectiveTitle(), kind))
+                .max(Comparator
+                        .comparingLong(SourceLeaderboardReader::partialSnapshotTotal)
+                        .thenComparingInt(snapshot -> snapshot.entries().size()))
+                .orElse(null);
+    }
+
+    private static boolean matchesToolUseKind(String objectiveTitle, ToolUseKind kind)
+    {
+        return switch (kind)
+        {
+            case PICKAXE -> ScoreboardParser.isPickUsesObjective(objectiveTitle);
+            case AXE -> ScoreboardParser.isAxeUsesObjective(objectiveTitle);
+            case SHOVEL -> ScoreboardParser.isShovelUsesObjective(objectiveTitle);
+            case HOE -> ScoreboardParser.isHoeUsesObjective(objectiveTitle);
+            case SHEARS -> ScoreboardParser.isShearsUsesObjective(objectiveTitle);
+        };
+    }
+
+    private static String combinedToolUseTitle(SourceLeaderboardSnapshot pickUses,
+                                               SourceLeaderboardSnapshot shovelUses,
+                                               SourceLeaderboardSnapshot axeUses,
+                                               SourceLeaderboardSnapshot hoeUses,
+                                               SourceLeaderboardSnapshot shearsUses)
+    {
+        List<String> labels = new ArrayList<>();
+        if (pickUses != null)
+        {
+            labels.add("Pickaxe Uses");
+        }
+        if (shovelUses != null)
+        {
+            labels.add("Shovel Uses");
+        }
+        if (axeUses != null)
+        {
+            labels.add("Axe Uses");
+        }
+        if (hoeUses != null)
+        {
+            labels.add("Hoe Uses");
+        }
+        if (shearsUses != null)
+        {
+            labels.add("Shears Uses");
+        }
+        return String.join(" + ", labels);
+    }
+
+    private static long partialSnapshotTotal(SourceLeaderboardSnapshot snapshot)
+    {
+        return snapshot.totalDigs() > 0L
+                ? snapshot.totalDigs()
+                : snapshot.entries().stream().mapToLong(SourceLeaderboardEntry::digs).sum();
+    }
+
+    private static void addPartialEntries(Map<String, CombinedEntry> combined, SourceLeaderboardSnapshot snapshot)
+    {
+        for (SourceLeaderboardEntry entry : snapshot.entries())
+        {
+            String key = entry.username().toLowerCase(Locale.ROOT);
+            CombinedEntry previous = combined.get(key);
+            combined.put(key, new CombinedEntry(
+                    previous == null ? entry.username() : previous.username(),
+                    (previous == null ? 0L : previous.digs()) + Math.max(0L, entry.digs())
+            ));
+        }
+    }
+
+    private static String normalizeObjectiveKey(String value)
+    {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "");
+    }
+
+    private static void debug(String message, Object... args)
+    {
+        if (Configs.Generic.WEBSITE_SYNC_DEBUG.getBooleanValue() == false)
+        {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (now - lastDebugLogMs < DEBUG_LOG_INTERVAL_MS)
+        {
+            return;
+        }
+
+        lastDebugLogMs = now;
+        MMM.LOGGER.info(message, args);
+    }
+
+    private record CombinedEntry(String username, long digs)
+    {
+    }
+
+    private enum ToolUseKind
+    {
+        PICKAXE,
+        AXE,
+        SHOVEL,
+        HOE,
+        SHEARS
+    }
+}

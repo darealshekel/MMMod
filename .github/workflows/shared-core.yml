@@ -1,0 +1,61 @@
+name: Shared core and version adapters
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.1'
+      - run: node tools/check-layout.mjs
+      - run: node --test tools/tests/*.test.mjs
+      - run: gradle -p core test --no-daemon --console=plain
+  adapters:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {id: 1.12.2-liteloader, java: '21', gradle: '8.7', task: releaseLiteMod}
+          - {id: 1.17.1-fabric, java: '21', gradle: '9.4.1', task: build}
+          - {id: 1.19.4-fabric, java: '21', gradle: '9.4.1', task: build}
+          - {id: 1.20.1-fabric, java: '21', gradle: '9.4.1', task: build}
+          - {id: 1.21-fabric, java: '21', gradle: '9.4.1', task: build}
+          - {id: 1.21.1-fabric, java: '21', gradle: '9.4.1', task: build}
+          - {id: 1.21.4-fabric, java: '21', gradle: '9.4.1', task: build}
+          - {id: 1.21.6-fabric, java: '21', gradle: '9.4.1', task: build}
+          - {id: 1.21.11-fabric, java: '21', gradle: '9.4.1', task: build}
+          - {id: 26.1.2-fabric, java: '26', gradle: '9.7.0', task: build}
+          - {id: 26.2-fabric, java: '26', gradle: '9.7.0', task: build}
+          - {id: 26.3-fabric, java: '26', gradle: '9.7.0', task: build}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ matrix.gradle }}
+      - run: gradle -p versions/${{ matrix.id }} test ${{ matrix.task }} --no-daemon --console=plain --max-workers=2
+        env:
+          MMM_COLLECTIONS_LIVE: 'false'
+          MMM_LEADERBOARD_LIVE: 'false'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tests-${{ matrix.id }}
+          path: versions/${{ matrix.id }}/build/test-results/test/*.xml

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "mmm_server_sync",
+  "version": "${version}",
+  "name": "MMM Server Sync",
+  "description": "Server-authoritative Manual Mining Maniacs sync for Minecraft servers.",
+  "authors": ["Manual Mining Maniacs"],
+  "contact": {
+    "homepage": "https://www.mmmaniacs.com"
+  },
+  "license": "All-Rights-Reserved",
+  "environment": "server",
+  "entrypoints": {
+    "main": [
+      "com.mmm.server.sync.MmmServerSyncMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.17.2",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_dependency}",
+    "java": ">=21"
+  }
+}

@@ -1,0 +1,792 @@
+package com.mmm.storage;
+
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
+
+import com.mmm.util.MmmLog;
+import com.mmm.Reference;
+import com.mmm.config.Configs;
+
+public final class SessionHistory
+{
+    public static final long MIN_SESSION_BLOCKS = 10_000L;
+    private static volatile Path ROOT_DIR = AccountSessionStorage.root().resolve("sessions");
+    private static final List<SessionData> HISTORY = new ArrayList<>();
+    private static SessionData best = null;
+    private static LifetimeSummary cachedLifetimeSummary;
+    private static long cachedLifetimeSignature = Long.MIN_VALUE;
+    private static final AtomicLong LIFETIME_REVISION = new AtomicLong();
+    private static long cachedLifetimeRevision = -1L;
+    private static final AsyncRefreshCache<LifetimeSummary> LIFETIME = new AsyncRefreshCache<>(
+            Executors.newSingleThreadExecutor(task -> {
+                Thread thread = new Thread(task, "MMM-Session-History");
+                thread.setDaemon(true);
+                return thread;
+            }),
+            SessionHistory::readLifetimeSummary,
+            1_000L,
+            failure -> MmmLog.LOGGER.warn("[MMM] Failed to refresh lifetime sessions", failure));
+    private static String currentWorldId = "default";
+    private static boolean legacyMigrationAttempted = false;
+
+    private SessionHistory()
+    {
+    }
+
+    public static synchronized void activateAccount(String uuid, String linkedUuid)
+    {
+        if (!AccountSessionStorage.activate(uuid, linkedUuid)) return;
+        ROOT_DIR = AccountSessionStorage.root().resolve("sessions");
+        HISTORY.clear();
+        best = null;
+        legacyMigrationAttempted = false;
+        invalidateLifetimeSummary();
+    }
+
+    public static synchronized void loadForWorld(String worldId)
+    {
+        invalidateLifetimeSummary();
+        currentWorldId = normalizeWorldId(worldId);
+        migrateLegacySessionsIfNeeded();
+        migrateCurrentWorldIdentity();
+        HISTORY.clear();
+        best = null;
+
+        for (SessionData session : loadSessions(getSaveFile()))
+        {
+            HISTORY.add(session);
+            updateBest(session);
+        }
+    }
+
+    public static synchronized boolean save(SessionData session)
+    {
+        repairInflatedSession(session);
+        if (isQualifyingSession(session) == false)
+        {
+            return true;
+        }
+
+        migrateLegacySessionsIfNeeded();
+        Path saveFile = getSaveFile();
+        if (!saveDurably(saveFile, session)) return false;
+        HISTORY.clear();
+        HISTORY.addAll(loadSessions(saveFile));
+        EfficiencyStore.save(session);
+        best = findBest(HISTORY);
+        invalidateLifetimeSummary();
+        return true;
+    }
+
+    static boolean saveDurably(Path saveFile, SessionData session)
+    {
+        try
+        {
+            withSessionFileLock(saveFile, () -> {
+                List<SessionData> current = loadSessions(saveFile);
+                current.removeIf(existing -> existing.startTimeMs == session.startTimeMs);
+                current.add(session);
+                current.sort(Comparator.comparingLong(value -> value.startTimeMs));
+                writeSessions(saveFile, current);
+                return null;
+            });
+            return true;
+        }
+        catch (IOException e)
+        {
+            MmmLog.LOGGER.warn("[MMM] Failed to save session history to {}: {}", saveFile, e.getMessage());
+            return false;
+        }
+    }
+
+    public static synchronized String exportStats()
+    {
+        StringBuilder builder = new StringBuilder();
+        builder.append("=== MMM Stats Export ===\n");
+        builder.append("World: ").append(resolveDisplayName(currentWorldId)).append("\n");
+        builder.append("Generated: ").append(new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date())).append("\n\n");
+        builder.append("SESSION HISTORY\n---------------\n");
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+        for (int i = HISTORY.size() - 1; i >= 0; i--)
+        {
+            SessionData session = HISTORY.get(i);
+            builder.append(String.format("#%-3d %s | %6d blocks/hour avg | %6d blocks | IGT %s | Time %s | Streak %ds%n",
+                    i + 1,
+                    dateFormat.format(new Date(session.startTimeMs)),
+                    session.getAverageBlocksPerHour(),
+                    session.totalBlocks,
+                    session.getDurationString(),
+                    session.getWallDurationString(),
+                    session.bestStreakSeconds));
+        }
+        builder.append("\n=== End of Export ===\n");
+        return builder.toString();
+    }
+
+    public static synchronized Path exportToFile() throws IOException
+    {
+        Path exportPath = getWorldDir().resolve("mmm-export.txt");
+        Files.createDirectories(exportPath.getParent());
+        Files.writeString(exportPath, exportStats(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        return exportPath;
+    }
+
+    public static synchronized List<SessionData> getHistory()
+    {
+        return List.copyOf(HISTORY);
+    }
+
+    private static void repairInflatedSession(SessionData session)
+    {
+        if (session != null && session.repairInflatedTotalFromBreakdown())
+        {
+            MmmLog.LOGGER.warn(
+                    "[MMM] Repaired an inflated saved session total from its block breakdown: {} blocks",
+                    session.totalBlocks);
+        }
+    }
+
+    public static boolean isQualifyingSession(SessionData session)
+    {
+        return session != null && session.totalBlocks >= MIN_SESSION_BLOCKS;
+    }
+
+    public static synchronized List<WorldHistory> getWorldHistories()
+    {
+        migrateLegacySessionsIfNeeded();
+        List<String> worldIds = new ArrayList<>();
+        if (Files.isDirectory(ROOT_DIR))
+        {
+            try (var paths = Files.list(ROOT_DIR))
+            {
+                paths.filter(Files::isDirectory)
+                        .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                        .forEach(path ->
+                        {
+                            String worldId = path.getFileName() == null ? "" : path.getFileName().toString();
+                            if (!worldId.isBlank() && Files.exists(path.resolve("sessions.csv")))
+                            {
+                                worldIds.add(worldId);
+                            }
+                        });
+            }
+            catch (IOException e)
+            {
+                MmmLog.LOGGER.warn("[MMM] Failed to list session worlds in {}: {}", ROOT_DIR, e.getMessage());
+            }
+        }
+
+        if (!worldIds.contains(currentWorldId))
+        {
+            worldIds.add(0, currentWorldId);
+        }
+
+        List<WorldHistory> histories = new ArrayList<>();
+        for (String worldId : worldIds)
+        {
+            List<SessionData> sessions = loadSessions(getSaveFile(worldId));
+            if (sessions.isEmpty() && !worldId.equals(currentWorldId))
+            {
+                continue;
+            }
+
+            histories.add(new WorldHistory(worldId, resolveDisplayName(worldId), List.copyOf(sessions), findBest(sessions)));
+        }
+
+        return histories;
+    }
+
+    public static synchronized SessionData getBestSession()
+    {
+        return best;
+    }
+
+    public static LifetimeSummary getLifetimeSummary()
+    {
+        return LIFETIME.get(System.currentTimeMillis());
+    }
+
+    private static LifetimeSummary readLifetimeSummary()
+    {
+        long revision = LIFETIME_REVISION.get();
+        List<Path> sessionFiles = getLifetimeSessionFiles();
+        long sourceSignature = lifetimeSourceSignature(sessionFiles);
+        if (cachedLifetimeSummary != null && cachedLifetimeSignature == sourceSignature && cachedLifetimeRevision == revision)
+        {
+            return cachedLifetimeSummary;
+        }
+        cachedLifetimeSummary = summarizeLifetimeSessionFiles(sessionFiles);
+        cachedLifetimeSignature = sourceSignature;
+        cachedLifetimeRevision = revision;
+        return cachedLifetimeSummary;
+    }
+
+    static LifetimeSummary summarizeLifetimeSessionFiles(List<Path> sessionFiles)
+    {
+        long totalActiveMs = 0L;
+        long longestSessionMs = 0L;
+        int bestHourBlocks = 0;
+        int sessionsAt40kBph = 0;
+        int sessionsAt50kBph = 0;
+        Map<Long, SessionData> sessionsByStart = new LinkedHashMap<>();
+        for (Path sessionFile : sessionFiles)
+        {
+            for (SessionData candidate : loadSessions(sessionFile))
+            {
+                if (candidate == null)
+                {
+                    continue;
+                }
+                SessionData existing = sessionsByStart.get(candidate.startTimeMs);
+                if (existing == null
+                        || candidate.endTimeMs > existing.endTimeMs
+                        || candidate.endTimeMs == existing.endTimeMs && candidate.totalBlocks > existing.totalBlocks)
+                {
+                    sessionsByStart.put(candidate.startTimeMs, candidate);
+                }
+            }
+        }
+        for (SessionData session : sessionsByStart.values())
+        {
+            long durationMs = Math.max(0L, session.getActiveDurationMs());
+            totalActiveMs = Long.MAX_VALUE - totalActiveMs < durationMs
+                    ? Long.MAX_VALUE
+                    : totalActiveMs + durationMs;
+            longestSessionMs = Math.max(longestSessionMs, durationMs);
+            bestHourBlocks = Math.max(bestHourBlocks, session.getBestHourBlocks());
+            int averageBph = session.getAverageBlocksPerHour();
+            if (averageBph >= 40_000)
+            {
+                sessionsAt40kBph++;
+            }
+            if (averageBph >= 50_000)
+            {
+                sessionsAt50kBph++;
+            }
+        }
+        return new LifetimeSummary(
+                totalActiveMs,
+                longestSessionMs,
+                bestHourBlocks,
+                sessionsAt40kBph,
+                sessionsAt50kBph);
+    }
+
+    private static void invalidateLifetimeSummary()
+    {
+        LIFETIME_REVISION.incrementAndGet();
+        LIFETIME.invalidate();
+    }
+
+    private static List<Path> getLifetimeSessionFiles()
+    {
+        Path root = ROOT_DIR;
+        List<Path> files = new ArrayList<>();
+        Path rootFile = root.resolve("sessions.csv");
+        if (Files.isRegularFile(rootFile))
+        {
+            files.add(rootFile);
+        }
+        if (Files.isDirectory(root))
+        {
+            try (var paths = Files.list(root))
+            {
+                paths.filter(Files::isDirectory)
+                        .map(path -> path.resolve("sessions.csv"))
+                        .filter(Files::isRegularFile)
+                        .sorted(Comparator.comparing(Path::toString))
+                        .forEach(files::add);
+            }
+            catch (IOException e)
+            {
+                MmmLog.LOGGER.warn("[MMM] Failed to list lifetime session files in {}: {}", ROOT_DIR, e.getMessage());
+            }
+        }
+        return files;
+    }
+
+    private static long lifetimeSourceSignature(List<Path> sessionFiles)
+    {
+        long signature = 1125899906842597L;
+        for (Path sessionFile : sessionFiles)
+        {
+            try
+            {
+                signature = 31L * signature + sessionFile.toAbsolutePath().normalize().toString().hashCode();
+                signature = 31L * signature + Files.size(sessionFile);
+                signature = 31L * signature + Files.getLastModifiedTime(sessionFile).toMillis();
+            }
+            catch (IOException e)
+            {
+                signature = 31L * signature + sessionFile.toString().hashCode();
+            }
+        }
+        return signature;
+    }
+
+    public static synchronized String getCurrentWorldId()
+    {
+        return currentWorldId;
+    }
+
+    private static void updateBest(SessionData session)
+    {
+        if (best == null || session.getAverageBlocksPerHour() > best.getAverageBlocksPerHour())
+        {
+            best = session;
+        }
+    }
+
+    private static SessionData findBest(List<SessionData> sessions)
+    {
+        SessionData bestSession = null;
+        for (SessionData session : sessions)
+        {
+            if (bestSession == null || session.getAverageBlocksPerHour() > bestSession.getAverageBlocksPerHour())
+            {
+                bestSession = session;
+            }
+        }
+        return bestSession;
+    }
+
+    private static List<SessionData> loadSessions(Path saveFile)
+    {
+        if (Files.exists(saveFile) == false && Files.exists(AtomicTextStorage.backupPath(saveFile)) == false)
+        {
+            return new ArrayList<>();
+        }
+
+        try
+        {
+            AtomicTextStorage.ReadResult result = AtomicTextStorage.readWithBackup(
+                    saveFile,
+                    SessionHistory::isValidSessionFile);
+            if (result.value() == null)
+            {
+                return new ArrayList<>();
+            }
+
+            List<SessionData> sessions = parseSessions(result.value());
+            if (result.recoveredFromBackup())
+            {
+                MmmLog.LOGGER.warn("[MMM] Recovered session history from backup: {}", saveFile);
+                writeSessions(saveFile, sessions);
+            }
+            return sessions;
+        }
+        catch (IOException e)
+        {
+            MmmLog.LOGGER.warn("[MMM] Failed to load session history from {}: {}", saveFile, e.getMessage());
+            return salvageSessions(saveFile);
+        }
+    }
+
+    private static List<SessionData> parseSessions(String contents)
+    {
+        List<SessionData> sessions = new ArrayList<>();
+        if (contents == null || contents.isBlank())
+        {
+            return sessions;
+        }
+
+        for (String rawLine : contents.lines().toList())
+        {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isEmpty() || line.startsWith("#"))
+            {
+                continue;
+            }
+            SessionData session = SessionData.deserialise(line);
+            repairInflatedSession(session);
+            if (isQualifyingSession(session))
+            {
+                sessions.add(session);
+            }
+        }
+        return sessions;
+    }
+
+    private static List<SessionData> salvageSessions(Path saveFile)
+    {
+        if (Files.isRegularFile(saveFile) == false)
+        {
+            return new ArrayList<>();
+        }
+        try
+        {
+            List<SessionData> sessions = parseSessions(Files.readString(saveFile));
+            if (sessions.isEmpty() == false)
+            {
+                MmmLog.LOGGER.warn("[MMM] Salvaged {} valid session record(s) from damaged history {}.", sessions.size(), saveFile);
+            }
+            return sessions;
+        }
+        catch (IOException ignored)
+        {
+            return new ArrayList<>();
+        }
+    }
+
+    private static boolean isValidSessionFile(String contents)
+    {
+        if (contents == null || contents.isBlank())
+        {
+            return false;
+        }
+        boolean foundSession = false;
+        for (String rawLine : contents.lines().toList())
+        {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isEmpty() || line.startsWith("#"))
+            {
+                continue;
+            }
+            if (SessionData.deserialise(line) == null)
+            {
+                return false;
+            }
+            foundSession = true;
+        }
+        return foundSession;
+    }
+
+    private static void writeSessions(Path saveFile, List<SessionData> sessions) throws IOException
+    {
+        StringBuilder contents = new StringBuilder();
+        for (SessionData session : sessions)
+        {
+            if (isQualifyingSession(session))
+            {
+                contents.append(session.serialise()).append(System.lineSeparator());
+            }
+        }
+        AtomicTextStorage.write(saveFile, contents.toString(), true, SessionHistory::isValidSessionFile);
+    }
+
+    private static String resolveDisplayName(String worldId)
+    {
+        for (Configs.WorldStatsEntry entry : Configs.WORLD_STATS)
+        {
+            if (worldId.equals(entry.worldId) && entry.displayName != null && !entry.displayName.isBlank())
+            {
+                return entry.displayName;
+            }
+        }
+
+        if (worldId.equals(currentWorldId))
+        {
+            String currentName = WorldSessionContext.getCurrentWorldName();
+            if (currentName != null && !currentName.isBlank() && !"Unknown".equalsIgnoreCase(currentName))
+            {
+                return currentName;
+            }
+        }
+
+        return looksSensitiveWorldId(worldId) ? "Multiplayer Server" : worldId;
+    }
+
+    private static boolean looksSensitiveWorldId(String worldId)
+    {
+        if (worldId == null || worldId.isBlank() || worldId.startsWith("server_"))
+        {
+            return false;
+        }
+
+        String value = worldId.trim().toLowerCase();
+        return value.matches("\\d{1,3}(?:[._-]\\d{1,3}){3}(?::\\d+)?")
+                || value.matches("[a-z0-9_-]+(?:[._-][a-z0-9_-]+)+(?::\\d+)?");
+    }
+
+    private static String normalizeWorldId(String worldId)
+    {
+        return worldId == null || worldId.isBlank() ? "default" : worldId;
+    }
+
+    private static Path getSaveFile()
+    {
+        return getSaveFile(currentWorldId);
+    }
+
+    private static Path getSaveFile(String worldId)
+    {
+        return getWorldDir(worldId).resolve("sessions.csv");
+    }
+
+    private static Path getWorldDir()
+    {
+        return getWorldDir(currentWorldId);
+    }
+
+    private static Path getWorldDir(String worldId)
+    {
+        return ROOT_DIR.resolve(normalizeWorldId(worldId));
+    }
+
+    private static void migrateLegacySessionsIfNeeded()
+    {
+        if (legacyMigrationAttempted)
+        {
+            return;
+        }
+        legacyMigrationAttempted = true;
+        if (!AccountSessionStorage.ownsLegacy()) return;
+
+        for (Path legacyRootDir : findLegacySessionRoots())
+        {
+            if (legacyRootDir.equals(ROOT_DIR) || Files.isDirectory(legacyRootDir) == false)
+            {
+                continue;
+            }
+
+            try (var paths = Files.list(legacyRootDir))
+            {
+                paths.filter(Files::isDirectory).forEach(SessionHistory::mergeLegacyWorldSessions);
+                Path unattributed = legacyRootDir.resolve("sessions.csv");
+                if (Files.isRegularFile(unattributed))
+                    mergeSessionFiles(ROOT_DIR.resolve("sessions.csv"), unattributed);
+            }
+            catch (IOException e)
+            {
+                MmmLog.LOGGER.warn("[MMM] Failed to migrate session history from {} to {}: {}", legacyRootDir, ROOT_DIR, e.getMessage());
+            }
+        }
+    }
+
+    private static Set<Path> findLegacySessionRoots()
+    {
+        Set<Path> roots = new LinkedHashSet<>();
+        roots.add(SharedStoragePaths.sessionsDir().toAbsolutePath().normalize());
+        for (Path configDir : SharedStoragePaths.legacyConfigDirs())
+        {
+            roots.add(configDir.resolve(Reference.STORAGE_ID).resolve("sessions").toAbsolutePath().normalize());
+            roots.add(configDir.resolve(Reference.LEGACY_STORAGE_ID).resolve("sessions").toAbsolutePath().normalize());
+        }
+        return roots;
+    }
+
+    private static void migrateCurrentWorldIdentity()
+    {
+        WorldSessionContext.WorldInfo info = WorldSessionContext.getCurrentWorldInfo();
+        if (info == null || WorldIdentity.matchesCurrentWorld(currentWorldId, info.id(), info.kind(), info.host()) == false)
+        {
+            return;
+        }
+
+        Set<String> aliases = new LinkedHashSet<>(Configs.getLegacyWorldIds(currentWorldId));
+        aliases.addAll(WorldIdentity.legacyWorldIds(currentWorldId, info.kind(), info.host()));
+        aliases.removeIf(alias -> alias == null || alias.isBlank() || alias.equals(currentWorldId));
+        if (aliases.isEmpty() || Files.isDirectory(ROOT_DIR) == false)
+        {
+            return;
+        }
+
+        try (var paths = Files.list(ROOT_DIR))
+        {
+            paths.filter(Files::isDirectory)
+                    .filter(path -> isLegacyAlias(path, aliases))
+                    .forEach(path -> mergeWorldIdentitySessions(path, currentWorldId));
+        }
+        catch (IOException e)
+        {
+            MmmLog.LOGGER.warn("[MMM] Failed to migrate legacy world identity sessions into {}: {}", currentWorldId, e.getMessage());
+        }
+    }
+
+    private static boolean isLegacyAlias(Path path, Set<String> aliases)
+    {
+        String folderName = path.getFileName() == null ? "" : path.getFileName().toString();
+        return aliases.stream().anyMatch(alias -> folderName.equalsIgnoreCase(alias));
+    }
+
+    private static void mergeWorldIdentitySessions(Path legacyWorldDir, String canonicalWorldId)
+    {
+        Path legacyFile = legacyWorldDir.resolve("sessions.csv");
+        Path canonicalFile = getSaveFile(canonicalWorldId);
+        if (Files.exists(legacyFile) == false || legacyFile.equals(canonicalFile))
+        {
+            return;
+        }
+
+        try
+        {
+            int mergedSessionCount = mergeSessionFiles(canonicalFile, legacyFile);
+            Files.deleteIfExists(legacyFile);
+            try (var remaining = Files.list(legacyWorldDir))
+            {
+                if (remaining.findAny().isEmpty())
+                {
+                    Files.deleteIfExists(legacyWorldDir);
+                }
+            }
+            MmmLog.LOGGER.info(
+                    "[MMM] Migrated {} saved sessions from a legacy server profile into {}.",
+                    mergedSessionCount,
+                    canonicalWorldId);
+        }
+        catch (IOException e)
+        {
+            MmmLog.LOGGER.warn(
+                    "[MMM] Failed to merge legacy server profile sessions from {} into {}: {}",
+                    legacyWorldDir,
+                    canonicalWorldId,
+                    e.getMessage());
+        }
+    }
+
+    static int mergeSessionFiles(Path canonicalFile, Path legacyFile) throws IOException
+    {
+        Map<Long, SessionData> sessionsByStart = new LinkedHashMap<>();
+        readSessionsForMigration(canonicalFile, sessionsByStart);
+        readSessionsForMigration(legacyFile, sessionsByStart);
+
+        List<String> mergedLines = sessionsByStart.values().stream()
+                .sorted(Comparator.comparingLong(session -> session.startTimeMs))
+                .map(SessionData::serialise)
+                .toList();
+        Files.createDirectories(canonicalFile.getParent());
+        Path temporaryFile = canonicalFile.resolveSibling(canonicalFile.getFileName() + ".tmp");
+        Files.write(
+                temporaryFile,
+                mergedLines,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+        try
+        {
+            Files.move(
+                    temporaryFile,
+                    canonicalFile,
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+        }
+        catch (AtomicMoveNotSupportedException ignored)
+        {
+            Files.move(temporaryFile, canonicalFile, StandardCopyOption.REPLACE_EXISTING);
+        }
+        return sessionsByStart.size();
+    }
+
+    private static void readSessionsForMigration(Path source, Map<Long, SessionData> sessionsByStart) throws IOException
+    {
+        if (Files.exists(source) == false)
+        {
+            return;
+        }
+
+        for (String line : Files.readAllLines(source))
+        {
+            String trimmed = line == null ? "" : line.trim();
+            if (trimmed.isEmpty() || trimmed.startsWith("#"))
+            {
+                continue;
+            }
+
+            SessionData candidate = SessionData.deserialise(trimmed);
+            if (candidate == null)
+            {
+                throw new IOException("invalid session row in " + source);
+            }
+
+            SessionData existing = sessionsByStart.get(candidate.startTimeMs);
+            if (existing == null
+                    || candidate.endTimeMs > existing.endTimeMs
+                    || candidate.endTimeMs == existing.endTimeMs && candidate.totalBlocks > existing.totalBlocks)
+            {
+                sessionsByStart.put(candidate.startTimeMs, candidate);
+            }
+        }
+    }
+
+    private static void mergeLegacyWorldSessions(Path legacyWorldDir)
+    {
+        Path legacyFile = legacyWorldDir.resolve("sessions.csv");
+        if (Files.exists(legacyFile) == false)
+        {
+            return;
+        }
+
+        String worldId = legacyWorldDir.getFileName() == null ? "default" : legacyWorldDir.getFileName().toString();
+        Path sharedFile = getSaveFile(worldId);
+
+        try
+        {
+            withSessionFileLock(sharedFile, () -> {
+                List<SessionData> merged = loadSessions(sharedFile);
+                Set<Long> existingStartTimes = new HashSet<>();
+                for (SessionData session : merged)
+                {
+                    existingStartTimes.add(session.startTimeMs);
+                }
+
+                boolean changed = false;
+                for (SessionData session : parseSessions(Files.readString(legacyFile)))
+                {
+                    if (existingStartTimes.add(session.startTimeMs))
+                    {
+                        merged.add(session);
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    merged.sort(Comparator.comparingLong(value -> value.startTimeMs));
+                    writeSessions(sharedFile, merged);
+                }
+                return null;
+            });
+        }
+        catch (IOException e)
+        {
+            MmmLog.LOGGER.warn("[MMM] Failed to merge legacy session history from {}: {}", legacyFile, e.getMessage());
+        }
+    }
+
+    private static <T> T withSessionFileLock(Path saveFile, IoSupplier<T> action) throws IOException
+    {
+        Path lockFile = saveFile.resolveSibling(saveFile.getFileName() + ".lock");
+        Files.createDirectories(saveFile.getParent());
+        try (FileChannel channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+             FileLock sessionLock = channel.lock())
+        {
+            if (sessionLock.isValid() == false)
+            {
+                throw new IOException("Could not acquire the session history lock.");
+            }
+            return action.get();
+        }
+    }
+
+    @FunctionalInterface
+    private interface IoSupplier<T>
+    {
+        T get() throws IOException;
+    }
+    public record WorldHistory(String worldId, String displayName, List<SessionData> sessions, SessionData bestSession) {}
+
+    public record LifetimeSummary(
+            long totalActiveMs,
+            long longestSessionMs,
+            int bestHourBlocks,
+            int sessionsAt40kBph,
+            int sessionsAt50kBph) {}
+}

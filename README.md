@@ -1,117 +1,48 @@
 # MMMod
 
-Track your mining, complete collections, and compete with other vanilla diggers.
+Track your mining, complete collections, and compare your progress with other vanilla diggers.
 
-MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmaniacs.com). Mining, sessions, goals, and collections work locally without an account. Website linking adds shared progress, leaderboards, and social features.
+Download one file for your Minecraft version from [MMM](https://www.mmmaniacs.com/downloads) or [GitHub releases](https://github.com/darealshekel/MMMod/releases). No separate core mod is needed.
 
-## Supported Versions
+## Shared code, separate game adapters
 
-This folder builds **1.0.21 for Minecraft 1.21**, a local development build: `mmm-1.0.21+1.21.jar`. For published builds and each version's loader requirements, use [Downloads](https://www.mmmaniacs.com/downloads). Do not install a jar for a different Minecraft version.
-
-## Install
-
-1. Install Fabric Loader 0.16.14 or newer.
-2. Put the jar for your Minecraft version in the `mods` folder.
-3. Start Minecraft and press `X + V`.
-
-Fabric API is included. Mod Menu is optional.
-
-## First Five Minutes
-
-1. Join a world and start mining. Tracking starts automatically; linking is not required.
-2. The new-install HUD shows world/session totals, session time, and pace. Existing settings stay unchanged. Use **Settings > HUD Layout > Compact HUD** to switch to this layout.
-3. Open the inventory's red book or `/mmm collections` to inspect progress. Pin a collection to track its next milestone.
-4. Use the Start/End Session hotkey or Sessions screen to finish and save a run. Inspect its summary before starting another.
-5. Use **Share** in a session summary or the paper icon in a collection to save a PNG under `screenshots/mmm`. **Copy text** includes a profile link when this Minecraft account is website-linked.
-
-`/mmm` opens settings when the menu hotkey is unassigned. Linking unlocks website features; creative and spectator snapshots are rejected, and public source submissions can still require owner review.
-
-## Collections in 1.0.21 (Minecraft 1.21)
-
-Open the inventory's red collection book or use `/mmm collections`. Hover a category for its completion summary, hover a block for its current tier and next target, then click it to view numbered milestone panes. Green panes are unlocked; red panes show the remaining blocks. Smaller screens have milestone page controls. The pin button tracks the next target on the HUD.
-
-Common milestones are 1K, 2.5K, 5K, 10K, 25K, 50K, 100K, 250K, 500K, 1M, 2.5M, 5M, 10M, 15M, 20M, and 25M. Each collection stops at its existing cap. Rare collections retain their smaller targets, including 100, 250, 500, 750, and 1,000 for collections capped at 1,000.
-
-Existing totals unlock reached milestones automatically. The update shows one local catch-up summary per account and saves that migration state; historical tiers are never queued into shared chat.
-
-## Features
-
-- Tracks valid mined blocks, source totals, block breakdowns, and mining pace.
-- Records sessions with blocks, Session IGT, total Session Time, best hour, fastest 100k, and source/world history.
-- Shows Blocks/hr, Blocks/min, Blocks/sec, daily and weekly progress, records, projects, and timer data.
-- Automatically starts, pauses, and resumes sessions from valid mining activity.
-- Provides configurable HUD modules, colors, scale, position, background, and visibility.
-- Supports daily goals, XP-bar progress, milestone sounds, pickaxe animations, and shared milestones.
-- Includes projects, a 24-hour challenge timer, Block ESP, Flat Digger, Perimeter Wall Dig Helper, Small Dig Items, static tools, translucent lava, and breaking indicators.
-- Includes scoreboard sorting, paging, formatting, export, editing, movement, transparency, and Tier / Name Tags.
-- Includes global MMM Chat for website-linked players, with optional censoring and per-player ignores.
-- Adds an MMM advancement tree for session hours, streaks, Best Hour speed, endurance, and precision.
-- Saves shared records and sessions across supported MMMod versions.
-
-## Website Sync
-
-Website sync is optional and **off by default**.
-
-- Link the mod with a code generated on the MMM website.
-- Select the correct total-mined scoreboard for each source.
-- MMMod queues changed totals, scoreboard evidence, block breakdowns, and eligible sessions.
-- Each source can publish one complete scoreboard snapshot per UTC day.
-- Visible Tab players include UUID evidence, and confirmed Carpet fake players are excluded from complete snapshots.
-- Failed requests stay queued for a later retry.
-- The MMM API validates data before publishing it.
-
-MMMod is client-side evidence, not a server-authoritative anticheat.
-
-## Timer Commands
-
-```text
-/mmm timer start [duration]
-/mmm timer pause
-/mmm timer stop
-/mmm timer reset
-/mmm timer set <duration>
-/mmm timer status
+```
+core/                 Shared models, rules, persistence, API and statistics code
+adapters/shared/      Reusable Minecraft and loader integrations
+versions/             Version-only integrations, dependencies and resources
+shared-tests/         Regression tests used by multiple versions
+gradle/               Shared source assembly and release configuration
+release.properties    The release version, set once for all builds
 ```
 
-Durations support `s`, `m`, and `h`, up to 24 hours.
+Supported builds: Fabric 1.17.1, 1.19.4, 1.20.1, 1.21, 1.21.1, 1.21.4, 1.21.6, 1.21.11, 26.1.2, 26.2 and 26.3; LiteLoader 1.12.2, with or without Forge.
 
-## Default Hotkeys
+Each wrapper's `source-set.json` selects shared implementations. Gradle assembles these into its ignored build directory and compiles them with that Minecraft version's mappings. The resulting JAR or LiteMod contains the core and adapter together.
 
-| Action | Default |
-| --- | --- |
-| Open MMMod | `X + V` |
-| Session summary | `Left Alt + S` |
-| Session history | `Left Alt + H` |
-| Pause/resume session | `Left Alt + P` |
-| Start/end session | `Left Alt + T` |
-| Scoreboard page | `Page Up` / `Page Down` |
+Compatibility variants under `compat/` intentionally preserve existing differences between released versions. This is a behavior-preserving refactor, not a feature-parity upgrade. Changes to shared files apply to all wrappers that select them; Minecraft-specific code and intentionally different compatibility implementations still require their own changes and tests.
 
-All hotkeys are editable. `Escape` clears an assignment.
+## Building
 
-## Data Location
+Use Java 21 and Gradle 9.4.1 for Fabric 1.x. Use Java 26 and Gradle 9.7.0 for Fabric 26.x. LiteLoader uses Java 21 and Gradle 8.7, then converts the resulting mod to Java 8.
 
-- Windows: `%APPDATA%\ManualMiningManiacs`
-- Linux/macOS: `~/.manual-mining-maniacs`
-
-## Build
-
-MMMod uses Java 21:
+From a wrapper directory, run:
 
 ```text
-gradle clean build
+gradle clean test build
 ```
 
-The release jar is written to `build/libs`.
+For LiteLoader, use `gradle clean test releaseLiteMod` instead. Build output is in that wrapper's `build/libs`. Never install a `-sources`, `-dev`, `-development`, or smoke artifact.
 
-## Credits
+From `core/`, `gradle clean test` validates the independent domain foundation without Minecraft or loader dependencies. Wrapper tests cover runtime-coupled services and compatibility variants.
 
-- **Shekel** - creator and lead developer
-- **MMM community** - testing and feedback
-- **BlockTimer**, **I-See-Lava**, and **ScoreboardHelper** - MIT-licensed feature references
-- **Fabric API** and **Mod Menu** - Fabric platform and optional config integration
+The first build requires access to the official dependency repositories. Offline builds work only after those dependencies have been cached. Original dependency versions and loader requirements are preserved.
 
-MMMod is an independent community project and is not affiliated with Mojang Studios or Microsoft.
+## Verification
 
-## License
+- `node tools/verify-sources.mjs`: checks the extraction against pinned release source fingerprints, allowing only documented test-path and metadata-fallback changes.
+- `node tools/check-layout.mjs`: validates source ownership, duplicate-free compiler inputs and shared resource coverage.
+- Each wrapper: its full original test suite, production build and artifact validation.
+- `docs/shared-core.md`: migration scope, maintenance workflow and compatibility boundaries.
+- `docs/1.0.22-verification.md`: release verification results and limitations.
 
-[MIT](LICENSE)
+Report issues at [GitHub Issues](https://github.com/darealshekel/MMMod/issues).
