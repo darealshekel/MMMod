@@ -23,7 +23,7 @@ $env:JAVA_HOME = 'C:/Users/mult0/AppData/Roaming/PrismLauncher/java/java-runtime
 
 Output: `build/libs/mmm-1.0.20+1.12.2-liteloader.litemod`.
 
-Install the `.litemod` file into a Minecraft 1.12.2 LiteLoader instance's mods folder.
+Install the `.litemod` file into a Minecraft 1.12.2 LiteLoader instance's mods folder (with or without Forge).
 It is not a Fabric/Ornithe JAR. Do not install another MMM version beside it.
 MMM's shared cross-version storage is retained, so back up existing MMM settings
 and history before testing with a real account.

@@ -136,7 +136,7 @@ testing with a real account.
 `build/libs/mmm-1.0.20+1.12.2-liteloader.litemod`
 
 - Release checksums are included in the GitHub release assets.
-- Requires Minecraft 1.12.2 and LiteLoader, not Fabric or Ornithe.
+- Requires Minecraft 1.12.2 and LiteLoader, not Fabric or Ornithe. Works with or without Forge installed.
 - No Fabric API, OSL, MaLiLib or Tweakeroo dependency.
 
 `releaseLiteMod` runs tests and artifact validation before packaging. Builds with
