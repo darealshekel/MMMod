@@ -89,11 +89,14 @@ The release jar is written to `build/libs`.
 ## Credits
 
 - **Shekel** - creator and lead developer
+- **[useleess](https://github.com/useleess)** - Minecraft 1.12.2 Forge + LiteLoader crash fix and SRG refmap support ([PR #21](https://github.com/darealshekel/MMMod/pull/21))
 - **MMM community** - testing and feedback
 - **BlockTimer**, **I-See-Lava**, and **ScoreboardHelper** - MIT-licensed feature references
 - **Fabric API** and **Mod Menu** - Fabric platform and optional config integration
 
 MMMod is an independent community project and is not affiliated with Mojang Studios or Microsoft.
+
+The 1.12.2 fix is included in the [shared-core version wrapper](https://github.com/darealshekel/MMMod/tree/refactor/shared-core/versions/1.12.2-liteloader). Its original commit history is preserved on `main` for contributor attribution; the historical single-version code on this branch is unchanged.
 
 ## License
 
