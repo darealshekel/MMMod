@@ -1,17 +1,25 @@
 # MMMod for Minecraft 26.2
 
-MMMod 1.0.20.1: `mmm-1.0.22+26.2.jar`.
+Current release: **1.0.22**. Install `mmm-1.0.22+26.2.jar`.
 
-Requires Minecraft 26.2, Java 25 and Fabric Loader 0.19.3 or newer.
-Fabric API is bundled. Mod Menu is optional. Open settings with `X + V`.
+[Download](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B26.2.jar) | [Full guide](../../README.md) | [Release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.22)
 
-Includes mining HUD and sessions, collections with live progress and per-block caps,
-collection pins, synced rank and Top %, shared milestones, advancements, in-game leaderboards, rank
-estimates, scoreboard tools, visual settings, MMM Chat and optional website sync.
-Sync is off by default and requires a website link and server-side sync access.
+## Install
 
-Build with Java 25: `gradle test build`.
-Isolated client checks: `gradle -PsmokeTest runClient`.
-The smoke-test mod is not included in the distributable jar.
+Use Minecraft **26.2**, Fabric Loader **0.19.3 or newer**, and Java **25 or newer**. The matching Fabric API is bundled; Mod Menu is optional. Remove the previous MMM file and put this release JAR in the instance's `mods` folder. Do not install a source or development JAR, or a separate core mod.
 
-See [the release notes](RELEASE-1.0.20.md) for a short changelog.
+Open MMM with `X + V`. Existing settings and saved progress are retained. Local mining/session tracking does not need a website account. Website source sync is off by default and requires both a linked account and owner-granted canary access.
+
+## Build and Verify
+
+Keep the entire shared-core repository together. This wrapper reads shared files outside this directory.
+
+Use **JDK 26 and Gradle 9.7.0** for building, even though the packaged mod targets Java 25:
+
+```text
+gradle clean test build
+```
+
+Output: `build/libs/mmm-1.0.22+26.2.jar`.
+
+See the [release verification report](../../docs/1.0.22-verification.md) for this version's tested scope. The shared-core refactor preserves this wrapper's existing behavior; it does not promise every feature from newer Minecraft versions.

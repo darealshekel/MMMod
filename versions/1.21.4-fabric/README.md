@@ -1,103 +1,25 @@
-# MMMod
+# MMMod for Minecraft 1.21.4
 
-MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmaniacs.com). It tracks mining stats, sessions, goals, block breakdowns, and optional website sync.
+Current release: **1.0.22**. Install `mmm-1.0.22+1.21.4.jar`.
 
-## Supported Versions
-
-| Minecraft | Release jar |
-| --- | --- |
-| 1.21 | `mmm-1.0.20.1+1.21.jar` |
-| 1.21.1 | `mmm-1.0.20.1+1.21.1.jar` |
-| 1.21.4 | `mmm-1.0.22+1.21.4.jar` |
-| 1.21.6 | `mmm-1.0.20.1+1.21.6.jar` |
-| 1.21.11 | `mmm-1.0.20.1+1.21.11.jar` |
+[Download](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.21.4.jar) | [Full guide](../../README.md) | [Release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.22)
 
 ## Install
 
-1. Install Fabric Loader 0.16.14 or newer.
-2. Put the jar for your Minecraft version in the `mods` folder.
-3. Start Minecraft and press `X + V`.
+Use Minecraft **1.21.4**, Fabric Loader **0.16.14 or newer**, and Java **21 or newer**. The matching Fabric API is bundled; Mod Menu is optional. Remove the previous MMM file and put this release JAR in the instance's `mods` folder. Do not install a source or development JAR, or a separate core mod.
 
-Fabric API is included. Mod Menu is optional.
+Open MMM with `X + V`. Existing settings and saved progress are retained. Local mining/session tracking does not need a website account. Website source sync is off by default and requires both a linked account and owner-granted canary access.
 
-## Features
+## Build and Verify
 
-- Tracks valid mined blocks, source totals, block breakdowns, and mining pace.
-- Records sessions with blocks, Session IGT, total Session Time, best hour, fastest 100k, and source/world history.
-- Shows Blocks/hr, Blocks/min, Blocks/sec, daily and weekly progress, records, projects, and timer data.
-- Automatically starts, pauses, and resumes sessions from valid mining activity.
-- Provides configurable HUD modules, colors, scale, position, background, and visibility.
-- Supports daily goals, XP-bar progress, milestone sounds, pickaxe animations, and shared milestones.
-- Includes projects, a 24-hour challenge timer, Block ESP, Flat Digger, Perimeter Wall Dig Helper, Small Dig Items, static tools, translucent lava, and breaking indicators.
-- Includes scoreboard sorting, paging, formatting, export, editing, movement, transparency, and Tier / Name Tags.
-- Includes global MMM Chat for website-linked players, with optional censoring and per-player ignores.
-- Adds an MMM advancement tree for session hours, streaks, Best Hour speed, endurance, and precision.
-- Saves shared records and sessions across supported MMMod versions.
+Keep the entire shared-core repository together. This wrapper reads shared files outside this directory.
 
-## Website Sync
-
-Website sync is optional and **off by default**.
-
-- Link the mod with a code generated on the MMM website.
-- Select the correct total-mined scoreboard for each source.
-- MMMod queues changed totals, scoreboard evidence, block breakdowns, and eligible sessions.
-- Each source can publish one complete scoreboard snapshot per UTC day.
-- Visible Tab players include UUID evidence, and confirmed Carpet fake players are excluded from complete snapshots.
-- Failed requests stay queued for a later retry.
-- The MMM API validates data before publishing it.
-
-MMMod is client-side evidence, not a server-authoritative anticheat.
-
-## Timer Commands
+Use **JDK 21 and Gradle 9.4.1** for building, even though the packaged mod targets Java 21:
 
 ```text
-/mmm timer start [duration]
-/mmm timer pause
-/mmm timer stop
-/mmm timer reset
-/mmm timer set <duration>
-/mmm timer status
+gradle clean test build
 ```
 
-Durations support `s`, `m`, and `h`, up to 24 hours.
+Output: `build/libs/mmm-1.0.22+1.21.4.jar`.
 
-## Default Hotkeys
-
-| Action | Default |
-| --- | --- |
-| Open MMMod | `X + V` |
-| Session summary | `Left Alt + S` |
-| Session history | `Left Alt + H` |
-| Pause/resume session | `Left Alt + P` |
-| Start/end session | `Left Alt + T` |
-| Scoreboard page | `Page Up` / `Page Down` |
-
-All hotkeys are editable. `Escape` clears an assignment.
-
-## Data Location
-
-- Windows: `%APPDATA%\ManualMiningManiacs`
-- Linux/macOS: `~/.manual-mining-maniacs`
-
-## Build
-
-MMMod uses Java 21:
-
-```text
-gradle clean build
-```
-
-The release jar is written to `build/libs`.
-
-## Credits
-
-- **Shekel** - creator and lead developer
-- **MMM community** - testing and feedback
-- **BlockTimer**, **I-See-Lava**, and **ScoreboardHelper** - MIT-licensed feature references
-- **Fabric API** and **Mod Menu** - Fabric platform and optional config integration
-
-MMMod is an independent community project and is not affiliated with Mojang Studios or Microsoft.
-
-## License
-
-[MIT](LICENSE)
+See the [release verification report](../../docs/1.0.22-verification.md) for this version's tested scope. The shared-core refactor preserves this wrapper's existing behavior; it does not promise every feature from newer Minecraft versions.

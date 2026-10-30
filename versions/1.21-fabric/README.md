@@ -6,7 +6,7 @@ MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmania
 
 ## Supported Versions
 
-This folder builds **1.0.21 for Minecraft 1.21**, a local development build: `mmm-1.0.22+1.21.jar`. For published builds and each version's loader requirements, use [Downloads](https://www.mmmaniacs.com/downloads). Do not install a jar for a different Minecraft version.
+This folder builds the released **1.0.22 for Minecraft 1.21**: `mmm-1.0.22+1.21.jar`. See the [full guide](../../README.md), [Downloads](https://www.mmmaniacs.com/downloads) and [1.0.22 release](https://github.com/darealshekel/MMMod/releases/tag/v1.0.22). Do not install a jar for a different Minecraft version.
 
 ## Install
 
@@ -21,12 +21,12 @@ Fabric API is included. Mod Menu is optional.
 1. Join a world and start mining. Tracking starts automatically; linking is not required.
 2. The new-install HUD shows world/session totals, session time, and pace. Existing settings stay unchanged. Use **Settings > HUD Layout > Compact HUD** to switch to this layout.
 3. Open the inventory's red book or `/mmm collections` to inspect progress. Pin a collection to track its next milestone.
-4. Use the Start/End Session hotkey or Sessions screen to finish and save a run. Inspect its summary before starting another.
+4. Use the Start/End Session hotkey to finish a run. Sessions with at least 10,000 blocks are saved to history.
 5. Use **Share** in a session summary or the paper icon in a collection to save a PNG under `screenshots/mmm`. **Copy text** includes a profile link when this Minecraft account is website-linked.
 
-`/mmm` opens settings when the menu hotkey is unassigned. Linking unlocks website features; creative and spectator snapshots are rejected, and public source submissions can still require owner review.
+`/mmm` opens settings. Linking adds account-connected features, but source sync still needs owner-granted canary access. New source submissions may need owner approval. Local tracking excludes creative and spectator mining; client-side checks are not an anticheat guarantee.
 
-## Collections in 1.0.21 (Minecraft 1.21)
+## Collections (Minecraft 1.21)
 
 Open the inventory's red collection book or use `/mmm collections`. Hover a category for its completion summary, hover a block for its current tier and next target, then click it to view numbered milestone panes. Green panes are unlocked; red panes show the remaining blocks. Smaller screens have milestone page controls. The pin button tracks the next target on the HUD.
 
@@ -53,6 +53,7 @@ Existing totals unlock reached milestones automatically. The update shows one lo
 Website sync is optional and **off by default**.
 
 - Link the mod with a code generated on the MMM website.
+- Ask an owner to add your linked account in Owner Tools > Sync. Linking alone does not grant source-sync access.
 - Select the correct total-mined scoreboard for each source.
 - MMMod queues changed totals, scoreboard evidence, block breakdowns, and eligible sessions.
 - Each source can publish one complete scoreboard snapshot per UTC day.
@@ -95,10 +96,10 @@ All hotkeys are editable. `Escape` clears an assignment.
 
 ## Build
 
-MMMod uses Java 21:
+Keep the entire shared-core repository together. From this wrapper directory, use JDK 21 and Gradle 9.4.1:
 
 ```text
-gradle clean build
+gradle clean test build
 ```
 
 The release jar is written to `build/libs`.
@@ -106,6 +107,8 @@ The release jar is written to `build/libs`.
 ## Credits
 
 - **Shekel** - creator and lead developer
+- **[Aquatictw](https://github.com/Aquatictw)** - mining overlay, pace, tracking and UI contributions
+- **[useleess](https://github.com/useleess)** - the 1.12.2 Forge + LiteLoader compatibility fix
 - **MMM community** - testing and feedback
 - **BlockTimer**, **I-See-Lava**, and **ScoreboardHelper** - MIT-licensed feature references
 - **Fabric API** and **Mod Menu** - Fabric platform and optional config integration
