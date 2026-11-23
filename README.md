@@ -4,28 +4,28 @@ Track your mining, complete collections, and compare your progress with other ma
 
 The client mod for [Manual Mining Maniacs](https://www.mmmaniacs.com).
 
-**Current release: [1.0.22](https://github.com/darealshekel/MMMod/releases/tag/v1.0.22).**
+**Current release: [1.0.23](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23).**
 
 [Downloads](https://www.mmmaniacs.com/downloads) | [Discord](https://discord.gg/U2vQ93wWZ9) | [Report a bug or suggest a feature](https://github.com/darealshekel/MMMod/issues) | [Support MMM](https://buymeacoffee.com/manualminingmaniacs)
 
 ## Downloads and Requirements
 
-Choose the file for your exact Minecraft version. All builds below are available in the 1.0.22 release.
+Choose the file for your exact Minecraft version and loader.
 
 | Minecraft | Loader | Java runtime | File |
 | --- | --- | --- | --- |
-| 1.12.2 | LiteLoader, optionally with Forge | Java 8 | [LiteMod](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.12.2-liteloader.litemod) |
-| 1.17.1 | Fabric Loader 0.16.14+ | Java 16+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.17.1.jar) |
-| 1.19.4 | Fabric Loader 0.16.14+ | Java 17+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.19.4.jar) |
-| 1.20.1 | Fabric Loader 0.16.14+ | Java 17+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.20.1.jar) |
-| 1.21 | Fabric Loader 0.16.14+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.21.jar) |
-| 1.21.1 | Fabric Loader 0.16.14+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.21.1.jar) |
-| 1.21.4 | Fabric Loader 0.16.14+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.21.4.jar) |
-| 1.21.6 | Fabric Loader 0.16.14+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.21.6.jar) |
-| 1.21.11 | Fabric Loader 0.19.2+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.21.11.jar) |
-| 26.1.2 | Fabric Loader 0.19.3+ | Java 25+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B26.1.2.jar) |
-| 26.2 | Fabric Loader 0.19.3+ | Java 25+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B26.2.jar) |
-| 26.3 | Fabric Loader 0.19.3+ | Java 25+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B26.3.jar) |
+| 1.12.2 | LiteLoader, optionally with Forge | Java 8 | [LiteMod](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.12.2-liteloader.litemod) |
+| 1.17.1 | Fabric Loader 0.16.14+ | Java 16+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.17.1.jar) |
+| 1.19.4 | Fabric Loader 0.16.14+ | Java 17+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.19.4.jar) |
+| 1.20.1 | Fabric Loader 0.16.14+ | Java 17+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.20.1.jar) |
+| 1.21 | Fabric Loader 0.16.14+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.21.jar) |
+| 1.21.1 | Fabric Loader 0.16.14+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.21.1.jar) |
+| 1.21.4 | Fabric Loader 0.16.14+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.21.4.jar) |
+| 1.21.6 | Fabric Loader 0.16.14+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.21.6.jar) |
+| 1.21.11 | Fabric Loader 0.19.2+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.21.11.jar) |
+| 26.1.2 | Fabric Loader 0.19.3+ | Java 25+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B26.1.2.jar) |
+| 26.2 | Fabric Loader 0.19.3+ | Java 25+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B26.2.jar) |
+| 26.3 | Fabric Loader 0.19.3+ | Java 25+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B26.3.jar) |
 
 Fabric builds bundle their matching Fabric API. Mod Menu is optional. The 1.12.2 file is a LiteLoader mod, not a Fabric or Ornithe mod. No separate MMM core mod is needed.
 
@@ -55,7 +55,9 @@ Features and controls differ between Minecraft versions. The shared-core release
 
 ## Sessions and Controls
 
-Default bindings can be changed in MMM's hotkey menu. Press Escape while assigning a binding to clear it.
+Select **Hotkeys** in the Settings header to change a binding. On LiteLoader, Escape cancels capture; use **Unassign** to clear the binding. Select **Tools** for projects and session tools. On LiteLoader, open a player's profile from the leaderboard.
+
+On Minecraft 1.21.1, 1.21.4, and 1.21.6, Settings opens directly to **Everyday settings**. Choose a category on the left to edit its settings without opening another menu. On narrow screens, hover over a category icon to see its name.
 
 | Action | Default |
 | --- | --- |
@@ -93,15 +95,17 @@ A client can only submit player scores it can actually read. Linking does not gi
 
 MMM stores shared data under `%APPDATA%\ManualMiningManiacs` on Windows and `~/.manual-mining-maniacs` on Linux/macOS. Back up this folder before downgrading or testing an unreleased build.
 
-## What Changed in 1.0.22?
+## What Changed in 1.0.23?
 
-Shared code and regression tests now live in one repository, with version-specific Minecraft/loader adapters. Saved data and the one-file installation remain unchanged. The release retains the 1.12.2 Forge + LiteLoader compatibility fix and introduces no new sync-access rules.
+Settings puts **Hotkeys** and **Website Link** in the header. In Collections, open the book button in your inventory, select a block, and inspect its tiers without changing your tracked milestone. The book remembers your filters.
 
-This is an internal refactor, not a new-feature release. See the [release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.22) and [verification report](https://github.com/darealshekel/MMMod/blob/refactor/shared-core/docs/1.0.22-verification.md) for tested coverage and limitations.
+On Minecraft **1.21 and 1.21.11**, the movable mining overlay shows the current block, progress to the next milestone, and collection rank when available. It stays on screen while you mine the same block and fades when you stop. Perimeter Timelapse is no longer included.
+
+See the [1.0.23 changelog](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23) and [release verification notes](https://github.com/darealshekel/MMMod/blob/v1.0.23/docs/1.0.23-verification.md).
 
 ## Source and Building
 
-**The maintained multi-version source is on [`refactor/shared-core`](https://github.com/darealshekel/MMMod/tree/refactor/shared-core).** The default branch still has the historical single-version code. Use that maintained branch or the full source ZIP from the 1.0.22 release to build current versions; a single wrapper folder is not enough.
+**The maintained multi-version source is on [`refactor/shared-core`](https://github.com/darealshekel/MMMod/tree/refactor/shared-core).** The default branch still has the historical single-version code. Use that maintained branch or the source archive for the matching release tag to build current versions; a single wrapper folder is not enough.
 
 - `core/`: shared models, rules, storage, API and statistics implementations.
 - `adapters/shared/`: reusable Minecraft integrations.
@@ -130,4 +134,4 @@ See the [shared-core maintenance guide](https://github.com/darealshekel/MMMod/bl
 - **BlockTimer, I-See-Lava and ScoreboardHelper** - MIT-licensed feature references.
 - **Fabric, LiteLoader, Mod Menu and bundled library authors** - platform and library support. Version-specific third-party notices are kept with their source wrappers.
 
-MMMod is licensed under [MIT](https://github.com/darealshekel/MMMod/blob/refactor/shared-core/LICENSE). It is not affiliated with Mojang Studios or Microsoft.
+MMMod 1.0.23 is licensed under [GNU LGPLv3](https://github.com/darealshekel/MMMod/blob/v1.0.23/LICENSE) (`LGPL-3.0-only`). See the [release licensing notes](https://github.com/darealshekel/MMMod/blob/v1.0.23/LICENSING.md) for retained MIT and third-party notices. It is not affiliated with Mojang Studios or Microsoft.
