@@ -20,6 +20,7 @@ public final class InitHandler
         Configs.loadFromFile();
         MmmTimerState.load();
         MmmClientCommands.register();
+        com.mmm.ui.InventoryCollectionButton.register();
         Callbacks.init();
         BlockEspRenderer.initialize();
 
@@ -30,6 +31,8 @@ public final class InitHandler
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             worldListener.pollWorldChange(client);
             tickHandler.onClientTick(client);
+            com.mmm.tracker.LiveCollections.tick(client);
+            com.mmm.tracker.PinnedCollection.tick(client);
         });
         HudElementRegistry.addLast(
                 Identifier.fromNamespaceAndPath("mmm", "main_hud"),

@@ -1,5 +1,8 @@
 package com.mmm.ui;
 
+import com.mmm.ui.BoardChrome;
+import com.mmm.ui.BoardEditorStyle;
+
 import com.mmm.sync.SyncScoreboardSelector;
 import com.mmm.util.UiFormat;
 import java.util.ArrayList;
@@ -11,7 +14,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-public final class SyncScoreboardScreen extends MmmScreen
+public final class SyncScoreboardScreen extends MmmScreen implements BoardChrome.Page
 {
     private static final int ROW_HEIGHT = 42;
     private static final int ROW_GAP = 5;
@@ -29,6 +32,7 @@ public final class SyncScoreboardScreen extends MmmScreen
     @Override
     protected void init()
     {
+        this.addDrawableChild(BoardChrome.back(this.width, this::close));
         MmmUi.ensureCursorVisible();
         this.choices = SyncScoreboardSelector.availableObjectives(MinecraftClient.getInstance());
     }
@@ -38,13 +42,11 @@ public final class SyncScoreboardScreen extends MmmScreen
     {
         this.clickTargets.clear();
         Layout layout = layout();
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
-        MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "SYNC SCOREBOARD", layout.contentX(), layout.contentY(), layout.contentWidth());
+        MmmUi.editorFrame(context, width, height, "Sync scoreboard");
+        MmmUi.editorHeading(context, this.textRenderer, "SYNC SCOREBOARD", layout.contentX(), layout.contentY(), layout.contentWidth());
         MmmUi.drawTextWithin(context, this.textRenderer,
                 "Choose the mining-total objective for this source. Project and unrelated objectives are hidden.",
-                layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
+                layout.contentX(), layout.contentY() + 18, layout.contentWidth(), BoardEditorStyle.MUTED, false);
 
         String selected = SyncScoreboardSelector.selectedObjectiveName();
         int rowY = layout.listTop();
@@ -80,7 +82,7 @@ public final class SyncScoreboardScreen extends MmmScreen
                                 ? "Selected objective: " + selected
                                 : "Selected scoreboard unavailable. Source sync is paused.";
         MmmUi.drawTextWithin(context, this.textRenderer, status, layout.contentX(), layout.statusY(),
-                layout.contentWidth() - 70, selectedAvailable ? MmmUi.MUTED : MmmUi.WARNING, false);
+                layout.contentWidth() - 70, selectedAvailable ? BoardEditorStyle.MUTED : MmmUi.WARNING, false);
         drawButton(context, layout.panelX() + layout.panelWidth() - 70, layout.statusY() - 6,
                 58, 20, "DONE", mouseX, mouseY, this::close);
         super.render(context, mouseX, mouseY, delta);
@@ -91,15 +93,15 @@ public final class SyncScoreboardScreen extends MmmScreen
                             int x, int y, int width, int mouseX, int mouseY)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, ROW_HEIGHT);
-        int fill = selected ? MmmUi.accentSoft() : hovered ? MmmUi.accentHover() : MmmUi.CARD;
-        int border = selected || hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT;
-        MmmUi.card(context, x, y, width, ROW_HEIGHT, fill, border);
-        MmmUi.drawTextWithin(context, this.textRenderer, title, x + 10, y + 7, Math.max(1, width - 190), MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, subtitle, x + 10, y + 23, Math.max(1, width - 190), MmmUi.MUTED, false);
+        int fill = selected ? MmmUi.accentSoft() : hovered ? BoardEditorStyle.TILE : BoardEditorStyle.TILE;
+        int border = selected || hovered ? MmmUi.accent() : BoardEditorStyle.LINE;
+        MmmUi.editorRow(context, x, y, width, ROW_HEIGHT, fill, border);
+        MmmUi.drawTextWithin(context, this.textRenderer, title, x + 10, y + 7, Math.max(1, width - 190), BoardEditorStyle.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, subtitle, x + 10, y + 23, Math.max(1, width - 190), BoardEditorStyle.MUTED, false);
         if (playerCount > 0 || sourceTotal > 0L)
         {
             String summary = playerCount + " players  /  " + UiFormat.formatCompact(sourceTotal);
-            MmmUi.drawTextRightWithin(context, this.textRenderer, summary, x + width - 10, y + 15, 170, MmmUi.MUTED, false);
+            MmmUi.drawTextRightWithin(context, this.textRenderer, summary, x + width - 10, y + 15, 170, BoardEditorStyle.MUTED, false);
         }
         this.clickTargets.add(new ClickTarget(x, y, width, ROW_HEIGHT, () -> {
             SyncScoreboardSelector.selectObjective(objectiveName);
@@ -111,21 +113,17 @@ public final class SyncScoreboardScreen extends MmmScreen
                             int mouseX, int mouseY, Runnable action)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
-        MmmUi.card(context, x, y, width, height, hovered ? MmmUi.accentHover() : MmmUi.INSET,
-                hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        MmmUi.editorRow(context, x, y, width, height, hovered ? BoardEditorStyle.TILE : BoardEditorStyle.TILE,
+                hovered ? MmmUi.accent() : BoardEditorStyle.LINE);
         context.drawText(this.textRenderer, new net.minecraft.text.LiteralText(label),
                 x + Math.max(3, (width - this.textRenderer.getWidth(label)) / 2), y + 6,
-                hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
+                hovered ? BoardEditorStyle.TEXT : BoardEditorStyle.MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, height, action));
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
-        }
         if (button == 0)
         {
             for (ClickTarget target : List.copyOf(this.clickTargets))
@@ -182,9 +180,8 @@ public final class SyncScoreboardScreen extends MmmScreen
 
     private Layout layout()
     {
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - 12);
-        int panelWidth = Math.min(680, availableWidth);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
+        int panelWidth = BoardEditorStyle.contentWidth(width, 680);
+        int panelX = BoardEditorStyle.contentX(width, panelWidth);
         int panelY = MmmUi.TOP_BAR_HEIGHT + 8;
         int panelHeight = Math.max(1, this.height - panelY - 8);
         int contentX = panelX + 12;

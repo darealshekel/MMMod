@@ -3,6 +3,7 @@ package com.mmm.legacy.settings;
 import com.mmm.config.Configs;
 import com.mmm.config.Configs.ProjectEntry;
 import com.mmm.legacy.LegacyScreen;
+import com.mmm.legacy.LegacyMenuButton;
 import com.mmm.util.UiFormat;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -17,7 +18,9 @@ public final class ProjectManagerScreen extends LegacyScreen {
     private String status = "";
     public ProjectManagerScreen(Screen parent) { super(parent, "Projects"); }
     private ProjectEntry selected() { return Configs.PROJECTS.isEmpty() ? null : Configs.PROJECTS.get(Math.max(0, Math.min(selected, Configs.PROJECTS.size() - 1))); }
-    private int capacity() { return Math.max(1, (height - 178) / 24); }
+    @Override protected int maxContentWidth() { return 520; }
+    private int columns() { return panelWidth >= 440 ? 2 : 1; }
+    private int capacity() { return Math.max(1, (height - 178) / 34) * columns(); }
     @Override public void init() {
         String draft = name == null ? null : name.getText();
         super.init();
@@ -25,10 +28,12 @@ public final class ProjectManagerScreen extends LegacyScreen {
         ProjectEntry entry = selected();
         for (int i = 0; i < capacity() && offset + i < Configs.PROJECTS.size(); i++) {
             ProjectEntry item = Configs.PROJECTS.get(offset + i);
-            button(100 + i, left, 45 + i * 24, panelWidth,
-                    (item.id.equals(Configs.activeProjectId) ? "[Active] " : "") + item.name + " / " + UiFormat.formatBlocks(item.progress));
+            int span = (panelWidth + 4) / columns();
+            addButton(new LegacyMenuButton(100 + i, left + i % columns() * span, 57 + i / columns() * 34,
+                    span - 4, 30, item.name, UiFormat.formatBlocks(item.progress)
+                    + (item.id.equals(Configs.activeProjectId) ? " / Active" : ""), null, offset + i == selected));
         }
-        int y = height - 122;
+        int y = height - 102;
         name = field(1, y, draft != null ? draft : entry == null ? "" : entry.name); name.setMaxLength(64);
         int w = (panelWidth - 12) / 3;
         button(1, left, y + 28, w, "Apply").active = entry != null;
@@ -59,7 +64,8 @@ public final class ProjectManagerScreen extends LegacyScreen {
         else super.buttonClicked(b);
     }
     @Override public void render(int x, int y, float delta) {
-        shell(); name.render();
+        shell(); section("Projects / " + Configs.PROJECTS.size(), 39);
+        section("Project name", height - 118); name.render();
         fit(status, left, height - 22, panelWidth, 0xFFBBBBBB);
         super.render(x, y, delta);
     }

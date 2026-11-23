@@ -1,6 +1,7 @@
 package com.mmm.scoreboard;
 
 import java.util.*;
+import com.mmm.legacy.settings.BoardField;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -22,7 +23,7 @@ public final class ScoreboardEditScreen extends ScoreboardBaseScreen {
             rows.add(new Row(entry.getOwner(), Integer.toString(entry.get())));
         }
     }
-    private int capacity() { return Math.max(1, (height - 116) / 26); }
+    private int capacity() { return Math.max(1, (height - 133) / 26); }
     private boolean canEdit() {
         return minecraft.player != null && minecraft.world != null && minecraft.world.getScoreboard() == objective.getScoreboard()
                 && minecraft.world.getScoreboard().getObjective(objective.getName()) == objective
@@ -39,11 +40,11 @@ public final class ScoreboardEditScreen extends ScoreboardBaseScreen {
         button(4, left + 192, 40, 64, "Score");
         for (int i = 0; i < capacity() && offset + i < rows.size(); i++) {
             Row row = rows.get(offset + i);
-            int y = 70 + i * 26;
+            int y = 85 + i * 26;
             int nameWidth = Math.max(60, (panelWidth - 42) * 2 / 3);
-            var name = new TextFieldWidget(i * 2, textRenderer, left, y, nameWidth, 20);
+            var name = new BoardField(i * 2, textRenderer, left, y, nameWidth, 20);
             name.setMaxLength(40); name.setText(row.name);
-            var value = new TextFieldWidget(i * 2 + 1, textRenderer, left + nameWidth + 4, y, panelWidth - nameWidth - 36, 20);
+            var value = new BoardField(i * 2 + 1, textRenderer, left + nameWidth + 4, y, panelWidth - nameWidth - 36, 20);
             value.setMaxLength(11); value.setText(row.score);
             fields.add(new Fields(row, name, value));
             button(100 + i, left + panelWidth - 28, y, 28, "X");
@@ -56,7 +57,9 @@ public final class ScoreboardEditScreen extends ScoreboardBaseScreen {
         for (var field : fields) { field.row.name = field.name.getText(); field.row.score = field.score.getText(); }
     }
     @Override public void render(int x, int y, float delta) {
-        shell();
+        shell(); section("Score entries / " + rows.size(), 68);
+        if (fields.isEmpty()) { recordRow(84, 23, false); fit("No scores", left + 7, 92, panelWidth - 14, com.mmm.ui.BoardEditorStyle.MUTED); }
+        for (int i = 0; i < fields.size(); i++) recordRow(84 + i * 26, 23, false);
         for (var field : fields) { field.name.render(); field.score.render(); }
         super.render(x, y, delta);
     }

@@ -97,6 +97,10 @@ public class Configs
 
         public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", false, "Sync your player stats, source scoreboard, and source total together.");
         public static final ConfigBoolean WEBSITE_SYNC_DEBUG = new ConfigBoolean("websiteSyncDebug", false, "Enable verbose website sync debug logging.");
+        public static final ConfigInteger COLLECTION_FILTER = new ConfigInteger("collectionProgressFilter", 0, 0, 2, "Last collection progress filter.");
+        public static final ConfigInteger COLLECTION_SORT = new ConfigInteger("collectionSort", 0, 0, 2, "Last collection sort order.");
+        public static final ConfigInteger COLLECTION_CATEGORY = new ConfigInteger("collectionCategory", 0, 0, com.mmm.leaderboard.BlockRankingCategory.values().length, "Last collection category.");
+        public static final ConfigBoolean COLLECTION_GLOBAL = new ConfigBoolean("collectionGlobal", true, "Browse all worlds.");
         public static final ConfigInteger MAX_BLOCKS_PER_MINUTE = new ConfigInteger("maxBlocksPerMinute", 1200, 1, 1200, "Maximum accepted local valid block breaks per minute. Excess local counts are logged and ignored.");
         public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", false, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
@@ -301,6 +305,7 @@ public class Configs
         public static final ImmutableList<IConfigBase> PERSISTED_OPTIONS = ImmutableList.of(
                 WEBSITE_SYNC_ENABLED,
                 WEBSITE_SYNC_DEBUG,
+                COLLECTION_FILTER, COLLECTION_SORT, COLLECTION_CATEGORY, COLLECTION_GLOBAL,
                 MAX_BLOCKS_PER_MINUTE,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,
@@ -420,6 +425,11 @@ public class Configs
     public static long fastest100kStartedAtMs = 0L;
     public static long fastest100kFinishedAtMs = 0L;
     public static String activeProjectId = "";
+    public static String collectionLiveState = "{}";
+    public static String pinnedCollectionBlock = "";
+    public static String pinnedCollectionWorld = "";
+    public static String pinnedCollectionWorldName = "";
+    public static String pinnedCollectionPlayer = "";
     public static String cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
     public static String cloudSyncSecret = "";
     public static String cloudClientId = "";
@@ -962,6 +972,11 @@ public class Configs
             fastest100kStartedAtMs = readLong(state, "fastest100kStartedAtMs", fastest100kStartedAtMs, "config State");
             fastest100kFinishedAtMs = readLong(state, "fastest100kFinishedAtMs", fastest100kFinishedAtMs, "config State");
             activeProjectId = readString(state, "activeProjectId", activeProjectId, "config State");
+            collectionLiveState = readString(state, "collectionLiveState", "{}", "config State");
+            pinnedCollectionBlock = readString(state, "pinnedCollectionBlock", "", "config State");
+            pinnedCollectionWorld = readString(state, "pinnedCollectionWorld", "", "config State");
+            pinnedCollectionWorldName = readString(state, "pinnedCollectionWorldName", "", "config State");
+            pinnedCollectionPlayer = readString(state, "pinnedCollectionPlayer", "", "config State");
             Generic.WEBSITE_SYNC_ENABLED.setBooleanValue(readBoolean(state, "cloudSyncEnabled", Generic.WEBSITE_SYNC_ENABLED.getBooleanValue(), "config State"));
             cloudSyncEndpoint = readString(state, "cloudSyncEndpoint", cloudSyncEndpoint, "config State");
             cloudSyncSecret = readString(state, "cloudSyncSecret", cloudSyncSecret, "config State");
@@ -1293,6 +1308,11 @@ public class Configs
         state.addProperty("fastest100kStartedAtMs", fastest100kStartedAtMs);
         state.addProperty("fastest100kFinishedAtMs", fastest100kFinishedAtMs);
         state.addProperty("activeProjectId", activeProjectId == null ? "" : activeProjectId);
+        state.addProperty("collectionLiveState", collectionLiveState);
+        state.addProperty("pinnedCollectionBlock", pinnedCollectionBlock);
+        state.addProperty("pinnedCollectionWorld", pinnedCollectionWorld);
+        state.addProperty("pinnedCollectionWorldName", pinnedCollectionWorldName);
+        state.addProperty("pinnedCollectionPlayer", pinnedCollectionPlayer);
         state.addProperty("cloudSyncEnabled", Generic.WEBSITE_SYNC_ENABLED.getBooleanValue());
         state.addProperty("cloudSyncEndpoint", cloudSyncEndpoint == null ? DEFAULT_CLOUD_SYNC_ENDPOINT : cloudSyncEndpoint);
         state.addProperty("cloudSyncSecret", cloudSyncSecret == null ? "" : cloudSyncSecret);

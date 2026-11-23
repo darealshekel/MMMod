@@ -38,9 +38,10 @@ public final class HudEditorScreen extends LegacyScreen {
             context.drawBorder(b[0], b[1], b[2] - b[0], b[3] - b[1], module.id().equals(selectedId) ? Configs.getMenuColor() : 0xFF949494);
         }
         HudModules.Module selected = selected();
-        fill(0, height - 43, width, height, 0xF0050505);
+        fill(0, height - 43, width, height, com.mmm.ui.BoardEditorStyle.SURFACE);
+        fill(0, height - 43, width, height - 42, com.mmm.ui.BoardEditorStyle.LINE);
         if (selected != null) {
-            fit(selected.label() + (selected.visible() ? " / Visible" : " / Hidden"), 8, height - 39, width - 16, 0xFFFFFFFF);
+            fit("MMM / HUD Layout / " + selected.label() + (selected.visible() ? " / Visible" : " / Hidden"), 8, height - 39, width - 16, 0xFFFFFFFF);
             buttons.stream().filter(b -> b.id == 5).forEach(b -> b.message = selected.visible() ? "Hide" : "Show");
         }
         super.render(x, y, delta);

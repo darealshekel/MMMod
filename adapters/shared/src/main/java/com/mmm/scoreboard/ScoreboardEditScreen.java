@@ -1,5 +1,7 @@
 package com.mmm.scoreboard;
 
+import com.mmm.ui.BoardEditorStyle;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -57,6 +59,7 @@ public final class ScoreboardEditScreen extends Screen
     {
         MmmUi.ensureCursorVisible();
         this.clearChildren();
+        this.backButton = this.addSelectableChild(MmmUi.backButton(this, MmmUi.contentLeft(this.width)));
         this.rowWidgets.clear();
         this.addButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Add Row"), ignored -> this.addRow())
                 .dimensions(0, 0, 76, 18).build());
@@ -66,20 +69,20 @@ public final class ScoreboardEditScreen extends Screen
                 .dimensions(0, 0, 82, 18).build());
         this.saveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Save"), ignored -> this.save())
                 .dimensions(0, 0, 70, 18).build());
-        this.backButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), ignored -> this.close())
-                .dimensions(0, 0, 70, 18).build());
         this.saveButton.active = this.client != null && this.client.player != null && this.client.player.hasPermissionLevel(2);
 
         for (int index = 0; index < this.rows.size(); index++)
         {
             RowModel model = this.rows.get(index);
             TextFieldWidget name = new TextFieldWidget(this.textRenderer, 0, 0, 160, 18, Text.literal("Player name"));
+            name.setDrawsBackground(false);
             name.setMaxLength(40);
             name.setText(model.name);
             name.setChangedListener(value -> model.name = value);
             this.addDrawableChild(name);
 
             TextFieldWidget score = new TextFieldWidget(this.textRenderer, 0, 0, 100, 18, Text.literal("Score"));
+            score.setDrawsBackground(false);
             score.setMaxLength(11);
             score.setTextPredicate(value -> value.isEmpty() || value.equals("-") || value.matches("-?\\d{0,10}"));
             score.setText(Integer.toString(model.score));
@@ -104,9 +107,7 @@ public final class ScoreboardEditScreen extends Screen
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        MmmUi.toolBoard(context, this.textRenderer, this.width, this.height, MmmUi.contentLeft(this.width), "Scoreboard / Edit");
         int x = MmmUi.contentLeft(this.width);
         int y = MmmUi.TOP_BAR_HEIGHT;
         int width = MmmUi.contentWidth(this.width);
@@ -115,64 +116,72 @@ public final class ScoreboardEditScreen extends Screen
         this.drawContent(context, x, y, width, height);
         super.render(context, mouseX, mouseY, delta);
         context.disableScissor();
+        this.backButton.render(context, mouseX, mouseY, delta);
     }
 
     private void drawContent(DrawContext context, int x, int viewportY, int width, int viewportHeight)
     {
+        boolean wrap = width < 380;
+        int headingHeight = this.error.isBlank() ? 35 : 48;
+        int toolbarHeight = (wrap ? 22 : 0) + 28;
+        this.contentHeight = 16 + headingHeight + toolbarHeight + 14
+                + (this.rows.isEmpty() ? 58 : this.rows.size() * ROW_HEIGHT + 12);
+        this.scrollY = Math.clamp(this.scrollY, 0.0D, Math.max(0, this.contentHeight - viewportHeight));
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
-        MmmUi.drawTextWithin(context, this.textRenderer, "EDIT SCOREBOARD", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, this.objective.getDisplayName().getString(), x, y + 16, width, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.objective.getDisplayName().getString(), x, y, width, BoardEditorStyle.TEXT, false);
         String helper = this.saveButton.active
                 ? "Changes are sent as vanilla scoreboard commands."
                 : "Operator permission level 2 is required to save.";
-        MmmUi.drawTextWithin(context, this.textRenderer, helper, x, y + 30, width, this.saveButton.active ? MmmUi.MUTED : 0xFFFF5965, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, helper, x, y + 15, width, this.saveButton.active ? BoardEditorStyle.MUTED : 0xFFFF5965, false);
         if (!this.error.isBlank())
         {
-            MmmUi.drawTextWithin(context, this.textRenderer, this.error, x, y + 43, width, 0xFFFF5965, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, this.error, x, y + 28, width, 0xFFFF5965, false);
         }
-        y += 60;
+        y += headingHeight;
 
         int gap = 6;
-        int addW = Math.min(76, Math.max(52, width / 6));
-        int sortW = Math.min(104, Math.max(76, width / 5));
-        int directionW = Math.min(86, Math.max(68, width / 5));
-        int saveW = Math.min(70, Math.max(50, width / 7));
-        int backW = Math.min(70, Math.max(50, width / 7));
-        this.addButton.setDimensionsAndPosition(addW, 18, x, y);
-        this.sortButton.setDimensionsAndPosition(sortW, 18, x + addW + gap, y);
-        this.directionButton.setDimensionsAndPosition(directionW, 18, x + addW + sortW + gap * 2, y);
-        this.saveButton.setDimensionsAndPosition(saveW, 18, x + width - backW - saveW - gap, y);
-        this.backButton.setDimensionsAndPosition(backW, 18, x + width - backW, y);
-        this.setToolbarVisible(y + 18 >= viewportY && y <= viewportY + viewportHeight);
-        y += 28;
+        int cell = (width - gap * (wrap ? 2 : 3)) / (wrap ? 3 : 4);
+        int actionY = wrap ? y + 22 : y;
+        this.addButton.setDimensionsAndPosition(cell, 18, x, y);
+        this.sortButton.setDimensionsAndPosition(cell, 18, x + cell + gap, y);
+        this.directionButton.setDimensionsAndPosition(cell, 18, x + (cell + gap) * 2, y);
+        this.saveButton.setDimensionsAndPosition(cell, 18, x + width - cell, actionY);
+        this.setToolbarVisible(actionY + 18 >= viewportY && y <= viewportY + viewportHeight);
+        y = actionY + 28;
 
-        int deleteW = 58;
-        int scoreW = Math.min(112, Math.max(76, width / 4));
-        int nameW = Math.max(80, width - scoreW - deleteW - 16);
-        MmmUi.drawTextWithin(context, this.textRenderer, "PLAYER / HOLDER", x + 5, y, nameW, MmmUi.MUTED, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "SCORE", x + nameW + 10, y, scoreW, MmmUi.MUTED, false);
+        int deleteW = Math.min(58, width / 4);
+        int scoreW = Math.min(112, width / 4);
+        int nameW = Math.max(1, width - scoreW - deleteW - 16);
+        context.fill(x, y - 4, x + width, y - 3, BoardEditorStyle.LINE);
+        MmmUi.drawTextWithin(context, this.textRenderer, "PLAYER / HOLDER", x + 5, y, nameW, BoardEditorStyle.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "SCORE", x + nameW + 10, y, scoreW, BoardEditorStyle.MUTED, false);
         y += 14;
 
         if (this.rows.isEmpty())
         {
-            MmmUi.card(context, x, y, width, 46, MmmUi.CARD, MmmUi.BORDER);
-            MmmUi.drawTextWithin(context, this.textRenderer, "No rows. Use Add Row to create one.", x + 10, y + 17, width - 20, MmmUi.MUTED, false);
-            this.contentHeight = y + 58 - viewportY + (int) Math.round(this.scrollY);
+            MmmUi.boardRow(context, x, y, width, 46, false, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "No rows. Use Add Row to create one.", x + 10, y + 17, width - 20, BoardEditorStyle.MUTED, false);
             return;
         }
 
         for (int index = 0; index < this.rows.size(); index++)
         {
             RowWidgets widgets = this.rowWidgets.get(index);
-            MmmUi.card(context, x, y, width, ROW_HEIGHT - 3, MmmUi.CARD, MmmUi.BORDER);
-            widgets.name.setDimensionsAndPosition(nameW, 18, x + 4, y + 4);
-            widgets.score.setDimensionsAndPosition(scoreW, 18, x + nameW + 8, y + 4);
+            MmmUi.boardRow(context, x, y, width, ROW_HEIGHT, false, false);
+            fieldRule(context, x + 4, y + 19, nameW, widgets.name.isFocused());
+            fieldRule(context, x + nameW + 8, y + 19, scoreW, widgets.score.isFocused());
+            widgets.name.setDimensionsAndPosition(nameW - 4, 13, x + 6, y + 7);
+            widgets.score.setDimensionsAndPosition(scoreW - 4, 13, x + nameW + 10, y + 7);
             widgets.delete.setDimensionsAndPosition(deleteW, 18, x + width - deleteW - 4, y + 4);
             boolean visible = y + ROW_HEIGHT >= viewportY && y <= viewportY + viewportHeight;
             widgets.setVisible(visible);
             y += ROW_HEIGHT;
         }
-        this.contentHeight = y + 12 - viewportY + (int) Math.round(this.scrollY);
+    }
+
+    private static void fieldRule(DrawContext context, int x, int y, int width, boolean focused)
+    {
+        context.fill(x, y, x + width, y + 1, focused ? BoardEditorStyle.ROSE : BoardEditorStyle.LINE);
     }
 
     private void addRow()
@@ -180,7 +189,7 @@ public final class ScoreboardEditScreen extends Screen
         this.rows.add(new RowModel("", 0));
         this.error = "";
         this.clearAndInit();
-        this.scrollY = Math.max(0, this.contentHeight);
+        this.scrollY = this.contentHeight + ROW_HEIGHT;
     }
 
     private void deleteRow(int index)
@@ -299,16 +308,12 @@ public final class ScoreboardEditScreen extends Screen
         this.sortButton.visible = visible;
         this.directionButton.visible = visible;
         this.saveButton.visible = visible;
-        this.backButton.visible = visible;
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SCOREBOARD"))
-        {
-            return true;
-        }
+        if (mouseY < MmmUi.TOP_BAR_HEIGHT && !this.backButton.isMouseOver(mouseX, mouseY)) return false;
         return super.mouseClicked(mouseX, mouseY, button);
     }
 

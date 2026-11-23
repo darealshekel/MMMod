@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "id": "mmm_smoke",
+  "version": "1.0.0",
+  "name": "MMM Local Smoke Tests",
+  "environment": "client",
+  "entrypoints": { "client": ["com.mmm.smoke.ClientSmoke"] }
+}

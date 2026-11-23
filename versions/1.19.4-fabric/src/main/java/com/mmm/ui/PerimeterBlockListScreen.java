@@ -1,5 +1,8 @@
 package com.mmm.ui;
 
+import com.mmm.ui.BoardChrome;
+import com.mmm.ui.BoardEditorStyle;
+
 import com.mmm.config.Configs;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +16,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-public final class PerimeterBlockListScreen extends com.mmm.compat.MmmScreen
+public final class PerimeterBlockListScreen extends com.mmm.compat.MmmScreen implements BoardChrome.Page
 {
     private static final int ROW_HEIGHT = 30;
     private static final int ROW_GAP = 4;
@@ -38,9 +41,10 @@ public final class PerimeterBlockListScreen extends com.mmm.compat.MmmScreen
     {
         MmmUi.ensureCursorVisible();
         this.clearChildren();
+        this.addDrawableChild(BoardChrome.back(this.width, this::close));
         this.blockField = new TextFieldWidget(this.textRenderer, 0, 0, 180, FIELD_HEIGHT, Text.literal("Block ID"));
         this.blockField.setDrawsBackground(false);
-        this.blockField.setEditableColor(MmmUi.TEXT);
+        this.blockField.setEditableColor(BoardEditorStyle.TEXT);
         this.blockField.setMaxLength(128);
         this.blockField.setPlaceholder(Text.literal("minecraft:netherrack"));
         this.addDrawableChild(this.blockField);
@@ -52,18 +56,16 @@ public final class PerimeterBlockListScreen extends com.mmm.compat.MmmScreen
         MmmUi.ensureCursorVisible();
         this.clickTargets.clear();
         Layout layout = layout();
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
-        MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "PERIMETER BLOCK LIST", layout.contentX(), layout.contentY(), layout.contentWidth());
+        MmmUi.editorFrame(context, width, height, "Protected blocks");
+        MmmUi.editorHeading(context, this.textRenderer, "PERIMETER BLOCK LIST", layout.contentX(), layout.contentY(), layout.contentWidth());
         MmmUi.drawTextWithin(context, this.textRenderer, "The helper prevents digging below these configured surface blocks.",
-                layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
+                layout.contentX(), layout.contentY() + 18, layout.contentWidth(), BoardEditorStyle.MUTED, false);
 
         int addWidth = Math.min(70, Math.max(52, layout.contentWidth() / 5));
         int fieldWidth = Math.max(50, layout.contentWidth() - addWidth - 6);
         int inputY = layout.inputY();
-        MmmUi.card(context, layout.contentX(), inputY, fieldWidth, FIELD_HEIGHT, MmmUi.INSET,
-                this.blockField.isFocused() ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        MmmUi.editorRow(context, layout.contentX(), inputY, fieldWidth, FIELD_HEIGHT, BoardEditorStyle.TILE,
+                this.blockField.isFocused() ? MmmUi.accent() : BoardEditorStyle.LINE);
         this.blockField.setX(layout.contentX() + 6);
         this.blockField.setY(inputY + 6);
         this.blockField.setWidth(Math.max(24, fieldWidth - 12));
@@ -74,9 +76,9 @@ public final class PerimeterBlockListScreen extends com.mmm.compat.MmmScreen
         this.scrollOffset = Math.max(0, Math.min(maxScroll, this.scrollOffset));
         if (this.blocks.isEmpty())
         {
-            MmmUi.card(context, layout.contentX(), layout.listTop(), layout.contentWidth(), 38, MmmUi.CARD, MmmUi.BORDER_SOFT);
+            MmmUi.editorRow(context, layout.contentX(), layout.listTop(), layout.contentWidth(), 38, BoardEditorStyle.TILE, BoardEditorStyle.LINE);
             MmmUi.drawTextWithin(context, this.textRenderer, "No protected blocks configured.", layout.contentX() + 10,
-                    layout.listTop() + 10, layout.contentWidth() - 20, MmmUi.MUTED, false);
+                    layout.listTop() + 10, layout.contentWidth() - 20, BoardEditorStyle.MUTED, false);
         }
         else
         {
@@ -90,7 +92,7 @@ public final class PerimeterBlockListScreen extends com.mmm.compat.MmmScreen
             }
         }
 
-        int statusColor = this.statusError ? MmmUi.ERROR : MmmUi.MUTED;
+        int statusColor = this.statusError ? MmmUi.ERROR : BoardEditorStyle.MUTED;
         MmmUi.drawTextWithin(context, this.textRenderer, this.status, layout.contentX(), layout.statusY(),
                 Math.max(1, layout.contentWidth() - 72), statusColor, false);
         drawButton(context, layout.panelX() + layout.panelWidth() - 70, layout.statusY() - 6,
@@ -100,14 +102,14 @@ public final class PerimeterBlockListScreen extends com.mmm.compat.MmmScreen
 
     private void drawBlockRow(DrawContext context, String blockId, int x, int y, int width, int mouseX, int mouseY)
     {
-        MmmUi.card(context, x, y, width, ROW_HEIGHT, MmmUi.CARD, MmmUi.BORDER_SOFT);
+        MmmUi.editorRow(context, x, y, width, ROW_HEIGHT, BoardEditorStyle.TILE, BoardEditorStyle.LINE);
         String canonical = canonicalBlockId(blockId);
         boolean valid = canonical != null;
         String title = valid ? blockName(canonical) : "Unknown block";
         MmmUi.drawTextWithin(context, this.textRenderer, title, x + 9, y + 6, width - 50,
-                valid ? MmmUi.TEXT : MmmUi.ERROR, false);
+                valid ? BoardEditorStyle.TEXT : MmmUi.ERROR, false);
         MmmUi.drawTextWithin(context, this.textRenderer, valid ? canonical : blockId, x + 9, y + 17,
-                width - 50, MmmUi.MUTED, false);
+                width - 50, BoardEditorStyle.MUTED, false);
         drawButton(context, x + width - 31, y + 5, 22, 20, "X", mouseX, mouseY, () -> removeBlock(blockId));
     }
 
@@ -195,20 +197,16 @@ public final class PerimeterBlockListScreen extends com.mmm.compat.MmmScreen
                             int mouseX, int mouseY, Runnable action)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
-        context.fill(x, y, x + width, y + height, hovered ? MmmUi.accentHover() : MmmUi.INSET);
-        context.drawBorder(x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        context.fill(x, y, x + width, y + height, hovered ? BoardEditorStyle.TILE : BoardEditorStyle.TILE);
+        context.fill(x, y + height - 1, x + width, y + height, hovered ? BoardEditorStyle.ROSE : BoardEditorStyle.LINE);
         int textX = x + Math.max(3, (width - this.textRenderer.getWidth(label)) / 2);
-        context.drawText(this.textRenderer, Text.literal(label), textX, y + 6, hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
+        context.drawText(this.textRenderer, Text.literal(label), textX, y + 6, hovered ? BoardEditorStyle.TEXT : BoardEditorStyle.MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, height, action));
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
-        }
         if (button == 0)
         {
             for (ClickTarget target : List.copyOf(this.clickTargets))
@@ -276,9 +274,8 @@ public final class PerimeterBlockListScreen extends com.mmm.compat.MmmScreen
 
     private Layout layout()
     {
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - 12);
-        int panelWidth = Math.min(620, availableWidth);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
+        int panelWidth = BoardEditorStyle.contentWidth(width, 620);
+        int panelX = BoardEditorStyle.contentX(width, panelWidth);
         int panelY = MmmUi.TOP_BAR_HEIGHT + 8;
         int panelHeight = Math.max(1, this.height - panelY - 8);
         int contentX = panelX + 12;

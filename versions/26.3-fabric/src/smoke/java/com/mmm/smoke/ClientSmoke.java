@@ -23,6 +23,7 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 
 public final class ClientSmoke implements ClientModInitializer {
+    private final PreWorldBoardSmoke preWorld = new PreWorldBoardSmoke(MmmSettingsScreen::new, InputConstants.MOUSE_BUTTON_LEFT);
     private int phase, ticks;
     private long started;
     private boolean done;
@@ -34,6 +35,7 @@ public final class ClientSmoke implements ClientModInitializer {
                 if (System.currentTimeMillis() - started > 300000) throw new AssertionError("Timeout in phase " + phase);
                 if (phase == 0 && client.gui.overlay() == null && ++ticks > 40) {
                     if (Boolean.getBoolean("mmm.smoke.baseline")) { finish(client, "PASS: baseline startup without MMM"); return; }
+                    if (!preWorld.tick(client.gui.screen(), name -> shot(client, name))) return;
                     org.spongepowered.asm.mixin.MixinEnvironment.getCurrentEnvironment().audit();
                     if (!(client.gui.screen() instanceof TitleScreen)) client.gui.setScreen(new TitleScreen());
                     CreateWorldScreen.openFresh(client, () -> client.gui.setScreen(new TitleScreen()));
@@ -129,11 +131,12 @@ public final class ClientSmoke implements ClientModInitializer {
                             var book = new CollectionBookScreen(null);
                             client.gui.setScreen(book);
                             var field = Screens.getWidgets(book).stream().filter(w -> w instanceof EditBox).map(w -> (EditBox) w).findFirst().orElseThrow();
-                            field.setValue("stone");
+                            field.setValue("minecraft:stone");
                             press(book, "Stone");
                         }
                         case 12 -> {
                             bounds(client.gui.screen());
+                            press(client.gui.screen(), "Tier I");
                             shot(client, "collection-rank.png");
                             press(client.gui.screen(), "Pin collection");
                             var pin = PinnedCollection.view();
@@ -155,7 +158,25 @@ public final class ClientSmoke implements ClientModInitializer {
                         case 15 -> {
                             bounds(client.gui.screen());
                             shot(client, "collections-small-scrolled.png");
-                            finish(client, "PASS: mixin audit, mining, collections, inventory book, advancements, chat typing, leaderboards, settings, summary, rank, pinned HUD and responsive tier scrolling");
+                            var field = Screens.getWidgets(client.gui.screen()).stream().filter(EditBox.class::isInstance).map(EditBox.class::cast).findFirst().orElseThrow();
+                            field.setValue("minecraft:stone");
+                            press(client.gui.screen(), "Stone");
+                            PreWorldBoardSmoke.press(client.gui.screen(), "Share collection");
+                        }
+                        case 16 -> {
+                            if (!(client.gui.screen() instanceof ProgressShareScreen)) throw new AssertionError("Missing in-world Share");
+                            shot(client, "gameplay-share.png");
+                            PreWorldBoardSmoke.press(client.gui.screen(), "Back");
+                            if (!(client.gui.screen() instanceof CollectionBookScreen)) throw new AssertionError("Lost share parent");
+                            PreWorldBoardSmoke.openPicker(client.gui.screen());
+                        }
+                        case 17 -> {
+                            PreWorldBoardSmoke.checkPicker(client.gui.screen());
+                        }
+                        case 18 -> {
+                            shot(client, "gameplay-picker.png");
+                            PreWorldBoardSmoke.press(client.gui.screen(), "Back");
+                            finish(client, "PASS: pre-world secondary screens, Home Hotkeys and Tools tile clicks, share, RGBA picker in menu and world, mixin audit, mining, collections, inventory book, advancements, chat typing, leaderboards, settings, summary, rank, pinned HUD and responsive tier scrolling");
                         }
                         default -> throw new AssertionError("Unexpected phase " + phase);
                     }

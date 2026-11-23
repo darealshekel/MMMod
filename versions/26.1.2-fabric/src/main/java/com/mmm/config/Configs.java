@@ -423,6 +423,11 @@ public class Configs
     public static String cloudSyncEndpoint = DEFAULT_CLOUD_SYNC_ENDPOINT;
     public static String cloudSyncSecret = "";
     public static String cloudClientId = "";
+    public static String pinnedCollectionBlock = "";
+    public static String pinnedCollectionWorld = "";
+    public static String pinnedCollectionWorldName = "";
+    public static String pinnedCollectionPlayer = "";
+    public static String collectionLiveState = "{}";
     public static String websiteLinkedMinecraftUuid = "";
     public static String websiteLinkedMinecraftUsername = "";
     public static String websiteSyncToken = "";
@@ -966,6 +971,11 @@ public class Configs
             cloudSyncEndpoint = readString(state, "cloudSyncEndpoint", cloudSyncEndpoint, "config State");
             cloudSyncSecret = readString(state, "cloudSyncSecret", cloudSyncSecret, "config State");
             cloudClientId = readString(state, "cloudClientId", cloudClientId, "config State");
+            pinnedCollectionBlock = readString(state, "pinnedCollectionBlock", "", "config State");
+            pinnedCollectionWorld = readString(state, "pinnedCollectionWorld", "", "config State");
+            pinnedCollectionWorldName = readString(state, "pinnedCollectionWorldName", "", "config State");
+            pinnedCollectionPlayer = readString(state, "pinnedCollectionPlayer", "", "config State");
+            collectionLiveState = readString(state, "collectionLiveState", "{}", "config State");
             websiteLinkedMinecraftUuid = readString(state, "websiteLinkedMinecraftUuid", websiteLinkedMinecraftUuid, "config State");
             websiteLinkedMinecraftUsername = readString(state, "websiteLinkedMinecraftUsername", websiteLinkedMinecraftUsername, "config State");
             websiteSyncToken = readString(state, "websiteSyncToken", websiteSyncToken, "config State");
@@ -1297,6 +1307,11 @@ public class Configs
         state.addProperty("cloudSyncEndpoint", cloudSyncEndpoint == null ? DEFAULT_CLOUD_SYNC_ENDPOINT : cloudSyncEndpoint);
         state.addProperty("cloudSyncSecret", cloudSyncSecret == null ? "" : cloudSyncSecret);
         state.addProperty("cloudClientId", cloudClientId == null ? "" : cloudClientId);
+        state.addProperty("pinnedCollectionBlock", pinnedCollectionBlock);
+        state.addProperty("pinnedCollectionWorld", pinnedCollectionWorld);
+        state.addProperty("pinnedCollectionWorldName", pinnedCollectionWorldName);
+        state.addProperty("pinnedCollectionPlayer", pinnedCollectionPlayer);
+        state.addProperty("collectionLiveState", collectionLiveState);
         state.addProperty("websiteLinkedMinecraftUuid", websiteLinkedMinecraftUuid == null ? "" : websiteLinkedMinecraftUuid);
         state.addProperty("websiteLinkedMinecraftUsername", websiteLinkedMinecraftUsername == null ? "" : websiteLinkedMinecraftUsername);
         state.addProperty("websiteSyncToken", websiteSyncToken == null ? "" : websiteSyncToken);

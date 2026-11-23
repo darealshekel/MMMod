@@ -18,12 +18,13 @@ public final class OptionPickerScreen extends LegacyScreen {
         Set<String> seen = new HashSet<>();
         while (seen.add(next.getStringValue())) { entries.add(next); next = next.cycle(true); }
     }
+    @Override protected int maxContentWidth() { return 460; }
     private int capacity() { return Math.max(1, (height - 78) / 24); }
     @Override public void init() {
         super.init(); offset = SettingsUi.clampScroll(offset, entries.size(), capacity());
         for (int i = 0; i < capacity() && offset + i < entries.size(); i++) {
             var entry = entries.get(offset + i);
-            button(100 + i, left, 48 + i * 24, panelWidth, (entry == config.getOptionListValue() ? "[x] " : "[ ] ") + entry.getDisplayName());
+            recordButton(100 + i, 56 + i * 24, entry.getDisplayName(), entry == config.getOptionListValue());
         }
     }
     @Override protected void buttonClicked(ButtonWidget b) {
@@ -31,6 +32,6 @@ public final class OptionPickerScreen extends LegacyScreen {
             config.setOptionListValue(entries.get(offset + b.id - 100)); Configs.saveToFile(); minecraft.openScreen(parent);
         } else super.buttonClicked(b);
     }
-    @Override public void render(int x, int y, float delta) { shell(); super.render(x, y, delta); }
+    @Override public void render(int x, int y, float delta) { shell(); section("Options", 40); super.render(x, y, delta); }
     @Override public void handleMouse() { super.handleMouse(); int wheel = Mouse.getEventDWheel(); if (wheel != 0) { offset += wheel > 0 ? -1 : 1; init(); } }
 }

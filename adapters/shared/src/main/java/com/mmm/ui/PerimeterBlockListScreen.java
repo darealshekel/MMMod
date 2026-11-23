@@ -53,9 +53,8 @@ public final class PerimeterBlockListScreen extends Screen
         this.clickTargets.clear();
         Layout layout = layout();
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
-        MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "PERIMETER BLOCK LIST", layout.contentX(), layout.contentY(), layout.contentWidth());
+        MmmUi.drawBoardHeader(context, this.textRenderer, this.width, "Settings", layout.panelX());
+        MmmUi.drawTextWithin(context, this.textRenderer, "Perimeter blocks", layout.contentX(), layout.contentY(), layout.contentWidth(), BoardEditorStyle.TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "The helper prevents digging below these configured surface blocks.",
                 layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
 
@@ -100,7 +99,7 @@ public final class PerimeterBlockListScreen extends Screen
 
     private void drawBlockRow(DrawContext context, String blockId, int x, int y, int width, int mouseX, int mouseY)
     {
-        MmmUi.card(context, x, y, width, ROW_HEIGHT, MmmUi.CARD, MmmUi.BORDER_SOFT);
+        MmmUi.boardRow(context, x, y, width, ROW_HEIGHT, contains(mouseX, mouseY, x, y, width, ROW_HEIGHT), false);
         String canonical = canonicalBlockId(blockId);
         boolean valid = canonical != null;
         String title = valid ? blockName(canonical) : "Unknown block";
@@ -195,8 +194,8 @@ public final class PerimeterBlockListScreen extends Screen
                             int mouseX, int mouseY, Runnable action)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
-        context.fill(x, y, x + width, y + height, hovered ? MmmUi.accentHover() : MmmUi.INSET);
-        context.drawBorder(x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        MmmUi.card(context, x, y, width, height, hovered ? BoardEditorStyle.TILE : BoardEditorStyle.SURFACE,
+                hovered ? BoardEditorStyle.ROSE : BoardEditorStyle.LINE);
         int textX = x + Math.max(3, (width - this.textRenderer.getWidth(label)) / 2);
         context.drawText(this.textRenderer, Text.literal(label), textX, y + 6, hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, height, action));
@@ -205,10 +204,6 @@ public final class PerimeterBlockListScreen extends Screen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
-        }
         if (button == 0)
         {
             for (ClickTarget target : List.copyOf(this.clickTargets))
@@ -276,10 +271,9 @@ public final class PerimeterBlockListScreen extends Screen
 
     private Layout layout()
     {
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - 12);
-        int panelWidth = Math.min(620, availableWidth);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
-        int panelY = MmmUi.TOP_BAR_HEIGHT + 8;
+        int panelWidth = BoardEditorStyle.contentWidth(this.width, 620);
+        int panelX = (this.width - panelWidth) / 2;
+        int panelY = BoardEditorStyle.HEADER_HEIGHT + 8;
         int panelHeight = Math.max(1, this.height - panelY - 8);
         int contentX = panelX + 12;
         int contentY = panelY + 12;

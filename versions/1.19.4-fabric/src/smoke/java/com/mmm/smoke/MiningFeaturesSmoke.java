@@ -145,6 +145,13 @@ final class MiningFeaturesSmoke
                     if ((int)field(book, "page") != 1) throw new AssertionError("Collection pagination failed");
                     clickSlot(book, "Previous page");
                     clickSlot(book, "Sort collections");
+                    clickSlot(book, "Progress filter");
+                    var reopened = new CollectionBookScreen(null);
+                    for (String preference : java.util.List.of("category", "sort", "filter", "allWorlds"))
+                        if (!java.util.Objects.equals(field(book, preference), field(reopened, preference)))
+                            throw new AssertionError("Lost collection preference: " + preference);
+                    clickSlot(book, "Progress filter");
+                    clickSlot(book, "Progress filter");
                     ticks = 0; phase = 5;
                 } else if (phase == 5 && ++ticks > 20) {
                     shot(client, "collections-grid.png");
@@ -218,8 +225,8 @@ final class MiningFeaturesSmoke
                     if (field(book, "category") != null) throw new AssertionError("Red book did not return to tier overview");
                     var progressBook = book.children().stream().filter(c -> c instanceof CollectionSlotButton)
                             .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().equals("Collection progress")).findFirst().orElseThrow();
-                    if (progressBook.details.get().size() != CollectionProgress.OVERVIEW_MILESTONES.size() + 1)
-                        throw new AssertionError("Book tooltip missing tier counts");
+                    if (progressBook.details.get().stream().noneMatch(line -> line.getString().contains("discovered")))
+                        throw new AssertionError("Overview missing discovery count");
                     book.init(client, 320, 240); checkBounds(book);
                     for (int i = 0; i < 40; i++) book.mouseScrolled((int)field(book, "x") + 20, (int)field(book, "gridY") + 20, -1);
                     var maxScroll = book.getClass().getDeclaredMethod("maxOverviewScroll"); maxScroll.setAccessible(true);
@@ -300,17 +307,41 @@ final class MiningFeaturesSmoke
                 .map(c -> (TexturedButtonWidget)c).findFirst().orElseThrow().onPress();
     }
     private static void checkTierPanes(Screen screen, int total, int green) throws Exception {
-        var panes = screen.children().stream().filter(c -> c instanceof CollectionSlotButton)
-                .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().startsWith("Tier ")).toList();
-        if (panes.size() != total) throw new AssertionError("Wrong number of glass-pane tiers");
-        int completed = 0;
-        for (var pane : panes) {
-            var icon = (net.minecraft.item.ItemStack)field(pane, "icon");
-            if (icon.isOf(net.minecraft.item.Items.LIME_STAINED_GLASS_PANE)) completed++;
-            else if (!icon.isOf(net.minecraft.item.Items.RED_STAINED_GLASS_PANE)) throw new AssertionError("Tier is not a glass pane");
-        }
-        if (completed != green) throw new AssertionError("Tier pane colors did not update");
+        int opened = (int)field(screen, "detailPage");
+        while ((int)field(screen, "detailPage") > 0) clickSlot(screen, "Previous milestones");
+        int completed = 0, found = 0;
+        var labels = new java.util.HashSet<String>();
+        do {
+            checkBounds(screen);
+            var panes = screen.children().stream().filter(c -> c instanceof CollectionSlotButton)
+                    .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().startsWith("Tier ")).toList();
+            for (var pane : panes) {
+                if (!labels.add(pane.getMessage().getString())) throw new AssertionError("Duplicate milestone page");
+                if (pane.getY() + pane.getHeight() > (int)field(screen, "footerY") - 4)
+                    throw new AssertionError("Milestone overlaps footer");
+                String state = field(pane, "tier").toString();
+                String expected = found < green ? "EARNED" : found == green ? "NEXT" : "LOCKED";
+                if (!state.equals(expected)) throw new AssertionError("Unexpected milestone state: " + state + " at " + found);
+                if (state.equals("EARNED")) completed++;
+                if (pane.details.get().stream().noneMatch(line -> line.getString().contains("Milestone:")))
+                    throw new AssertionError("Milestone tooltip missing target");
+                var board = (com.mmm.ui.CollectionBoardState)field(screen, "board");
+                pane.onPress();
+                if (board.inspectedTier() != found + 1) throw new AssertionError("Tier record did not open");
+                pane.onPress();
+                if (board.inspectedTier() != 0) throw new AssertionError("Tier record did not return to follow mode");
+                found++;
+            }
+            var next = screen.children().stream().filter(c -> c instanceof CollectionSlotButton)
+                    .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().equals("Next milestones") && c.active).findFirst();
+            if (next.isEmpty()) break;
+            next.get().onPress();
+        } while (true);
+        if (found != total) throw new AssertionError("Wrong number of milestone records: " + found + "/" + total);
+        if (completed != green) throw new AssertionError("Earned tier count did not update: " + completed + "/" + green);
+        while ((int)field(screen, "detailPage") > opened) clickSlot(screen, "Previous milestones");
     }
+
     private static void clickSlot(Screen screen, String label) {
         screen.children().stream().filter(c -> c instanceof CollectionSlotButton)
                 .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().equals(label)).findFirst().orElseThrow().onPress();

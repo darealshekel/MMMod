@@ -201,6 +201,10 @@ public final class MiningStats
         // to that scoreboard instead of exposing this local prediction.
         Configs.totalBlocksMined++;
         Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
+        LiveCollections.mined(BlockBreakdownCatalog.blockId(block));
+        if (block == net.minecraft.block.Blocks.DEEPSLATE && previousState != null && pos != null
+                && previousState.calcBlockBreakingDelta(miningClient.player, miningClient.world, pos) < 1f)
+            LiveCollections.nonInstantDeepslate(WorldSessionContext.getCurrentWorldId());
         worldStats.totalBlocks++;
         if (worldStats.scoreboardTotalUpdatedAtMs > 0L)
         {

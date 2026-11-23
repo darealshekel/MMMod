@@ -1,5 +1,8 @@
 package com.mmm.hud;
 
+import com.mmm.ui.BoardChrome;
+import com.mmm.ui.BoardEditorStyle;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -32,7 +35,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.Identifier;
 
-public class SummaryScreen extends com.mmm.compat.MmmScreen
+public class SummaryScreen extends com.mmm.compat.MmmScreen implements BoardChrome.Page
 {
     private static final int PANEL_MARGIN = 20;
     private static final int PANEL_PADDING = 18;
@@ -43,15 +46,15 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
     private static final int BREAKDOWN_ROW_HEIGHT = 20;
     private static final int SCROLLBAR_WIDTH = 8;
     private static final int SCROLLBAR_MIN_THUMB = 18;
-    private static final int COLOR_PANEL = MmmUi.PANEL;
-    private static final int COLOR_CARD = MmmUi.CARD;
-    private static final int COLOR_CARD_SOFT = MmmUi.CARD_SOFT;
-    private static final int COLOR_INSET = MmmUi.INSET;
-    private static final int COLOR_BORDER = MmmUi.BORDER;
-    private static final int COLOR_BORDER_SOFT = MmmUi.BORDER_SOFT;
-    private static final int COLOR_VALUE = MmmUi.TEXT;
-    private static final int COLOR_LABEL = MmmUi.LABEL;
-    private static final int COLOR_MUTED = MmmUi.MUTED;
+    private static final int COLOR_PANEL = BoardEditorStyle.SURFACE;
+    private static final int COLOR_CARD = BoardEditorStyle.TILE;
+    private static final int COLOR_CARD_SOFT = BoardEditorStyle.TILE;
+    private static final int COLOR_INSET = BoardEditorStyle.TILE;
+    private static final int COLOR_BORDER = BoardEditorStyle.LINE;
+    private static final int COLOR_BORDER_SOFT = BoardEditorStyle.LINE;
+    private static final int COLOR_VALUE = BoardEditorStyle.TEXT;
+    private static final int COLOR_LABEL = BoardEditorStyle.MUTED;
+    private static final int COLOR_MUTED = BoardEditorStyle.MUTED;
     private static final int COLOR_INACTIVE = MmmUi.INACTIVE;
     private static final int COLOR_SUCCESS = MmmUi.SUCCESS;
     private static final Map<String, String> NAME_CACHE = new LinkedHashMap<>();
@@ -107,6 +110,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
     protected void init()
     {
         this.clearChildren();
+        this.addDrawableChild(BoardChrome.back(this.width, this::close));
         this.clipboardMessageVisible = false;
         this.openedAtMs = System.currentTimeMillis();
         ensureCursorVisible();
@@ -128,8 +132,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         {
             MinecraftClient.getInstance().keyboard.setClipboard(buildShareText());
             clipboardMessageVisible = true;
-        }).dimensions(layout.panelRight - 148, actionY - 2, 64, BUTTON_HEIGHT).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(layout.panelRight - 74, actionY - 2, 64, BUTTON_HEIGHT).build());
+        }).dimensions(layout.panelRight - 74, actionY - 2, 64, BUTTON_HEIGHT).build());
 
         refreshFilteredEntries();
         updateDynamicWidgetBounds(layout);
@@ -145,12 +148,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         Layout animatedLayout = layout.withPanelY(animatedPanelY);
         updateDynamicWidgetBounds(animatedLayout);
 
-        MmmUi.backdrop(context, this.width, this.height);
-        if (this.showChrome)
-        {
-            MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SUMMARY");
-        }
-        fillRoundedCard(context, layout.panelX, animatedPanelY, layout.panelWidth, layout.panelHeight, COLOR_PANEL, COLOR_BORDER);
+        MmmUi.editorFrame(context, width, height, this.showChrome ? "Summary" : "Session details");
 
         drawHeader(context, animatedLayout);
         context.enableScissor(layout.panelX + 1, contentTop(animatedLayout), layout.panelRight - 1, animatedLayout.panelBottom - 8);
@@ -174,10 +172,6 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         if (this.clipboardMessageVisible)
         {
             context.drawText(this.textRenderer, Text.literal("Summary copied to clipboard."), animatedLayout.breakdownX, animatedLayout.panelBottom - 14, COLOR_SUCCESS, false);
-        }
-        if (this.showChrome)
-        {
-            MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
         }
         drawContentScrollbar(context, animatedLayout);
         drawEfficiencyTooltip(context, animatedLayout, mouseX, mouseY);
@@ -203,10 +197,6 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (this.showChrome && button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SUMMARY"))
-        {
-            return true;
-        }
 
         Layout layout = computeLayout();
         if (button == 0 && this.maxContentScroll > 0 && isInsideContent(layout, mouseX, mouseY)
@@ -281,12 +271,11 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
 
     private void drawHeader(DrawContext context, Layout layout)
     {
-        int titleWidth = layout.compact ? Math.max(0, layout.contentWidth - 156) : layout.contentWidth;
+        int titleWidth = Math.max(0, layout.contentWidth - 76);
         MmmUi.drawTextWithin(context, this.textRenderer, this.heading, layout.contentX, layout.headerY, titleWidth, COLOR_VALUE, true);
         if (!layout.compact)
         {
-            drawPill(context, layout.contentX, layout.headerY + 18, Math.min(200, layout.graphWidth - 20), 16, this.worldName, COLOR_CARD, MmmUi.accent());
-            MmmUi.drawTextWithin(context, this.textRenderer, "Session pace, goals, and block mix in the MMM website style.", layout.contentX + 2, layout.headerY + 40, layout.contentWidth - 4, COLOR_LABEL, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, this.worldName, layout.contentX, layout.headerY + 16, titleWidth, BoardEditorStyle.MUTED, false);
         }
     }
 
@@ -312,7 +301,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         {
             return;
         }
-        fillRoundedCard(context, layout.graphX, layout.graphY, layout.graphWidth, layout.graphHeight, COLOR_CARD, COLOR_BORDER);
+        MmmUi.editorSection(context, layout.graphX, layout.graphY, layout.graphWidth);
         MmmUi.drawTextWithin(context, this.textRenderer, "Mining Rate", layout.graphX + CARD_PADDING, layout.graphY + 10, layout.graphWidth - CARD_PADDING * 2, COLOR_VALUE, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Blocks per hour over active session time", layout.graphX + CARD_PADDING, layout.graphY + 24, layout.graphWidth - CARD_PADDING * 2, COLOR_LABEL, false);
 
@@ -329,7 +318,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         {
             return;
         }
-        fillRoundedCard(context, layout.goalX, layout.goalY, layout.goalWidth, layout.goalHeight, COLOR_CARD, COLOR_BORDER);
+        MmmUi.editorSection(context, layout.goalX, layout.goalY, layout.goalWidth);
         MmmUi.drawTextWithin(context, this.textRenderer, "Daily Goal", layout.goalX + CARD_PADDING, layout.goalY + 10, layout.goalWidth - CARD_PADDING * 2, COLOR_VALUE, false);
 
         MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
@@ -349,7 +338,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         MmmUi.drawTextRightWithin(context, this.textRenderer, percentText, barX + barWidth, layout.goalY + 27, percentWidth, goalColor, false);
 
         int fillWidth = progress.target() <= 0 ? 0 : (int) Math.round(barWidth * Math.min(1.0D, progress.current() / (double) progress.target()));
-        context.fill(barX, barY, barX + barWidth, barY + 8, MmmUi.INSET);
+        context.fill(barX, barY, barX + barWidth, barY + 8, BoardEditorStyle.TILE);
         context.fill(barX, barY, barX + fillWidth, barY + 8, goalColor);
         context.drawBorder(barX, barY, barWidth, 8, COLOR_BORDER);
 
@@ -361,7 +350,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
 
     private void drawBreakdownCard(DrawContext context, Layout layout, int mouseX, int mouseY)
     {
-        fillRoundedCard(context, layout.breakdownX, layout.breakdownY, layout.breakdownWidth, layout.breakdownHeight, COLOR_CARD_SOFT, COLOR_BORDER);
+        MmmUi.dossier(context, layout.breakdownX, layout.breakdownY, layout.breakdownWidth, layout.breakdownHeight);
         MmmUi.drawTextWithin(context, this.textRenderer, "Block Breakdown", layout.breakdownX + CARD_PADDING, layout.breakdownY + 10, layout.breakdownWidth - CARD_PADDING * 2, COLOR_VALUE, false);
 
         int listX = layout.breakdownX + CARD_PADDING;
@@ -370,8 +359,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         int listHeight = layout.breakdownHeight - 72;
         int viewportWidth = listWidth - SCROLLBAR_WIDTH - 6;
 
-        context.fill(listX, listY, listX + listWidth, listY + listHeight, MmmUi.INSET);
-        context.drawBorder(listX, listY, listWidth, listHeight, COLOR_BORDER_SOFT);
+        context.fill(listX, listY, listX + listWidth, listY + listHeight, BoardEditorStyle.TILE);
 
         context.enableScissor(listX, listY, listX + viewportWidth, listY + listHeight);
         int drawY = listY + 6 - this.breakdownScrollOffset;
@@ -396,7 +384,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
 
     private void drawBreakdownRow(DrawContext context, int x, int y, int width, BlockBreakdownEntry entry)
     {
-        int rowColor = ((y / BREAKDOWN_ROW_HEIGHT) & 1) == 0 ? MmmUi.ROW_ALT : MmmUi.INSET;
+        int rowColor = ((y / BREAKDOWN_ROW_HEIGHT) & 1) == 0 ? MmmUi.ROW_ALT : BoardEditorStyle.TILE;
         context.fill(x - 2, y - 1, x + width, y + BREAKDOWN_ROW_HEIGHT - 2, rowColor);
         context.drawItem(entry.icon(), x, y + 1);
 
@@ -413,7 +401,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
     private void drawMiningRateGraph(DrawContext context, int x, int y, int width, int height, float animation)
     {
         List<Double> rates = buildGraphRates();
-        context.fill(x, y, x + width, y + height, MmmUi.INSET);
+        context.fill(x, y, x + width, y + height, BoardEditorStyle.TILE);
 
         for (int i = 0; i < 4; i++)
         {
@@ -537,22 +525,13 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         int thumbHeight = getScrollbarThumbHeight(height);
         int thumbY = y + getScrollbarThumbOffset(height, thumbHeight);
         context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, MmmUi.SCROLLBAR_TRACK);
-        context.drawBorder(x, y, SCROLLBAR_WIDTH, height, COLOR_BORDER_SOFT);
         int thumbColor = MmmUi.scrollbarThumb();
         context.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight, thumbColor);
     }
 
-    private void drawPill(DrawContext context, int x, int y, int width, int height, String text, int fillColor, int borderColor)
-    {
-        fillRoundedCard(context, x, y, width, height, fillColor, borderColor);
-        String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
-        int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, MmmUi.accent(), false);
-    }
-
     private void fillRoundedCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
-        MmmUi.card(context, x, y, width, height, fillColor, borderColor);
+        MmmUi.editorRow(context, x, y, width, height, fillColor, borderColor);
     }
 
     private void buildBreakdownEntries()
@@ -618,7 +597,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         int top = layout.breakdownY - CARD_GAP - height;
         int x = layout.contentX + CARD_PADDING;
         int width = layout.contentWidth - CARD_PADDING * 2;
-        fillRoundedCard(context, layout.contentX, top, layout.contentWidth, height, COLOR_CARD, COLOR_BORDER);
+        MmmUi.editorSection(context, layout.contentX, top, layout.contentWidth);
         MmmUi.drawTextWithin(context, this.textRenderer, "Mining Efficiency", x, top + 10, width, COLOR_VALUE, false);
         long duration = this.session.getActiveDurationMs();
         String status = this.efficiencyLoading ? "Loading activity..." : this.efficiencyError != null ? this.efficiencyError
@@ -646,7 +625,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
 
     private static int contentTop(Layout layout)
     {
-        return layout.headerY + (layout.compact ? 24 : 58);
+        return layout.headerY + (layout.compact ? 24 : 38);
     }
 
     private static boolean isInsideContent(Layout layout, double x, double y)
@@ -750,7 +729,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         boolean compact = this.height < 400 || (this.showChrome && MmmUi.contentWidth(this.width) < 540);
         int availableWidth = this.showChrome ? Math.max(1, MmmUi.contentWidth(this.width) - PANEL_MARGIN) : Math.max(1, this.width - PANEL_MARGIN * 2);
         int panelWidth = Math.min(760, availableWidth);
-        int topY = this.showChrome ? MmmUi.TOP_BAR_HEIGHT + 10 : PANEL_MARGIN;
+        int topY = BoardEditorStyle.HEADER_HEIGHT + 8;
         int availableHeight = Math.max(1, this.height - topY - (this.showChrome ? 12 : PANEL_MARGIN));
         int panelHeight = Math.min(720, availableHeight);
         int panelX = this.showChrome ? MmmUi.centerContentX(this.width, panelWidth) : Math.max(PANEL_MARGIN, (this.width - panelWidth) / 2);
@@ -759,7 +738,7 @@ public class SummaryScreen extends com.mmm.compat.MmmScreen
         int contentX = panelX + padding;
         int contentWidth = panelWidth - padding * 2;
         int headerY = panelY + padding;
-        int statY = headerY + (compact ? 24 : 58);
+        int statY = headerY + (compact ? 24 : 38);
         int cardWidth = (contentWidth - CARD_GAP * 3) / 4;
         int graphY = statY + (contentWidth < 480 ? 3 : 1) * ((compact ? 40 : 54) + CARD_GAP);
         int goalWidth = Math.min(190, Math.max(84, contentWidth / 4));

@@ -18,10 +18,11 @@ public final class HotkeyEditorScreen extends LegacyScreen {
     public HotkeyEditorScreen(Screen parent, MmmHotkey hotkey, List<MmmHotkey> bindings) {
         super(parent, hotkey.getPrettyName()); this.hotkey = hotkey; this.bindings = bindings; draft.set(hotkey.getStorageString());
     }
+    @Override protected int maxContentWidth() { return 460; }
     @Override public void init() {
         super.init();
         buttons.get(0).message = "Cancel";
-        button(1, left, 78, panelWidth, capturing ? "Press up to two keys..." : draft.label());
+        recordButton(1, 78, capturing ? "Press up to two keys..." : draft.label(), capturing);
         int w = (panelWidth - 12) / 3;
         button(2, left, 108, w, "Unassign");
         button(3, left + w + 6, 108, w, "Default");
@@ -56,6 +57,7 @@ public final class HotkeyEditorScreen extends LegacyScreen {
     }
     @Override public void render(int x, int y, float delta) {
         shell(); fit(hotkey.getComment(), left, 48, panelWidth, 0xFFBBBBBB);
+        section("Binding", 64);
         int row = 145;
         for (MmmHotkey binding : bindings) if (binding != hotkey && draft.conflicts(binding.getStorageString())) {
             fit("Also assigned: " + binding.getPrettyName(), left, row, panelWidth, 0xFFFFB84D); row += 12;

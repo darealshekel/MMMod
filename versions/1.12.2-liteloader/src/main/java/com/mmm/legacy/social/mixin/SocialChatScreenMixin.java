@@ -1,6 +1,7 @@
 package com.mmm.legacy.social.mixin;
 
 import com.mmm.legacy.LegacyDrawContext;
+import static com.mmm.ui.BoardEditorStyle.*;
 import com.mmm.legacy.social.ChatChannelAccess;
 import com.mmm.legacy.social.ChatChannelState;
 import com.mmm.legacy.social.LocalChatCompletion;
@@ -81,9 +82,9 @@ public abstract class SocialChatScreenMixin extends Screen implements ChatChanne
         int width = mmm$width(label);
         boolean hovered = mmm$inside(mouseX, mouseY, x, y, width);
         LegacyDrawContext context = new LegacyDrawContext();
-        context.fill(x, y, x + width, y + MMM_TAB_HEIGHT, selected ? 0xEE151515 : hovered ? 0xDD101010 : 0xCC070707);
-        context.drawBorder(x, y, width, MMM_TAB_HEIGHT, selected ? 0xFFE00000 : hovered ? 0xFF5A5A5A : 0xFF292929);
-        textRenderer.draw(label, x + 6, y + 3, selected ? 0xFFF5F5F5 : 0xFF949494, true);
+        context.fill(x, y, x + width, y + MMM_TAB_HEIGHT, hovered ? TILE : SURFACE);
+        context.fill(x, y + MMM_TAB_HEIGHT - 1, x + width, y + MMM_TAB_HEIGHT, selected ? ROSE : LINE);
+        textRenderer.draw(label, x + 6, y + 3, selected || hovered ? TEXT : MUTED, false);
     }
 
     @Unique private int mmm$width(String label) { return textRenderer.getWidth(label) + 12; }

@@ -1,5 +1,7 @@
 package com.mmm.scoreboard;
 
+import com.mmm.ui.BoardMenuChrome;
+
 import com.mmm.ui.CompatScreen;
 
 import java.io.IOException;
@@ -70,8 +72,7 @@ public final class ScoreboardRecordsScreen extends CompatScreen
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
-        MmmUi.drawMmmTopBar(context, this.font, this.width);
+        BoardMenuChrome.header(context, font, this.width, MmmUi.contentLeft(this.width), "Tools / Scoreboard / Records");
 
         int x = MmmUi.contentLeft(this.width);
         int y = MmmUi.TOP_BAR_HEIGHT;
@@ -86,7 +87,7 @@ public final class ScoreboardRecordsScreen extends CompatScreen
     private void drawContent(GuiGraphicsExtractor context, int x, int viewportY, int width, int viewportHeight)
     {
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
-        MmmUi.drawTextWithin(context, this.font, "RECORDED SCOREBOARDS", x, y, width, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, "RECORDED SCOREBOARDS", x, y, width, BoardMenuChrome.focusInk(), false);
         MmmUi.drawTextWithin(context, this.font, "Build one CSV from several scoreboard snapshots.", x, y + 16, width, MmmUi.MUTED, false);
         y += 38;
 
@@ -102,7 +103,7 @@ public final class ScoreboardRecordsScreen extends CompatScreen
         List<ScoreboardState.Snapshot> snapshots = ScoreboardState.getSnapshots();
         if (snapshots.isEmpty())
         {
-            MmmUi.card(context, x, y, width, 52, MmmUi.CARD, MmmUi.BORDER);
+            BoardMenuChrome.section(context, x, y, width, 52, true);
             MmmUi.drawTextWithin(context, this.font, "NO RECORDS", x + 12, y + 12, width - 24, MmmUi.TEXT, false);
             MmmUi.drawTextWithin(context, this.font, "Record the current sidebar to add it here.", x + 12, y + 29, width - 24, MmmUi.MUTED, false);
             this.contentHeight = y + 64 - viewportY + (int) Math.round(this.scrollY);
@@ -112,7 +113,7 @@ public final class ScoreboardRecordsScreen extends CompatScreen
         for (int index = 0; index < snapshots.size(); index++)
         {
             ScoreboardState.Snapshot snapshot = snapshots.get(index);
-            MmmUi.card(context, x, y, width, ROW_HEIGHT - 4, MmmUi.CARD, MmmUi.BORDER);
+            BoardMenuChrome.record(context, x, y, width, ROW_HEIGHT - 4, false, false);
             int buttonsWidth = 42 + 48 + 58 + 12;
             MmmUi.drawTextWithin(context, this.font, snapshot.displayName(), x + 10, y + 8,
                     Math.max(20, width - buttonsWidth - 24), MmmUi.TEXT, false);
@@ -171,16 +172,6 @@ public final class ScoreboardRecordsScreen extends CompatScreen
         {
             this.rebuildWidgets();
         }
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button)
-    {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SCOREBOARD"))
-        {
-            return true;
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override

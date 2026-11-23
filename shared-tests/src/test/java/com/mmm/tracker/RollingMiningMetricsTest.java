@@ -6,6 +6,24 @@ import org.junit.jupiter.api.Test;
 class RollingMiningMetricsTest
 {
     @Test
+    void fullWindowMatchesTotalBeforeAndAfterWrapAndReset()
+    {
+        RollingMiningMetrics metrics = new RollingMiningMetrics(3);
+        assertEquals(0L, metrics.sumLatest(0));
+        for (int count = 1; count <= 6; count++)
+        {
+            metrics.addTick(count);
+            assertEquals(metrics.total(), metrics.sumLatest(metrics.size()));
+            assertEquals(metrics.total(), metrics.sumLatest(Integer.MAX_VALUE));
+            assertEquals(0L, metrics.sumLatest(-1));
+        }
+        metrics.clear();
+        metrics.addTick(10);
+        assertEquals(10L, metrics.sumLatest(3));
+        assertEquals(10L, metrics.sumLatest(1));
+    }
+
+    @Test
     void keepsOnlyTheConfiguredTickWindow()
     {
         RollingMiningMetrics metrics = new RollingMiningMetrics(3);

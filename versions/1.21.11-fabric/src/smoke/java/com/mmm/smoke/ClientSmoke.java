@@ -20,6 +20,7 @@ public final class ClientSmoke implements ClientModInitializer
     public void onInitializeClient()
     {
         if (Boolean.getBoolean("mmm.miningFeaturesSmoke")) CollectionChatSmoke.start();
+        if (Boolean.getBoolean("mmm.reliabilitySmoke")) ChatParityChecks.start();
         if (Boolean.getBoolean("mmm.leaderboardSmoke")) {
             new LeaderboardSmoke().install();
             return;
@@ -54,6 +55,27 @@ public final class ClientSmoke implements ClientModInitializer
                 }
                 else if (phase == 2 && client.player != null && client.world != null && client.currentScreen == null)
                 {
+                    client.options.pauseOnLostFocus = false;
+                    if (Boolean.getBoolean("mmm.reliabilitySmoke")) {
+                        phase = 4;
+                        new ReliabilitySmoke().install();
+                        return;
+                    }
+                    if (Boolean.getBoolean("mmm.blockOverlaySmoke")) {
+                        phase = 4;
+                        new BlockOverlaySmoke().install();
+                        return;
+                    }
+                    if (Boolean.getBoolean("mmm.achievementBadgeSmoke")) {
+                        phase = 4;
+                        new SessionHoursBadgeSmoke().install();
+                        return;
+                    }
+                    if (Boolean.getBoolean("mmm.hudSettingsSmoke")) {
+                        phase = 4;
+                        new HudSettingsSmoke().install();
+                        return;
+                    }
                     RuntimeChecks.run(client);
                     RuntimeChecks.prepareRendering(client);
                     phase = 5;

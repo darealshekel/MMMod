@@ -9,3 +9,6 @@
 **/hs_err_pid*
 release-artifacts/
 .tools/
+__pycache__/
+versions/1.21-fabric/achievement-badge-screenshots/
+versions/1.21-fabric/achievement-settings-screenshots/

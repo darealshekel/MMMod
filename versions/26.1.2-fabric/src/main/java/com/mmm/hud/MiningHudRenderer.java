@@ -196,6 +196,12 @@ public final class MiningHudRenderer
             lines.add(HudLine.text("ETA To Goal: " + eta, inactiveTextColor(eta, sessionPaused)));
         }
 
+        var pin = com.mmm.tracker.PinnedCollection.view();
+        if (pin != null) {
+            lines.add(HudLine.text(pin.name() + " / " + pin.scope(), hudTitleColor()));
+            lines.add(HudLine.text(Long.toString(pin.count()) + " / " + Long.toString(pin.target())
+                    + "  " + com.mmm.ui.CollectionRankText.format(pin.rank()).getString(), hudTextColor()));
+        }
         return lines;
     }
 

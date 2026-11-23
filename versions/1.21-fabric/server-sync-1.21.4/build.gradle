@@ -2,6 +2,10 @@ plugins {
     id 'fabric-loom' version '1.14.10'
 }
 
+tasks.withType(Jar).configureEach {
+    from('../../../') { include 'LICENSE', 'LICENSE-MIT', 'LICENSING.md' }
+}
+
 version = "${rootProject.mod_version}+1.21.4"
 group = rootProject.maven_group
 

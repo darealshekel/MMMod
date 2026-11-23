@@ -6,6 +6,7 @@
     "AdvancementsScreenMixin",
     "AdvancementWidgetMixin",
     "ClientPlayNetworkHandlerMixin",
+    "ClientWorldMixin",
     "ClientPlayerInteractionManagerAccessor",
     "ClientPlayerInteractionManagerMixin",
     "DecorationParameterMixin",

@@ -1,6 +1,9 @@
 package com.mmm.mixin;
 
 import com.mmm.ui.MmmUi;
+import com.mmm.ui.CollectionBookScreen;
+import com.mmm.ui.MmmSettingsScreen;
+import com.mmm.ui.WebsiteLinkScreen;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -20,18 +23,19 @@ public abstract class MmmPressableWidgetMixin
     {
         MinecraftClient client = MinecraftClient.getInstance();
         Screen screen = client == null ? null : client.currentScreen;
-        if (screen == null || !screen.getClass().getName().startsWith("com.mmm."))
+        // In 1.21.11 renderWidget is final; the board widgets paint their own drawIcon.
+        if (screen == null || screen instanceof CollectionBookScreen || screen instanceof MmmSettingsScreen
+                || screen instanceof WebsiteLinkScreen || !screen.getClass().getName().startsWith("com.mmm."))
         {
             return;
         }
 
         PressableWidget button = (PressableWidget) (Object) this;
         boolean highlighted = button.isHovered() || button.isFocused();
-        int fill = button.active ? (highlighted ? MmmUi.accentHover() : MmmUi.INSET) : MmmUi.CARD;
-        int border = button.active && highlighted ? MmmUi.accent() : MmmUi.BORDER_SOFT;
-        int textColor = button.active ? (highlighted ? MmmUi.TEXT : MmmUi.MUTED) : MmmUi.INACTIVE;
-        MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), fill, border);
-        context.drawCenteredTextWithShadow(client.textRenderer, button.getMessage(),
+        MmmUi.boardControl(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), button.active && highlighted);
+        int textColor = button.active ? (highlighted ? com.mmm.ui.BoardEditorStyle.ROSE : com.mmm.ui.BoardEditorStyle.TEXT)
+                : MmmUi.INACTIVE;
+        context.drawCenteredTextWithShadow(client.textRenderer, MmmUi.truncate(client.textRenderer, button.getMessage().getString(), button.getWidth() - 6),
                 button.getX() + button.getWidth() / 2,
                 button.getY() + (button.getHeight() - 8) / 2,
                 textColor);

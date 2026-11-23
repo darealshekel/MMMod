@@ -6,15 +6,10 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
-import java.util.UUID;
 
 public final class AtomicJsonStorage
 {
@@ -70,63 +65,15 @@ public final class AtomicJsonStorage
     }
     public static void write(Path target, JsonElement value, boolean keepBackup) throws IOException
     {
-        Path normalized = target.toAbsolutePath().normalize();
-        Path parent = normalized.getParent();
-        if (parent == null)
-        {
-            throw new IOException("JSON target has no parent directory: " + normalized);
-        }
-        Files.createDirectories(parent);
-
-        Path temporary = parent.resolve(normalized.getFileName() + ".tmp-" + UUID.randomUUID());
-        byte[] bytes = (GSON.toJson(value) + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
-        try
-        {
-            try (FileChannel channel = FileChannel.open(
-                    temporary,
-                    StandardOpenOption.CREATE_NEW,
-                    StandardOpenOption.WRITE))
-            {
-                ByteBuffer buffer = ByteBuffer.wrap(bytes);
-                while (buffer.hasRemaining())
-                {
-                    channel.write(buffer);
-                }
-                channel.force(true);
-            }
-
-            if (keepBackup && Files.isRegularFile(normalized) && containsValidJson(normalized))
-            {
-                Files.copy(normalized, backupPath(normalized), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
-            }
-
-            try
-            {
-                Files.move(temporary, normalized, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            }
-            catch (AtomicMoveNotSupportedException ignored)
-            {
-                Files.move(temporary, normalized, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
-        finally
-        {
-            Files.deleteIfExists(temporary);
-        }
+        AtomicTextStorage.write(target, GSON.toJson(value) + System.lineSeparator(), keepBackup, AtomicJsonStorage::isJsonObject);
     }
 
-    private static boolean containsValidJson(Path path)
+    private static boolean isJsonObject(String value)
     {
-        try
-        {
-            JsonElement parsed = JsonParser.parseString(Files.readString(path, StandardCharsets.UTF_8));
-            return parsed != null && parsed.isJsonObject();
-        }
-        catch (RuntimeException | IOException ignored)
-        {
-            return false;
-        }
+        JsonElement parsed = JsonParser.parseString(value);
+        return parsed != null && parsed.isJsonObject();
     }
+
     public static Path createMigrationBackup(Path source) throws IOException
     {
         Path normalized = source.toAbsolutePath().normalize();
@@ -140,6 +87,6 @@ public final class AtomicJsonStorage
 
     public static Path backupPath(Path target)
     {
-        return target.resolveSibling(target.getFileName() + ".bak");
+        return AtomicTextStorage.backupPath(target);
     }
 }

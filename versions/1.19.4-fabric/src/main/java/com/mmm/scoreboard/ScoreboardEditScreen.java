@@ -1,5 +1,8 @@
 package com.mmm.scoreboard;
 
+import com.mmm.ui.BoardChrome;
+import com.mmm.ui.BoardEditorStyle;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -19,11 +22,12 @@ import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.scoreboard.ScoreboardObjective;
 import net.minecraft.text.Text;
 
-public final class ScoreboardEditScreen extends com.mmm.compat.MmmScreen
+public final class ScoreboardEditScreen extends com.mmm.compat.MmmScreen implements BoardChrome.Page
 {
     private static final int ROW_HEIGHT = 30;
 
     private final Screen parent;
+    private ButtonWidget backButton;
     private final ScoreboardObjective objective;
     private final List<RowModel> rows = new ArrayList<>();
     private final List<RowWidgets> rowWidgets = new ArrayList<>();
@@ -31,7 +35,6 @@ public final class ScoreboardEditScreen extends com.mmm.compat.MmmScreen
     private ButtonWidget sortButton;
     private ButtonWidget directionButton;
     private ButtonWidget saveButton;
-    private ButtonWidget backButton;
     private SortMode sortMode = SortMode.SCORE;
     private boolean descending = true;
     private double scrollY;
@@ -58,6 +61,7 @@ public final class ScoreboardEditScreen extends com.mmm.compat.MmmScreen
     {
         MmmUi.ensureCursorVisible();
         this.clearChildren();
+        this.backButton = this.addSelectableChild(BoardChrome.back(this.width, this::close));
         this.rowWidgets.clear();
         this.addButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Add Row"), ignored -> this.addRow())
                 .dimensions(0, 0, 76, 18).build());
@@ -66,8 +70,6 @@ public final class ScoreboardEditScreen extends com.mmm.compat.MmmScreen
         this.directionButton = this.addDrawableChild(ButtonWidget.builder(Text.literal(this.descending ? "Descending" : "Ascending"), ignored -> this.toggleDirection())
                 .dimensions(0, 0, 82, 18).build());
         this.saveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Save"), ignored -> this.save())
-                .dimensions(0, 0, 70, 18).build());
-        this.backButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), ignored -> this.close())
                 .dimensions(0, 0, 70, 18).build());
         this.saveButton.active = this.client != null && this.client.player != null && this.client.player.hasPermissionLevel(2);
 
@@ -105,9 +107,7 @@ public final class ScoreboardEditScreen extends com.mmm.compat.MmmScreen
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        MmmUi.editorFrame(context, width, height, "Edit scoreboard");
         int x = MmmUi.contentLeft(this.width);
         int y = MmmUi.TOP_BAR_HEIGHT;
         int width = MmmUi.contentWidth(this.width);
@@ -116,17 +116,26 @@ public final class ScoreboardEditScreen extends com.mmm.compat.MmmScreen
         this.drawContent(context, x, y, width, height);
         super.render(context, mouseX, mouseY, delta);
         context.disableScissor();
+        this.backButton.render(context.getMatrices(), mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button)
+    {
+        if (!BoardChrome.inToolViewport(this, mouseX, mouseY))
+            return this.backButton.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     private void drawContent(DrawContext context, int x, int viewportY, int width, int viewportHeight)
     {
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
         MmmUi.drawTextWithin(context, this.textRenderer, "EDIT SCOREBOARD", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, this.objective.getDisplayName().getString(), x, y + 16, width, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.objective.getDisplayName().getString(), x, y + 16, width, BoardEditorStyle.TEXT, false);
         String helper = this.saveButton.active
                 ? "Changes are sent as vanilla scoreboard commands."
                 : "Operator permission level 2 is required to save.";
-        MmmUi.drawTextWithin(context, this.textRenderer, helper, x, y + 30, width, this.saveButton.active ? MmmUi.MUTED : 0xFFFF5965, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, helper, x, y + 30, width, this.saveButton.active ? BoardEditorStyle.MUTED : 0xFFFF5965, false);
         if (!this.error.isBlank())
         {
             MmmUi.drawTextWithin(context, this.textRenderer, this.error, x, y + 43, width, 0xFFFF5965, false);
@@ -138,26 +147,24 @@ public final class ScoreboardEditScreen extends com.mmm.compat.MmmScreen
         int sortW = Math.min(104, Math.max(76, width / 5));
         int directionW = Math.min(86, Math.max(68, width / 5));
         int saveW = Math.min(70, Math.max(50, width / 7));
-        int backW = Math.min(70, Math.max(50, width / 7));
         MmmUi.positionWidget(this.addButton, addW, x, y);
         MmmUi.positionWidget(this.sortButton, sortW, x + addW + gap, y);
         MmmUi.positionWidget(this.directionButton, directionW, x + addW + sortW + gap * 2, y);
-        MmmUi.positionWidget(this.saveButton, saveW, x + width - backW - saveW - gap, y);
-        MmmUi.positionWidget(this.backButton, backW, x + width - backW, y);
+        MmmUi.positionWidget(this.saveButton, saveW, x + width - saveW, y);
         this.setToolbarVisible(y + 18 >= viewportY && y <= viewportY + viewportHeight);
         y += 28;
 
         int deleteW = 58;
         int scoreW = Math.min(112, Math.max(76, width / 4));
         int nameW = Math.max(80, width - scoreW - deleteW - 16);
-        MmmUi.drawTextWithin(context, this.textRenderer, "PLAYER / HOLDER", x + 5, y, nameW, MmmUi.MUTED, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "SCORE", x + nameW + 10, y, scoreW, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "PLAYER / HOLDER", x + 5, y, nameW, BoardEditorStyle.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "SCORE", x + nameW + 10, y, scoreW, BoardEditorStyle.MUTED, false);
         y += 14;
 
         if (this.rows.isEmpty())
         {
-            MmmUi.card(context, x, y, width, 46, MmmUi.CARD, MmmUi.BORDER);
-            MmmUi.drawTextWithin(context, this.textRenderer, "No rows. Use Add Row to create one.", x + 10, y + 17, width - 20, MmmUi.MUTED, false);
+            MmmUi.editorRow(context, x, y, width, 46, BoardEditorStyle.TILE, BoardEditorStyle.LINE);
+            MmmUi.drawTextWithin(context, this.textRenderer, "No rows. Use Add Row to create one.", x + 10, y + 17, width - 20, BoardEditorStyle.MUTED, false);
             this.contentHeight = y + 58 - viewportY + (int) Math.round(this.scrollY);
             return;
         }
@@ -165,7 +172,7 @@ public final class ScoreboardEditScreen extends com.mmm.compat.MmmScreen
         for (int index = 0; index < this.rows.size(); index++)
         {
             RowWidgets widgets = this.rowWidgets.get(index);
-            MmmUi.card(context, x, y, width, ROW_HEIGHT - 3, MmmUi.CARD, MmmUi.BORDER);
+            MmmUi.editorRow(context, x, y, width, ROW_HEIGHT - 3, BoardEditorStyle.TILE, BoardEditorStyle.LINE);
             MmmUi.positionWidget(widgets.name, nameW, x + 4, y + 4);
             MmmUi.positionWidget(widgets.score, scoreW, x + nameW + 8, y + 4);
             MmmUi.positionWidget(widgets.delete, deleteW, x + width - deleteW - 4, y + 4);
@@ -300,18 +307,8 @@ public final class ScoreboardEditScreen extends com.mmm.compat.MmmScreen
         this.sortButton.visible = visible;
         this.directionButton.visible = visible;
         this.saveButton.visible = visible;
-        this.backButton.visible = visible;
     }
 
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button)
-    {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SCOREBOARD"))
-        {
-            return true;
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)

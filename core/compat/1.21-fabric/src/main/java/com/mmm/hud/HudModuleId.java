@@ -7,6 +7,7 @@ public enum HudModuleId
     HOURLY("Hourly Stats"),
     BLOCK_STATS("Block Stats"),
     ACTIVE_DIGGERS("Active Diggers"),
+    MINED_BLOCKS("Collection Overlay"),
     NOTIFICATION("Notification");
 
     private final String label;

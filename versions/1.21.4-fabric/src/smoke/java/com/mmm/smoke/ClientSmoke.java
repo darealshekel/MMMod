@@ -29,7 +29,8 @@ public final class ClientSmoke implements ClientModInitializer
             {
                 if (System.currentTimeMillis() - started > 180_000L)
                     throw new AssertionError("Runtime test timed out in phase " + phase);
-                if (phase == 0 && client.currentScreen instanceof TitleScreen)
+                if (phase == 0 && client.getOverlay() == null && (client.currentScreen instanceof TitleScreen
+                        || Boolean.getBoolean("mmm.boardSmoke") && client.currentScreen instanceof net.minecraft.client.gui.screen.AccessibilityOnboardingScreen))
                 {
                     phase = 1;
                     CreateWorldScreen.show(client, client.currentScreen);
@@ -48,6 +49,11 @@ public final class ClientSmoke implements ClientModInitializer
                 }
                 else if (phase == 2 && client.player != null && client.world != null && client.currentScreen == null)
                 {
+                    if (Boolean.getBoolean("mmm.boardSmoke")) {
+                        phase = 4;
+                        new BoardSmoke().install(client);
+                        return;
+                    }
                     RuntimeChecks.run(client);
                     if (Boolean.getBoolean("mmm.miningFeaturesSmoke")) {
                         phase = 4;

@@ -11,6 +11,7 @@
     "FluidStateModelSetMixin",
     "HeldItemRendererMixin",
     "InGameHudMixin",
+    "HandledScreenAccessor",
     "KeyboardMixin",
     "MmmPressableWidgetMixin",
     "SmallDigItemEntityRendererMixin",

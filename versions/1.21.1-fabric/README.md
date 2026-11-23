@@ -1,8 +1,8 @@
 # MMMod for Minecraft 1.21.1
 
-Current release: **1.0.22**. Install `mmm-1.0.22+1.21.1.jar`.
+Current release: **1.0.23**. Install `mmm-1.0.23+1.21.1.jar`.
 
-[Download](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.21.1.jar) | [Full guide](../../README.md) | [Release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.22)
+[Download](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.21.1.jar) | [Full guide](../../README.md) | [Release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23)
 
 ## Install
 
@@ -20,6 +20,6 @@ Use **JDK 21 and Gradle 9.4.1** for building, even though the packaged mod targe
 gradle clean test build
 ```
 
-Output: `build/libs/mmm-1.0.22+1.21.1.jar`.
+Output: `build/libs/mmm-1.0.23+1.21.1.jar`.
 
-See the [release verification report](../../docs/1.0.22-verification.md) for this version's tested scope. The shared-core refactor preserves this wrapper's existing behavior; it does not promise every feature from newer Minecraft versions.
+See the [release verification report](../../docs/1.0.23-verification.md) for this version's tested scope. The shared-core refactor preserves this wrapper's existing behavior; it does not promise every feature from newer Minecraft versions.

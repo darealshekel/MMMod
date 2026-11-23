@@ -4,6 +4,8 @@ plugins {
 }
 
 apply from: '../../gradle/release-version.gradle'
+def previewEnabled = providers.gradleProperty('achievementPreview').isPresent()
+if (previewEnabled) version = "${version}-achievement-test"
 group = project.maven_group
 
 base {
@@ -84,7 +86,36 @@ if (project.hasProperty('smokeTest')) {
         jvmArgs '-Duser.home=' + new File(smokeRoot, 'home').absolutePath
         if (project.hasProperty('leaderboardSmoke')) jvmArgs '-Dmmm.leaderboardSmoke=true'
         if (project.hasProperty('miningFeaturesSmoke')) jvmArgs '-Dmmm.miningFeaturesSmoke=true'
+        if (project.hasProperty('reliabilitySmoke')) jvmArgs '-Dmmm.reliabilitySmoke=true'
+        if (project.hasProperty('achievementSmoke')) jvmArgs '-Dmmm.achievementSmoke=true'
+        if (project.hasProperty('achievementBadgeSmoke')) jvmArgs '-Dmmm.achievementBadgeSmoke=true'
+        if (project.hasProperty('blockOverlaySmoke')) jvmArgs '-Dmmm.blockOverlaySmoke=true'
+        if (project.hasProperty('hudSettingsSmoke')) jvmArgs '-Dmmm.hudSettingsSmoke=true'
     }
 }
 
 apply from: '../../gradle/shared-sources.gradle'
+
+// The same preview flag as 1.21; ordinary jars never contain the test control.
+def flagsDirectory = layout.buildDirectory.dir('generated/achievement-flags')
+def generateAchievementFlags = tasks.register('generateAchievementFlags') {
+    inputs.property('preview', previewEnabled)
+    outputs.dir(flagsDirectory)
+    doLast {
+        def output = flagsDirectory.get().file('com/mmm/advancement/AchievementBuildFlags.java').asFile
+        output.parentFile.mkdirs()
+        output.text = "package com.mmm.advancement; public final class AchievementBuildFlags { public static final boolean PREVIEW = ${previewEnabled}; private AchievementBuildFlags() {} }"
+    }
+}
+sourceSets.main.java.srcDir(flagsDirectory)
+tasks.named('compileJava') { dependsOn generateAchievementFlags }
+tasks.named('sourcesJar') { dependsOn generateAchievementFlags }
+tasks.register('verifyAchievementPreviewIsolation') {
+    dependsOn tasks.named('classes')
+    doLast {
+        def bytecode = layout.buildDirectory.file('classes/java/main/com/mmm/ui/MmmSettingsScreen.class').get().asFile
+        def containsPreview = new String(bytecode.bytes, java.nio.charset.StandardCharsets.ISO_8859_1).contains('Test Achievement')
+        if (containsPreview != previewEnabled) throw new GradleException('Achievement preview leaked into release or is missing from test build')
+    }
+}
+tasks.named('check') { dependsOn 'verifyAchievementPreviewIsolation' }

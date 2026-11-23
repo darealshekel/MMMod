@@ -1,5 +1,7 @@
 package com.mmm.hud;
 
+import com.mmm.ui.BoardEditorStyle;
+
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -26,13 +28,9 @@ import net.minecraft.util.math.MathHelper;
 
 public class SessionHistoryScreen extends Screen
 {
-    private static final int M = 20;
-    private static final int P = 18;
     private static final int C = 12;
     private static final int G = 10;
-    private static final int BH = 20;
     private static final int RH = 34;
-    private static final int TH = 22;
     private static final int SBW = 8;
     private static final int SBM = 18;
     private static final int PACE_CARD_HEIGHT = 132;
@@ -45,13 +43,12 @@ public class SessionHistoryScreen extends Screen
     private static final int BREAKDOWN_HEIGHT = 108;
     private static final int PANEL = MmmUi.PANEL;
     private static final int CARD = MmmUi.CARD;
-    private static final int SOFT = MmmUi.CARD_SOFT;
     private static final int INSET = MmmUi.INSET;
     private static final int BORDER = MmmUi.BORDER;
     private static final int BORDER_SOFT = MmmUi.BORDER_SOFT;
     private static final int TEXT = MmmUi.TEXT;
-    private static final int LABEL = MmmUi.LABEL;
-    private static final int MUTED = MmmUi.MUTED;
+    private static final int LABEL = BoardEditorStyle.MUTED;
+    private static final int MUTED = BoardEditorStyle.MUTED;
     private static final int INACTIVE = MmmUi.INACTIVE;
     private static final int ROW_ALT = MmmUi.ROW_ALT;
     private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("dd/MM/yy  HH:mm");
@@ -68,7 +65,7 @@ public class SessionHistoryScreen extends Screen
     private boolean draggingList;
     private boolean draggingDetail;
     private boolean draggingBreakdown;
-    private long openedAtMs;
+    private ButtonWidget previousWorld, nextWorld;
     private int breakdownListX;
     private int breakdownListY;
     private int breakdownListHeight;
@@ -81,17 +78,27 @@ public class SessionHistoryScreen extends Screen
         super(Text.literal("Session History"));
         this.parent = parent;
         this.worlds = SessionHistory.getWorldHistories();
-        applyWorldSelection(resolveInitialWorldIndex(), false);
+        applyWorldSelection(resolveInitialWorldIndex());
     }
 
     @Override
     protected void init()
     {
         this.clearChildren();
-        this.openedAtMs = System.currentTimeMillis();
         ensureCursorVisible();
         Layout l = layout();
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(l.panelRight - 74, l.headerY - 2, 64, BH).build());
+        this.addDrawableChild(MmmUi.backButton(this, l.contentX));
+        if (this.worlds.size() > 1)
+        {
+            int right = l.contentX + l.contentWidth;
+            this.previousWorld = this.addDrawableChild(ButtonWidget.builder(Text.literal("<"), b -> applyWorldSelection(this.selectedWorldIndex - 1))
+                    .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(Text.literal("Previous world")))
+                    .dimensions(right - 44, l.headerY, 20, 18).build());
+            this.nextWorld = this.addDrawableChild(ButtonWidget.builder(Text.literal(">"), b -> applyWorldSelection(this.selectedWorldIndex + 1))
+                    .tooltip(net.minecraft.client.gui.tooltip.Tooltip.of(Text.literal("Next world")))
+                    .dimensions(right - 20, l.headerY, 20, 18).build());
+            updateWorldButtons();
+        }
     }
 
     @Override
@@ -99,23 +106,13 @@ public class SessionHistoryScreen extends Screen
     {
         ensureCursorVisible();
         Layout l = layout();
-        float anim = openAnim();
-        int panelY = l.panelY + Math.round((1.0F - anim) * 14.0F);
-        l = l.move(panelY - l.panelY);
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "HISTORY");
-        card(context, l.panelX, l.panelY, l.panelWidth, l.panelHeight, PANEL, BORDER);
-        context.drawText(this.textRenderer, Text.literal("Session History"), l.contentX, l.headerY, TEXT, true);
-        if (!l.compact)
-        {
-            pill(context, l.contentX, l.headerY + 18, Math.min(220, l.contentWidth / 2), 16, this.worldName);
-            MmmUi.drawTextWithin(context, this.textRenderer, "Review previous runs with the same MMM website visual system.", l.contentX + 2, l.headerY + 40, l.contentWidth, LABEL, false);
-        }
-        drawWorldTabs(context, l, mouseX, mouseY);
+        MmmUi.toolBoard(context, this.textRenderer, this.width, this.height, l.contentX, "Tools / History");
+        String world = this.worlds.size() > 1 ? (this.selectedWorldIndex + 1) + "/" + this.worlds.size() + "  " + this.worldName : this.worldName;
+        MmmUi.drawTextWithin(context, this.textRenderer, world, l.contentX, l.headerY + 5,
+                l.contentWidth - (this.worlds.size() > 1 ? 52 : 0), TEXT, false);
         drawList(context, l, mouseX, mouseY);
         drawDetail(context, l, mouseX, mouseY);
         super.render(context, mouseX, mouseY, delta);
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
     }
 
     @Override
@@ -142,18 +139,6 @@ public class SessionHistoryScreen extends Screen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "HISTORY"))
-        {
-            return true;
-        }
-
-        int worldTab = getHoveredWorldTab(mouseX, mouseY);
-        if (button == 0 && worldTab >= 0)
-        {
-            applyWorldSelection(worldTab, true);
-            return true;
-        }
-
         if (button == 0 && isOverBreakdownBar(mouseX, mouseY))
         {
             this.draggingBreakdown = true;
@@ -201,75 +186,10 @@ public class SessionHistoryScreen extends Screen
 
     private void ensureCursorVisible(){ MinecraftClient client=MinecraftClient.getInstance(); if(client!=null&&client.mouse!=null) client.mouse.unlockCursor(); }
 
-    private void drawWorldTabs(DrawContext context, Layout l, int mouseX, int mouseY)
+    private void updateWorldButtons()
     {
-        if (this.worlds.isEmpty())
-        {
-            return;
-        }
-
-        int count = this.worlds.size();
-        int gap = 4;
-        int tabWidth = getWorldTabWidth(l, count, gap);
-        int totalWidth = count * tabWidth + Math.max(0, count - 1) * gap;
-        int x = l.contentX + Math.max(0, (l.contentWidth - totalWidth) / 2);
-        int y = getWorldTabsY(l);
-
-        for (int i = 0; i < count; i++)
-        {
-            SessionHistory.WorldHistory world = this.worlds.get(i);
-            int tabX = x + i * (tabWidth + gap);
-            boolean selected = i == this.selectedWorldIndex;
-            boolean hovered = mouseX >= tabX && mouseX <= tabX + tabWidth && mouseY >= y && mouseY <= y + TH;
-            int fill = selected ? MmmUi.rowSelected() : hovered ? MmmUi.rowHover() : MmmUi.INSET;
-            int border = selected ? MmmUi.accent() : BORDER_SOFT;
-            context.fill(tabX, y, tabX + tabWidth, y + TH, fill);
-            context.drawBorder(tabX, y, tabWidth, TH, border);
-
-            String label = truncate(world.displayName(), tabWidth - 14);
-            int color = selected ? TEXT : LABEL;
-            context.drawText(this.textRenderer, Text.literal(label), tabX + Math.max(5, (tabWidth - this.textRenderer.getWidth(label)) / 2), y + 7, color, false);
-        }
-    }
-
-    private int getHoveredWorldTab(double mouseX, double mouseY)
-    {
-        if (this.worlds.isEmpty())
-        {
-            return -1;
-        }
-
-        Layout l = layout();
-        int count = this.worlds.size();
-        int gap = 4;
-        int tabWidth = getWorldTabWidth(l, count, gap);
-        int totalWidth = count * tabWidth + Math.max(0, count - 1) * gap;
-        int x = l.contentX + Math.max(0, (l.contentWidth - totalWidth) / 2);
-        int y = getWorldTabsY(l);
-        if (mouseY < y || mouseY > y + TH)
-        {
-            return -1;
-        }
-
-        for (int i = 0; i < count; i++)
-        {
-            int tabX = x + i * (tabWidth + gap);
-            if (mouseX >= tabX && mouseX <= tabX + tabWidth)
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private int getWorldTabWidth(Layout l, int count, int gap)
-    {
-        return Math.max(48, Math.min(150, (l.contentWidth - Math.max(0, count - 1) * gap) / Math.max(1, count)));
-    }
-
-    private int getWorldTabsY(Layout l)
-    {
-        return l.headerY + (l.compact ? 18 : 60);
+        if (this.previousWorld != null) this.previousWorld.active = this.selectedWorldIndex > 0;
+        if (this.nextWorld != null) this.nextWorld.active = this.selectedWorldIndex + 1 < this.worlds.size();
     }
 
     private int resolveInitialWorldIndex()
@@ -290,7 +210,7 @@ public class SessionHistoryScreen extends Screen
         return 0;
     }
 
-    private void applyWorldSelection(int index, boolean playSound)
+    private void applyWorldSelection(int index)
     {
         if (this.worlds.isEmpty())
         {
@@ -309,10 +229,7 @@ public class SessionHistoryScreen extends Screen
         this.listScroll = 0;
         this.detailScroll = 0;
         this.breakdownScroll = 0;
-        if (playSound)
-        {
-            playClick();
-        }
+        updateWorldButtons();
     }
 
     private static List<SessionData> newestFirst(List<SessionData> source)
@@ -324,7 +241,7 @@ public class SessionHistoryScreen extends Screen
 
     private void drawList(DrawContext context, Layout l, int mouseX, int mouseY)
     {
-        card(context, l.contentX, l.contentY, l.leftWidth, l.contentHeight, SOFT, BORDER);
+        sectionRule(context, l.contentX, l.contentY, l.leftWidth);
         MmmUi.drawTextWithin(context, this.textRenderer, "Runs", l.contentX + C, l.contentY + 10, l.leftWidth - C * 2, TEXT, false);
         int x = l.contentX + C;
         int y = l.contentY + 44;
@@ -332,8 +249,7 @@ public class SessionHistoryScreen extends Screen
         int height = l.contentHeight - 56;
         int viewportWidth = width - SBW - 6;
         context.fill(x, y, x + width, y + height, INSET);
-        context.drawBorder(x, y, width, height, BORDER_SOFT);
-        if (this.sessions.isEmpty()) { context.drawCenteredTextWithShadow(this.textRenderer, Text.literal("Mine some blocks and your history will show up here"), x + width / 2, y + height / 2 - 4, MUTED); return; }
+        if (this.sessions.isEmpty()) { MmmUi.drawTextWithin(context, this.textRenderer, "No saved runs", x + 8, y + 8, width - 16, MUTED, false); return; }
         int visibleRows = getVisibleRows(l);
         this.listScroll = Math.max(0, Math.min(this.listScroll, Math.max(0, this.sessions.size() - visibleRows)));
         context.enableScissor(x, y, x + viewportWidth, y + height);
@@ -344,8 +260,7 @@ public class SessionHistoryScreen extends Screen
             SessionData session = this.sessions.get(index);
             int rowY = drawY + row * RH;
             boolean hovered = mouseX >= x && mouseX <= x + viewportWidth && mouseY >= rowY && mouseY <= rowY + RH - 4;
-            int rowColor = index == this.selectedIndex ? MmmUi.rowSelected() : hovered ? MmmUi.rowHover() : ((row & 1) == 0 ? ROW_ALT : INSET);
-            context.fill(x + 4, rowY, x + viewportWidth - 4, rowY + RH - 4, rowColor);
+            MmmUi.boardRow(context, x, rowY, viewportWidth, RH - 2, hovered, index == this.selectedIndex);
             MmmUi.drawTextWithin(context, this.textRenderer, "#" + (index + 1) + "  " + DATE_FMT.format(new Date(session.startTimeMs)), x + 12, rowY + 6, viewportWidth - 24, TEXT, false);
             MmmUi.drawTextWithin(context, this.textRenderer, UiFormat.formatCompact(session.totalBlocks) + " blocks  |  IGT " + session.getDurationString() + "  |  Time " + session.getWallDurationString(), x + 12, rowY + 19, viewportWidth - 24, MUTED, false);
         }
@@ -355,7 +270,7 @@ public class SessionHistoryScreen extends Screen
 
     private void drawDetail(DrawContext context, Layout l, int mouseX, int mouseY)
     {
-        card(context, l.detailX, l.contentY, l.detailWidth, l.contentHeight, CARD, BORDER);
+        sectionRule(context, l.detailX, l.contentY, l.detailWidth);
         MmmUi.drawTextWithin(context, this.textRenderer, "Session Detail", l.detailX + C, l.contentY + 10, l.detailWidth - C * 2, TEXT, false);
         SessionData session = getSelected();
         if (session == null) { MmmUi.drawTextWithin(context, this.textRenderer, "Select a run to inspect it.", l.detailX + C, l.contentY + 34, l.detailWidth - C * 2, MUTED, false); return; }
@@ -375,7 +290,7 @@ public class SessionHistoryScreen extends Screen
         stat(context, vx, statY + 112, cardWidth, 50, "Avg Rate", UiFormat.formatCompact(session.getAverageBlocksPerHour()), "blocks/hr");
         stat(context, vx + cardWidth + G, statY + 112, cardWidth, 50, "Best Streak", session.bestStreakSeconds + "s", "active mining");
         int graphY = statY + 174;
-        card(context, vx, graphY, vw, PACE_CARD_HEIGHT, SOFT, BORDER_SOFT);
+        sectionRule(context, vx, graphY, vw);
         MmmUi.drawTextWithin(context, this.textRenderer, "Session Pace", vx + 10, graphY + 8, vw - 20, TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Blocks per hour across the session", vx + 10, graphY + 20, vw - 20, MUTED, false);
         String rateLabel = drawGraph(context, vx + 10, graphY + 34, vw - 20, PACE_CHART_HEIGHT, session, mouseX, mouseY);
@@ -393,7 +308,7 @@ public class SessionHistoryScreen extends Screen
     {
         context.drawText(this.textRenderer, Text.literal("Block Breakdown"), x, y, TEXT, false);
         int cardY = y + 14;
-        card(context, x, cardY, width, BREAKDOWN_HEIGHT, SOFT, BORDER_SOFT);
+        context.fill(x, cardY, x + width, cardY + BREAKDOWN_HEIGHT, MmmUi.menuSurface(BoardEditorStyle.SURFACE));
         List<Map.Entry<String, Long>> entries = new ArrayList<>(session.blockBreakdown.entrySet());
         entries.sort((left, right) -> Long.compare(right.getValue(), left.getValue()));
         int listX = x + 8;
@@ -609,12 +524,15 @@ public class SessionHistoryScreen extends Screen
         return Math.round((column / (double) (columns - 1)) * Math.max(0L, durationMs));
     }
     private void row(DrawContext c,int lx,int rx,int y,String label,String value){ int width=rx-lx; int valueWidth=Math.min(this.textRenderer.getWidth(value), Math.max(32, width/2)); MmmUi.drawTextWithin(c,this.textRenderer,label,lx,y,Math.max(0,width-valueWidth-8),LABEL,false); MmmUi.drawTextRightWithin(c,this.textRenderer,value,rx,y,valueWidth,TEXT,false); }
-    private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ int tw=w-C*2; card(c,x,y,w,h,SOFT,BORDER_SOFT); MmmUi.drawTextWithin(c,this.textRenderer,l,x+C,y+9,tw,LABEL,false); int valueColor=inactiveValueColor(v)==INACTIVE?INACTIVE:Configs.getHudNumberColor(); MmmUi.drawTextWithin(c,this.textRenderer,v,x+C,y+24,tw,valueColor,false); MmmUi.drawTextWithin(c,this.textRenderer,s,x+C,y+38,tw,MUTED,false); }
-    private void pill(DrawContext c,int x,int y,int w,int h,String t){ String clipped=MmmUi.truncate(this.textRenderer,t,w-8); card(c,x,y,w,h,CARD,MmmUi.accent()); c.drawText(this.textRenderer, Text.literal(clipped), x+Math.max(4,(w-this.textRenderer.getWidth(clipped))/2), y+4, MmmUi.accent(), false); }
-    private void card(DrawContext c,int x,int y,int w,int h,int fill,int border){ MmmUi.card(c,x,y,w,h,fill,border); }
-    private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); c.fill(x+1,ty,x+SBW-1,ty+th,MmmUi.scrollbarThumb()); }
+    private void stat(DrawContext c,int x,int y,int w,int h,String l,String v,String s){ int tw=w-C*2; MmmUi.boardRow(c, x, y, w, h, false, false); MmmUi.drawTextWithin(c,this.textRenderer,l,x+C,y+9,tw,LABEL,false); int valueColor=inactiveValueColor(v)==INACTIVE?INACTIVE:Configs.getHudNumberColor(); MmmUi.drawTextWithin(c,this.textRenderer,v,x+C,y+24,tw,valueColor,false); MmmUi.drawTextWithin(c,this.textRenderer,s,x+C,y+38,tw,MUTED,false); }
+    private static void sectionRule(DrawContext context, int x, int y, int width)
+    {
+        context.fill(x, y, x + width, y + 1, BoardEditorStyle.LINE);
+        context.fill(x, y, x + Math.min(22, width), y + 2, BoardEditorStyle.ROSE);
+    }
+    private void drawListBar(DrawContext c,int x,int y,int h,int mx,int my,int vis){ int max=Math.max(0,this.sessions.size()-vis); if(max<=0) return; int th=getListThumb(h,vis), ty=y+getListOffset(h,th,max); c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.fill(x+1,ty,x+SBW-1,ty+th,MmmUi.scrollbarThumb()); }
     private void drawDetailBar(DrawContext c,Layout l,int mx,int my){ int max=Math.max(0,getDetailContentHeight()-(l.contentHeight-40)); if(max<=0) return; int x=l.detailX+l.detailWidth-C-SBW,y=l.contentY+28,h=l.contentHeight-40,th=Math.max(SBM,Math.min(h,(int)Math.round((h/(double)getDetailContentHeight())*h))), off=(int)Math.round((this.detailScroll/(double)max)*(h-th)); simpleBar(c,x,y,h,th,off,this.draggingDetail||isOverDetailBar(mx,my)); }
-    private void simpleBar(DrawContext c,int x,int y,int h,int th,int off,boolean active){ c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.drawBorder(x,y,SBW,h,BORDER_SOFT); c.fill(x+1,y+off,x+SBW-1,y+off+th,MmmUi.scrollbarThumb()); }
+    private void simpleBar(DrawContext c,int x,int y,int h,int th,int off,boolean active){ c.fill(x,y,x+SBW,y+h,MmmUi.SCROLLBAR_TRACK); c.fill(x+1,y+off,x+SBW-1,y+off+th,MmmUi.scrollbarThumb()); }
     private int getVisibleRows(Layout l){ return Math.max(1, (l.contentHeight - 68) / RH); }
     private boolean isInList(double mx,double my){ Layout l=layout(); return mx>=l.contentX+C&&mx<=l.contentX+l.leftWidth-C&&my>=l.contentY+44&&my<=l.contentY+l.contentHeight-12; }
     private boolean isInDetail(double mx,double my){ Layout l=layout(); return mx>=l.detailX+C&&mx<=l.detailX+l.detailWidth-C&&my>=l.contentY+28&&my<=l.contentY+l.contentHeight-12; }
@@ -636,7 +554,6 @@ public class SessionHistoryScreen extends Screen
     private void setListScroll(int offset){ Layout l=layout(); int max=Math.max(0,this.sessions.size()-getVisibleRows(l)); this.listScroll=Math.max(0,Math.min(max,offset)); }
     private void setDetailScroll(int offset){ Layout l=layout(); int max=Math.max(0,getDetailContentHeight()-(l.contentHeight-40)); this.detailScroll=Math.max(0,Math.min(max,offset)); }
     private void setBreakdownScroll(int offset){ int count=this.breakdownEntryCount; this.breakdownScroll=Math.max(0,Math.min(getBreakdownMax(count,Math.max(0,this.breakdownListHeight)),offset)); }
-    private float openAnim(){ if(this.openedAtMs<=0L) return 1.0F; long elapsed=System.currentTimeMillis()-this.openedAtMs; float n=MathHelper.clamp(elapsed/280.0F,0.0F,1.0F); return n*n*(3.0F-2.0F*n); }
     private void select(int index){ if(index<0||index>=this.sessions.size()) return; if(this.selectedIndex!=index){ this.selectedIndex=index; this.detailScroll=0; this.breakdownScroll=0; playClick(); } }
     private void playClick(){ MinecraftClient client=MinecraftClient.getInstance(); if(client!=null&&client.getSoundManager()!=null) client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK,1.0F)); }
     private void curve(DrawContext c,float sx,float sy,float ex,float ey,float py,float ny){ int steps=Math.max(6,Math.round(Math.abs(ex-sx)*1.5F)); for(int s=0;s<=steps;s++){ float t=s/(float)steps, px=MathHelper.lerp(t,sx,ex), ts=(ey-py)*0.5F, te=(ny-sy)*0.5F, t2=t*t, t3=t2*t; float yy=(2.0F*t3-3.0F*t2+1.0F)*sy+(t3-2.0F*t2+t)*ts+(-2.0F*t3+3.0F*t2)*ey+(t3-t2)*te; int ix=Math.round(px), iy=Math.round(yy); c.fill(ix,iy,ix+2,iy+2,MmmUi.accent()); c.fill(ix,iy+2,ix+2,iy+3,MmmUi.graphFill());} }
@@ -647,7 +564,18 @@ public class SessionHistoryScreen extends Screen
     private String getTopBlock(SessionData session){ String id=null; long count=0L; for(Map.Entry<String,Long> e:session.blockBreakdown.entrySet()) if(e.getValue()>count){ id=e.getKey(); count=e.getValue(); } return id==null?"No breakdown":resolveName(id)+" ("+UiFormat.formatCompact(count)+")"; }
     private String resolveName(String id){ try{ Identifier i=Identifier.tryParse(id); if(i!=null){ var b=net.minecraft.registry.Registries.BLOCK.get(i); if(b!=null) return b.getName().getString(); } }catch(Exception ignored){} return id; }
     private String truncate(String value,int maxWidth){ return MmmUi.truncate(this.textRenderer, value, maxWidth); }
-    private Layout layout(){ boolean compact=this.height<400||MmmUi.contentWidth(this.width)<540; int padding=compact?8:P, availableWidth=Math.max(1,MmmUi.contentWidth(this.width)-M), topY=MmmUi.TOP_BAR_HEIGHT+10, availableHeight=Math.max(1,this.height-topY-12); int panelWidth=Math.min(840,availableWidth), panelHeight=Math.min(560,availableHeight), panelX=MmmUi.centerContentX(this.width,panelWidth), panelY=topY+Math.max(0,(availableHeight-panelHeight)/2), contentX=panelX+padding, contentWidth=Math.max(1,panelWidth-padding*2), headerY=panelY+padding, contentY=headerY+(compact?42:88), overviewY=headerY+(compact?18:58), leftWidth=Math.max(48,(contentWidth-G)/2), detailX=contentX+leftWidth+G, detailWidth=Math.max(48,contentWidth-leftWidth-G), contentHeight=Math.max(1,panelY+panelHeight-padding-contentY); return new Layout(panelX,panelY,panelWidth,panelHeight,panelX+panelWidth,contentX,contentWidth,headerY,overviewY,contentY,leftWidth,detailX,detailWidth,contentHeight,compact); }
-    private record Layout(int panelX,int panelY,int panelWidth,int panelHeight,int panelRight,int contentX,int contentWidth,int headerY,int overviewY,int contentY,int leftWidth,int detailX,int detailWidth,int contentHeight,boolean compact){ private Layout move(int delta){ return new Layout(panelX,panelY+delta,panelWidth,panelHeight,panelRight,contentX,contentWidth,headerY+delta,overviewY+delta,contentY+delta,leftWidth,detailX,detailWidth,contentHeight,compact); } }
+    private Layout layout()
+    {
+        int width = MmmUi.contentWidth(this.width);
+        int left = MmmUi.contentLeft(this.width);
+        int headerY = MmmUi.TOP_BAR_HEIGHT + 8;
+        int top = headerY + 26;
+        int listWidth = (width - G) * 2 / 5;
+        return new Layout(left, width, headerY, top, listWidth, left + listWidth + G,
+                width - listWidth - G, Math.max(1, this.height - top - 8));
+    }
+
+    private record Layout(int contentX, int contentWidth, int headerY, int contentY, int leftWidth,
+                          int detailX, int detailWidth, int contentHeight) {}
     private record BreakdownMetrics(int listX,int listY,int listHeight,int viewportWidth,int scrollbarX){}
 }

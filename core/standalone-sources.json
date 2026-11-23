@@ -1,5 +1,7 @@
 {
   "main": [
+    "core/src/main/java/com/mmm/ui/BoardEditorStyle.java",
+    "core/src/main/java/com/mmm/ui/ToolDirectory.java",
     "core/src/main/java/com/mmm/advancement/AdvancementReconciliation.java",
     "core/src/main/java/com/mmm/advancement/MmmAdvancementDefinition.java",
     "core/src/main/java/com/mmm/advancement/MmmAdvancementSnapshot.java",
@@ -65,7 +67,13 @@
     "core/src/main/java/com/mmm/update/ReleaseCheck.java",
     "core/src/main/java/com/mmm/util/DailyProgressPolicy.java",
     "core/src/main/java/com/mmm/util/PeriodKeys.java",
-    "core/src/main/java/com/mmm/util/WeeklyProgressPolicy.java"
+    "core/src/main/java/com/mmm/util/WeeklyProgressPolicy.java",
+    "core/src/main/java/com/mmm/advancement/AchievementCardState.java",
+    "core/src/main/java/com/mmm/advancement/AchievementBadgeCatalog.java",
+    "core/src/main/java/com/mmm/hud/MinedBlockOverlayState.java",
+    "core/src/main/java/com/mmm/ui/SettingsNavigation.java",
+    "core/src/main/java/com/mmm/ui/ProgressShareData.java",
+    "core/src/main/java/com/mmm/ui/CollectionBoardState.java"
   ],
   "test": [
     "shared-tests/src/test/java/com/mmm/advancement/MmmAdvancementDefinitionTest.java",
@@ -100,7 +108,13 @@
     "versions/1.12.2-liteloader/src/test/java/com/mmm/advancement/AdvancementReconciliationTest.java",
     "versions/1.12.2-liteloader/src/test/java/com/mmm/scoreboard/ScoreboardCommandsTest.java",
     "versions/1.12.2-liteloader/src/test/java/com/mmm/social/SocialSseReaderTest.java",
-    "versions/1.21-fabric/src/test/java/com/mmm/config/PlayerStatsAccountsTest.java",
-    "versions/1.21-fabric/src/test/java/com/mmm/tracker/PlaytimeStateTest.java"
+    "shared-tests/compat/1.21-fabric/src/test/java/com/mmm/config/PlayerStatsAccountsTest.java",
+    "shared-tests/compat/1.21-fabric/src/test/java/com/mmm/tracker/PlaytimeStateTest.java",
+    "shared-tests/src/test/java/com/mmm/advancement/AchievementCardStateTest.java",
+    "shared-tests/src/test/java/com/mmm/advancement/AchievementBadgeCatalogTest.java",
+    "shared-tests/src/test/java/com/mmm/ui/BoardEditorStyleTest.java",
+    "shared-tests/src/test/java/com/mmm/ui/CollectionBoardStateTest.java",
+    "shared-tests/src/test/java/com/mmm/ui/ProgressShareDataTest.java",
+    "shared-tests/src/test/java/com/mmm/ui/SettingsNavigationTest.java"
   ]
 }

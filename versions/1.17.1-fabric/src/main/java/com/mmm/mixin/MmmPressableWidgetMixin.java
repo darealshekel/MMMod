@@ -1,6 +1,7 @@
 package com.mmm.mixin;
 
 import com.mmm.ui.MmmUi;
+import com.mmm.ui.BoardChrome;
 
 import net.minecraft.client.MinecraftClient;
 import com.mmm.compat.DrawContext;
@@ -33,10 +34,18 @@ public abstract class MmmPressableWidgetMixin
         }
         DrawContext context = new DrawContext(client, matrices);
         boolean highlighted = button.isHovered() || button.isFocused();
-        int fill = button.active ? (highlighted ? MmmUi.accentHover() : MmmUi.INSET) : MmmUi.CARD;
-        int border = button.active && highlighted ? MmmUi.accent() : MmmUi.BORDER_SOFT;
-        int textColor = button.active ? (highlighted ? MmmUi.TEXT : MmmUi.MUTED) : MmmUi.INACTIVE;
-        MmmUi.card(context, button.x, button.y, button.getWidth(), button.getHeight(), fill, border);
+        int textColor;
+        if (screen instanceof BoardChrome.Page)
+        {
+            textColor = MmmUi.editorButton(context, button.x, button.y, button.getWidth(), button.getHeight(), button.active, highlighted);
+        }
+        else
+        {
+            int fill = button.active ? (highlighted ? MmmUi.accentHover() : MmmUi.INSET) : MmmUi.CARD;
+            int border = button.active && highlighted ? MmmUi.accent() : MmmUi.BORDER_SOFT;
+            textColor = button.active ? (highlighted ? MmmUi.TEXT : MmmUi.MUTED) : MmmUi.INACTIVE;
+            MmmUi.card(context, button.x, button.y, button.getWidth(), button.getHeight(), fill, border);
+        }
         context.drawCenteredTextWithShadow(client.textRenderer, button.getMessage(),
                 button.x + button.getWidth() / 2, button.y + (button.getHeight() - 8) / 2, textColor);
         ci.cancel();

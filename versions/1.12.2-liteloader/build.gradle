@@ -42,6 +42,7 @@ sourceSets {
     main {
         java.include 'com/mmm/legacy/**', 'com/mmm/liteloader/**', 'com/mmm/config/**', 'com/mmm/storage/**'
         java.include 'com/mmm/sync/**', 'com/mmm/tracker/**', 'com/mmm/hotkey/**', 'com/mmm/util/**'
+        java.include 'com/mmm/ui/BoardEditorStyle.java', 'com/mmm/ui/ToolDirectory.java', 'com/mmm/ui/SettingsNavigation.java', 'com/mmm/ui/CollectionBoardState.java', 'com/mmm/ui/ProgressShareData.java'
         java.include 'com/mmm/Reference.java', 'com/mmm/hud/MiningHudRenderer.java', 'com/mmm/timer/MmmTimerState.java'
         java.include 'com/mmm/hud/HudModuleId.java', 'com/mmm/hud/SpeedGraphRenderer.java', 'com/mmm/timer/TimerHudRenderer.java'
         java.include 'com/mmm/timer/MmmBlockBreakDetector.java', 'com/mmm/timer/ConfirmedBreaks.java'
@@ -75,7 +76,6 @@ dependencies {
 }
 
 shadowJar {
-    from('LICENSE')
     from('THIRD-PARTY.md')
     configurations = [project.configurations.bundled]
     relocate 'com.google.gson', 'com.mmm.liteloader.internal.gson'
@@ -206,7 +206,6 @@ processResources {
     inputs.property 'version', project.version
     filesMatching(['litemod.json', 'mmm-build.properties']) { expand(version: project.version) }
 }
-jar { from('LICENSE') }
 
 tasks.register('verifyDevelopmentArtifact') {
     dependsOn tasks.named('remapJar')
@@ -218,6 +217,8 @@ tasks.register('verifyDevelopmentArtifact') {
             assert metadata.version == project.version.toString()
             assert zip.getEntry('fabric.mod.json') == null
             assert zip.getEntry('com/mmm/liteloader/LiteModMMM.class') != null
+            assert zip.getEntry('com/mmm/ui/BoardEditorStyle$RectSink.class') != null
+            assert zip.getEntry('com/mmm/legacy/settings/BoardField.class') != null
             assert zip.getEntry('mmm.refmap.json') != null
             def refmap = new groovy.json.JsonSlurper().parse(zip.getInputStream(zip.getEntry('mmm.refmap.json')))
             assert refmap.data.notch == refmap.mappings
@@ -285,3 +286,21 @@ tasks.register('testingLiteMod', Copy) {
 }
 
 apply from: '../../gradle/shared-sources.gradle'
+
+// The distribution tasks process jars that already contain the common licenses.
+tasks.withType(Jar).configureEach {
+    filesMatching(['LICENSE', 'LICENSE-MIT', 'LICENSING.md']) { duplicatesStrategy = DuplicatesStrategy.EXCLUDE }
+}
+
+if (project.hasProperty('runtimeProbe')) {
+    // Keep the driver separate: exercise the exact non-instrumented distribution.
+    tasks.register('packagedBoardProbe', Zip) {
+        dependsOn tasks.named('remapJar')
+        archiveFileName = 'mmm-board-probe.litemod'
+        destinationDirectory = layout.buildDirectory.dir('probe')
+        from('src/smoke/board') { include 'litemod.json' }
+        from({ zipTree(tasks.named('remapJar').get().archiveFile.get().asFile) }) {
+            include 'com/mmm/liteloader/smoke/LiteModMMMBoardProbe*.class'
+        }
+    }
+}

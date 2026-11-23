@@ -30,6 +30,11 @@ public final class MmmClientCommands
                         client.schedule(() -> client.gui.setScreen(new com.mmm.ui.LeaderboardScreen(null)));
                         return 1;
                     }))
+                    .then(ClientCommands.literal("settings").executes(context -> {
+                        var client = net.minecraft.client.Minecraft.getInstance();
+                        client.schedule(() -> client.gui.setScreen(new com.mmm.ui.MmmSettingsScreen(null)));
+                        return 1;
+                    }))
                     .then(buildTimerCommand())
                     .then(ClientCommands.literal("collections").executes(context -> {
                         var client = net.minecraft.client.Minecraft.getInstance();

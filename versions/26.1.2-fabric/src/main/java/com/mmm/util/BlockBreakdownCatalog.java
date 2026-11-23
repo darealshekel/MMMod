@@ -122,6 +122,8 @@ public final class BlockBreakdownCatalog
     {
     }
 
+    public static Set<String> blockIds() { return VALID_BLOCK_IDS; }
+
     public static boolean isValid(Block block)
     {
         return isValid(blockId(block));

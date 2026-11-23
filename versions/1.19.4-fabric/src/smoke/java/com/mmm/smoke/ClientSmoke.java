@@ -18,6 +18,7 @@ public final class ClientSmoke implements ClientModInitializer
 
     public void onInitializeClient()
     {
+        if (Boolean.getBoolean("mmm.boardEditorSmoke")) { new BoardEditorSmoke().install(); return; }
         if (Boolean.getBoolean("mmm.miningFeaturesSmoke")) CollectionChatSmoke.start();
         if (Boolean.getBoolean("mmm.leaderboardSmoke")) {
             new LeaderboardSmoke().install();

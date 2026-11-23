@@ -48,10 +48,8 @@ public final class MmmChatIgnoreListScreen extends CompatScreen
         this.clickTargets.clear();
         Layout layout = layout();
         List<String> ignored = MmmChatIgnoreList.entries();
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SETTINGS");
-        MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.font, "IGNORED PLAYERS", layout.contentX(), layout.contentY(), layout.contentWidth());
+        BoardMenuChrome.editor(context, this.font, this.width, this.height, "Settings / Ignored players");
+        MmmUi.drawSectionHeading(context, this.font, "Ignored players", layout.contentX(), layout.contentY(), layout.contentWidth());
         MmmUi.drawTextWithin(context, this.font, "Hide MMM chat and milestone messages from selected Minecraft players.",
                 layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
 
@@ -70,7 +68,7 @@ public final class MmmChatIgnoreListScreen extends CompatScreen
         this.scrollOffset = Math.max(0, Math.min(maxScroll, this.scrollOffset));
         if (ignored.isEmpty())
         {
-            MmmUi.card(context, layout.contentX(), layout.listTop(), layout.contentWidth(), 38, MmmUi.CARD, MmmUi.BORDER_SOFT);
+            BoardMenuChrome.section(context, layout.contentX(), layout.listTop(), layout.contentWidth(), 38, true);
             MmmUi.drawTextWithin(context, this.font, "No players are ignored.", layout.contentX() + 10,
                     layout.listTop() + 12, layout.contentWidth() - 20, MmmUi.MUTED, false);
         }
@@ -94,7 +92,7 @@ public final class MmmChatIgnoreListScreen extends CompatScreen
 
     private void drawPlayerRow(GuiGraphicsExtractor context, String username, int x, int y, int width, int mouseX, int mouseY)
     {
-        MmmUi.card(context, x, y, width, ROW_HEIGHT, MmmUi.CARD, MmmUi.BORDER_SOFT);
+        BoardMenuChrome.record(context, x, y, width, ROW_HEIGHT, false, mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + ROW_HEIGHT);
         MmmUi.drawTextWithin(context, this.font, username, x + 9, y + 10, width - 52, MmmUi.TEXT, false);
         drawButton(context, x + width - 31, y + 4, 22, 20, "X", mouseX, mouseY, () -> removePlayer(username));
     }
@@ -136,8 +134,7 @@ public final class MmmChatIgnoreListScreen extends CompatScreen
                             int mouseX, int mouseY, Runnable action)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
-        context.fill(x, y, x + width, y + height, hovered ? MmmUi.accentHover() : MmmUi.INSET);
-        context.outline(x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        BoardMenuChrome.choice(context, x, y, width, height, false, hovered);
         int textX = x + Math.max(3, (width - this.font.width(label)) / 2);
         context.text(this.font, Component.literal(label), textX, y + 6, hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, height, action));
@@ -146,10 +143,6 @@ public final class MmmChatIgnoreListScreen extends CompatScreen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
-        }
         if (button == 0)
         {
             for (ClickTarget target : List.copyOf(this.clickTargets))
@@ -196,7 +189,7 @@ public final class MmmChatIgnoreListScreen extends CompatScreen
     @Override
     public void onClose()
     {
-        Minecraft.getInstance().gui.setScreen(this.parent);
+        BoardPlatform.open(this.parent);
     }
 
     @Override
@@ -217,9 +210,8 @@ public final class MmmChatIgnoreListScreen extends CompatScreen
 
     private Layout layout()
     {
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - 12);
-        int panelWidth = Math.min(620, availableWidth);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
+        int panelWidth = BoardEditorStyle.contentWidth(this.width, 620);
+        int panelX = BoardEditorStyle.contentX(this.width, panelWidth);
         int panelY = MmmUi.TOP_BAR_HEIGHT + 8;
         int panelHeight = Math.max(1, this.height - panelY - 8);
         int contentX = panelX + 12;

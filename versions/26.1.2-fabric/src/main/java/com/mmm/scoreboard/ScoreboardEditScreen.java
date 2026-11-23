@@ -1,5 +1,7 @@
 package com.mmm.scoreboard;
 
+import com.mmm.ui.BoardMenuChrome;
+
 import com.mmm.ui.CompatScreen;
 
 import java.util.ArrayList;
@@ -77,12 +79,14 @@ public final class ScoreboardEditScreen extends CompatScreen
         {
             RowModel model = this.rows.get(index);
             EditBox name = new EditBox(this.font, 0, 0, 160, 18, Component.literal("Player name"));
+            name.setBordered(false);
             name.setMaxLength(40);
             name.setValue(model.name);
             name.setResponder(value -> model.name = value);
             this.addRenderableWidget(name);
 
             EditBox score = new EditBox(this.font, 0, 0, 100, 18, Component.literal("Score"));
+            score.setBordered(false);
             score.setMaxLength(11);
             String[] lastValidScore = { Integer.toString(model.score) };
             boolean[] correctingScore = { false };
@@ -121,14 +125,14 @@ public final class ScoreboardEditScreen extends CompatScreen
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
-        MmmUi.drawMmmTopBar(context, this.font, this.width);
+        BoardMenuChrome.header(context, font, this.width, MmmUi.contentLeft(this.width), "Tools / Scoreboard / Edit");
         int x = MmmUi.contentLeft(this.width);
         int y = MmmUi.TOP_BAR_HEIGHT;
         int width = MmmUi.contentWidth(this.width);
         int height = Math.max(1, this.height - y - MmmUi.pagePad(this.width));
         context.enableScissor(x, y, x + width, y + height);
         this.drawContent(context, x, y, width, height);
+        this.scrollY = Math.clamp(this.scrollY, 0, Math.max(0, this.contentHeight - height));
         super.extractRenderState(context, mouseX, mouseY, delta);
         context.disableScissor();
     }
@@ -136,7 +140,7 @@ public final class ScoreboardEditScreen extends CompatScreen
     private void drawContent(GuiGraphicsExtractor context, int x, int viewportY, int width, int viewportHeight)
     {
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
-        MmmUi.drawTextWithin(context, this.font, "EDIT SCOREBOARD", x, y, width, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.font, "EDIT SCOREBOARD", x, y, width, BoardMenuChrome.focusInk(), false);
         MmmUi.drawTextWithin(context, this.font, this.objective.getDisplayName().getString(), x, y + 16, width, MmmUi.TEXT, false);
         String helper = this.saveButton.active
                 ? "Changes are sent as vanilla scoreboard commands."
@@ -154,13 +158,16 @@ public final class ScoreboardEditScreen extends CompatScreen
         int directionW = Math.min(86, Math.max(68, width / 5));
         int saveW = Math.min(70, Math.max(50, width / 7));
         int backW = Math.min(70, Math.max(50, width / 7));
+        int actionY = y + (addW + sortW + directionW + saveW + backW + 4 * gap > width ? 22 : 0);
         this.addButton.setRectangle(addW, 18, x, y);
         this.sortButton.setRectangle(sortW, 18, x + addW + gap, y);
         this.directionButton.setRectangle(directionW, 18, x + addW + sortW + gap * 2, y);
-        this.saveButton.setRectangle(saveW, 18, x + width - backW - saveW - gap, y);
-        this.backButton.setRectangle(backW, 18, x + width - backW, y);
-        this.setToolbarVisible(y + 18 >= viewportY && y <= viewportY + viewportHeight);
-        y += 28;
+        this.saveButton.setRectangle(saveW, 18, x + width - backW - saveW - gap, actionY);
+        this.backButton.setRectangle(backW, 18, x + width - backW, actionY);
+        boolean firstVisible = y >= viewportY && y + 18 <= viewportY + viewportHeight;
+        this.addButton.visible = this.sortButton.visible = this.directionButton.visible = firstVisible;
+        this.saveButton.visible = this.backButton.visible = actionY >= viewportY && actionY + 18 <= viewportY + viewportHeight;
+        y = actionY + 28;
 
         int deleteW = 58;
         int scoreW = Math.min(112, Math.max(76, width / 4));
@@ -171,7 +178,7 @@ public final class ScoreboardEditScreen extends CompatScreen
 
         if (this.rows.isEmpty())
         {
-            MmmUi.card(context, x, y, width, 46, MmmUi.CARD, MmmUi.BORDER);
+            BoardMenuChrome.section(context, x, y, width, 46, true);
             MmmUi.drawTextWithin(context, this.font, "No rows. Use Add Row to create one.", x + 10, y + 17, width - 20, MmmUi.MUTED, false);
             this.contentHeight = y + 58 - viewportY + (int) Math.round(this.scrollY);
             return;
@@ -180,11 +187,13 @@ public final class ScoreboardEditScreen extends CompatScreen
         for (int index = 0; index < this.rows.size(); index++)
         {
             RowWidgets widgets = this.rowWidgets.get(index);
-            MmmUi.card(context, x, y, width, ROW_HEIGHT - 3, MmmUi.CARD, MmmUi.BORDER);
-            widgets.name.setRectangle(nameW, 18, x + 4, y + 4);
-            widgets.score.setRectangle(scoreW, 18, x + nameW + 8, y + 4);
+            BoardMenuChrome.record(context, x, y, width, ROW_HEIGHT - 3, false, false);
+            MmmUi.fieldShell(context, x + 4, y + 4, nameW, 18, widgets.name.isFocused());
+            MmmUi.fieldShell(context, x + nameW + 8, y + 4, scoreW, 18, widgets.score.isFocused());
+            widgets.name.setRectangle(nameW - 8, 12, x + 8, y + 9);
+            widgets.score.setRectangle(scoreW - 8, 12, x + nameW + 12, y + 9);
             widgets.delete.setRectangle(deleteW, 18, x + width - deleteW - 4, y + 4);
-            boolean visible = y + ROW_HEIGHT >= viewportY && y <= viewportY + viewportHeight;
+            boolean visible = y + 4 >= viewportY && y + 22 <= viewportY + viewportHeight;
             widgets.setVisible(visible);
             y += ROW_HEIGHT;
         }
@@ -315,25 +324,6 @@ public final class ScoreboardEditScreen extends CompatScreen
             return value;
         }
         return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
-    }
-
-    private void setToolbarVisible(boolean visible)
-    {
-        this.addButton.visible = visible;
-        this.sortButton.visible = visible;
-        this.directionButton.visible = visible;
-        this.saveButton.visible = visible;
-        this.backButton.visible = visible;
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button)
-    {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SCOREBOARD"))
-        {
-            return true;
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override

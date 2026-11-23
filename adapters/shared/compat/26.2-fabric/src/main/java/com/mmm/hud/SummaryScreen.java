@@ -1,5 +1,7 @@
 package com.mmm.hud;
 
+import com.mmm.ui.BoardMenuChrome;
+
 import com.mmm.ui.CompatScreen;
 
 import java.util.ArrayList;
@@ -19,7 +21,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
+import com.mmm.ui.BoardItemIcon;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -55,7 +57,6 @@ public class SummaryScreen extends CompatScreen
     private static final int COLOR_INACTIVE = MmmUi.INACTIVE;
     private static final int COLOR_SUCCESS = MmmUi.SUCCESS;
     private static final Map<String, String> NAME_CACHE = new LinkedHashMap<>();
-    private static final Map<String, ItemStack> ICON_CACHE = new LinkedHashMap<>();
     private static final String SEARCH_PLACEHOLDER = "Search blocks...";
 
     private final SessionData session;
@@ -129,7 +130,7 @@ public class SummaryScreen extends CompatScreen
             Minecraft.getInstance().keyboardHandler.setClipboard(buildShareText());
             clipboardMessageVisible = true;
         }).bounds(layout.panelRight - 148, actionY - 2, 64, BUTTON_HEIGHT).build());
-        this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose()).bounds(layout.panelRight - 74, actionY - 2, 64, BUTTON_HEIGHT).build());
+        this.addRenderableWidget(Button.builder(Component.literal(this.showChrome ? "Back" : "Done"), button -> onClose()).bounds(layout.panelRight - 74, actionY - 2, 64, BUTTON_HEIGHT).build());
 
         refreshFilteredEntries();
         updateDynamicWidgetBounds(layout);
@@ -141,24 +142,21 @@ public class SummaryScreen extends CompatScreen
         ensureCursorVisible();
         Layout layout = computeLayout();
         float animation = getOpenAnimationProgress();
-        int animatedPanelY = layout.panelY + Math.round((1.0F - animation) * 14.0F);
-        Layout animatedLayout = layout.withPanelY(animatedPanelY);
-        updateDynamicWidgetBounds(animatedLayout);
+        updateDynamicWidgetBounds(layout);
 
         MmmUi.backdrop(context, this.width, this.height);
         if (this.showChrome)
         {
-            MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SUMMARY");
+            BoardMenuChrome.header(context, font, this.width, layout.contentX, "Tools / Summary");
         }
-        fillRoundedCard(context, layout.panelX, animatedPanelY, layout.panelWidth, layout.panelHeight, COLOR_PANEL, COLOR_BORDER);
 
-        drawHeader(context, animatedLayout);
-        context.enableScissor(layout.panelX + 1, contentTop(animatedLayout), layout.panelRight - 1, animatedLayout.panelBottom - 8);
-        drawStatCards(context, animatedLayout);
-        drawGraphCard(context, animatedLayout, mouseX, mouseY, animation);
-        drawGoalCard(context, animatedLayout);
-        drawEfficiency(context, animatedLayout);
-        drawBreakdownCard(context, animatedLayout, mouseX, mouseY);
+        drawHeader(context, layout);
+        context.enableScissor(layout.panelX + 1, contentTop(layout), layout.panelRight - 1, layout.panelBottom - 8);
+        drawStatCards(context, layout);
+        drawGraphCard(context, layout, mouseX, mouseY, animation);
+        drawGoalCard(context, layout);
+        drawEfficiency(context, layout);
+        drawBreakdownCard(context, layout, mouseX, mouseY);
         drawSearchFieldShell(context);
         context.disableScissor();
 
@@ -173,14 +171,10 @@ public class SummaryScreen extends CompatScreen
 
         if (this.clipboardMessageVisible)
         {
-            context.text(this.font, Component.literal("Summary copied to clipboard."), animatedLayout.breakdownX, animatedLayout.panelBottom - 14, COLOR_SUCCESS, false);
+            context.text(this.font, Component.literal("Summary copied to clipboard."), layout.breakdownX, layout.panelBottom - 14, COLOR_SUCCESS, false);
         }
-        if (this.showChrome)
-        {
-            MmmUi.drawMmmTopBar(context, this.font, this.width);
-        }
-        drawContentScrollbar(context, animatedLayout);
-        drawEfficiencyTooltip(context, animatedLayout, mouseX, mouseY);
+        drawContentScrollbar(context, layout);
+        drawEfficiencyTooltip(context, layout, mouseX, mouseY);
     }
 
     @Override
@@ -203,11 +197,6 @@ public class SummaryScreen extends CompatScreen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (this.showChrome && button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SUMMARY"))
-        {
-            return true;
-        }
-
         Layout layout = computeLayout();
         if (button == 0 && this.maxContentScroll > 0 && isInsideContent(layout, mouseX, mouseY)
                 && mouseX >= layout.panelRight - 8)
@@ -281,12 +270,11 @@ public class SummaryScreen extends CompatScreen
 
     private void drawHeader(GuiGraphicsExtractor context, Layout layout)
     {
-        int titleWidth = layout.compact ? Math.max(0, layout.contentWidth - 156) : layout.contentWidth;
+        int titleWidth = Math.max(0, layout.contentWidth - 212);
         MmmUi.drawTextWithin(context, this.font, this.heading, layout.contentX, layout.headerY, titleWidth, COLOR_VALUE, true);
         if (!layout.compact)
         {
-            drawPill(context, layout.contentX, layout.headerY + 18, Math.min(200, layout.graphWidth - 20), 16, this.worldName, COLOR_CARD, MmmUi.accent());
-            MmmUi.drawTextWithin(context, this.font, "Session pace, goals, and block mix in the MMM website style.", layout.contentX + 2, layout.headerY + 40, layout.contentWidth - 4, COLOR_LABEL, false);
+            MmmUi.drawTextWithin(context, this.font, this.worldName, layout.contentX, layout.headerY + 16, layout.contentWidth - 12, COLOR_MUTED, false);
         }
     }
 
@@ -312,7 +300,7 @@ public class SummaryScreen extends CompatScreen
         {
             return;
         }
-        fillRoundedCard(context, layout.graphX, layout.graphY, layout.graphWidth, layout.graphHeight, COLOR_CARD, COLOR_BORDER);
+        BoardMenuChrome.section(context, layout.graphX, layout.graphY, layout.graphWidth, layout.graphHeight, false);
         MmmUi.drawTextWithin(context, this.font, "Mining Rate", layout.graphX + CARD_PADDING, layout.graphY + 10, layout.graphWidth - CARD_PADDING * 2, COLOR_VALUE, false);
         MmmUi.drawTextWithin(context, this.font, "Blocks per hour over active session time", layout.graphX + CARD_PADDING, layout.graphY + 24, layout.graphWidth - CARD_PADDING * 2, COLOR_LABEL, false);
 
@@ -329,7 +317,7 @@ public class SummaryScreen extends CompatScreen
         {
             return;
         }
-        fillRoundedCard(context, layout.goalX, layout.goalY, layout.goalWidth, layout.goalHeight, COLOR_CARD, COLOR_BORDER);
+        BoardMenuChrome.section(context, layout.goalX, layout.goalY, layout.goalWidth, layout.goalHeight, true);
         MmmUi.drawTextWithin(context, this.font, "Daily Goal", layout.goalX + CARD_PADDING, layout.goalY + 10, layout.goalWidth - CARD_PADDING * 2, COLOR_VALUE, false);
 
         MiningStats.GoalProgress progress = MiningStats.getDailyGoalProgress();
@@ -361,7 +349,7 @@ public class SummaryScreen extends CompatScreen
 
     private void drawBreakdownCard(GuiGraphicsExtractor context, Layout layout, int mouseX, int mouseY)
     {
-        fillRoundedCard(context, layout.breakdownX, layout.breakdownY, layout.breakdownWidth, layout.breakdownHeight, COLOR_CARD_SOFT, COLOR_BORDER);
+        BoardMenuChrome.section(context, layout.breakdownX, layout.breakdownY, layout.breakdownWidth, layout.breakdownHeight, false);
         MmmUi.drawTextWithin(context, this.font, "Block Breakdown", layout.breakdownX + CARD_PADDING, layout.breakdownY + 10, layout.breakdownWidth - CARD_PADDING * 2, COLOR_VALUE, false);
 
         int listX = layout.breakdownX + CARD_PADDING;
@@ -371,7 +359,6 @@ public class SummaryScreen extends CompatScreen
         int viewportWidth = listWidth - SCROLLBAR_WIDTH - 6;
 
         context.fill(listX, listY, listX + listWidth, listY + listHeight, MmmUi.INSET);
-        MmmUi.drawBorder(context, listX, listY, listWidth, listHeight, COLOR_BORDER_SOFT);
 
         context.enableScissor(listX, listY, listX + viewportWidth, listY + listHeight);
         int drawY = listY + 6 - this.breakdownScrollOffset;
@@ -398,7 +385,7 @@ public class SummaryScreen extends CompatScreen
     {
         int rowColor = ((y / BREAKDOWN_ROW_HEIGHT) & 1) == 0 ? MmmUi.ROW_ALT : MmmUi.INSET;
         context.fill(x - 2, y - 1, x + width, y + BREAKDOWN_ROW_HEIGHT - 2, rowColor);
-        context.item(entry.icon(), x, y + 1);
+        entry.icon().draw(context, x, y + 1);
 
         String countText = UiFormat.formatCompact(entry.count());
         int countWidth = this.font.width(countText);
@@ -501,7 +488,7 @@ public class SummaryScreen extends CompatScreen
 
     private void drawStatCard(GuiGraphicsExtractor context, int x, int y, int width, int height, String label, String value, String suffix)
     {
-        fillRoundedCard(context, x, y, width, height, COLOR_CARD_SOFT, COLOR_BORDER_SOFT);
+        BoardMenuChrome.metric(context, x, y, width, height);
         int textWidth = width - CARD_PADDING * 2;
         MmmUi.drawTextWithin(context, this.font, label, x + CARD_PADDING, y + 9, textWidth, COLOR_LABEL, false);
         int valueColor = inactiveValueColor(value) == COLOR_INACTIVE ? COLOR_INACTIVE : Configs.getHudNumberColor();
@@ -542,14 +529,6 @@ public class SummaryScreen extends CompatScreen
         context.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight, thumbColor);
     }
 
-    private void drawPill(GuiGraphicsExtractor context, int x, int y, int width, int height, String text, int fillColor, int borderColor)
-    {
-        fillRoundedCard(context, x, y, width, height, fillColor, borderColor);
-        String clipped = MmmUi.truncate(this.font, text, width - 8);
-        int textX = x + Math.max(4, (width - this.font.width(clipped)) / 2);
-        context.text(this.font, Component.literal(clipped), textX, y + 4, MmmUi.accent(), false);
-    }
-
     private void fillRoundedCard(GuiGraphicsExtractor context, int x, int y, int width, int height, int fillColor, int borderColor)
     {
         MmmUi.card(context, x, y, width, height, fillColor, borderColor);
@@ -561,7 +540,7 @@ public class SummaryScreen extends CompatScreen
         for (Map.Entry<String, Long> entry : MiningStats.getSortedBreakdown(this.session).entrySet())
         {
             String blockId = entry.getKey();
-            this.allEntries.add(new BlockBreakdownEntry(blockId, getCachedBlockName(blockId), entry.getValue(), getCachedIcon(blockId)));
+            this.allEntries.add(new BlockBreakdownEntry(blockId, getCachedBlockName(blockId), entry.getValue(), blockIcon(blockId)));
         }
         this.allEntries.sort(Comparator.comparingLong(BlockBreakdownEntry::count).reversed().thenComparing(BlockBreakdownEntry::name));
     }
@@ -618,7 +597,7 @@ public class SummaryScreen extends CompatScreen
         int top = layout.breakdownY - CARD_GAP - height;
         int x = layout.contentX + CARD_PADDING;
         int width = layout.contentWidth - CARD_PADDING * 2;
-        fillRoundedCard(context, layout.contentX, top, layout.contentWidth, height, COLOR_CARD, COLOR_BORDER);
+        BoardMenuChrome.section(context, layout.contentX, top, layout.contentWidth, height, false);
         MmmUi.drawTextWithin(context, this.font, "Mining Efficiency", x, top + 10, width, COLOR_VALUE, false);
         long duration = this.session.getActiveDurationMs();
         String status = this.efficiencyLoading ? "Loading activity..." : this.efficiencyError != null ? this.efficiencyError
@@ -646,7 +625,7 @@ public class SummaryScreen extends CompatScreen
 
     private static int contentTop(Layout layout)
     {
-        return layout.headerY + (layout.compact ? 24 : 58);
+        return layout.headerY + (layout.compact ? 24 : 38);
     }
 
     private static boolean isInsideContent(Layout layout, double x, double y)
@@ -759,7 +738,7 @@ public class SummaryScreen extends CompatScreen
         int contentX = panelX + padding;
         int contentWidth = panelWidth - padding * 2;
         int headerY = panelY + padding;
-        int statY = headerY + (compact ? 24 : 58);
+        int statY = headerY + (compact ? 24 : 38);
         int cardWidth = (contentWidth - CARD_GAP * 3) / 4;
         int graphY = statY + (contentWidth < 480 ? 3 : 1) * ((compact ? 40 : 54) + CARD_GAP);
         int goalWidth = Math.min(190, Math.max(84, contentWidth / 4));
@@ -957,19 +936,10 @@ public class SummaryScreen extends CompatScreen
         return NAME_CACHE.computeIfAbsent(id, key -> resolveBlock(key).getName().getString());
     }
 
-    private ItemStack getCachedIcon(String id)
+    private BoardItemIcon blockIcon(String id)
     {
-        ItemStack cached = ICON_CACHE.get(id);
-        if (cached != null)
-        {
-            return cached.copy();
-        }
-
-        Block block = resolveBlock(id);
-        Item item = block.asItem();
-        ItemStack stack = item == Items.AIR ? new ItemStack(Blocks.STONE) : new ItemStack(item);
-        ICON_CACHE.put(id, stack.copy());
-        return stack;
+        Item item = resolveBlock(id).asItem();
+        return new BoardItemIcon(item == Items.AIR ? Blocks.STONE.asItem() : item);
     }
 
     private Block resolveBlock(String id)
@@ -991,7 +961,7 @@ public class SummaryScreen extends CompatScreen
         return WorldSessionContext.getCurrentWorldName();
     }
 
-    private record BlockBreakdownEntry(String id, String name, long count, ItemStack icon)
+    private record BlockBreakdownEntry(String id, String name, long count, BoardItemIcon icon)
     {
         private String searchName()
         {
@@ -1025,34 +995,5 @@ public class SummaryScreen extends CompatScreen
             int breakdownHeight,
             boolean compact)
     {
-        private Layout withPanelY(int newPanelY)
-        {
-            int delta = newPanelY - this.panelY;
-            return new Layout(
-                    this.panelX,
-                    newPanelY,
-                    this.panelWidth,
-                    this.panelHeight,
-                    this.panelRight,
-                    this.panelBottom + delta,
-                    this.contentX,
-                    this.contentWidth,
-                    this.headerY + delta,
-                    this.statY + delta,
-                    this.statCardWidth,
-                    this.graphX,
-                    this.graphY + delta,
-                    this.graphWidth,
-                    this.graphHeight,
-                    this.goalX,
-                    this.goalY + delta,
-                    this.goalWidth,
-                    this.goalHeight,
-                    this.breakdownX,
-                    this.breakdownY + delta,
-                    this.breakdownWidth,
-                    this.breakdownHeight,
-                    this.compact);
-        }
     }
 }

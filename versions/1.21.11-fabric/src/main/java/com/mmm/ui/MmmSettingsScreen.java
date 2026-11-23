@@ -28,31 +28,35 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.util.math.ColorHelper;
 
-public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
+public class MmmSettingsScreen extends CompatScreen
 {
-    private static final int BG = 0xFF050505;
+    private static final int BG = CollectionBoardArt.BASE;
     private static final int TOP_BAR = 0xF0060606;
     private static final int CARD = 0xF20D0D0D;
     private static final int INSET = 0xFF121212;
     private static final int BORDER = 0xFF1F1F1F;
     private static final int BORDER_SOFT = 0xFF272727;
     private static final int TEXT = 0xFFF5F5F5;
-    private static final int MUTED = 0xFF949494;
+    private static final int MUTED = CollectionBoardArt.MUTED;
     private static final int GREEN = 0xFF43D483;
     private static final int ERROR = 0xFFFF5965;
     private static final int WARNING = 0xFFFFB84D;
 
-    private static final int TOP_HEIGHT = 42;
+    private static final int TOP_HEIGHT = 34;
     private static final int GAP = 12;
     private static final int CARD_PAD = 12;
     private static final int ROW_HEIGHT = 32;
     private static final int FIELD_HEIGHT = 18;
     private static final int CONTROL_WIDTH = 112;
     private static final int RESET_WIDTH = 18;
-    private static final int TWO_COLUMN_MIN_WIDTH = 680;
-    private static final int CONTENT_HEADER_HEIGHT = 68;
+    private static final int CONTENT_HEADER_HEIGHT = 44;
     private static final boolean SPEED_GRAPH_AVAILABLE = false;
     private static final long OPENING_HOTKEY_SUPPRESSION_TIMEOUT_MS = 750L;
 
@@ -63,6 +67,21 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
     private final List<ScrollTarget> scrollTargets = new ArrayList<>();
     private final List<SliderTarget> sliderTargets = new ArrayList<>();
     private final Map<IConfigBase, TextFieldWidget> textFields = new IdentityHashMap<>();
+    private IConfigBase movingToggle;
+    private long toggleAt;
+    private final SettingsPage home;
+    private final List<NavigationButton> categoryRail = new ArrayList<>();
+    private long transitionAt;
+    private final SettingsPage toolsPage;
+    private NavigationButton hotkeysButton;
+    private SettingsPage currentPage;
+    private final List<PageLocation> pageHistory = new ArrayList<>();
+    private final List<NavigationButton> navigationButtons = new ArrayList<>();
+    private NavigationButton previewTopic;
+    private long previewSince;
+    private ButtonWidget backButton;
+    private double browseScrollY;
+    private String hoveredDescription;
     private double scrollY = 0.0D;
     private int contentHeight = 0;
     private SliderTarget draggingSlider;
@@ -82,7 +101,10 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         this.parent = parent;
         this.suppressAutomaticSearchInput = openedFromHotkey;
         this.openedAtMs = System.currentTimeMillis();
-        this.createSections();
+        this.sections.addAll(settingsInventory());
+        this.home = buildSettingsPages(this.sections);
+        this.toolsPage = this.home.children().stream().filter(page -> page.title().equals("Tools")).findFirst().orElseThrow();
+        this.currentPage = this.home;
     }
 
     @Override
@@ -91,6 +113,9 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         MmmUi.ensureCursorVisible();
         this.clearChildren();
         this.textFields.clear();
+        this.navigationButtons.clear();
+        this.categoryRail.clear();
+        this.transitionAt = CollectionBoardArt.now();
 
         this.searchField = new TextFieldWidget(this.textRenderer, 0, 0, 220, FIELD_HEIGHT, Text.literal("Search settings"));
         this.searchField.setDrawsBackground(false);
@@ -99,10 +124,29 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         this.searchField.setPlaceholder(Text.literal("Search settings..."));
         this.searchField.setText(this.searchQuery);
         this.searchField.setChangedListener(value -> {
+            boolean wasSearching = !this.searchQuery.isBlank();
+            if (!wasSearching && !value.isBlank()) this.browseScrollY = this.scrollY;
             this.searchQuery = value;
-            this.scrollY = 0.0D;
+            this.scrollY = value.isBlank() ? this.browseScrollY : 0.0D;
+            this.draggingSlider = null;
+            this.refreshVisibleSections();
         });
         this.addDrawableChild(this.searchField);
+        var website = this.addDrawableChild(new NavigationButton("Website Link", 82, 19, button -> openWebsiteLink()));
+        website.setPosition(workspaceX() + workspaceWidth() - 107, 7);
+        this.hotkeysButton = this.addDrawableChild(new NavigationButton(ToolDirectory.HOTKEYS.label, 62, 18,
+                button -> MmmUi.openTool(this, ToolDirectory.HOTKEYS)));
+        this.backButton = this.addDrawableChild(new NavigationButton("< Back", 48, 18, button -> this.goBack()));
+        for (SettingsPage page : this.home.children()) {
+            this.categoryRail.add(this.addDrawableChild(topicButton(page, true, () -> {
+                this.pageHistory.clear();
+                this.pageHistory.add(new PageLocation(this.home, 0));
+                this.searchField.setText("");
+                this.openPage(page);
+            })));
+        }
+        this.rebuildNavigationButtons();
+        this.refreshVisibleSections();
 
         for (SettingsSection section : this.sections)
         {
@@ -132,30 +176,59 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         this.clickTargets.clear();
         this.scrollTargets.clear();
         this.sliderTargets.clear();
+        this.hoveredDescription = null;
         for (TextFieldWidget field : this.textFields.values())
         {
             field.setVisible(false);
         }
         this.searchField.setVisible(true);
-        this.refreshVisibleSections();
         this.updateLayout();
 
         context.fill(0, 0, this.width, this.height, MmmUi.menuSurface(BG));
-        this.drawSidebar(context, mouseX, mouseY);
         this.drawTopBar(context, mouseX, mouseY);
 
         int pagePad = MmmUi.pagePad(this.width);
-        int viewportX = MmmUi.contentLeft(this.width);
+        int viewportX = contentX();
         int viewportY = TOP_HEIGHT;
-        int viewportW = MmmUi.contentWidth(this.width);
+        int viewportW = contentWidth();
         int viewportH = Math.max(1, this.height - TOP_HEIGHT - pagePad);
 
-        context.enableScissor(viewportX, viewportY, viewportX + viewportW, viewportY + viewportH);
+        layoutRail(context);
         this.drawMainContent(context, viewportX, viewportY, viewportW, mouseX, mouseY);
         super.render(context, mouseX, mouseY, delta);
-        context.disableScissor();
 
         this.drawScrollbar(context, viewportX + viewportW - 4, viewportY, viewportH);
+        if (this.hoveredDescription != null)
+        {
+            context.drawOrderedTooltip(this.textRenderer, this.textRenderer.wrapLines(Text.literal(this.hoveredDescription),
+                    Math.min(280, Math.max(80, this.width - 32))), mouseX, mouseY);
+        }
+        for (TextFieldWidget field : this.textFields.values())
+        {
+            if (!field.isVisible() && field.isFocused())
+            {
+                field.setFocused(false);
+                if (this.getFocused() == field) this.setFocused(null);
+            }
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean doubleClick)
+    {
+        SettingsPage previousPage = this.currentPage;
+        boolean handled = super.mouseClicked(click, doubleClick);
+        if (previousPage != this.currentPage) this.resetPageFocus();
+        return handled;
+    }
+
+    @Override
+    public boolean keyPressed(net.minecraft.client.input.KeyInput input)
+    {
+        SettingsPage previousPage = this.currentPage;
+        boolean handled = super.keyPressed(input);
+        if (previousPage != this.currentPage) this.resetPageFocus();
+        return handled;
     }
 
     @Override
@@ -164,11 +237,6 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         if (button == 0 && this.searchField != null && this.searchField.isMouseOver(mouseX, mouseY))
         {
             this.suppressAutomaticSearchInput = false;
-        }
-
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
         }
 
         if (button == 0)
@@ -186,7 +254,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
 
         for (ClickTarget target : List.copyOf(this.clickTargets))
         {
-            if (target.contains(mouseX, mouseY))
+            if (button == 0 && target.contains(mouseX, mouseY))
             {
                 target.action().run(mouseX, mouseY);
                 return true;
@@ -248,12 +316,28 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
 
         if (keyCode == 256)
         {
-            if (this.searchField != null && this.searchField.isFocused() && this.searchField.getText().isBlank() == false)
+            if (this.searchField != null && !this.searchQuery.isBlank())
             {
                 this.searchField.setText("");
                 return true;
             }
-            this.close();
+            if (!this.pageHistory.isEmpty()) this.goBack();
+            else this.close();
+            return true;
+        }
+
+        boolean pageKey = keyCode == 266 || keyCode == 267;
+        if ((!(this.getFocused() instanceof TextFieldWidget) || (pageKey && this.getFocused() == this.searchField))
+                && (pageKey || keyCode == 268 || keyCode == 269))
+        {
+            int maxScroll = Math.max(0, this.contentHeight - (this.height - TOP_HEIGHT - MmmUi.pagePad(this.width)));
+            int step = Math.max(ROW_HEIGHT, this.height - TOP_HEIGHT - CONTENT_HEADER_HEIGHT - 32);
+            this.scrollY = switch (keyCode) {
+                case 268 -> 0;
+                case 269 -> maxScroll;
+                case 266 -> Math.max(0, this.scrollY - step);
+                default -> Math.min(maxScroll, this.scrollY + step);
+            };
             return true;
         }
 
@@ -302,6 +386,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
                 && this.searchField.isVisible()
                 && (Character.isLetterOrDigit(chr) || Character.isWhitespace(chr)))
         {
+            this.setFocused(this.searchField);
             this.searchField.setFocused(true);
             return this.searchField.charTyped(new net.minecraft.client.input.CharInput(chr, modifiers));
         }
@@ -325,39 +410,71 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
     {
     }
 
-    private void drawTopBar(DrawContext context, int mouseX, int mouseY)
-    {
-        context.fill(0, 0, this.width, TOP_HEIGHT, MmmUi.menuSurface(TOP_BAR));
-        com.mmm.ui.MmmUi.drawBorder(context, 0, 0, this.width, TOP_HEIGHT, BORDER);
-        context.fill(14, 12, 18, 30, MmmUi.accent());
-        MmmUi.drawTextWithin(context, this.textRenderer, "MMM", 26, 10, 40, MmmUi.accent(), false);
+    private int workspaceWidth() { return Math.min(650, width - 16); }
+    private int workspaceX() { return (width - workspaceWidth()) / 2; }
+    private boolean railVisible() { return width >= 530 && height >= 254 && currentPage != home && currentPage != toolsPage; }
+    private int contentX() { return workspaceX() + (railVisible() ? 134 : 0); }
+    private int contentWidth() { return workspaceWidth() - (railVisible() ? 134 : 0); }
+    private int navColumns() { return contentWidth() >= 300 ? 2 : 1; }
+    private boolean hasDossier() { return currentPage == home && contentWidth() >= 500 && height >= 276; }
+    private int dossierWidth() { return Math.min(218, contentWidth() / 3); }
+    private int topicStep() { return hasDossier() ? 54 : 41; }
 
-        String status = this.syncStatusText();
-        int statusColor = Configs.Generic.WEBSITE_SYNC_ENABLED.getBooleanValue() ? GREEN : MUTED;
-        int closeX = this.width - 32;
-        int statusLeft = this.width >= 620 ? this.width / 2 : 68;
-        if (this.width >= 620)
-        {
-            MmmUi.drawTextWithin(context, this.textRenderer, "Manual Mining Maniacs", 68, 10, Math.max(0, statusLeft - 80), TEXT, false);
+    private void drawTopBar(DrawContext c, int mx, int my) {
+        int left = workspaceX(), right = left + workspaceWidth();
+        c.fill(0, 0, width, TOP_HEIGHT, MmmUi.menuSurface(TOP_BAR));
+        c.fill(0, TOP_HEIGHT - 1, width, TOP_HEIGHT, CollectionBoardArt.LINE);
+        c.drawText(textRenderer, "MMM", left + 2, 13, CollectionBoardArt.ROSE, true);
+        c.drawText(textRenderer, "/ Settings", left + 29, 13, TEXT, false);
+        if (width >= 510) {
+            String status = syncStatusText();
+            MmmUi.drawTextRightWithin(c, textRenderer, status, right - 115, 13, workspaceWidth() / 3, MUTED, false);
         }
-        MmmUi.drawTextRightWithin(context, this.textRenderer, status, closeX - 12, 10, Math.max(0, closeX - 12 - statusLeft), statusColor, false);
-        this.drawButtonShell(context, closeX, 8, 20, 20, "X", mouseX, mouseY, false);
-        this.clickTargets.add(new ClickTarget(closeX, 8, 20, 20, this::close));
+        drawButtonShell(c, right - 20, 7, 20, 19, "X", mx, my, false);
+        clickTargets.add(new ClickTarget(right - 20, 7, 20, 19, this::close));
     }
 
-    private void drawSidebar(DrawContext context, int mouseX, int mouseY)
+    private void layoutRail(DrawContext c) {
+        boolean visible = railVisible();
+        int left = workspaceX(), top = TOP_HEIGHT + 15;
+        if (visible) {
+            c.drawText(textRenderer, "CATEGORIES", left + 6, top, MUTED, false);
+            c.fill(left + 125, top, left + 126, height - 10, CollectionBoardArt.LINE);
+        }
+        SettingsPage section = pageHistory.size() > 1 ? pageHistory.get(1).page() : currentPage;
+        for (int i = 0; i < categoryRail.size(); i++) {
+            NavigationButton button = categoryRail.get(i);
+            button.visible = visible;
+            button.chosen = section == home.children().get(i);
+            button.setPosition(left, top + 17 + i * 23);
+            button.setWidth(120);
+        }
+    }
+
+    private void openWebsiteLink()
     {
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
+        this.client.setScreen(new WebsiteLinkScreen(this));
     }
 
     private void drawMainContent(DrawContext context, int x, int viewportY, int width, int mouseX, int mouseY)
     {
-        int y = viewportY + 18 - (int) Math.round(this.scrollY);
-        MmmUi.drawTextWithin(context, this.textRenderer, "MMM MOD SETTINGS", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Configure how MMM Mod works in Minecraft", x, y + 16, width, MUTED, false);
+        int y = viewportY + 10;
+        boolean searching = !this.searchQuery.isBlank();
+        this.backButton.visible = searching || !this.pageHistory.isEmpty();
+        this.backButton.setPosition(x, y - 5);
+        hotkeysButton.visible = !searching && currentPage == home;
+        hotkeysButton.setPosition(x + width - hotkeysButton.getWidth() - 10, y - 5);
+        int titleX = x + (this.backButton.visible ? 53 : 0);
+        String title = searching ? "Search results" : this.currentPage == home ? "Controls & preferences" : this.currentPage.title();
+        if (!searching && pageHistory.size() > 1 && contentWidth() > 370)
+            title = pageHistory.getLast().page().title() + " / " + title;
+        int titleWidth = Math.max(0, (hotkeysButton.visible ? hotkeysButton.getX() - 4 : x + width - 8) - titleX);
+        MmmUi.drawTextWithin(context, this.textRenderer, title, titleX, y, titleWidth, TEXT, false);
+        if (this.textRenderer.getWidth(title) > titleWidth
+                && this.contains(mouseX, mouseY, titleX, y, titleWidth, 12)) this.hoveredDescription = title;
 
-        int searchY = y + 34;
-        int searchWidth = Math.min(260, width);
+        int searchY = y + 18;
+        int searchWidth = width - 10;
         boolean canClearSearch = this.searchQuery.isBlank() == false;
         int clearWidth = canClearSearch ? 20 : 0;
         this.searchField.setX(x + 5);
@@ -370,60 +487,85 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
             this.drawButtonShell(context, clearX, searchY, 18, FIELD_HEIGHT, "X", mouseX, mouseY, true);
             this.clickTargets.add(new ClickTarget(clearX, searchY, 18, FIELD_HEIGHT, () -> {
                 this.searchField.setText("");
+                this.setFocused(this.searchField);
                 this.searchField.setFocused(true);
             }));
         }
 
-        int gridY = y + CONTENT_HEADER_HEIGHT;
+        int gridY = y + CONTENT_HEADER_HEIGHT - (int) Math.round(this.scrollY);
+        int cols = navColumns();
+        boolean showDossier = !searching && hasDossier();
+        int span = (width - 6 - (showDossier ? dossierWidth() + 6 : 0)) / cols;
+        for (int i = 0; i < this.navigationButtons.size(); i++)
+        {
+            NavigationButton button = this.navigationButtons.get(i);
+            int buttonY = gridY + i / cols * topicStep();
+            button.setPosition(x + i % cols * span, buttonY);
+            button.setWidth(span - 3);
+            button.visible = !searching && buttonY >= y + CONTENT_HEADER_HEIGHT
+                    && buttonY + button.getHeight() <= this.height - MmmUi.pagePad(this.width);
+            if (showDossier && button.visible && (client.getNavigationType().isKeyboard()
+                    ? button.isFocused() : button.isMouseOver(mouseX, mouseY))) {
+                if (previewTopic != button) { previewTopic = button; previewSince = CollectionBoardArt.now(); }
+            }
+            if (!button.visible && button.isFocused())
+            {
+                button.setFocused(false);
+                if (this.getFocused() == button) this.setFocused(null);
+            }
+        }
+        if (showDossier && !navigationButtons.isEmpty()) {
+            if (previewTopic == null) { previewTopic = navigationButtons.getFirst(); previewSince = transitionAt; }
+            drawDossier(context,x + width - dossierWidth() - 6,y + CONTENT_HEADER_HEIGHT,dossierWidth(),previewTopic);
+        }
+        if (!searching && !this.currentPage.children().isEmpty()) return;
         if (this.visibleSections.isEmpty())
         {
             MmmUi.drawTextWithin(context, this.textRenderer, "No settings match your search.", x, gridY + 8, width, MUTED, false);
             return;
         }
 
-        boolean twoColumns = width >= TWO_COLUMN_MIN_WIDTH;
-        int columnW = twoColumns ? (width - GAP) / 2 : width;
         int rowY = gridY;
-        int sectionIndex = 0;
 
-        while (sectionIndex < this.visibleSections.size())
+        context.enableScissor(x, y + CONTENT_HEADER_HEIGHT, x + width, this.height - MmmUi.pagePad(this.width));
+        for (VisibleSection section : this.visibleSections)
         {
-            VisibleSection left = this.visibleSections.get(sectionIndex++);
-            VisibleSection right = twoColumns && sectionIndex < this.visibleSections.size() ? this.visibleSections.get(sectionIndex++) : null;
-            int leftHeight = this.sectionHeight(left);
-            int rightHeight = right == null ? 0 : this.sectionHeight(right);
-            int rowHeight = Math.max(leftHeight, rightHeight);
-
-            this.drawSection(context, left, x, rowY, columnW, rowHeight, mouseX, mouseY);
-
-            if (right != null)
-            {
-                this.drawSection(context, right, x + columnW + GAP, rowY, columnW, rowHeight, mouseX, mouseY);
-            }
-
+            int rowHeight = this.sectionHeight(section);
+            this.drawSection(context, section, x, rowY, width, rowHeight, mouseX, mouseY);
             rowY += rowHeight + GAP;
         }
+        context.disableScissor();
     }
 
     private void drawSection(DrawContext context, VisibleSection visibleSection, int x, int y, int width, int height, int mouseX, int mouseY)
     {
         SettingsSection section = visibleSection.section();
-        context.fill(x, y, x + width, y + height, MmmUi.menuSurface(CARD));
-        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, height, BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, section.title(), x + CARD_PAD, y + 12, width - CARD_PAD * 2);
-        MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, MUTED, false);
+        if (!this.searchQuery.isBlank())
+        {
+            boolean hovered = this.contains(mouseX, mouseY, x, y, width - 8, 44);
+            context.fill(x, y, x + width - 8, y + 44, MmmUi.menuSurface(hovered ? INSET : CARD));
+            context.fill(x, y + 43, x + width - 8, y + 44, MmmUi.accent());
+            MmmUi.drawTextWithin(context, this.textRenderer, section.title(), x + CARD_PAD, y + 9, width - 32, TEXT, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 25, width - 32, MUTED, false);
+        }
 
-        int rowY = y + 48;
+        int rowY = y + (this.searchQuery.isBlank() ? 4 : 48);
         for (SettingRow row : visibleSection.rows())
         {
             this.drawSettingRow(context, row, x + CARD_PAD, rowY, width - CARD_PAD * 2, mouseX, mouseY);
-            rowY += ROW_HEIGHT;
+            rowY += this.settingRowHeight();
         }
     }
 
     private void drawSettingRow(DrawContext context, SettingRow row, int x, int y, int width, int mouseX, int mouseY)
     {
-        context.fill(x, y, x + width, y + 1, BORDER);
+        int rowHeight = this.settingRowHeight();
+        int clipTop = TOP_HEIGHT + 10 + CONTENT_HEADER_HEIGHT;
+        int clipBottom = this.height - MmmUi.pagePad(this.width);
+        if (visibleHeight(y, rowHeight, clipTop, clipBottom) == 0) return;
+        if (contains(mouseX, mouseY, x, y, width, rowHeight) && mouseY >= clipTop && mouseY < clipBottom)
+            context.fill(x - 4, y, x + width + 3, y + rowHeight, MmmUi.menuSurface(CollectionBoardArt.TILE));
+        context.fill(x, y + rowHeight - 1, x + width, y + rowHeight, BORDER);
         if (row.kind() == ControlKind.HEADING)
         {
             context.fill(x, y + 8, x + 3, y + 24, MmmUi.accent());
@@ -439,11 +581,20 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         int resetX = x + width - RESET_WIDTH;
         int controlWidth = Math.min(CONTROL_WIDTH, Math.max(48, width / 2));
         int controlX = resetX - controlWidth - 8;
-        int controlY = y + 7;
-        int labelW = Math.max(0, controlX - x - 8);
+        int controlY = y + (rowHeight > ROW_HEIGHT ? 29 : 7);
+        int labelW = rowHeight > ROW_HEIGHT ? width : Math.max(0, controlX - x - 8);
+        if (mouseY >= clipTop && mouseY < clipBottom
+                && this.contains(mouseX, mouseY, x, y, labelW, rowHeight) && !row.description().isBlank()
+                && (this.textRenderer.getWidth(row.description()) > labelW || this.textRenderer.getWidth(row.label()) > labelW))
+        {
+            this.hoveredDescription = row.label() + ": " + row.description();
+        }
         MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x, y + 7, labelW, TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x, y + 18, labelW, MUTED, false);
 
+        int firstClick = this.clickTargets.size();
+        int firstScroll = this.scrollTargets.size();
+        int firstSlider = this.sliderTargets.size();
         switch (row.kind())
         {
             case BOOLEAN -> this.drawBooleanControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
@@ -452,9 +603,18 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
             case SLIDER -> this.drawSliderControl(context, row.config(), controlX, controlY, controlWidth, mouseX, mouseY);
             case HEADING, STATUS -> {}
             case ACTION -> this.drawActionButton(context, controlX, controlY, controlWidth, FIELD_HEIGHT, this.actionButtonLabel(row), mouseX, mouseY, () -> {
-                if ("Move HUD".equals(row.label()))
+                if ("Website Link".equals(row.label())) {
+                    openWebsiteLink();
+                }
+                else if ("Move HUD".equals(row.label()))
                 {
                     MinecraftClient.getInstance().setScreen(new HudMoveScreen(this));
+                }
+                else if ("Compact HUD".equals(row.label()))
+                {
+                    com.mmm.config.HudPresets.compact();
+                    Configs.requestSave();
+                    MmmMessages.actionbar("Compact HUD applied. Tracking and saved records are unchanged.");
                 }
                 else if ("Custom Sounds".equals(row.label()))
                 {
@@ -477,6 +637,20 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
                     MmmMessages.actionbar("Generated preview mining run");
                     MinecraftClient.getInstance().setScreen(new SummaryScreen(MiningStats.simulateDevFinishedSession(), this));
                 }
+                else {
+                    ToolDirectory tool = ToolDirectory.find(row.label());
+                    if (tool != null) openTool(tool);
+                }
+                if (com.mmm.advancement.AchievementBuildFlags.PREVIEW
+                        && "Test Achievement".equals(row.label()))
+                {
+                    MinecraftClient client = MinecraftClient.getInstance();
+                    if (client.player != null)
+                    {
+                        com.mmm.advancement.AchievementCardRenderer.show(com.mmm.advancement.MmmAdvancementDefinition.DIG_MASTER);
+                        client.setScreen(null);
+                    }
+                }
             });
         }
 
@@ -489,23 +663,40 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
                 Configs.saveToFile();
             }));
         }
+        // Partially visible rows still draw under the scissor, but clipped controls cannot intercept input.
+        if (visibleHeight(controlY, FIELD_HEIGHT, clipTop, clipBottom) != FIELD_HEIGHT)
+        {
+            this.clickTargets.subList(firstClick, this.clickTargets.size()).clear();
+            this.scrollTargets.subList(firstScroll, this.scrollTargets.size()).clear();
+            this.sliderTargets.subList(firstSlider, this.sliderTargets.size()).clear();
+        }
+        TextFieldWidget field = this.textFields.get(row.config());
+        if (field != null && visibleHeight(field.getY(), field.getHeight(), clipTop, clipBottom) != field.getHeight())
+            field.setVisible(false);
+    }
+
+    static int visibleHeight(int y, int height, int clipTop, int clipBottom)
+    {
+        return SettingsNavigation.visibleHeight(y, height, clipTop, clipBottom);
     }
 
     private void drawBooleanControl(DrawContext context, IConfigBase config, int x, int y, int width, int mouseX, int mouseY)
     {
         boolean enabled = config instanceof IConfigBoolean booleanConfig && booleanConfig.getBooleanValue();
         boolean hovered = this.contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
-        int fill = enabled ? MmmUi.accent() : INSET;
-        int border = hovered ? MmmUi.accent() : BORDER_SOFT;
-        context.fill(x, y, x + width, y + FIELD_HEIGHT, enabled ? fill : MmmUi.menuSurface(fill));
-        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, FIELD_HEIGHT, border);
-        String label = enabled ? "ON" : "OFF";
-        int labelW = this.textRenderer.getWidth(label);
-        context.drawText(this.textRenderer, Text.literal(label), x + (width - labelW) / 2, y + 6, enabled ? TEXT : MUTED, false);
+        int edge = x + width - 2;
+        int rail = edge - 23;
+        context.fill(rail, y + 3, edge, y + 15, enabled ? MmmUi.accent() : CollectionBoardArt.LINE);
+        float t = config == movingToggle ? CollectionBoardArt.reveal(CollectionBoardArt.now() - toggleAt, 0) : 1f;
+        int knob = rail + 2 + Math.round(11 * (enabled ? t : 1f - t));
+        context.fill(knob, y + 5, knob + 8, y + 13, enabled || hovered ? TEXT : MUTED);
+        MmmUi.drawTextRightWithin(context, textRenderer, enabled ? "On" : "Off", rail - 5, y + 5, width - 32, enabled ? TEXT : MUTED, false);
         this.clickTargets.add(new ClickTarget(x, y, width, FIELD_HEIGHT, () -> {
             if (config instanceof IConfigBoolean booleanConfig)
             {
                 booleanConfig.setBooleanValue(!booleanConfig.getBooleanValue());
+                movingToggle = config;
+                toggleAt = CollectionBoardArt.now();
                 Configs.saveToFile();
             }
         }));
@@ -550,7 +741,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
             fieldW = width - FIELD_HEIGHT - 4;
             int preview = this.getColorPreview(row.config(), MmmUi.accent());
             context.fill(x, y, x + FIELD_HEIGHT, y + FIELD_HEIGHT, preview);
-            com.mmm.ui.MmmUi.drawBorder(context, x, y, FIELD_HEIGHT, FIELD_HEIGHT, BORDER_SOFT);
+            MmmUi.drawBorder(context, x, y, FIELD_HEIGHT, FIELD_HEIGHT, BORDER_SOFT);
             this.clickTargets.add(new ClickTarget(x, y, FIELD_HEIGHT, FIELD_HEIGHT, () -> {
                 this.openColorEditor(row.config());
             }));
@@ -603,7 +794,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
 
         context.fill(x, trackY, x + width, trackY + 3, MmmUi.menuSurface(INSET));
         context.fill(x, trackY, x + fillWidth, trackY + 3, MmmUi.accent());
-        com.mmm.ui.MmmUi.drawBorder(context, x, trackY, width, 3, hovered ? MmmUi.accent() : BORDER_SOFT);
+        MmmUi.drawBorder(context, x, trackY, width, 3, hovered ? MmmUi.accent() : BORDER_SOFT);
         int thumbX = Math.max(x, Math.min(x + width - 4, x + fillWidth - 2));
         context.fill(thumbX, y + 3, thumbX + 4, y + FIELD_HEIGHT - 3, MmmUi.accent());
 
@@ -648,7 +839,8 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
 
     private String actionButtonLabel(SettingRow row)
     {
-        return "Generate Dev Run".equals(row.label()) ? "RUN" : "OPEN";
+        if (com.mmm.advancement.AchievementBuildFlags.PREVIEW && "Test Achievement".equals(row.label())) return "TEST";
+        return "Generate Dev Run".equals(row.label()) ? "RUN" : "Compact HUD".equals(row.label()) ? "APPLY" : "OPEN";
     }
 
     private void drawButtonShell(DrawContext context, int x, int y, int width, int height, String label, int mouseX, int mouseY, boolean subtle)
@@ -657,7 +849,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         int fill = subtle ? INSET : hovered ? MmmUi.accentHover() : INSET;
         int border = hovered ? MmmUi.accent() : BORDER_SOFT;
         context.fill(x, y, x + width, y + height, MmmUi.menuSurface(fill));
-        com.mmm.ui.MmmUi.drawBorder(context, x, y, width, height, border);
+        if (hovered) MmmUi.drawBorder(context, x, y, width, height, border);
         String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
         int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
         context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 6, hovered ? TEXT : MUTED, false);
@@ -680,22 +872,10 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
     private void updateLayout()
     {
         int rowY = CONTENT_HEADER_HEIGHT;
-        int index = 0;
-        boolean twoColumns = MmmUi.contentWidth(this.width) >= TWO_COLUMN_MIN_WIDTH;
-
-        while (index < this.visibleSections.size())
+        if (this.searchQuery.isBlank()) rowY += (this.currentPage.children().size() + navColumns() - 1) / navColumns() * topicStep();
+        for (VisibleSection section : this.visibleSections)
         {
-            VisibleSection left = this.visibleSections.get(index++);
-            VisibleSection right = twoColumns && index < this.visibleSections.size() ? this.visibleSections.get(index++) : null;
-            int rowHeight = this.sectionHeight(left);
-            if (right != null)
-            {
-                rowHeight = Math.max(rowHeight, this.sectionHeight(right));
-            }
-            if (right != null)
-            {
-            }
-            rowY += rowHeight + GAP;
+            rowY += this.sectionHeight(section) + GAP;
         }
         this.contentHeight = rowY + 26;
 
@@ -705,79 +885,250 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
 
     private int sectionHeight(VisibleSection section)
     {
-        return 58 + section.rows().size() * ROW_HEIGHT + CARD_PAD;
+        return (this.searchQuery.isBlank() ? 4 : 48) + section.rows().size() * this.settingRowHeight() + CARD_PAD;
+    }
+
+    private int settingRowHeight()
+    {
+        return contentWidth() - CARD_PAD * 2 < 280 ? 52 : ROW_HEIGHT;
+    }
+
+    private void rebuildNavigationButtons()
+    {
+        previewTopic = null;
+        for (ButtonWidget button : this.navigationButtons) this.remove(button);
+        this.navigationButtons.clear();
+        for (SettingsPage child : this.currentPage.children())
+        {
+            this.navigationButtons.add(this.addDrawableChild(topicButton(child, false, () -> {
+                ToolDirectory tool = toolForPage(child);
+                if (tool != null) {
+                    openTool(tool);
+                    return;
+                }
+                this.pageHistory.add(new PageLocation(this.currentPage, this.scrollY));
+                this.openPage(child);
+            })));
+        }
+    }
+
+    private static ToolDirectory toolForPage(SettingsPage page) {
+        return page.source() != null && "Tools".equals(page.source().title()) && page.rows().size() == 1
+                ? ToolDirectory.find(page.rows().getFirst().label()) : null;
+    }
+
+    private void openTool(ToolDirectory tool) {
+        if (!searchQuery.isEmpty()) searchField.setText("");
+        if (currentPage != toolsPage) {
+            pageHistory.clear();
+            pageHistory.add(new PageLocation(home, currentPage == home ? scrollY : 0));
+            openPage(toolsPage);
+        }
+        MmmUi.openTool(this, tool);
+    }
+
+    private void openPage(SettingsPage page) {
+        this.currentPage = page;
+        this.refreshVisibleSections();
+        this.scrollY = 0;
+        this.transitionAt = CollectionBoardArt.now();
+        this.resetPageFocus();
+        this.rebuildNavigationButtons();
+    }
+
+    private NavigationButton topicButton(SettingsPage page, boolean rail, Runnable action) {
+        ToolDirectory tool = toolForPage(page);
+        String hint = tool != null ? tool.description : switch (page.title()) {
+            case "Tools" -> "Hotkeys and mining tools";
+            case "Everyday settings" -> "Tracking, goal, and chat";
+            case "Digging & goals" -> "Helpers and milestones";
+            case "HUD" -> "Layout, content, and colors";
+            case "Mining visuals" -> "Indicators and highlights";
+            case "Website sync" -> "Link and sync options";
+            case "Social" -> "Messages and active diggers";
+            default -> !page.children().isEmpty() ? page.children().size() + " topics"
+                    : page.rows().size() + (page.rows().size() == 1 ? " setting" : " settings");
+        };
+        SidebarItem category = page.source() == null ? switch (page.title()) {
+            case "HUD" -> SidebarItem.HUD;
+            case "Mining visuals" -> SidebarItem.VISUALS;
+            default -> SidebarItem.GENERAL;
+        } : page.source().sidebarItem();
+        Item icon = switch (category) {
+            case TOOLS -> Items.CRAFTING_TABLE;
+            case GENERAL -> page.title().equals("Everyday settings") ? Items.COMPASS : Items.IRON_PICKAXE;
+            case SYNC -> Items.ENDER_CHEST;
+            case NOTIFICATIONS -> Items.BELL;
+            case SOCIAL -> Items.WRITABLE_BOOK;
+            case HUD -> Items.SPYGLASS;
+            case COLORS -> Items.RED_DYE;
+            case VISUALS, BLOCK_ESP -> Items.AMETHYST_SHARD;
+            default -> Items.COMPARATOR;
+        };
+        if (tool != null) icon = switch (tool) {
+            case HOTKEYS -> Items.TRIPWIRE_HOOK;
+            case PROJECTS -> Items.IRON_PICKAXE;
+            case PROFILE -> Items.PLAYER_HEAD;
+            case HISTORY -> Items.CLOCK;
+            case SUMMARY -> Items.PAPER;
+            case SCOREBOARD -> Items.OAK_SIGN;
+            case LEADERBOARDS -> Items.GOLD_INGOT;
+        };
+        String label = tool != null || page.title().equals("Tools") ? page.title() : page.title() + " >";
+        var button = new NavigationButton(label, 120, rail ? 21 : topicStep() - 5, ignored -> action.run());
+        button.caption = rail && page.title().equals("Everyday settings") ? "Everyday" : page.title();
+        button.hint = rail ? "" : hint;
+        button.icon = new ItemStack(icon);
+        button.order = rail ? 0 : navigationButtons.size();
+        button.fileNumber = (button.order + 1 < 10 ? "0" : "") + (button.order + 1);
+        if (!rail && hasDossier()) collectOptions(page,button.options);
+        else button.setTooltip(net.minecraft.client.gui.tooltip.Tooltip.of(Text.literal(page.title() + ": " + hint)));
+        button.setTooltipDelay(java.time.Duration.ofMillis(600));
+        return button;
+    }
+
+    private static void collectOptions(SettingsPage page, List<SettingRow> result) {
+        for (var row : page.rows()) if (row.config() != null) result.add(row);
+        for (var child : page.children()) collectOptions(child,result);
+    }
+
+    private void drawDossier(DrawContext c, int x, int y, int w, NavigationButton topic) {
+        int h = 155;
+        CollectionBoardArt.dossier(c,x,y,w,h);
+        long elapsed = CollectionBoardArt.now() - previewSince;
+        int tx = x+10, edge = x+w-10;
+        c.drawText(textRenderer,"CATEGORY FILE",tx,y+12,MUTED,false);
+        MmmUi.drawTextRightWithin(c,textRenderer,topic.fileNumber,edge,y+12,30,CollectionBoardArt.ROSE,false);
+        int inset = Math.round(5*(1-CollectionBoardArt.reveal(elapsed,0)));
+        c.drawItem(topic.icon,tx+inset,y+27);
+        MmmUi.drawTextWithin(c,textRenderer,topic.caption,tx+23+inset,y+32,w-45,TEXT,true);
+        c.fill(tx,y+48,edge,y+49,CollectionBoardArt.LINE);
+        if (topic.caption.equals("Tools")) {
+            int yy = y + 58;
+            for (ToolDirectory tool : MmmUi.availableTools()) {
+                MmmUi.drawTextWithin(c, textRenderer, tool.label, tx, yy, edge - tx, TEXT, false);
+                yy += 13;
+            }
+            return;
+        }
+        int shown = 0, modified = 0;
+        for (var row : topic.options) {
+            if (row.config() instanceof IConfigResettable r && r.isModified()) modified++;
+            if (shown == 4 || row.kind() == ControlKind.TEXT) continue;
+            String value = row.config() instanceof IConfigBoolean b ? (b.getBooleanValue() ? "On" : "Off")
+                    : row.config() instanceof ConfigOptionList list && list.getOptionListValue() instanceof IConfigOptionListEntry entry
+                    ? entry.getDisplayName() : getConfigString(row.config());
+            int valueW = Math.min(w/3,textRenderer.getWidth(value));
+            int yy = y+59+shown*17;
+            int slide = Math.round(6*(1-CollectionBoardArt.reveal(elapsed,shown+1)));
+            MmmUi.drawTextWithin(c,textRenderer,row.label(),tx+slide,yy,edge-tx-valueW-slide-6,TEXT,false);
+            MmmUi.drawTextRightWithin(c,textRenderer,value,edge,yy,valueW,MUTED,false);
+            shown++;
+        }
+        c.fill(tx,y+h-27,edge,y+h-26,CollectionBoardArt.LINE);
+        c.drawText(textRenderer,modified == 0 ? "Default values" : modified + " customized",tx,y+h-17,CollectionBoardArt.ROSE,false);
+    }
+
+    private void resetPageFocus()
+    {
+        this.draggingSlider = null;
+        if (this.getFocused() != null) this.getFocused().setFocused(false);
+        this.setFocused(null);
+        for (TextFieldWidget field : this.textFields.values())
+        {
+            field.setFocused(false);
+            field.setVisible(false);
+        }
+        this.clickTargets.clear();
+        this.scrollTargets.clear();
+        this.sliderTargets.clear();
+    }
+
+    private void goBack()
+    {
+        if (!this.searchQuery.isBlank())
+        {
+            this.searchField.setText("");
+            this.resetPageFocus();
+            return;
+        }
+        if (this.pageHistory.isEmpty()) return;
+        PageLocation previous = this.pageHistory.removeLast();
+        this.currentPage = previous.page();
+        this.refreshVisibleSections();
+        this.transitionAt = CollectionBoardArt.now();
+        this.scrollY = previous.scrollY();
+        this.resetPageFocus();
+        this.rebuildNavigationButtons();
+    }
+
+    static SettingsPage buildSettingsPages(List<SettingsSection> sections)
+    {
+        return adaptPage(SettingsNavigation.<SettingRow, SettingsSection>build(sections));
+    }
+
+    private static SettingsPage adaptPage(SettingsNavigation.Page<SettingRow, SettingsSection> page)
+    {
+        return new SettingsPage(page.title(), page.source(), page.rows(), page.children().stream()
+                .map(MmmSettingsScreen::adaptPage).toList());
+    }
+
+    private static void organizeSections(List<SettingsSection> sections)
+    {
+        List<SettingRow> everyday = new ArrayList<>();
+        java.util.Set<String> quickLabels = java.util.Set.of("Mining Tracker", "Main HUD", "Move HUD", "Daily Goal", "MMM Chat Messages");
+        List<SettingsSection> grouped = new ArrayList<>();
+        for (SettingsSection section : sections)
+        {
+            List<SettingRow> remaining = new ArrayList<>();
+            for (SettingRow row : section.rows())
+            {
+                if (quickLabels.contains(row.label())) everyday.add(row);
+                else remaining.add(row);
+            }
+            String title = switch (section.title())
+            {
+                case "MINING HELPERS" -> "Digging helpers";
+                case "SYNC" -> "Website sync";
+                case "GOALS & NOTIFICATIONS" -> "Goals & notifications";
+                case "SOCIAL" -> "Social";
+                default -> friendlyHeading(section.title());
+            };
+            grouped.add(new SettingsSection(section.sidebarItem(), title, section.description(), List.copyOf(remaining)));
+        }
+        List<String> order = List.of("Mining Tracker", "Main HUD", "Move HUD", "Daily Goal", "MMM Chat Messages");
+        everyday.sort(java.util.Comparator.comparingInt(row -> order.indexOf(row.label())));
+        if (com.mmm.advancement.AchievementBuildFlags.PREVIEW)
+        {
+            everyday.add(new SettingRow("Test Achievement", "Preview only; nothing is awarded or shared.", null, ControlKind.ACTION));
+        }
+        sections.clear();
+        sections.add(new SettingsSection(SidebarItem.GENERAL, "Everyday settings", "Tracking, HUD, daily goal and chat", List.copyOf(everyday)));
+        sections.addAll(grouped);
+    }
+
+    private static String friendlyHeading(String title)
+    {
+        return SettingsNavigation.friendlyHeading(title);
     }
 
     private void refreshVisibleSections()
     {
         this.visibleSections.clear();
         String query = this.searchQuery == null ? "" : this.searchQuery.trim().toLowerCase(Locale.ROOT);
-        for (SettingsSection section : this.sections)
+        if (query.isEmpty())
         {
-            if (query.isEmpty() || this.matchesSearch(section.title(), section.description(), section.sidebarItem().label(), query))
-            {
-                this.visibleSections.add(new VisibleSection(section, section.rows()));
-                continue;
-            }
-
-            List<SettingRow> matches = new ArrayList<>();
-            List<SettingRow> rows = section.rows();
-            int index = 0;
-            while (index < rows.size())
-            {
-                SettingRow row = rows.get(index);
-                if (row.kind() != ControlKind.HEADING)
-                {
-                    if (this.matchesSearch(row, query))
-                    {
-                        matches.add(row);
-                    }
-                    index++;
-                    continue;
-                }
-
-                SettingRow heading = row;
-                int groupStart = ++index;
-                while (index < rows.size() && rows.get(index).kind() != ControlKind.HEADING)
-                {
-                    index++;
-                }
-
-                boolean headingMatches = this.matchesSearch(heading, query);
-                List<SettingRow> groupMatches = new ArrayList<>();
-                for (int rowIndex = groupStart; rowIndex < index; rowIndex++)
-                {
-                    SettingRow groupRow = rows.get(rowIndex);
-                    if (headingMatches || this.matchesSearch(groupRow, query))
-                    {
-                        groupMatches.add(groupRow);
-                    }
-                }
-                if (headingMatches || groupMatches.isEmpty() == false)
-                {
-                    matches.add(heading);
-                    matches.addAll(groupMatches);
-                }
-            }
-
-            if (matches.isEmpty() == false)
-            {
-                this.visibleSections.add(new VisibleSection(section, List.copyOf(matches)));
-            }
+            if (!this.currentPage.rows().isEmpty())
+                this.visibleSections.add(new VisibleSection(this.currentPage.source(), this.currentPage.rows()));
+            return;
         }
+        this.visibleSections.addAll(searchSections(this.sections, query));
     }
 
-    private boolean matchesSearch(SettingRow row, String query)
+    static List<VisibleSection> searchSections(List<SettingsSection> sections, String query)
     {
-        String configName = row.config() == null ? "" : row.config().getName();
-        return this.matchesSearch(row.label(), row.description(), configName, query);
-    }
-
-    private boolean matchesSearch(String first, String second, String third, String query)
-    {
-        return (first != null && first.toLowerCase(Locale.ROOT).contains(query))
-                || (second != null && second.toLowerCase(Locale.ROOT).contains(query))
-                || (third != null && third.toLowerCase(Locale.ROOT).contains(query));
+        return SettingsNavigation.<SettingRow, SettingsSection>search(sections, query).stream()
+                .map(match -> new VisibleSection(match.section(), match.rows())).toList();
     }
 
     private void commitTextValue(SettingRow row, String value)
@@ -1015,34 +1366,47 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
     }
 
-    private void createSections()
+    // Inventory construction must not instantiate Screen: 1.21.11 requires a live client there.
+    static List<SettingsSection> settingsInventory()
     {
-        this.sections.clear();
-        this.sections.add(SettingsSection.helpers(
+        List<SettingsSection> sections = new ArrayList<>();
+        createSections(sections);
+        organizeSections(sections);
+        return List.copyOf(sections);
+    }
+
+    private static void createSections(List<SettingsSection> sections)
+    {
+        sections.clear();
+        sections.add(SettingsSection.helpers(
                 new SettingRow("Flat Digger", "Stop digging below your feet.", FeatureToggle.MMM_FLAT_DIGGER, ControlKind.BOOLEAN),
                 new SettingRow("Perimeter Wall Helper", "Protect the configured floor; sneak to bypass it.", FeatureToggle.MMM_PERIMETER_WALL_DIG_HELPER, ControlKind.BOOLEAN),
                 new SettingRow("Perimeter Block List", "Choose which floor blocks are protected.", null, ControlKind.ACTION),
                 new SettingRow("Toggle Tab", "Keep the player list open.", FeatureToggle.MMM_TOGGLE_TAB, ControlKind.BOOLEAN)
         ));
-        this.sections.add(SettingsSection.sync(
+        sections.add(SettingsSection.sync(
+                new SettingRow("Website Link", "Open the MMM website or link your Minecraft account with a code.", null, ControlKind.ACTION),
                 new SettingRow("Sync Status", "", null, ControlKind.STATUS),
                 new SettingRow("Website Sync", "Send mining updates.", Configs.Generic.WEBSITE_SYNC_ENABLED, ControlKind.BOOLEAN),
                 new SettingRow("Sync Scoreboard", "Choose the total-mined scoreboard for this source.", null, ControlKind.ACTION),
                 new SettingRow("Sync Debug", "Save detailed sync logs.", Configs.Generic.WEBSITE_SYNC_DEBUG, ControlKind.BOOLEAN),
                 new SettingRow("Abbreviated Numbers", "Show 12k instead of 12,000.", Configs.Generic.ABBREVIATED_NUMBERS, ControlKind.BOOLEAN)
         ));
-        this.sections.add(SettingsSection.notifications(
+        sections.add(new SettingsSection(SidebarItem.TOOLS, "Tools", "Hotkeys and mining tools.",
+                MmmUi.availableTools().stream().map(tool -> new SettingRow(tool.label, tool.description,
+                        null, ControlKind.ACTION)).toList()));
+        sections.add(SettingsSection.notifications(
                 new SettingRow("Daily Goal", "Blocks to mine today.", Configs.Generic.DAILY_GOAL, ControlKind.NUMBER),
                 new SettingRow("Decimal Percent", "Show decimals in goal progress.", Configs.Generic.GOAL_PERCENT_DECIMALS, ControlKind.BOOLEAN),
                 new SettingRow("Decimal Places", "Choose 1, 2, or 3 decimal places.", Configs.Generic.GOAL_PERCENT_DECIMAL_PLACES, ControlKind.SLIDER),
                 new SettingRow("Goal Tracking", "Track today's goal.", FeatureToggle.MMM_DAILY_GOAL, ControlKind.BOOLEAN),
                 new SettingRow("Milestone Messages", "Post progress alerts in chat.", FeatureToggle.MMM_NOTIFICATIONS, ControlKind.BOOLEAN),
-                new SettingRow("Sound Alerts", "Play milestone sounds.", FeatureToggle.MMM_SOUND_ALERTS, ControlKind.BOOLEAN),
+                new SettingRow("Sound Alerts", "Play achievement and goal sounds.", FeatureToggle.MMM_SOUND_ALERTS, ControlKind.BOOLEAN),
                 new SettingRow("Custom Sounds", "Choose sounds for 25%, 50%, 75%, and 100%.", null, ControlKind.ACTION),
                 new SettingRow("Pickaxe Animation", "Show a pickaxe at each milestone.", Configs.Generic.GOAL_PICKAXE_ANIMATION, ControlKind.BOOLEAN)
         ));
-        this.sections.add(SettingsSection.social(
-                new SettingRow("Active Digger Icons", "Mark active MMM miners in the player list.", Configs.Generic.SHOW_ACTIVE_DIGGERS, ControlKind.BOOLEAN),
+        sections.add(SettingsSection.social(
+                new SettingRow("Active Diggers", "Show active miners. Position and resize the list in Move HUD.", Configs.Generic.SHOW_ACTIVE_DIGGERS, ControlKind.BOOLEAN),
                 new SettingRow("Friends Only", "Only mark active miners from your MMM friends list.", Configs.Generic.ACTIVE_DIGGERS_FRIENDS_ONLY, ControlKind.BOOLEAN),
                 new SettingRow("Share Milestones", "Share your goal milestones with linked MMM players.", Configs.Generic.SHARE_GOAL_MILESTONES, ControlKind.BOOLEAN),
                 new SettingRow("Collection Milestones", "Share new collection tiers in MMM chat, before sync.", Configs.Generic.SHARE_COLLECTION_MILESTONES, ControlKind.BOOLEAN),
@@ -1051,8 +1415,9 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
                 new SettingRow("Censor MMM Chat", "Hide slurs in MMM chat.", Configs.Generic.CENSOR_MMM_CHAT, ControlKind.BOOLEAN),
                 new SettingRow("Ignored Players", "Hide selected players' chat and milestones.", null, ControlKind.ACTION)
         ));
-        this.sections.add(SettingsSection.hud(
+        sections.add(SettingsSection.hud(
                 new SettingRow("Move HUD", "Move and resize sections.", null, ControlKind.ACTION),
+                new SettingRow("Compact HUD", "Show totals, session time, and pace. Keeps saved records.", null, ControlKind.ACTION),
                 SettingRow.heading("MAIN HUD POSITION"),
                 new SettingRow("HUD X", "Move left or right.", Configs.Generic.HUD_X, ControlKind.NUMBER),
                 new SettingRow("HUD Y", "Move up or down.", Configs.Generic.HUD_Y, ControlKind.NUMBER),
@@ -1067,7 +1432,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
                 new SettingRow("Block Stats Y", "Move up or down.", Configs.Generic.BLOCK_STATS_Y, ControlKind.NUMBER),
                 new SettingRow("Block Stats Scale", "Change block-stats size.", Configs.Generic.BLOCK_STATS_SCALE, ControlKind.NUMBER)
         ));
-        this.sections.add(SettingsSection.hudContent(
+        sections.add(SettingsSection.hudContent(
                 SettingRow.heading("TRACKING & SESSION"),
                 new SettingRow("Mining Tracker", "Track mined blocks and sessions.", FeatureToggle.MMM_MINING_TRACKER, ControlKind.BOOLEAN),
                 new SettingRow("Summary on Exit", "Open the summary when leaving.", FeatureToggle.MMM_SUMMARY_ON_EXIT, ControlKind.BOOLEAN),
@@ -1097,6 +1462,14 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
                 new SettingRow("Show Goal %", "Show goal % as XP level.", Configs.Generic.SHOW_GOAL_PERCENT, ControlKind.BOOLEAN),
                 new SettingRow("Main Background", "Show one HUD background.", FeatureToggle.MMM_HUD_BOUNDING_BOX, ControlKind.BOOLEAN),
                 new SettingRow("Text Background", "Show backgrounds per line.", Configs.Generic.HUD_TEXT_BACKGROUND, ControlKind.BOOLEAN),
+                SettingRow.heading("COLLECTION OVERLAY"),
+                new SettingRow("Mined Block Overlay", "Show live collection progress. Fades after 10 seconds without changing block type.", Configs.Generic.MINED_BLOCK_OVERLAY, ControlKind.BOOLEAN),
+                SettingRow.heading("PLAYTIME"),
+                new SettingRow("World Playtime", "Minecraft playtime for this world/server, plus live time.", Configs.Generic.HUD_WORLD_PLAYTIME_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("MMMod Playtime", "Total session IGT, including the current session. Pauses excluded.", Configs.Generic.HUD_MOD_PLAYTIME_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("World Playtime Above Hotbar", "Show world/server playtime above the hotbar, independently of the main HUD.", Configs.Generic.WORLD_PLAYTIME_ABOVE_HOTBAR, ControlKind.BOOLEAN),
+                new SettingRow("All Worlds Playtime", "Combined saved playtime for worlds/servers visited with tracking.", Configs.Generic.HUD_ALL_WORLDS_PLAYTIME_VISIBLE, ControlKind.BOOLEAN),
+                new SettingRow("Playtime Format", "Days/hours, hours/minutes, or hours/minutes/seconds.", Configs.Generic.PLAYTIME_FORMAT, ControlKind.OPTION),
                 SettingRow.heading("BLOCK TIMER"),
                 new SettingRow("Timer HUD", "Show the challenge timer.", Configs.Generic.TIMER_HUD_VISIBLE, ControlKind.BOOLEAN),
                 new SettingRow("Notifications", "Show timer milestones.", Configs.Generic.TIMER_NOTIFICATIONS, ControlKind.BOOLEAN),
@@ -1106,7 +1479,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
                 new SettingRow("Background", "Show the stats panel.", Configs.Generic.BLOCK_STATS_BACKGROUND, ControlKind.BOOLEAN),
                 new SettingRow("Block Icons", "Show each block icon.", Configs.Generic.BLOCK_STATS_ICONS, ControlKind.BOOLEAN)
         ));
-        this.sections.add(SettingsSection.colors(
+        sections.add(SettingsSection.colors(
                 new SettingRow("MMM Menu", "Set the menu accent.", Configs.Generic.MENU_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("Menu Opacity", "Change menu background transparency.", Configs.Generic.MENU_OPACITY, ControlKind.SLIDER),
                 new SettingRow("HUD Title", "Set the title color.", Configs.Generic.HUD_TITLE_HEX_COLOR, ControlKind.COLOR),
@@ -1116,7 +1489,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
                 new SettingRow("HUD Background", "Set the panel color.", Configs.Generic.HUD_BACKGROUND_HEX_COLOR, ControlKind.COLOR),
                 new SettingRow("Text Shadow", "Add a dark pixel shadow.", Configs.Generic.HUD_TEXT_SHADOW, ControlKind.BOOLEAN)
         ));
-        this.sections.add(SettingsSection.blockEsp(
+        sections.add(SettingsSection.blockEsp(
                 new SettingRow("Block ESP", "Highlight the block you look at.", FeatureToggle.MMM_BLOCK_ESP, ControlKind.BOOLEAN),
                 new SettingRow("Color Mode", "Use one color or rainbow.", Configs.Generic.BLOCK_ESP_COLOR_MODE, ControlKind.OPTION),
                 new SettingRow("Custom Color", "Set the highlight color.", Configs.Generic.BLOCK_ESP_HEX_COLOR, ControlKind.COLOR),
@@ -1126,7 +1499,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         ));
         if (SPEED_GRAPH_AVAILABLE)
         {
-            this.sections.add(SettingsSection.speedGraph(
+            sections.add(SettingsSection.speedGraph(
                     new SettingRow("Speed Graph", "Show the live speed graph.", FeatureToggle.MMM_HUD_SPEED_GRAPH, ControlKind.BOOLEAN),
                     new SettingRow("Background Opacity", "Change background strength.", Configs.Generic.GRAPH_BG_OPACITY, ControlKind.NUMBER),
                     new SettingRow("Line Color", "Set the graph line color.", Configs.Generic.GRAPH_LINE_HEX_COLOR, ControlKind.COLOR),
@@ -1137,7 +1510,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
                     new SettingRow("Scale Step", "Set Blocks/hr grid gaps.", Configs.Generic.GRAPH_SCALE_STEP, ControlKind.NUMBER)
             ));
         }
-        this.sections.add(SettingsSection.visuals(
+        sections.add(SettingsSection.visuals(
                 new SettingRow("Blocks/sec Smoothing", "Change speed response.", Configs.Generic.BPS_SMOOTHING, ControlKind.OPTION),
                 new SettingRow("Small Dig Items", "Shrink tracked block items.", Configs.Generic.SMALL_DIG_ITEMS, ControlKind.BOOLEAN),
                 new SettingRow("Item Size", "Choose the smaller size.", Configs.Generic.SMALL_DIG_ITEM_SCALE, ControlKind.SLIDER),
@@ -1152,15 +1525,16 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         ));
         if (Configs.isDevToolsEnabled())
         {
-            this.sections.add(SettingsSection.developer(
+            sections.add(SettingsSection.developer(
                     new SettingRow("Generate Dev Run", "Create a test run.", null, ControlKind.ACTION)
             ));
         }
     }
 
-    private enum SidebarItem
+    enum SidebarItem
     {
         GENERAL("General"),
+        TOOLS("Tools"),
         SYNC("Sync"),
         NOTIFICATIONS("Notifications"),
         SOCIAL("Social"),
@@ -1184,7 +1558,7 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         }
     }
 
-    private enum ControlKind
+    enum ControlKind
     {
         BOOLEAN,
         NUMBER,
@@ -1202,16 +1576,88 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         }
     }
 
-    private record SettingRow(String label, String description, IConfigBase config, ControlKind kind)
+    record SettingRow(String label, String description, IConfigBase config, ControlKind kind) implements SettingsNavigation.Row
     {
-        private static SettingRow heading(String label)
+        @Override public boolean heading() { return kind == ControlKind.HEADING; }
+        @Override public String configName() { return config == null ? "" : config.getName(); }
+
+        static SettingRow heading(String label)
         {
             return new SettingRow(label, "", null, ControlKind.HEADING);
         }
     }
 
-    private record VisibleSection(SettingsSection section, List<SettingRow> rows)
+    record VisibleSection(SettingsSection section, List<SettingRow> rows)
     {
+    }
+
+    record SettingsPage(String title, SettingsSection source, List<SettingRow> rows, List<SettingsPage> children)
+    {
+    }
+
+    private record PageLocation(SettingsPage page, double scrollY)
+    {
+    }
+
+    private final class NavigationButton extends ButtonWidget {
+        private final List<SettingRow> options = new ArrayList<>();
+        private ItemStack icon = ItemStack.EMPTY;
+        private String caption, hint = "", fileNumber = "";
+        private int order;
+        private boolean chosen;
+        private long hoverFrame;
+        private float hover;
+
+        private NavigationButton(String label, int width, int height, PressAction action) {
+            super(0, 0, width, height, net.minecraft.text.Text.literal(label), action, DEFAULT_NARRATION_SUPPLIER);
+            caption = label;
+        }
+        @Override protected void drawIcon(DrawContext c, int mx, int my, float delta) {
+            long now = CollectionBoardArt.now();
+            boolean hot = client.getNavigationType().isKeyboard() ? isFocused() : isHovered();
+            float step = Math.min(1f, (now - hoverFrame) / 105f);
+            hover = Math.clamp(hover + (hot ? step : -step), 0f, 1f);
+            hoverFrame = now;
+            float enter = CollectionBoardArt.reveal(now - transitionAt, order);
+            int x = getX(), y = getY(), w = getWidth(), h = getHeight();
+            boolean slip = !hint.isEmpty();
+            boolean inspecting = slip && hasDossier() && previewTopic == this;
+            var matrix = c.getMatrices();
+            matrix.pushMatrix();
+            try {
+                if (slip) {
+                    c.fill(x+3,y+h-3,x+w-2,y+h,CollectionBoardArt.BLACK);
+                    // Flip the face into its fixed hit area; never animate the widget bounds.
+                    matrix.translate(x+w/2f,y+h/2f - (inspecting ? 1 : 0) - hover);
+                    matrix.scale(1,.74f+.26f*enter);
+                    matrix.translate(-x-w/2f,-y-h/2f);
+                }
+                int face = chosen ? MmmUi.accentSoft() : CollectionBoardArt.TILE;
+                if (inspecting) face = CollectionBoardArt.ACTIVE;
+                int surface = MmmUi.menuSurface(ColorHelper.lerp(hover, face, 0xff443236));
+                if (slip) {
+                    CollectionBoardArt.plate(c,x,y+2,w,h-4,inspecting ? 0xff96545c : 0xff4c4245,surface);
+                    c.fill(x+7,y,x+23,y+3,inspecting ? MmmUi.accent() : 0xff685156);
+                } else c.fill(x,y,x+w,y+h,surface);
+                if (chosen || hot) c.fill(x, y + 2, x + 2, y + h-2, MmmUi.accent());
+                if (isFocused()) MmmUi.drawBorder(c, x, y, w, h, CollectionBoardArt.ROSE);
+                int tx = x + 6 + Math.round(4 * (1f - enter));
+                if (!icon.isEmpty()) {
+                    int iy = y + (h - 16) / 2;
+                    if (!hint.isEmpty()) c.fill(tx, iy - 3, tx + 22, iy + 19, CollectionBoardArt.RAIL);
+                    c.drawItem(icon, tx + (hint.isEmpty() ? 0 : 3), iy);
+                    tx += hint.isEmpty() ? 20 : 28;
+                }
+                int room = Math.max(6, x + w - tx - (hint.isEmpty() ? 4 : 11));
+                int ty = y + (hint.isEmpty() ? (h - 8) / 2 : (h - 20) / 2);
+                c.drawText(textRenderer, MmmUi.truncate(textRenderer, caption, room), tx, ty,
+                        chosen ? CollectionBoardArt.ROSE : TEXT, false);
+                if (!hint.isEmpty()) {
+                    c.drawText(textRenderer, MmmUi.truncate(textRenderer, hint, room), tx, ty + 12, MUTED, false);
+                    c.drawText(textRenderer, ">", x + w - 9, y + (h - 8) / 2, hot ? TEXT : MUTED, false);
+                }
+            } finally { matrix.popMatrix(); }
+        }
     }
 
     private interface ClickAction
@@ -1248,14 +1694,17 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
         }
     }
 
-    private static final class SettingsSection
+    static final class SettingsSection implements SettingsNavigation.Section<SettingRow>
     {
+        @Override public String category() { return sidebarItem.name(); }
+        @Override public String categoryLabel() { return sidebarItem.label(); }
+
         private final SidebarItem sidebarItem;
         private final String title;
         private final String description;
         private final List<SettingRow> rows;
 
-        private SettingsSection(SidebarItem sidebarItem, String title, String description, List<SettingRow> rows)
+        SettingsSection(SidebarItem sidebarItem, String title, String description, List<SettingRow> rows)
         {
             this.sidebarItem = sidebarItem;
             this.title = title;
@@ -1324,17 +1773,17 @@ public class MmmSettingsScreen extends com.mmm.ui.CompatScreen
             return this.sidebarItem;
         }
 
-        private String title()
+        public String title()
         {
             return this.title;
         }
 
-        private String description()
+        public String description()
         {
             return this.description;
         }
 
-        private List<SettingRow> rows()
+        public List<SettingRow> rows()
         {
             return this.rows;
         }

@@ -53,6 +53,21 @@ public final class ClientSmoke implements ClientModInitializer
                 }
                 else if (phase == 2 && client.player != null && client.world != null && client.currentScreen == null)
                 {
+                    if (Boolean.getBoolean("mmm.blockOverlaySmoke")) {
+                        phase = 4;
+                        new BlockOverlaySmoke().install();
+                        return;
+                    }
+                    if (Boolean.getBoolean("mmm.achievementBadgeSmoke")) {
+                        phase = 4;
+                        new SessionHoursBadgeSmoke().install();
+                        return;
+                    }
+                    if (Boolean.getBoolean("mmm.achievementSmoke")) {
+                        phase = 4;
+                        new AchievementSettingsSmoke().install();
+                        return;
+                    }
                     if (Boolean.getBoolean("mmm.reliabilitySmoke")) {
                         phase = 4;
                         new ReliabilitySmoke().install();

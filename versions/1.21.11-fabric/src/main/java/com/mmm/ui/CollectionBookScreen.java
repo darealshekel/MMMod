@@ -13,10 +13,11 @@ import com.mmm.util.BlockBreakdownCatalog;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.function.Supplier;
+import static com.mmm.ui.CollectionBoardArt.*;
+import static com.mmm.ui.CollectionSlotButton.Kind.*;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
@@ -24,11 +25,12 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 
-public final class CollectionBookScreen extends com.mmm.ui.CompatScreen
+public final class CollectionBookScreen extends CompatScreen
 {
     private record BlockEntry(String id, String name, ItemStack icon) {}
     private final Screen parent;
     private final List<BlockEntry> catalog = new ArrayList<>();
+    private final Map<BlockRankingCategory, List<Text>> categoryHints = new EnumMap<>(BlockRankingCategory.class);
     private final List<CollectionSlotButton> slots = new ArrayList<>();
     private List<BlockEntry> rows = List.of();
     private Map<String, Long> counts = Map.of();
@@ -40,36 +42,55 @@ public final class CollectionBookScreen extends com.mmm.ui.CompatScreen
     private String websitePlayer = "";
     private boolean websiteLoading, websiteFailed;
     private long nextWebsiteRefresh;
-    private int sort, filter, page, ticks, x, y, cell, panelWidth, panelHeight, gridY, gridX, footerY;
+    private int sort, filter, page, ticks, x, y, panelWidth, panelHeight, gridY, gridX, bodyWidth, footerY, startedCount, masteredCount;
     private final long[] tierCompletions = new long[CollectionProgress.OVERVIEW_MILESTONES.size()];
     private final long[] tierTotals = new long[CollectionProgress.OVERVIEW_MILESTONES.size()];
     private int overviewScroll;
     private String rankHoverId = "";
     private long rankHoverStarted;
-    private static final int OVERVIEW_ROW_HEIGHT = 42;
+    private static final int OVERVIEW_ROW_HEIGHT = 29;
     private String search = "";
     private TextFieldWidget searchField;
-    private static final int PAGE_SIZE = 28;
     private static final String[] SORTS = { "Nearest milestone", "Most mined", "Block name" };
     private static final String[] FILTERS = { "All collections", "Started collections", "Completed collections" };
-    private static final String[] TIERS = { "I", "II", "III", "IV", "V" };
+    private int detailPage;
+    private final CollectionBoardState board = new CollectionBoardState();
+    private long inspectedAt;
+    private long viewOpened;
+    private long earnedAt, rollAt, rollFrom, rollTo;
+    private long displayedCount(long now) {
+        float t = CollectionBoardArt.reveal(now - rollAt, 0);
+        return t >= 1 ? rollTo : rollFrom + Math.round((rollTo - rollFrom) * (double)t);
+    }
+    private int firstEarned, lastEarned;
 
-    public CollectionBookScreen(Screen parent) { super(Text.literal("MMM Collections")); this.parent = parent; }
+    public CollectionBookScreen(Screen parent) {
+        super(Text.literal("MMM Collections"));
+        this.parent = parent;
+        filter = Configs.Generic.COLLECTION_FILTER.getIntegerValue();
+        sort = Configs.Generic.COLLECTION_SORT.getIntegerValue();
+        allWorlds = Configs.Generic.COLLECTION_GLOBAL.getBooleanValue();
+        int tab = Configs.Generic.COLLECTION_CATEGORY.getIntegerValue();
+        category = tab == 0 ? null : BlockRankingCategory.values()[tab - 1];
+    }
+    private void rememberCategory(BlockRankingCategory group) {
+        category = group;
+        Configs.Generic.COLLECTION_CATEGORY.setIntegerValue(group == null ? 0 : group.ordinal() + 1);
+        Configs.requestSave();
+    }
 
     @Override protected void init() {
         MmmUi.ensureCursorVisible();
-        panelWidth = Math.min(420, width - 24);
-        cell = Math.min(40, Math.min((panelWidth - 24) / 7, (height - 126) / 4));
-        panelHeight = cell * 4 + 110;
-        if (category == null && selected == null) {
-            int rows = (tierTotals.length + overviewColumns() - 1) / overviewColumns();
-            panelHeight = Math.min(height - 16, 168 + rows * OVERVIEW_ROW_HEIGHT);
-        }
-        x = (width - panelWidth) / 2;
-        y = (height - panelHeight) / 2;
-        gridY = y + 72;
-        gridX = x + (panelWidth - cell * 7) / 2;
-        footerY = y + panelHeight - 30;
+        viewOpened = CollectionBoardArt.now();
+        firstEarned = lastEarned = 0;
+        panelWidth = Math.min(586, width - 12);
+        panelHeight = Math.min(345, height - 12);
+        x = (width - panelWidth) / 2; y = (height - panelHeight) / 2;
+        gridX = x + (sideRail() ? 107 : 9);
+        gridY = y + (sideRail() ? 42 : 65);
+        bodyWidth = x + panelWidth - 9 - gridX;
+        footerY = y + panelHeight - 24;
+        if (selected != null) detailPage = Math.min(detailPage, detailPages() - 1);
         overviewScroll = Math.clamp(overviewScroll, 0, maxOverviewScroll());
         if (catalog.isEmpty()) {
             var added = new HashSet<String>();
@@ -85,7 +106,7 @@ public final class CollectionBookScreen extends com.mmm.ui.CompatScreen
             }
             catalog.add(new BlockEntry("mmm:non_insta_deepslate", "Non-insta Deepslate", new ItemStack(Items.DEEPSLATE)));
         }
-        searchField = new TextFieldWidget(textRenderer, x + 12, y + 46, panelWidth - 24, 18, Text.literal("Search collections"));
+        searchField = new TextFieldWidget(textRenderer, gridX, gridY, bodyWidth, 17, Text.literal("Search collections"));
         searchField.setMaxLength(64);
         searchField.setPlaceholder(Text.literal("Search blocks..."));
         searchField.setText(search);
@@ -97,6 +118,7 @@ public final class CollectionBookScreen extends com.mmm.ui.CompatScreen
         });
         addDrawableChild(searchField);
         refresh(); rebuildSlots();
+        if (selected != null) rollFrom = rollTo = count(selected);
     }
 
     private void refresh() {
@@ -109,9 +131,13 @@ public final class CollectionBookScreen extends com.mmm.ui.CompatScreen
         }
         counts = allWorlds && website != null ? com.mmm.tracker.LiveCollections.counts(website)
                 : com.mmm.tracker.LiveCollections.localCounts(CollectionProgress.aggregate(sources), allWorlds ? null : WorldSessionContext.getCurrentWorldId());
+        categoryHints.clear();
         Arrays.fill(tierCompletions, 0);
         Arrays.fill(tierTotals, 0);
+        startedCount = masteredCount = 0;
         for (var entry : catalog) {
+            if (count(entry) > 0) startedCount++;
+            if (CollectionProgress.next(entry.id, count(entry)) == 0) masteredCount++;
             var goals = CollectionProgress.milestones(entry.id);
             for (long goal : goals) {
                 int tier = CollectionProgress.OVERVIEW_MILESTONES.indexOf(goal);
@@ -138,6 +164,7 @@ public final class CollectionBookScreen extends com.mmm.ui.CompatScreen
             nextWebsiteRefresh = System.currentTimeMillis() + (failure == null ? 60_000 : 30_000);
             if (failure == null) website = result;
             refresh(); rebuildSlots();
+            if (selected != null) rollFrom = rollTo = count(selected);
         }));
     }
     private String scopeLabel() {
@@ -157,119 +184,177 @@ public final class CollectionBookScreen extends com.mmm.ui.CompatScreen
                 .sorted(order.thenComparing(BlockEntry::name)).toList();
         page = Math.min(page, pages() - 1);
     }
-    private int pages() { return Math.max(1, (rows.size() + PAGE_SIZE - 1) / PAGE_SIZE); }
+    private boolean sideRail() { return panelWidth >= 460 && panelHeight >= 279; }
+    private int entryColumns() { return Math.max(1, Math.min(3, bodyWidth / 137)); }
+    private int entryTop() { return gridY + 39; }
+    private int pageSize() { return entryColumns() * Math.max(1, (footerY - 5 - entryTop()) / 32); }
+    private int pages() { return Math.max(1, (rows.size() + pageSize() - 1) / pageSize()); }
     private long count(BlockEntry block) { return counts.getOrDefault(block.id, 0L); }
     private void rebuildSlots() {
         for (var slot : slots) remove(slot);
         slots.clear();
+        categorySlots();
         if (selected != null) detailSlots();
-        else if (category == null) categorySlots();
-        else blockSlots();
-        slot(0, 5, "Back", Items.ARROW, this::back,
-                () -> List.of(Text.literal(selected != null ? "Back to blocks" : category != null ? "Back to categories" : "Back")));
-        slot(1, 5, "World scope", allWorlds ? Items.COMPASS : Items.GRASS_BLOCK, () -> { allWorlds = !allWorlds; page = 0; refresh(); rebuildSlots(); },
-                () -> List.of(Text.literal(scopeLabel()).formatted(Formatting.YELLOW),
-                        Text.literal(allWorlds ? "Website breakdowns across your worlds" : WorldSessionContext.getCurrentWorldName()),
-                        Text.literal(allWorlds ? "Includes mining since the last sync" : "Live local block breakdown").formatted(Formatting.GRAY),
-                        Text.literal(allWorlds ? "Switch to this world" : "Switch to Global Total").formatted(Formatting.GRAY)));
-        slot(8, 5, "Close", Items.BARRIER, this::close, () -> List.of(Text.literal("Close collections").formatted(Formatting.RED)));
+        else if (category != null) blockSlots();
+
+        action(x + panelWidth - 100, y + 7, 69, "World scope", allWorlds ? "Global" : "This world", () -> {
+            allWorlds = !allWorlds; board.reset();
+            Configs.Generic.COLLECTION_GLOBAL.setBooleanValue(allWorlds); Configs.requestSave();
+            page = 0; firstEarned = lastEarned = 0; refresh(); rebuildSlots();
+            if (selected != null) rollFrom = rollTo = count(selected);
+        }, () -> List.of(Text.literal(scopeLabel()), Text.literal(allWorlds ? "Switch to this world" : "Switch to global totals")));
+        action(x + panelWidth - 26, y + 7, 18, "Close", "X", this::close, () -> List.of(Text.literal("Close collections")));
+        int left = x + 8;
+        action(left, footerY, 32, "Back", "Back", this::back, () -> List.of(Text.literal("Go back")));
+        left += 36;
         if (selected != null) {
             boolean pinned = PinnedCollection.matches(selected.id, allWorlds);
-            slot(4, 5, pinned ? "Unpin collection" : "Pin collection", pinned ? Items.LIME_DYE : Items.TRIPWIRE_HOOK, () -> {
+            action(left, footerY, 44, pinned ? "Unpin collection" : "Pin collection", pinned ? "Unpin" : "Pin", () -> {
                 if (PinnedCollection.matches(selected.id, allWorlds)) PinnedCollection.unpin();
                 else PinnedCollection.pin(selected.id, allWorlds, website);
                 rebuildSlots();
-            }, () -> List.of(Text.literal(pinned ? "Unpin collection" : "Pin collection to HUD").formatted(Formatting.YELLOW),
-                    Text.literal(allWorlds ? "Global Total / live progress" : WorldSessionContext.getCurrentWorldName()),
-                    Text.literal("Tracks the next collection tier").formatted(Formatting.GRAY)));
-        } else if (PinnedCollection.hasPin()) {
-            slot(4, 5, "Unpin collection", Items.LIME_DYE, () -> { PinnedCollection.unpin(); rebuildSlots(); },
-                    () -> List.of(Text.literal("Unpin collection from HUD").formatted(Formatting.YELLOW)));
+            }, () -> List.of(Text.literal("Track this collection on the HUD"))).select(pinned);
+            action(left + 48, footerY, 42, "Share collection", "Share",
+                    () -> client.setScreen(ProgressShareScreen.collection(this, selected.name, selected.id, count(selected),
+                            allWorlds ? "Global Total" : WorldSessionContext.getCurrentWorldName(), selected.icon)),
+                    () -> List.of(Text.literal("Save image or copy progress")));
+        } else {
+            if (category != null) {
+                action(left, footerY, 64, "Progress filter", new String[]{"All states", "Started", "Completed"}[filter], () -> {
+                    filter = (filter + 1) % FILTERS.length;
+                    Configs.Generic.COLLECTION_FILTER.setIntegerValue(filter); rememberCategory(category);
+                    page = 0; filterRows(); rebuildSlots();
+                }, () -> List.of(Text.literal("Filter: " + FILTERS[filter])));
+                left += 67;
+                action(left, footerY, 64, "Sort collections", new String[]{"Nearest", "Most mined", "Name"}[sort], () -> {
+                    sort = (sort + 1) % SORTS.length;
+                    Configs.Generic.COLLECTION_SORT.setIntegerValue(sort); rememberCategory(category);
+                    page = 0; filterRows(); rebuildSlots();
+                }, () -> List.of(Text.literal("Sort: " + SORTS[sort])));
+                left += 67;
+            }
+            if (PinnedCollection.hasPin()) action(left, footerY, 34, "Unpin collection", "Unpin",
+                    () -> { PinnedCollection.unpin(); rebuildSlots(); }, () -> List.of(Text.literal("Remove HUD pin")));
         }
-        if (category != null && selected == null) {
-            slot(2, 5, "Progress filter", Items.HOPPER, () -> { filter = (filter + 1) % FILTERS.length; page = 0; filterRows(); rebuildSlots(); },
-                    () -> List.of(Text.literal(FILTERS[filter]).formatted(Formatting.YELLOW), Text.literal("Change progress filter").formatted(Formatting.GRAY)));
-            slot(3, 5, "Sort collections", Items.COMPARATOR, () -> { sort = (sort + 1) % SORTS.length; page = 0; filterRows(); rebuildSlots(); },
-                    () -> List.of(Text.literal(SORTS[sort]).formatted(Formatting.YELLOW), Text.literal("Change sorting").formatted(Formatting.GRAY)));
-            var prev = slot(5, 5, "Previous page", Items.ARROW, () -> changePage(-1), () -> List.of(Text.literal("Previous page")));
-            var next = slot(6, 5, "Next page", Items.ARROW, () -> changePage(1), () -> List.of(Text.literal("Next page")));
-            prev.active = page > 0; next.active = page + 1 < pages();
-        }
-        if (category == null && selected == null) {
-            if (maxOverviewScroll() > 0) {
-                var previous = slot(5, 5, "Scroll tiers up", Items.ARROW, () -> scrollOverview(-OVERVIEW_ROW_HEIGHT), () -> List.of(Text.literal("Scroll tiers up")));
-                var next = slot(6, 5, "Scroll tiers down", Items.ARROW, () -> scrollOverview(OVERVIEW_ROW_HEIGHT), () -> List.of(Text.literal("Scroll tiers down")));
-                previous.active = overviewScroll > 0;
-                next.active = overviewScroll < maxOverviewScroll();
+        boolean overview = selected == null && category == null;
+        int current = selected != null ? detailPage : overview ? overviewScroll : page;
+        int last = selected != null ? detailPages() - 1 : overview ? maxOverviewScroll() : pages() - 1;
+        if (last > 0) {
+            for (int d : new int[]{-1, 1}) {
+                String name = selected != null ? (d < 0 ? "Previous milestones" : "Next milestones")
+                        : overview ? (d < 0 ? "Scroll tiers up" : "Scroll tiers down") : (d < 0 ? "Previous page" : "Next page");
+                action(x + panelWidth - (d < 0 ? 49 : 27), footerY, 19, name, d < 0 ? "<" : ">", () -> {
+                    if (selected != null) changeDetailPage(d);
+                    else if (overview) scrollOverview(d * OVERVIEW_ROW_HEIGHT);
+                    else changePage(d);
+                }, () -> List.of(Text.literal(name))).active = d < 0 ? current > 0 : current < last;
             }
         }
     }
+    private CollectionSlotButton action(int sx, int sy, int w, String name, String caption, Runnable action, Supplier<List<Text>> hint) {
+        return add(new CollectionSlotButton(sx, sy, w, 18, ACTION, name, caption, ItemStack.EMPTY, () -> "", action, hint, 0, 0));
+    }
+    private CollectionSlotButton add(CollectionSlotButton slot) { slots.add(slot); return addDrawableChild(slot); }
     private void categorySlots() {
-        bookSlot();
-        int col = 1;
-        for (var group : BlockRankingCategory.values()) {
-            slot(col++, 2, group.label + " collections", Registries.ITEM.get(Identifier.of("minecraft", group.icon)), () -> {
-                category = group; page = 0; clearAndInit();
-            }, () -> {
-                long total = catalog.stream().filter(entry -> group.includes(entry.id)).count();
-                long done = catalog.stream().filter(entry -> group.includes(entry.id) && CollectionProgress.next(entry.id, count(entry)) == 0).count();
-                return List.of(Text.literal(group.label + " Collections").formatted(Formatting.YELLOW),
-                        Text.literal(done + " / " + total + " completed"), Text.literal("View collections").formatted(Formatting.GRAY));
-            });
+        var groups = BlockRankingCategory.values();
+        for (int i = 0; i <= groups.length; i++) {
+            var group = i == 0 ? null : groups[i - 1];
+            String caption = group == null ? "Overview" : group.label;
+            String name = group == null ? "Collection progress" : group.label + " collections";
+            ItemStack icon = group == null ? ItemStack.EMPTY : new ItemStack(Registries.ITEM.get(Identifier.of("minecraft", group.icon)));
+            int step = (panelWidth - 16) / (groups.length + 1);
+            int sx = sideRail() ? x + 5 : x + 8 + i * step;
+            int sy = sideRail() ? y + 51 + i * 19 : y + 34;
+            var tab = add(new CollectionSlotButton(sx, sy, sideRail() ? 93 : step - 2, sideRail() ? 18 : 22,
+                    TAB, name, sideRail() ? caption : "", icon, () -> "", () -> {
+                        rememberCategory(group); selected = null; page = detailPage = 0; search = ""; clearAndInit();
+                    }, () -> group == null ? List.of(Text.literal("Collection overview"), Text.literal(startedCount + " discovered / " + masteredCount + " mastered")) : categoryTooltip(group), viewOpened, 0));
+            tab.select(group == category);
         }
     }
-    private void bookSlot() {
-        addSlot(4, 0, "Collection progress", ItemStack.EMPTY, true, () -> {
-            category = null; selected = null; search = ""; page = 0; clearAndInit();
-        }, () -> "", () -> {
-            var lines = new ArrayList<Text>();
-            lines.add(Text.literal("MMM Collections").formatted(Formatting.RED));
-            for (int i = 0; i < tierTotals.length; i++) lines.add(Text.literal(CollectionProgress.targetLabel(CollectionProgress.OVERVIEW_MILESTONES.get(i)) + ": " + tierCompletions[i] + " / " + tierTotals[i] + " completed"));
-            return lines;
+    private List<Text> categoryTooltip(BlockRankingCategory group) {
+        return categoryHints.computeIfAbsent(group, key -> {
+            int total = 0, started = 0, mastered = 0;
+            for (var entry : catalog) if (key.includes(entry.id)) {
+                total++;
+                long value = count(entry);
+                if (value > 0) started++;
+                if (CollectionProgress.next(entry.id, value) == 0) mastered++;
+            }
+            return List.of(Text.literal(key.label + " collections"),
+                    Text.literal(started + " / " + total + " discovered").formatted(Formatting.GRAY),
+                    Text.literal(mastered + " mastered").formatted(Formatting.GRAY));
         });
     }
     private void blockSlots() {
-        bookSlot();
-        for (int i = page * PAGE_SIZE; i < Math.min(rows.size(), (page + 1) * PAGE_SIZE); i++) {
-            var entry = rows.get(i); int index = i % PAGE_SIZE;
-            addSlot(index % 7 + 1, index / 7 + 1, entry.name, entry.icon, false, () -> {
-                selected = entry; clearAndInit();
-            }, () -> CollectionProgress.completed(entry.id, count(entry)) == 0 ? "" : TIERS[CollectionProgress.completed(entry.id, count(entry)) - 1], () -> blockTooltip(entry));
+        int limit = pageSize(), cols = entryColumns(), span = bodyWidth / cols;
+        for (int i = page * limit; i < Math.min(rows.size(), (page + 1) * limit); i++) {
+            int pos = i % limit;
+            var entry = rows.get(i);
+            add(new CollectionSlotButton(gridX + pos % cols * span, entryTop() + pos / cols * 32, span - 2, 30,
+                    ENTRY, entry.name, entry.name, entry.icon, () -> numbers.format(count(entry)) + " mined", () -> {
+                        selected = entry; board.reset(); inspectedAt = now();
+                        int completed = CollectionProgress.completed(entry.id, count(entry));
+                        detailPage = Math.min(detailPages() - 1, completed / detailPageSize());
+                        clearAndInit();
+                    }, () -> blockTooltip(entry), viewOpened, pos / cols));
         }
     }
     private List<Text> blockTooltip(BlockEntry block) {
-        long value = count(block); int tier = CollectionProgress.completed(block.id, value);
-        var lines = new ArrayList<Text>();
-        lines.add(Text.literal(block.name + (tier == 0 ? "" : " " + TIERS[tier - 1])).formatted(Formatting.YELLOW));
-        lines.add(Text.literal(numbers.format(value) + " blocks mined"));
-        lines.add(rankText(block));
-        lines.add(Text.literal("Global ranking among synced MMM players").formatted(Formatting.GRAY));
-        var goals = CollectionProgress.milestones(block.id);
-        for (int i = 0; i < goals.size(); i++) lines.add(Text.literal(TIERS[i] + "  " + numbers.format(goals.get(i)))
-                .formatted(value >= goals.get(i) ? Formatting.GREEN : Formatting.GRAY));
-        lines.add(Text.literal("View collection tiers").formatted(Formatting.YELLOW));
-        return lines;
+        long value = count(block), next = CollectionProgress.next(block.id, value);
+        int tier = CollectionProgress.completed(block.id, value);
+        return List.of(Text.literal(block.name), Text.literal(numbers.format(value) + " mined").formatted(Formatting.GRAY),
+                Text.literal(next == 0 ? "All milestones unlocked" : numbers.format(next - value) +
+                        " to Tier " + CollectionProgress.tierLabel(tier + 1)), rankText(block));
     }
+    private boolean wideInspector() { return sideRail() && bodyWidth >= 378; }
+    private int tierBoardWidth() { return bodyWidth - (wideInspector() ? 154 : 0); }
+    private int detailColumns() { return Math.max(2, Math.min(5, tierBoardWidth() / 77)); }
+    private int detailTop() { return gridY + 76; }
+    private int detailRowHeight() { return sideRail() ? 39 : 27; }
+    private int detailRows() { return Math.max(1, (footerY - 5 - detailTop()) / detailRowHeight()); }
+    private int detailPageSize() { return detailColumns() * detailRows(); }
+    private int detailPages() {
+        return Math.max(1, (CollectionProgress.milestones(selected.id).size() + detailPageSize() - 1) / detailPageSize());
+    }
+    private void changeDetailPage(int amount) {
+        int next = Math.clamp(detailPage + amount, 0, detailPages() - 1);
+        if (next == detailPage) return;
+        detailPage = next;
+        viewOpened = CollectionBoardArt.now();
+        rebuildSlots();
+    }
+    private int detailPaneX(int index) {
+        return gridX + (index % detailColumns()) * (tierBoardWidth() / detailColumns());
+    }
+    private int detailPaneY(int index) { return detailTop() + (index % detailPageSize() / detailColumns()) * detailRowHeight(); }
     private void detailSlots() {
-        bookSlot();
         var goals = CollectionProgress.milestones(selected.id);
-        int span = (panelWidth - 24) / goals.size();
-        int size = Math.min(36, span - 8);
-        int top = detailPaneY();
-        for (int i = 0; i < goals.size(); i++) {
-            int tier = i;
-            long goal = goals.get(i);
-            Item pane = count(selected) >= goal ? Items.LIME_STAINED_GLASS_PANE : Items.RED_STAINED_GLASS_PANE;
-            var slot = new CollectionSlotButton(x + 12 + i * span + (span - size) / 2, top, size,
-                    "Tier " + TIERS[i], new ItemStack(pane), false, () -> {}, () -> "", () -> List.of(
-                            Text.literal(selected.name + " " + TIERS[tier]).formatted(Formatting.YELLOW),
-                            Text.literal(numbers.format(count(selected)) + " / " + numbers.format(goal) + " blocks"),
-                            Text.literal(count(selected) >= goal ? "Completed" : "In progress")
-                                    .formatted(count(selected) >= goal ? Formatting.GREEN : Formatting.RED)));
-            slots.add(slot); addDrawableChild(slot);
+        int completed = CollectionProgress.completed(selected.id, count(selected));
+        for (int i = detailPage * detailPageSize(); i < Math.min(goals.size(), (detailPage + 1) * detailPageSize()); i++) {
+            int tier = i + 1; long goal = goals.get(i);
+            String label = "Tier " + CollectionProgress.tierLabel(tier);
+            var slot = add(new CollectionSlotButton(detailPaneX(i), detailPaneY(i), tierBoardWidth() / detailColumns() - 3, detailRowHeight() - 3,
+                    MILESTONE, label, label, ItemStack.EMPTY, () -> CollectionProgress.targetLabel(goal), () -> {
+                        board.toggleTier(tier);
+                        inspectedAt = now();
+                        markInspection(completed, goals.size());
+                    }, () -> {
+                        long value = count(selected);
+                        return List.of(Text.literal(selected.name + " / " + label),
+                                Text.literal("Milestone: " + numbers.format(goal) + " blocks"),
+                                Text.literal(value >= goal ? "Unlocked" : (tier == completed + 1 ? "Next: " : "Locked: ") + numbers.format(goal - value) + " blocks to go"));
+                    }, viewOpened, i % detailPageSize()));
+            slot.setTier(i < completed ? CollectionSlotButton.Tier.EARNED : i == completed ? CollectionSlotButton.Tier.NEXT : CollectionSlotButton.Tier.LOCKED,
+                    tier >= firstEarned && tier <= lastEarned ? earnedAt : -1);
+            slot.tierNumber = tier;
         }
+        markInspection(completed, goals.size());
     }
-    private int detailPaneY() { return gridY + Math.max(16, (footerY - gridY - 52) / 2); }
+    private void markInspection(int completed, int total) {
+        int shown = board.displayedTier(completed,total);
+        for (var slot : slots) if (slot.tierNumber > 0) slot.inspect(slot.tierNumber == shown, inspectedAt);
+    }
     private Text rankText(BlockEntry block) {
         if (client == null || client.player == null) return Text.literal("Website rank unavailable").formatted(Formatting.GRAY);
         if (selected == null) {
@@ -282,75 +367,64 @@ public final class CollectionBookScreen extends com.mmm.ui.CompatScreen
         var rank = CollectionRankClient.get(block.id, username);
         return CollectionRankText.format(rank);
     }
-    private CollectionSlotButton slot(int col, int row, String label, Item icon, Runnable action, Supplier<List<Text>> tooltip) {
-        return addSlot(col, row, label, new ItemStack(icon), false, action, () -> "", tooltip);
-    }
-    private CollectionSlotButton addSlot(int col, int row, String label, ItemStack icon, boolean book, Runnable action,
-            Supplier<String> badge, Supplier<List<Text>> tooltip) {
-        int size = row == 5 || row == 0 ? 22 : cell - 2;
-        int sx = row == 5 ? x + 12 + col * ((panelWidth - 46) / 8)
-                : row == 0 ? x + panelWidth - 34 : gridX + (col - 1) * cell;
-        if (category == null && row != 0 && row != 5) {
-            int count = BlockRankingCategory.values().length;
-            int step = Math.min(cell, (panelWidth - 24) / count);
-            size = Math.min(24, step - 2);
-            sx = x + (panelWidth - count * step) / 2 + (col - 1) * step + (step - size) / 2;
-        }
-        int sy = row == 5 ? footerY : row == 0 ? y + 8
-                : category == null ? footerY - 30 : gridY + (row - 1) * cell;
-        var slot = new CollectionSlotButton(sx, sy, size, label, icon, book, action, badge, tooltip);
-        slots.add(slot); addDrawableChild(slot); return slot;
-    }
     private void back() {
         if (selected != null) { selected = null; clearAndInit(); }
-        else if (category != null) { category = null; search = ""; page = 0; clearAndInit(); }
+        else if (category != null) { rememberCategory(null); search = ""; page = 0; clearAndInit(); }
         else close();
     }
-    private void changePage(int amount) { page = Math.max(0, Math.min(pages() - 1, page + amount)); rebuildSlots(); }
+    private void changePage(int amount) {
+        int next = Math.clamp(page + amount, 0, pages() - 1);
+        if (page == next) return;
+        page = next; viewOpened = CollectionBoardArt.now(); rebuildSlots();
+    }
     @Override public void tick() {
         if (++ticks % 20 == 0) {
             long oldCount = selected == null ? -1 : count(selected);
             refresh();
-            if (selected != null && oldCount != count(selected)) rebuildSlots();
-        }
-    }
-    @Override public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.fill(0, 0, width, height, 0xA0000000);
-        context.fill(x, y, x + panelWidth, y + panelHeight, 0xFF373737);
-        com.mmm.ui.MmmUi.drawBorder(context, x, y, panelWidth, panelHeight, 0xFF111111);
-        context.fill(x + 2, y + 2, x + panelWidth - 2, y + 4, 0xFFBA303A);
-        String heading = selected != null ? selected.name + " Collection" : category == null ? "MMM Collections"
-                : category.label + " Collections " + (page + 1) + "/" + pages();
-        MmmUi.drawTextWithin(context, textRenderer, heading, x + 12, y + 13, panelWidth - 58, 0xFFEAEAEA, false);
-        MmmUi.drawTextWithin(context, textRenderer, scopeLabel(), x + 12, y + 32, panelWidth - 24, MmmUi.LABEL, false);
-        context.fill(x + 12, footerY - 6, x + panelWidth - 12, footerY - 5, 0xFF515155);
-        if (selected != null) {
-            drawCollectionDetail(context);
-        } else if (category == null) {
-            drawTierOverview(context);
-        } else if (rows.isEmpty()) center(context, "No matching collections", gridY + 2 * cell, MmmUi.LABEL);
-        super.render(context, mouseX, mouseY, delta);
-        for (var slot : slots) if (slot.isHovered()) {
-            context.drawTooltip(textRenderer, slot.details.get(), mouseX, mouseY); break;
-        }
-        if (category == null && selected == null && mouseY >= overviewTop() && mouseY < overviewBottom()) {
-            int span = (panelWidth - 30) / overviewColumns();
-            int column = (mouseX - x - 12) / span;
-            int row = (mouseY - overviewTop() + overviewScroll) / OVERVIEW_ROW_HEIGHT;
-            int index = row * overviewColumns() + column;
-            if (mouseX >= x + 12 && mouseX < x + 12 + span * overviewColumns() && index < tierTotals.length) {
-                boolean complete = tierTotals[index] > 0 && tierCompletions[index] == tierTotals[index];
-                context.drawTooltip(textRenderer, List.of(
-                        Text.literal(CollectionProgress.targetLabel(CollectionProgress.OVERVIEW_MILESTONES.get(index)) + " blocks").formatted(Formatting.YELLOW),
-                        Text.literal(tierCompletions[index] + " / " + tierTotals[index] + " collections completed"),
-                        Text.literal(complete ? "Completed" : tierTotals[index] == 0 ? "No collections at this tier" : "Not completed")
-                                .formatted(complete ? Formatting.GREEN : Formatting.RED)), mouseX, mouseY);
+            if (selected != null && oldCount != count(selected)) {
+                rollFrom = oldCount; rollTo = count(selected); rollAt = now();
+                int before = CollectionProgress.completed(selected.id, oldCount);
+                int after = CollectionProgress.completed(selected.id, count(selected));
+                if (after > before) {
+                    firstEarned = before + 1; lastEarned = after; earnedAt = CollectionBoardArt.now();
+                }
+                rebuildSlots();
             }
         }
     }
-    private int overviewColumns() { return Math.max(3, (panelWidth - 30) / 52); }
-    private int overviewTop() { return gridY + 16; }
-    private int overviewBottom() { return footerY - 47; }
+    @Override public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        context.fill(0, 0, width, height, 0x97000000);
+        context.fill(x, y, x + panelWidth, y + panelHeight, BASE);
+        MmmUi.drawBorder(context, x,y,panelWidth,panelHeight,LINE);
+        context.fill(x + 1,y + 1,x + panelWidth - 1,y + 31,BLACK);
+        RedBookIcon.draw(context,x + 9,y + 9);
+        context.drawText(textRenderer,"MMM",x + 30,y + 12,ROSE,true);
+        context.drawText(textRenderer,"/ Collections",x + 54,y + 12,TEXT,false);
+        if (sideRail()) {
+            context.fill(x + 1, y + 32, gridX - 6, footerY - 5, RAIL);
+            context.drawText(textRenderer, "CATALOG", x + 10, y + 38, MUTED, false);
+        }
+        context.fill(x + 1, footerY - 4, x + panelWidth - 1, footerY - 3, LINE);
+        if (selected != null) drawCollectionDetail(context);
+        else if (category == null) drawTierOverview(context);
+        else {
+            context.drawText(textRenderer, category.label + " / " + rows.size() + " blocks", gridX, gridY + 24, TEXT, false);
+            right(context, (page + 1) + " / " + pages(), gridX + bodyWidth, gridY + 24, MUTED);
+            if (rows.isEmpty()) context.drawText(textRenderer, "No matching blocks", gridX, entryTop() + 10, MUTED, false);
+        }
+        super.render(context, mouseX, mouseY, delta);
+        boolean keyboard = client.getNavigationType().isKeyboard();
+        for (var slot : slots) if ((slot.tierNumber == 0 || !slot.isInspected()) &&
+                (keyboard ? slot.isFocused() : slot.isHovered())) {
+            context.drawTooltip(textRenderer, slot.details.get(), keyboard ? slot.getX() : mouseX, keyboard ? slot.getY() : mouseY); break;
+        }
+    }
+    private void right(DrawContext c, String text, int edge, int yy, int color) {
+        c.drawText(textRenderer, text, edge - textRenderer.getWidth(text), yy, color, false);
+    }
+    private int overviewColumns() { return Math.max(1, Math.min(3, bodyWidth / 140)); }
+    private int overviewTop() { return gridY + 65; }
+    private int overviewBottom() { return footerY - 7; }
     private int maxOverviewScroll() {
         int rows = (tierTotals.length + overviewColumns() - 1) / overviewColumns();
         return Math.max(0, rows * OVERVIEW_ROW_HEIGHT - (overviewBottom() - overviewTop()));
@@ -360,60 +434,88 @@ public final class CollectionBookScreen extends com.mmm.ui.CompatScreen
         rebuildSlots();
     }
     private void drawTierOverview(DrawContext context) {
-        int columns = overviewColumns();
-        int span = (panelWidth - 30) / columns;
-        context.drawText(textRenderer, "Completed collections", x + 12, gridY + 2, MmmUi.TEXT, false);
-        context.enableScissor(x + 12, overviewTop(), x + panelWidth - 12, overviewBottom());
+        int columns = overviewColumns(), span = (bodyWidth - 6) / columns;
+        int row = gridY + 25;
+        context.drawText(textRenderer, "Discovered", gridX, row, MUTED, false);
+        context.drawText(textRenderer, startedCount + " / " + catalog.size(), gridX, row + 12, TEXT, true);
+        context.drawText(textRenderer, "Mastered", gridX + bodyWidth / 2, row, MUTED, false);
+        context.drawText(textRenderer, Integer.toString(masteredCount), gridX + bodyWidth / 2, row + 12, TEXT, true);
+        context.drawText(textRenderer, "Milestone ledger", gridX, overviewTop()-12, TEXT, false);
+        long elapsed = now() - viewOpened;
+        context.enableScissor(gridX, overviewTop(), gridX + bodyWidth, overviewBottom());
         for (int i = 0; i < tierTotals.length; i++) {
-            int mid = x + 12 + (i % columns) * span + span / 2;
-            int top = overviewTop() + (i / columns) * OVERVIEW_ROW_HEIGHT - overviewScroll;
-            if (top + OVERVIEW_ROW_HEIGHT <= overviewTop() || top >= overviewBottom()) continue;
-            boolean complete = tierTotals[i] > 0 && tierCompletions[i] == tierTotals[i];
-            context.drawItem(new ItemStack(complete ? Items.LIME_STAINED_GLASS_PANE : Items.RED_STAINED_GLASS_PANE), mid - 8, top);
+            int xx = gridX + i % columns * span, yy = overviewTop() + i / columns * OVERVIEW_ROW_HEIGHT - overviewScroll;
+            if (yy + OVERVIEW_ROW_HEIGHT <= overviewTop() || yy >= overviewBottom()) continue;
+            int w = span - 3;
+            context.fill(xx, yy, xx + w, yy + 26, TILE);
             String label = CollectionProgress.targetLabel(CollectionProgress.OVERVIEW_MILESTONES.get(i));
-            context.drawText(textRenderer, label, mid - textRenderer.getWidth(label) / 2, top + 18, MmmUi.LABEL, false);
-            String total = tierCompletions[i] + "/" + tierTotals[i];
-            context.drawText(textRenderer, total, mid - textRenderer.getWidth(total) / 2, top + 29,
-                    complete ? MmmUi.SUCCESS : MmmUi.TEXT, false);
+            context.drawText(textRenderer, label, xx + 5, yy + 5, TEXT, false);
+            right(context, tierCompletions[i] + "/" + tierTotals[i], xx + w - 5, yy + 5, MUTED);
+            float ratio = tierTotals[i] == 0 ? 0 : (float)tierCompletions[i]/tierTotals[i];
+            meter(context,xx+5,yy+18,w-10,ratio * reveal(elapsed,i % columns),RED);
         }
         context.disableScissor();
         if (maxOverviewScroll() > 0) {
-            int track = overviewBottom() - overviewTop();
-            int thumb = Math.max(10, track * track / (track + maxOverviewScroll()));
-            int top = overviewTop() + (track - thumb) * overviewScroll / maxOverviewScroll();
-            context.fill(x + panelWidth - 11, overviewTop(), x + panelWidth - 9, overviewBottom(), 0xFF222225);
-            context.fill(x + panelWidth - 11, top, x + panelWidth - 9, top + thumb, MmmUi.LABEL);
+            int track = overviewBottom() - overviewTop(), thumb = Math.max(8, track * track / (track + maxOverviewScroll()));
+            int yy = overviewTop() + (track - thumb) * overviewScroll / maxOverviewScroll();
+            context.fill(gridX + bodyWidth - 2,overviewTop(),gridX + bodyWidth,overviewBottom(),LINE);
+            context.fill(gridX + bodyWidth - 2,yy,gridX + bodyWidth,yy + thumb,MUTED);
         }
-        context.drawText(textRenderer, "Categories", x + 12, footerY - 43, MmmUi.LABEL, false);
     }
-    private void drawCollectionDetail(DrawContext context) {
-        long value = count(selected);
-        context.drawItem(selected.icon, x + 12, y + 49);
-        MmmUi.drawTextWithin(context, textRenderer, numbers.format(value) + " blocks mined", x + 38, y + 52,
-                panelWidth - 50, MmmUi.TEXT, false);
-        Text ranking = rankText(selected);
-        context.drawText(textRenderer, net.minecraft.util.Language.getInstance().reorder(
-                textRenderer.trimToWidth(ranking, panelWidth - 24)), x + 12, y + 65, MmmUi.TEXT, false);
+    private void drawCollectionDetail(DrawContext c) {
+        long mined = count(selected), now = now(), target = CollectionProgress.next(selected.id,mined);
+        int tier = CollectionProgress.completed(selected.id,mined);
         var goals = CollectionProgress.milestones(selected.id);
-        int span = (panelWidth - 24) / goals.size();
-        int size = Math.min(36, span - 8);
-        int top = detailPaneY();
-        for (int i = 0; i < goals.size(); i++) {
-            int mid = x + 12 + i * span + span / 2;
-            long goal = goals.get(i);
-            context.drawText(textRenderer, TIERS[i], mid - textRenderer.getWidth(TIERS[i]) / 2, top - 13, MmmUi.TEXT, false);
-            String target = CollectionProgress.targetLabel(goal);
-            context.drawText(textRenderer, target, mid - textRenderer.getWidth(target) / 2, top + size + 5, MmmUi.TEXT, false);
-            String status = value >= goal ? "Done" : String.format(Locale.ROOT, "%.1f%%", value * 100.0 / goal);
-            context.drawText(textRenderer, status, mid - textRenderer.getWidth(status) / 2, top + size + 18,
-                    value >= goal ? MmmUi.SUCCESS : MmmUi.LABEL, false);
+        float enter = reveal(now - viewOpened,0);
+        c.fill(gridX,gridY,gridX + 34,gridY + 34,TILE);
+        var mat = c.getMatrices(); mat.pushMatrix();
+        try {
+            mat.translate(gridX + 17,gridY + 17);
+            float scale = 1.23f + .27f * enter;
+            mat.scale(scale,scale); c.drawItem(selected.icon,-8,-8);
+        } finally { mat.popMatrix(); }
+        MmmUi.drawTextWithin(c,textRenderer,selected.name,gridX + 42,gridY + 1,bodyWidth - 45,TEXT,true);
+        c.drawText(textRenderer,numbers.format(displayedCount(now)) + " blocks mined",gridX + 42,gridY + 13,TEXT,false);
+        c.drawText(textRenderer,net.minecraft.util.Language.getInstance().reorder(textRenderer.trimToWidth(rankText(selected),bodyWidth-43)),
+                gridX+42,gridY+25,MUTED,false);
+        int shown = board.displayedTier(tier,goals.size());
+        long goal = goals.get(shown - 1);
+        String status = target == 0 ? "All milestones unlocked" : "Next: " + numbers.format(target - mined) + " more for " + CollectionProgress.targetLabel(target);
+        boolean compactInspection = !wideInspector() && board.inspectedTier() != 0;
+        if (compactInspection) status = "Tier " + CollectionProgress.tierLabel(shown) + ": " +
+                (mined >= goal ? "unlocked" : numbers.format(goal - mined) + " to go");
+        MmmUi.drawTextWithin(c,textRenderer,status,gridX,gridY+41,bodyWidth-78,ROSE,false);
+        right(c,tier + "/" + goals.size() + " tiers",gridX+bodyWidth,gridY+41,TEXT);
+        long meterGoal = compactInspection ? goal : target;
+        meter(c,gridX,gridY+53,bodyWidth,(meterGoal == 0 ? 1f : (float)displayedCount(now)/meterGoal) * enter,RED);
+        c.drawText(textRenderer,"Milestones",gridX,gridY+63,TEXT,false);
+        if (detailPages() > 1) right(c,(detailPage+1) + " / " + detailPages(),gridX+tierBoardWidth(),gridY+63,MUTED);
+        if (wideInspector()) {
+            int left = gridX + tierBoardWidth() + 4, top = detailTop(), w = bodyWidth - tierBoardWidth() - 4;
+            dossier(c,left,top,w,Math.min(124,footerY-top-5));
+            float opening = reveal(now - inspectedAt,0);
+            int tx = left + 9 + Math.round(5 * (1 - opening));
+            c.drawText(textRenderer,"MILESTONE RECORD",tx,top+11,MUTED,false);
+            c.drawText(textRenderer,"Tier " + CollectionProgress.tierLabel(shown),tx,top+27,TEXT,true);
+            right(c,shown <= tier ? "Earned" : shown == tier + 1 ? "Next" : "Locked",left+w-9,top+27,ROSE);
+            c.fill(left+9,top+42,left+w-9,top+43,LINE);
+            c.drawText(textRenderer,numbers.format(goal) + " blocks",tx,top+50,TEXT,false);
+            meter(c,left+9,top+65,w-18,Math.min(1f,(float)displayedCount(now)/goal)*opening,RED);
+            c.drawText(textRenderer,mined >= goal ? "Milestone reached" : numbers.format(goal-mined) + " to go",tx,top+75,MUTED,false);
+            int n = goals.size(), inner = w-18;
+            for (int i = 0; i < n; i++) {
+                int sx = left+9+i*inner/n, ex = left+9+(i+1)*inner/n-1;
+                c.fill(sx,top+98,ex,top+102,i < tier ? RED : LINE);
+                if (i+1 == shown) c.fill(sx,top+104,ex,top+106,ROSE);
+            }
+            c.drawText(textRenderer,"I",left+9,top+110,MUTED,false);
+            right(c,CollectionProgress.tierLabel(n),left+w-9,top+110,MUTED);
         }
-    }
-    private void center(DrawContext context, String value, int yy, int color) {
-        String text = MmmUi.truncate(textRenderer, value, panelWidth - 20);
-        context.drawText(textRenderer, text, x + (panelWidth - textRenderer.getWidth(text)) / 2, yy, color, false);
     }
     @Override public boolean mouseScrolled(double mx, double my, double horizontal, double vertical) {
+        if (selected != null && mx >= x && mx < x + panelWidth && my >= gridY && my < footerY && vertical != 0) {
+            changeDetailPage(vertical < 0 ? 1 : -1); return true;
+        }
         if (category == null && selected == null && mx >= x && mx < x + panelWidth && my >= gridY && my < footerY) {
             if (vertical != 0) scrollOverview(vertical < 0 ? OVERVIEW_ROW_HEIGHT : -OVERVIEW_ROW_HEIGHT);
             return true;

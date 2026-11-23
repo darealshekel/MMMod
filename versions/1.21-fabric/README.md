@@ -6,9 +6,22 @@ MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmania
 
 ## Supported Versions
 
-This folder builds the released **1.0.22 for Minecraft 1.21**: `mmm-1.0.22+1.21.jar`. See the [full guide](../../README.md), [Downloads](https://www.mmmaniacs.com/downloads) and [1.0.22 release](https://github.com/darealshekel/MMMod/releases/tag/v1.0.22). Do not install a jar for a different Minecraft version.
+This folder builds **1.0.23 for Minecraft 1.21**: `mmm-1.0.23+1.21.jar`. See the [full guide](../../README.md), [Downloads](https://www.mmmaniacs.com/downloads) and [1.0.23 release](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23). Do not install a jar for a different Minecraft version.
 
 ## Install
+
+### Local Achievement and Settings Preview
+
+Build with `-PachievementPreview` to produce `mmm-1.0.23+1.21-achievement-test.jar`.
+This local test build adds **Settings > Everyday settings > Test Achievement**.
+The button previews the top-center card and vanilla challenge-completion sound without granting an achievement or posting to MMM chat.
+It requires an open world. **Sound Alerts** controls achievement and goal sounds.
+
+Normal builds omit the preview control at compilation; `verifyAchievementPreviewIsolation` checks this.
+These changes are currently limited to the Minecraft 1.21 adapter and are not published.
+The settings overview keeps everyday controls open and other sections collapsed; search includes every section.
+
+### Installation Steps
 
 1. Install Fabric Loader 0.16.14 or newer.
 2. Put the jar for your Minecraft version in the `mods` folder.
@@ -117,4 +130,4 @@ MMMod is an independent community project and is not affiliated with Mojang Stud
 
 ## License
 
-[MIT](LICENSE)
+[GNU LGPLv3](LICENSE) (`LGPL-3.0-only`). See the [repository licensing notes](../../LICENSING.md) for retained MIT and third-party notices.

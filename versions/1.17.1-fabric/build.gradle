@@ -15,12 +15,21 @@ repositories {
     mavenCentral()
 }
 
+// Unlike newer releases, the 1.17 aggregate is a marker with Maven dependencies, not a nested distribution.
+configurations {
+    bundledFabricApi {
+        canBeConsumed = false
+        canBeResolved = true
+        exclude group: 'net.fabricmc', module: 'fabric-loader'
+    }
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    include "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    bundledFabricApi "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
     modCompileOnly "maven.modrinth:modmenu:${project.modmenu_version}"
 
@@ -28,6 +37,12 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
+
+configurations.include.dependencies.addAllLater(providers.provider {
+    configurations.bundledFabricApi.incoming.resolutionResult.allComponents.collect { it.id }
+            .findAll { it instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier && it.group == 'net.fabricmc.fabric-api' }
+            .collect { dependencies.create("${it.group}:${it.module}:${it.version}") }
+})
 
 test {
     useJUnitPlatform()
@@ -55,5 +70,41 @@ java {
     sourceCompatibility = JavaVersion.VERSION_16
     targetCompatibility = JavaVersion.VERSION_16
 }
+
+// Test the mod as installed, not the development classpath (which already contains the API).
+def verifyBundledFabricApi = tasks.register('verifyBundledFabricApi') {
+    def artifact = tasks.named('remapJar').flatMap { it.archiveFile }
+    inputs.file(artifact)
+    doLast {
+        def owners = [
+            'fabric-blockrenderlayer-v1': 'net/fabricmc/fabric/api/blockrenderlayer/v1/BlockRenderLayerMap.class',
+            'fabric-screen-api-v1': 'net/fabricmc/fabric/api/client/screen/v1/ScreenEvents.class',
+            'fabric-lifecycle-events-v1': 'net/fabricmc/fabric/api/client/event/lifecycle/v1/ClientTickEvents.class',
+            'fabric-command-api-v1': 'net/fabricmc/fabric/api/client/command/v1/ClientCommandManager.class'
+        ]
+        def ids = [] as Set
+        new java.util.zip.ZipFile(artifact.get().asFile).withCloseable { outer ->
+            def mod = new groovy.json.JsonSlurper().parse(outer.getInputStream(outer.getEntry('fabric.mod.json')))
+            mod.jars.each { nested ->
+                new java.util.zip.ZipInputStream(outer.getInputStream(outer.getEntry(nested.file))).withCloseable { inner ->
+                    def entries = [] as Set
+                    def id
+                    for (def e = inner.nextEntry; e != null; e = inner.nextEntry) {
+                        entries.add(e.name)
+                        if (e.name == 'fabric.mod.json')
+                            id = new groovy.json.JsonSlurper().parseText(new String(inner.readAllBytes(), 'UTF-8')).id
+                    }
+                    if (!id || !ids.add(id)) throw new GradleException("Missing or duplicate nested mod ID in ${nested.file}")
+                    if (owners[id] && !entries.contains(owners[id]))
+                        throw new GradleException("Nested ${id} does not provide ${owners[id]}")
+                }
+            }
+        }
+        def missing = (owners.keySet() + ['fabric', 'fabric-api-base']) - ids
+        if (missing) throw new GradleException("Remapped jar is missing Fabric API modules: ${missing}")
+        logger.lifecycle("Verified ${ids.size()} nested Fabric API mods in ${artifact.get().asFile.name}")
+    }
+}
+tasks.named('check') { dependsOn verifyBundledFabricApi }
 
 apply from: '../../gradle/shared-sources.gradle'

@@ -35,6 +35,9 @@ final class RuntimeChecks
     static void run(MinecraftClient client) throws Exception
     {
         MixinEnvironment.getCurrentEnvironment().audit();
+        checkActiveDiggersTabFooter(client);
+        RenderParityChecks.run(client);
+        if (Boolean.getBoolean("mmm.reliabilitySmoke")) ChatParityChecks.run(client);
         var scoreboard = client.world.getScoreboard();
         var objective = scoreboard.addObjective("mmm_test_digs", ScoreboardCriterion.DUMMY,
                 Text.literal("Total Digs"), ScoreboardCriterion.RenderType.INTEGER, false, null);
@@ -83,16 +86,73 @@ final class RuntimeChecks
         checkRankOvertakeHud(client);
     }
 
+    private static void checkActiveDiggersTabFooter(MinecraftClient client) throws Exception
+    {
+        var hud = client.inGameHud.getPlayerListHud();
+        var type = net.minecraft.client.gui.hud.PlayerListHud.class;
+        var footer = type.getDeclaredField("footer"); footer.setAccessible(true);
+        var add = java.util.Arrays.stream(type.getDeclaredMethods())
+                .filter(method -> method.getName().endsWith("mmm$addDailyGoalToPlayerList")).findFirst().orElseThrow();
+        var restore = java.util.Arrays.stream(type.getDeclaredMethods())
+                .filter(method -> method.getName().endsWith("mmm$restorePlayerListHeader")).findFirst().orElseThrow();
+        add.setAccessible(true); restore.setAccessible(true);
+        Object originalFooter = footer.get(hud);
+        boolean originalGoal = com.mmm.config.FeatureToggle.MMM_DAILY_GOAL.getBooleanValue();
+        boolean originalTracker = com.mmm.config.FeatureToggle.MMM_MINING_TRACKER.getBooleanValue();
+        boolean originalVisible = com.mmm.config.Configs.Generic.SHOW_ACTIVE_DIGGERS.getBooleanValue();
+        boolean originalFriends = com.mmm.config.Configs.Generic.ACTIVE_DIGGERS_FRIENDS_ONLY.getBooleanValue();
+        var callback = new org.spongepowered.asm.mixin.injection.callback.CallbackInfo("render", false);
+        try
+        {
+            com.mmm.config.Configs.Generic.SHOW_ACTIVE_DIGGERS.setBooleanValue(true);
+            com.mmm.config.Configs.Generic.ACTIVE_DIGGERS_FRIENDS_ONLY.setBooleanValue(false);
+            var presence = new com.google.gson.JsonObject();
+            presence.addProperty("username", "RemoteMiner");
+            presence.addProperty("active", true);
+            presence.addProperty("expiresInSeconds", 75);
+            com.mmm.social.ActiveDiggerManager.applyPresence(presence);
+            if (!com.mmm.social.ActiveDiggerManager.visibleRemoteDiggers(java.util.List.of()).contains("RemoteMiner"))
+                throw new AssertionError("Standalone active diggers lost the remote player");
+            for (boolean goalEnabled : new boolean[] {false, true})
+            {
+                var serverFooter = Text.literal("Server footer");
+                footer.set(hud, serverFooter);
+                com.mmm.config.FeatureToggle.MMM_MINING_TRACKER.setBooleanValue(true);
+                com.mmm.config.FeatureToggle.MMM_DAILY_GOAL.setBooleanValue(goalEnabled);
+                add.invoke(hud, null, 640, client.world.getScoreboard(), null, callback);
+                String displayed = ((Text) footer.get(hud)).getString();
+                if (displayed.contains("Active Diggers") || displayed.contains("RemoteMiner"))
+                    throw new AssertionError("Duplicate active-diggers card remains in Tab footer");
+                if (!displayed.startsWith("Server footer") || displayed.contains("Daily Goal:") != goalEnabled)
+                    throw new AssertionError("Server footer or daily goal changed");
+                restore.invoke(hud, null, 640, client.world.getScoreboard(), null, callback);
+                if (footer.get(hud) != serverFooter) throw new AssertionError("Server footer was not restored");
+            }
+        }
+        finally
+        {
+            restore.invoke(hud, null, 640, client.world.getScoreboard(), null, callback);
+            footer.set(hud, originalFooter);
+            com.mmm.config.FeatureToggle.MMM_DAILY_GOAL.setBooleanValue(originalGoal);
+            com.mmm.config.FeatureToggle.MMM_MINING_TRACKER.setBooleanValue(originalTracker);
+            com.mmm.config.Configs.Generic.SHOW_ACTIVE_DIGGERS.setBooleanValue(originalVisible);
+            com.mmm.config.Configs.Generic.ACTIVE_DIGGERS_FRIENDS_ONLY.setBooleanValue(originalFriends);
+            com.mmm.social.ActiveDiggerManager.clear();
+        }
+    }
+
     private static void checkRankOvertakeHud(MinecraftClient client) throws Exception
     {
         var type = com.mmm.sync.RankOvertakeClient.class;
         Field name = type.getDeclaredField("username");
+        Field playerKey = type.getDeclaredField("playerKey");
         Field refresh = type.getDeclaredField("nextRefresh");
         Field estimate = type.getDeclaredField("websitePlayer");
         Field progress = type.getDeclaredField("progress");
         Field rows = type.getDeclaredField("rows");
         Field hudUpdate = type.getDeclaredField("nextHudUpdate");
         name.setAccessible(true);
+        playerKey.setAccessible(true);
         refresh.setAccessible(true);
         estimate.setAccessible(true);
         progress.setAccessible(true);
@@ -102,6 +162,7 @@ final class RuntimeChecks
         try
         {
             name.set(null, client.getSession().getUsername());
+            playerKey.set(null, client.getSession().getUuidOrNull().toString());
             refresh.setLong(null, Long.MAX_VALUE);
             estimate.set(null, new com.mmm.sync.RankOvertakeEstimate.Player(name.get(null).toString(), 48, 100));
             progress.set(null, new com.mmm.sync.RankLocalProgress(100, 0));

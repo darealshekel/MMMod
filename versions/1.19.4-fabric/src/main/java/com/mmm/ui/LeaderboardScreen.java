@@ -1,5 +1,8 @@
 package com.mmm.ui;
 
+import com.mmm.ui.BoardChrome;
+import com.mmm.ui.BoardEditorStyle;
+
 import com.mmm.leaderboard.*;
 import com.mmm.util.BlockBreakdownCatalog;
 import java.text.NumberFormat;
@@ -14,7 +17,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
-public final class LeaderboardScreen extends com.mmm.compat.MmmScreen
+public final class LeaderboardScreen extends com.mmm.compat.MmmScreen implements BoardChrome.Page
 {
     private static final int ROW_HEIGHT = 24;
     private final Screen parent;
@@ -45,10 +48,11 @@ public final class LeaderboardScreen extends com.mmm.compat.MmmScreen
     private boolean picking() { return kind == LeaderboardData.Kind.BLOCKS && selectedBlock == null; }
 
     @Override protected void init() {
+        this.addDrawableChild(BoardChrome.back(this.width, this::close));
         removed = false;
         MmmUi.ensureCursorVisible();
         x = MmmUi.contentLeft(width) + 10;
-        contentWidth = Math.max(1, width - x - 10);
+        contentWidth = Math.max(1, MmmUi.contentWidth(width) - 20);
         int y = MmmUi.TOP_BAR_HEIGHT + 8;
         int columns = contentWidth >= 200 ? 8 : 4;
         int cellWidth = contentWidth / columns;
@@ -97,7 +101,6 @@ public final class LeaderboardScreen extends com.mmm.compat.MmmScreen
         int navWidth = Math.min(72, contentWidth / 4);
         previous = button(x, height - 28, navWidth, "< Prev", () -> { page--; offset = 0; load(false); });
         next = button(x + navWidth + 4, height - 28, navWidth, "Next >", () -> { page++; offset = 0; load(false); });
-        button(x + contentWidth - navWidth, height - 28, navWidth, "Done", this::close);
         filterBlocks();
         if (data == null && !loading && !picking() && error == null && searchAt == 0) load(false);
         updateButtons();
@@ -152,11 +155,10 @@ public final class LeaderboardScreen extends com.mmm.compat.MmmScreen
         updateButtons();
     }
     @Override public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        MmmUi.backdrop(context, width, height);
-        MmmUi.drawMmmScreensSidebar(context, textRenderer, width, height, mouseX, mouseY, "LEADERBOARDS");
+        MmmUi.editorFrame(context, width, height, "Leaderboards");
         String status = picking() ? visibleBlocks.size() + " blocks" : loading || searchAt > 0 ? "Loading rankings..."
                 : error != null ? error : data == null ? "" : kind.label + " | " + data.page() + "/" + data.pages() + " | " + format(data.total()) + " entries";
-        MmmUi.drawTextWithin(context, textRenderer, status, x, listTop - 11, contentWidth, error != null ? MmmUi.ERROR : MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, textRenderer, status, x, listTop - 11, contentWidth, error != null ? MmmUi.ERROR : BoardEditorStyle.MUTED, false);
         int count = picking() ? visibleBlocks.size() : data == null ? 0 : data.rows().size();
         int visible = Math.max(1, (listBottom - listTop) / ROW_HEIGHT);
         offset = Math.max(0, Math.min(offset, Math.max(0, count - visible)));
@@ -165,26 +167,28 @@ public final class LeaderboardScreen extends com.mmm.compat.MmmScreen
             for (int i = offset; i < Math.min(count, offset + visible); i++) {
                 int y = listTop + (i - offset) * ROW_HEIGHT;
                 boolean hovered = mouseX >= x && mouseX < x + contentWidth && mouseY >= y && mouseY < y + ROW_HEIGHT;
-                context.fill(x, y, x + contentWidth, y + ROW_HEIGHT - 1, hovered ? MmmUi.accentSoft() : MmmUi.INSET);
+                if (picking()) MmmUi.editorButton(context, x, y, contentWidth, ROW_HEIGHT - 1, true, hovered);
+                else MmmUi.editorRow(context, x, y, contentWidth, ROW_HEIGHT, (i & 1) == 0
+                        ? BoardEditorStyle.SURFACE : BoardEditorStyle.TILE, BoardEditorStyle.LINE);
                 if (picking()) {
                     String id = visibleBlocks.get(i);
                     Identifier identifier = Identifier.tryParse(id);
                     if (identifier != null && Registries.ITEM.containsId(identifier))
                         context.drawItem(new ItemStack(Registries.ITEM.get(identifier)), x + 4, y + 5);
-                    MmmUi.drawTextWithin(context, textRenderer, blockName(id), x + 26, y + 10, contentWidth - 36, MmmUi.TEXT, false);
+                    MmmUi.drawTextWithin(context, textRenderer, blockName(id), x + 26, y + 10, contentWidth - 36, BoardEditorStyle.TEXT, false);
                 } else {
                     var row = data.rows().get(i);
                     int amountWidth = Math.min(118, contentWidth / 2);
-                    MmmUi.drawTextWithin(context, textRenderer, "#" + row.rank() + " " + row.name(), x + 5, y + 4, contentWidth - amountWidth - 12, MmmUi.TEXT, false);
-                    MmmUi.drawTextWithin(context, textRenderer, row.detail(), x + 5, y + 16, contentWidth - amountWidth - 12, MmmUi.MUTED, false);
-                    MmmUi.drawTextRightWithin(context, textRenderer, format(row.blocks()), x + contentWidth - 6, y + 5, amountWidth, 0xFFFF5A1F, false);
-                    MmmUi.drawTextRightWithin(context, textRenderer, "blocks mined", x + contentWidth - 6, y + 16, amountWidth, MmmUi.MUTED, false);
+                    MmmUi.drawTextWithin(context, textRenderer, "#" + row.rank() + " " + row.name(), x + 5, y + 4, contentWidth - amountWidth - 12, BoardEditorStyle.TEXT, false);
+                    MmmUi.drawTextWithin(context, textRenderer, row.detail(), x + 5, y + 16, contentWidth - amountWidth - 12, BoardEditorStyle.MUTED, false);
+                    MmmUi.drawTextRightWithin(context, textRenderer, format(row.blocks()), x + contentWidth - 6, y + 5, amountWidth, BoardEditorStyle.ROSE, false);
+                    MmmUi.drawTextRightWithin(context, textRenderer, "blocks mined", x + contentWidth - 6, y + 16, amountWidth, BoardEditorStyle.MUTED, false);
                 }
             }
             context.disableScissor();
         }
         if (count == 0 && !loading && error == null && searchAt == 0)
-            MmmUi.drawTextWithin(context, textRenderer, "No matching records.", x + 6, listTop + 12, contentWidth - 12, MmmUi.MUTED, false);
+            MmmUi.drawTextWithin(context, textRenderer, "No matching records.", x + 6, listTop + 12, contentWidth - 12, BoardEditorStyle.MUTED, false);
         if (count > visible && listBottom > listTop) {
             int thumb = Math.max(8, (listBottom - listTop) * visible / count);
             int y = listTop + (listBottom - listTop - thumb) * offset / Math.max(1, count - visible);
@@ -199,7 +203,6 @@ public final class LeaderboardScreen extends com.mmm.compat.MmmScreen
     }
     private static String format(long value) { return NumberFormat.getIntegerInstance(Locale.US).format(value); }
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, parent, mouseX, mouseY, "LEADERBOARDS")) return true;
         if (button == 0 && picking() && mouseX >= x && mouseX < x + contentWidth && mouseY >= listTop && mouseY < listBottom) {
             int index = offset + (int) (mouseY - listTop) / ROW_HEIGHT;
             if (index < visibleBlocks.size()) {

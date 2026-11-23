@@ -1,8 +1,6 @@
 package com.mmm.mixin;
 
 import java.util.Locale;
-import java.util.ArrayList;
-import java.util.List;
 
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
@@ -13,7 +11,6 @@ import com.mmm.util.UiFormat;
 
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.PlayerListHud;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.ScoreboardObjective;
@@ -95,34 +92,6 @@ public abstract class PlayerListHudMixin
     {
         MutableText extraFooter = Text.empty();
         boolean hasExtraFooter = false;
-        List<String> localPlayerNames = new ArrayList<>();
-        if (MinecraftClient.getInstance().getNetworkHandler() != null)
-        {
-            for (PlayerListEntry entry : MinecraftClient.getInstance().getNetworkHandler().getPlayerList())
-            {
-                localPlayerNames.add(entry.getProfile().name());
-            }
-        }
-        List<String> remoteDiggers = ActiveDiggerManager.visibleRemoteDiggers(localPlayerNames);
-        if (!remoteDiggers.isEmpty())
-        {
-            extraFooter.append(Text.literal("Active Diggers").formatted(Formatting.GRAY));
-            for (int index = 0; index < remoteDiggers.size(); index++)
-            {
-                if (index % 4 == 0)
-                {
-                    extraFooter.append(Text.literal("\n"));
-                }
-                else
-                {
-                    extraFooter.append(Text.literal("   "));
-                }
-                extraFooter.append(Text.literal("\u26CF").styled(style -> style.withColor(0xE00000)))
-                        .append(Text.literal(" " + remoteDiggers.get(index)).formatted(Formatting.WHITE));
-            }
-            hasExtraFooter = true;
-        }
-
         if (FeatureToggle.MMM_MINING_TRACKER.getBooleanValue()
                 && FeatureToggle.MMM_DAILY_GOAL.getBooleanValue())
         {

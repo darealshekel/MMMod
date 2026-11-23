@@ -1,5 +1,6 @@
 package com.mmm.mixin;
 
+import com.mmm.ui.BoardEditorStyle;
 import com.mmm.ui.MmmUi;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -19,6 +20,8 @@ public abstract class MmmPressableWidgetMixin
     {
         Minecraft client = Minecraft.getInstance();
         Screen screen = client == null ? null : client.gui.screen();
+        if (screen instanceof com.mmm.ui.MmmSettingsScreen || screen instanceof com.mmm.ui.CollectionBookScreen
+                || screen instanceof com.mmm.ui.WebsiteLinkScreen) return;
         if (screen == null || !screen.getClass().getName().startsWith("com.mmm."))
         {
             return;
@@ -30,8 +33,8 @@ public abstract class MmmPressableWidgetMixin
             return;
         }
         boolean highlighted = button.isHovered() || button.isFocused();
-        int fill = button.active ? (highlighted ? MmmUi.accentHover() : MmmUi.INSET) : MmmUi.CARD;
-        int border = button.active && highlighted ? MmmUi.accent() : MmmUi.BORDER_SOFT;
+        int fill = button.active ? (highlighted ? BoardEditorStyle.LINE : BoardEditorStyle.TILE) : MmmUi.CARD;
+        int border = button.active && highlighted ? (MmmUi.accent() == MmmUi.RED ? BoardEditorStyle.ROSE : MmmUi.accent()) : BoardEditorStyle.LINE;
         int textColor = button.active ? (highlighted ? MmmUi.TEXT : MmmUi.MUTED) : MmmUi.INACTIVE;
         MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), fill, border);
         context.centeredText(client.font, button.getMessage(),

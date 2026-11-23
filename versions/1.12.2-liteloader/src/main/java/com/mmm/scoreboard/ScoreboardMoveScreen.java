@@ -12,9 +12,9 @@ public final class ScoreboardMoveScreen extends ScoreboardBaseScreen {
     public ScoreboardMoveScreen(Screen parent) { super(parent, "Move Scoreboard"); }
     @Override public void init() {
         super.init();
-        button(1, 8, 8, 22, "-");
-        button(2, 34, 8, 22, "+");
-        button(3, 60, 8, 54, "Reset");
+        button(1, 8, height - 25, 22, "-");
+        button(2, 34, height - 25, 22, "+");
+        button(3, 60, height - 25, 54, "Reset");
     }
     @Override public void render(int x, int y, float delta) {
         fill(0, 0, width, height, 0x22050505);
@@ -24,7 +24,9 @@ public final class ScoreboardMoveScreen extends ScoreboardBaseScreen {
             var bounds = ScoreboardHudRenderer.render(context, minecraft, objective);
             context.drawBorder(bounds.left() - 1, bounds.top() - 1, bounds.width() + 2, bounds.height() + 2, 0xFFE00000);
         } else text("No sidebar scoreboard", Math.max(8, width / 2 - 60), height / 2, 0xFFCCCCCC);
-        text(Math.round(Configs.Generic.SCOREBOARD_SCALE.getDoubleValue() * 100) + "%", 120, 14, 0xFFFFFFFF);
+        com.mmm.legacy.BoardArt.header(new LegacyDrawContext(), textRenderer, width, left, panelWidth - 66, title);
+        fill(0, height - 30, width, height, com.mmm.ui.BoardEditorStyle.SURFACE);
+        text(Math.round(Configs.Generic.SCOREBOARD_SCALE.getDoubleValue() * 100) + "%", 120, height - 19, 0xFFFFFFFF);
         super.render(x, y, delta);
     }
     @Override protected void mouseClicked(int x, int y, int button) {

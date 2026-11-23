@@ -22,6 +22,11 @@ jobs:
           gradle-version: '9.4.1'
       - run: node tools/check-layout.mjs
       - run: node --test tools/tests/*.test.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install Pillow==12.2.0
+      - run: python -B -m unittest discover -s tools/tests -p "test_*.py"
       - run: gradle -p core test --no-daemon --console=plain
   adapters:
     runs-on: windows-latest

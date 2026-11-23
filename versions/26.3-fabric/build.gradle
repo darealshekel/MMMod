@@ -64,6 +64,7 @@ tasks.named('runClient') {
 if (project.hasProperty('smokeTest')) {
     sourceSets {
         smoke {
+            java.srcDir '../../adapters/shared/compat/26.2-fabric/src/smoke/java'
             compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
             runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
         }
@@ -72,6 +73,11 @@ if (project.hasProperty('smokeTest')) {
         smoke { sourceSet sourceSets.smoke }
     }
     tasks.named('runClient') {
+        // No external HTTP during local gameplay verification.
+        systemProperty 'http.proxyHost', '127.0.0.1'
+        systemProperty 'http.proxyPort', '1'
+        systemProperty 'https.proxyHost', '127.0.0.1'
+        systemProperty 'https.proxyPort', '1'
         dependsOn tasks.named('smokeClasses')
         classpath += sourceSets.smoke.output
         if (!project.hasProperty('verificationRunId')) {

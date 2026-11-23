@@ -1,5 +1,7 @@
 package com.mmm.scoreboard;
 
+import com.mmm.ui.BoardEditorStyle;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +53,7 @@ public final class ScoreboardScreen extends Screen
     {
         MmmUi.ensureCursorVisible();
         this.clearChildren();
+        this.addDrawableChild(MmmUi.backButton(this, MmmUi.contentLeft(this.width)));
         this.sections.clear();
 
         this.sections.add(new Section("DISPLAY", "Choose what the sidebar shows.", List.of(
@@ -96,9 +99,7 @@ public final class ScoreboardScreen extends Screen
         MmmUi.ensureCursorVisible();
         this.clickTargets.clear();
         this.sliderTargets.clear();
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        MmmUi.toolBoard(context, this.textRenderer, this.width, this.height, MmmUi.contentLeft(this.width), "Tools / Scoreboard");
 
         int viewportX = MmmUi.contentLeft(this.width);
         int viewportY = TOP_HEIGHT;
@@ -106,17 +107,17 @@ public final class ScoreboardScreen extends Screen
         int viewportH = Math.max(1, this.height - viewportY - MmmUi.pagePad(this.width));
         context.enableScissor(viewportX, viewportY, viewportX + viewportW, viewportY + viewportH);
         this.layoutAndDraw(context, viewportX, viewportY, viewportW, viewportH, mouseX, mouseY);
-        super.render(context, mouseX, mouseY, delta);
         context.disableScissor();
         this.drawScrollbar(context, viewportX + viewportW - 3, viewportY, viewportH);
+        super.render(context, mouseX, mouseY, delta);
     }
 
     private void layoutAndDraw(DrawContext context, int x, int viewportY, int width, int viewportH, int mouseX, int mouseY)
     {
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
-        MmmUi.drawTextWithin(context, this.textRenderer, "SCOREBOARD", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Server scoreboard or MMM website rankings.", x, y + 16, width, MmmUi.MUTED, false);
-        y += 46;
+        String source = Configs.Generic.MMM_LEADERBOARD_SIDEBAR.getBooleanValue() ? "MMM rankings" : "Server objective";
+        MmmUi.drawTextWithin(context, this.textRenderer, "Scoreboard source: " + source, x, y, width, BoardEditorStyle.TEXT, false);
+        y += 24;
 
         boolean twoColumns = width >= TWO_COLUMN_MIN_WIDTH;
         int columnWidth = twoColumns ? (width - GAP) / 2 : width;
@@ -144,9 +145,10 @@ public final class ScoreboardScreen extends Screen
 
     private void drawSection(DrawContext context, Section section, int x, int y, int width, int height, int viewportY, int viewportH, int mouseX, int mouseY)
     {
-        MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
+        context.fill(x, y, x + width, y + 1, BoardEditorStyle.LINE);
+        context.fill(x, y, x + Math.min(22, width), y + 2, BoardEditorStyle.ROSE);
         MmmUi.drawSectionHeading(context, this.textRenderer, section.title(), x + CARD_PAD, y + 12, width - CARD_PAD * 2);
-        MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 28, width - CARD_PAD * 2, BoardEditorStyle.MUTED, false);
 
         int rowY = y + CARD_HEADER;
         for (ControlRow row : section.rows())
@@ -160,25 +162,29 @@ public final class ScoreboardScreen extends Screen
     private void drawControlRow(DrawContext context, ControlRow row, int x, int y, int width,
                                 int viewportY, int viewportH, int mouseX, int mouseY)
     {
-        context.fill(x, y, x + width, y + 1, MmmUi.BORDER_SOFT);
         boolean visible = y + ROW_HEIGHT >= viewportY && y <= viewportY + viewportH;
+        boolean hovered = contains(mouseX, mouseY, x - 4, y, width + 8, ROW_HEIGHT);
+        MmmUi.boardRow(context, x - 4, y, width + 8, ROW_HEIGHT, hovered, false);
         boolean configurable = row.config() != null;
         int resetX = x + width - RESET_WIDTH;
         int controlRight = configurable ? resetX - 8 : x + width;
         int controlW = Math.min(132, Math.max(72, width / 2));
         int controlX = Math.max(x, controlRight - controlW);
         int controlY = y + 7;
-        int labelW = Math.max(30, controlX - x - 8);
+        int labelW = row.kind() == ControlKind.ACTION ? width - 18 : Math.max(0, controlX - x - 6);
 
         MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x, y + 7, labelW, MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x, y + 18, labelW, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x, y + 18, labelW, BoardEditorStyle.MUTED, false);
 
         switch (row.kind())
         {
             case BOOLEAN -> this.drawBooleanControl(context, row.config(), controlX, controlY, controlW, mouseX, mouseY, visible);
             case OPTION -> this.drawOptionControl(context, row.config(), controlX, controlY, controlW, mouseX, mouseY, visible);
             case SLIDER -> this.drawSliderControl(context, row.config(), row.valueStyle(), controlX, controlY, controlW, mouseX, mouseY, visible);
-            case ACTION -> this.drawActionControl(context, row, controlX, controlY, controlW, mouseX, mouseY, visible);
+            case ACTION -> {
+                MmmUi.drawTextRightWithin(context, this.textRenderer, ">", x + width - 3, y + 13, 12, BoardEditorStyle.ROSE, false);
+                if (visible) this.clickTargets.add(new ClickTarget(x - 4, y, width + 8, ROW_HEIGHT, row.action()));
+            }
         }
 
         if (visible && row.config() instanceof IConfigResettable resettable && resettable.isModified())
@@ -196,12 +202,12 @@ public final class ScoreboardScreen extends Screen
     {
         boolean enabled = config instanceof IConfigBoolean booleanConfig && booleanConfig.getBooleanValue();
         boolean hovered = contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
-        context.fill(x, y, x + width, y + FIELD_HEIGHT, enabled ? MmmUi.accent() : MmmUi.INSET);
-        context.drawBorder(x, y, width, FIELD_HEIGHT, hovered || enabled ? MmmUi.accent() : MmmUi.BORDER_SOFT);
-        String label = enabled ? "ON" : "OFF";
-        int labelX = x + Math.max(4, (width - this.textRenderer.getWidth(label)) / 2);
-        context.drawText(this.textRenderer, Text.literal(label), labelX, y + 6,
-                enabled ? MmmUi.TEXT : MmmUi.MUTED, false);
+        int trackX = x + width - 22;
+        context.fill(trackX, y + 4, trackX + 22, y + 14, enabled ? BoardEditorStyle.ROSE : BoardEditorStyle.LINE);
+        int knobX = trackX + (enabled ? 13 : 2);
+        context.fill(knobX, y + 6, knobX + 7, y + 12, enabled ? BoardEditorStyle.FLOOR : BoardEditorStyle.MUTED);
+        MmmUi.drawTextRightWithin(context, this.textRenderer, enabled ? "On" : "Off", trackX - 5, y + 5,
+                width - 27, hovered ? BoardEditorStyle.TEXT : BoardEditorStyle.MUTED, false);
         if (visible)
         {
             this.clickTargets.add(new ClickTarget(x, y, width, FIELD_HEIGHT, () -> {
@@ -257,31 +263,20 @@ public final class ScoreboardScreen extends Screen
         }
 
         double ratio = max <= min ? 0.0D : Math.max(0.0D, Math.min(1.0D, (current - min) / (max - min)));
-        int trackY = y + FIELD_HEIGHT / 2 - 1;
+        int trackY = y + FIELD_HEIGHT - 3;
         int fillWidth = (int) Math.round(width * ratio);
         boolean hovered = contains(mouseX, mouseY, x, y, width, FIELD_HEIGHT);
         context.fill(x, trackY, x + width, trackY + 3, MmmUi.INSET);
-        context.fill(x, trackY, x + fillWidth, trackY + 3, MmmUi.accent());
-        context.drawBorder(x, trackY, width, 3, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        context.fill(x, trackY, x + fillWidth, trackY + 3, BoardEditorStyle.ROSE);
         int thumbX = Math.max(x, Math.min(x + width - 4, x + fillWidth - 2));
-        context.fill(thumbX, y + 3, thumbX + 4, y + FIELD_HEIGHT - 3, MmmUi.accent());
+        context.fill(thumbX, trackY - 1, thumbX + 4, trackY + 4, hovered ? BoardEditorStyle.TEXT : BoardEditorStyle.ROSE);
 
         String value = formatValue(current, style);
         int valueX = x + Math.max(0, (width - this.textRenderer.getWidth(value)) / 2);
-        context.drawText(this.textRenderer, Text.literal(value), valueX, y + 5, MmmUi.TEXT, true);
+        context.drawText(this.textRenderer, Text.literal(value), valueX, y, BoardEditorStyle.TEXT, false);
         if (visible)
         {
             this.sliderTargets.add(new SliderTarget(x, y, width, FIELD_HEIGHT, config));
-        }
-    }
-
-    private void drawActionControl(DrawContext context, ControlRow row, int x, int y, int width,
-                                   int mouseX, int mouseY, boolean visible)
-    {
-        this.drawButtonShell(context, x, y, width, FIELD_HEIGHT, row.label(), mouseX, mouseY, false);
-        if (visible && row.action() != null)
-        {
-            this.clickTargets.add(new ClickTarget(x, y, width, FIELD_HEIGHT, row.action()));
         }
     }
 
@@ -289,12 +284,12 @@ public final class ScoreboardScreen extends Screen
                                  int mouseX, int mouseY, boolean subtle)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
-        context.fill(x, y, x + width, y + height, subtle ? MmmUi.INSET : hovered ? MmmUi.accentHover() : MmmUi.INSET);
-        context.drawBorder(x, y, width, height, hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        context.fill(x, y, x + width, y + height, MmmUi.menuSurface(hovered ? BoardEditorStyle.TILE : BoardEditorStyle.FLOOR));
+        context.fill(x, y + height - 1, x + width, y + height, hovered ? BoardEditorStyle.ROSE : BoardEditorStyle.LINE);
         String clipped = MmmUi.truncate(this.textRenderer, label, width - 8);
         int labelX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
         context.drawText(this.textRenderer, Text.literal(clipped), labelX, y + 6,
-                hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
+                hovered ? MmmUi.TEXT : BoardEditorStyle.MUTED, false);
     }
 
     private void updateSlider(SliderTarget target, double mouseX)
@@ -397,10 +392,8 @@ public final class ScoreboardScreen extends Screen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SCOREBOARD"))
-        {
-            return true;
-        }
+        if (mouseY < TOP_HEIGHT || mouseY >= this.height - MmmUi.pagePad(this.width))
+            return super.mouseClicked(mouseX, mouseY, button);
 
         if (button == 0)
         {

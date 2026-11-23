@@ -1,5 +1,8 @@
 package com.mmm.scoreboard;
 
+import com.mmm.ui.BoardChrome;
+import com.mmm.ui.BoardEditorStyle;
+
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -16,17 +19,17 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
-public final class ScoreboardRecordsScreen extends com.mmm.compat.MmmScreen
+public final class ScoreboardRecordsScreen extends com.mmm.compat.MmmScreen implements BoardChrome.Page
 {
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm")
             .withZone(ZoneId.systemDefault());
     private static final int ROW_HEIGHT = 42;
 
     private final Screen parent;
+    private ButtonWidget backButton;
     private final List<RecordButtons> rowButtons = new ArrayList<>();
     private ButtonWidget recordButton;
     private ButtonWidget exportButton;
-    private ButtonWidget closeButton;
     private double scrollY;
     private int contentHeight;
 
@@ -41,13 +44,12 @@ public final class ScoreboardRecordsScreen extends com.mmm.compat.MmmScreen
     {
         MmmUi.ensureCursorVisible();
         this.clearChildren();
+        this.backButton = this.addSelectableChild(BoardChrome.back(this.width, this::close));
         this.rowButtons.clear();
         this.recordButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Record Current"), ignored -> this.recordCurrent())
                 .dimensions(0, 0, 120, 18).build());
         this.exportButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Export All"), ignored -> this.exportAll())
                 .dimensions(0, 0, 100, 18).build());
-        this.closeButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), ignored -> this.close())
-                .dimensions(0, 0, 70, 18).build());
 
         List<ScoreboardState.Snapshot> snapshots = ScoreboardState.getSnapshots();
         for (int index = 0; index < snapshots.size(); index++)
@@ -68,9 +70,7 @@ public final class ScoreboardRecordsScreen extends com.mmm.compat.MmmScreen
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        MmmUi.editorFrame(context, width, height, "Scoreboard records");
 
         int x = MmmUi.contentLeft(this.width);
         int y = MmmUi.TOP_BAR_HEIGHT;
@@ -80,30 +80,37 @@ public final class ScoreboardRecordsScreen extends com.mmm.compat.MmmScreen
         this.drawContent(context, x, y, width, height);
         super.render(context, mouseX, mouseY, delta);
         context.disableScissor();
+        this.backButton.render(context.getMatrices(), mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button)
+    {
+        if (!BoardChrome.inToolViewport(this, mouseX, mouseY))
+            return this.backButton.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     private void drawContent(DrawContext context, int x, int viewportY, int width, int viewportHeight)
     {
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
         MmmUi.drawTextWithin(context, this.textRenderer, "RECORDED SCOREBOARDS", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Build one CSV from several scoreboard snapshots.", x, y + 16, width, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Build one CSV from several scoreboard snapshots.", x, y + 16, width, BoardEditorStyle.MUTED, false);
         y += 38;
 
         MmmUi.positionWidget(this.recordButton, Math.min(120, width / 3), x, y);
         MmmUi.positionWidget(this.exportButton, Math.min(100, width / 3), x + Math.min(120, width / 3) + 6, y);
-        MmmUi.positionWidget(this.closeButton, Math.min(70, width / 4), x + width - Math.min(70, width / 4), y);
         boolean toolbarVisible = y + 18 >= viewportY && y <= viewportY + viewportHeight;
         this.recordButton.visible = toolbarVisible;
         this.exportButton.visible = toolbarVisible;
-        this.closeButton.visible = toolbarVisible;
         y += 30;
 
         List<ScoreboardState.Snapshot> snapshots = ScoreboardState.getSnapshots();
         if (snapshots.isEmpty())
         {
-            MmmUi.card(context, x, y, width, 52, MmmUi.CARD, MmmUi.BORDER);
-            MmmUi.drawTextWithin(context, this.textRenderer, "NO RECORDS", x + 12, y + 12, width - 24, MmmUi.TEXT, false);
-            MmmUi.drawTextWithin(context, this.textRenderer, "Record the current sidebar to add it here.", x + 12, y + 29, width - 24, MmmUi.MUTED, false);
+            MmmUi.editorRow(context, x, y, width, 52, BoardEditorStyle.TILE, BoardEditorStyle.LINE);
+            MmmUi.drawTextWithin(context, this.textRenderer, "NO RECORDS", x + 12, y + 12, width - 24, BoardEditorStyle.TEXT, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "Record the current sidebar to add it here.", x + 12, y + 29, width - 24, BoardEditorStyle.MUTED, false);
             this.contentHeight = y + 64 - viewportY + (int) Math.round(this.scrollY);
             return;
         }
@@ -111,13 +118,13 @@ public final class ScoreboardRecordsScreen extends com.mmm.compat.MmmScreen
         for (int index = 0; index < snapshots.size(); index++)
         {
             ScoreboardState.Snapshot snapshot = snapshots.get(index);
-            MmmUi.card(context, x, y, width, ROW_HEIGHT - 4, MmmUi.CARD, MmmUi.BORDER);
+            MmmUi.editorRow(context, x, y, width, ROW_HEIGHT - 4, BoardEditorStyle.TILE, BoardEditorStyle.LINE);
             int buttonsWidth = 42 + 48 + 58 + 12;
             MmmUi.drawTextWithin(context, this.textRenderer, snapshot.displayName(), x + 10, y + 8,
-                    Math.max(20, width - buttonsWidth - 24), MmmUi.TEXT, false);
+                    Math.max(20, width - buttonsWidth - 24), BoardEditorStyle.TEXT, false);
             String detail = snapshot.rows().size() + " rows  |  " + TIME_FORMAT.format(Instant.ofEpochMilli(snapshot.capturedAtMs()));
             MmmUi.drawTextWithin(context, this.textRenderer, detail, x + 10, y + 22,
-                    Math.max(20, width - buttonsWidth - 24), MmmUi.MUTED, false);
+                    Math.max(20, width - buttonsWidth - 24), BoardEditorStyle.MUTED, false);
 
             RecordButtons controls = this.rowButtons.get(index);
             int buttonX = x + width - buttonsWidth - 6;
@@ -172,15 +179,6 @@ public final class ScoreboardRecordsScreen extends com.mmm.compat.MmmScreen
         }
     }
 
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button)
-    {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SCOREBOARD"))
-        {
-            return true;
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double verticalAmount)

@@ -73,15 +73,13 @@ public class GoalSoundSettingsScreen extends CompatScreen
         MmmUi.ensureCursorVisible();
         Layout layout = this.layout();
         this.updateBounds(layout);
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SETTINGS");
+        BoardMenuChrome.editor(context, this.font, this.width, this.height, "Settings / Milestone sounds");
 
-        MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.font, "MILESTONE SOUNDS", layout.contentX(), layout.contentY(), layout.contentWidth());
+        MmmUi.drawSectionHeading(context, this.font, "Sound library", layout.contentX(), layout.contentY(), layout.contentWidth());
         MmmUi.drawTextWithin(context, this.font, "Set one custom OGG for each fixed daily-goal milestone.", layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
 
-        MmmUi.card(context, layout.contentX(), layout.infoY(), layout.contentWidth(), 58, MmmUi.CARD, MmmUi.BORDER_SOFT);
-        MmmUi.drawTextWithin(context, this.font, this.selectedThreshold + "% MILESTONE", layout.contentX() + 10, layout.infoY() + 10, layout.contentWidth() - 20, MmmUi.accent(), false);
+        BoardMenuChrome.section(context, layout.contentX(), layout.infoY(), layout.contentWidth(), 58, true);
+        MmmUi.drawTextWithin(context, this.font, this.selectedThreshold + "% MILESTONE", layout.contentX() + 10, layout.infoY() + 10, layout.contentWidth() - 20, BoardMenuChrome.focusInk(), false);
         MmmUi.drawTextWithin(context, this.font, GoalSoundLibrary.getDisplayName(this.selectedThreshold), layout.contentX() + 10, layout.infoY() + 28, layout.contentWidth() - 20, MmmUi.TEXT, false);
         MmmUi.drawTextWithin(context, this.font, GoalSoundLibrary.hasCustomSound(this.selectedThreshold) ? "Custom sound active" : "Built-in MMM sound active", layout.contentX() + 10, layout.infoY() + 42, layout.contentWidth() - 20, MmmUi.MUTED, false);
 
@@ -92,17 +90,13 @@ public class GoalSoundSettingsScreen extends CompatScreen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
-        }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
     public void onClose()
     {
-        Minecraft.getInstance().gui.setScreen(this.parent);
+        BoardPlatform.open(this.parent);
     }
 
     @Override
@@ -242,11 +236,10 @@ public class GoalSoundSettingsScreen extends CompatScreen
 
     private Layout layout()
     {
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - 16);
-        int panelWidth = Math.min(540, availableWidth);
+        int panelWidth = BoardEditorStyle.contentWidth(this.width, 540);
         int availableHeight = Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT - 12);
         int panelHeight = Math.min(250, availableHeight);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
+        int panelX = BoardEditorStyle.contentX(this.width, panelWidth);
         int panelY = MmmUi.TOP_BAR_HEIGHT + Math.max(6, (availableHeight - panelHeight) / 2);
         int contentX = panelX + 14;
         int contentY = panelY + 14;

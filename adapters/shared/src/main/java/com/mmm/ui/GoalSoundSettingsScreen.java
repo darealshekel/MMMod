@@ -76,29 +76,18 @@ public class GoalSoundSettingsScreen extends Screen
         Layout layout = this.layout();
         this.updateBounds(layout);
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
+        MmmUi.drawBoardHeader(context, this.textRenderer, this.width, "Settings", layout.panelX());
 
-        MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "MILESTONE SOUNDS", layout.contentX(), layout.contentY(), layout.contentWidth());
+        MmmUi.drawTextWithin(context, this.textRenderer, "Milestone sounds", layout.contentX(), layout.contentY(), layout.contentWidth(), BoardEditorStyle.TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, "Set one custom OGG for each fixed daily-goal milestone.", layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
 
         MmmUi.card(context, layout.contentX(), layout.infoY(), layout.contentWidth(), 58, MmmUi.CARD, MmmUi.BORDER_SOFT);
-        MmmUi.drawTextWithin(context, this.textRenderer, this.selectedThreshold + "% MILESTONE", layout.contentX() + 10, layout.infoY() + 10, layout.contentWidth() - 20, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.selectedThreshold + "% of daily goal", layout.contentX() + 10, layout.infoY() + 10, layout.contentWidth() - 20, BoardEditorStyle.ROSE, false);
         MmmUi.drawTextWithin(context, this.textRenderer, GoalSoundLibrary.getDisplayName(this.selectedThreshold), layout.contentX() + 10, layout.infoY() + 28, layout.contentWidth() - 20, MmmUi.TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, GoalSoundLibrary.hasCustomSound(this.selectedThreshold) ? "Custom sound active" : "Built-in MMM sound active", layout.contentX() + 10, layout.infoY() + 42, layout.contentWidth() - 20, MmmUi.MUTED, false);
 
         MmmUi.drawTextWithin(context, this.textRenderer, this.statusMessage, layout.contentX(), layout.statusY(), layout.contentWidth(), this.statusError ? MmmUi.ERROR : MmmUi.MUTED, false);
         super.render(context, mouseX, mouseY, delta);
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button)
-    {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
@@ -244,12 +233,11 @@ public class GoalSoundSettingsScreen extends Screen
 
     private Layout layout()
     {
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - 16);
-        int panelWidth = Math.min(540, availableWidth);
-        int availableHeight = Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT - 12);
+        int panelWidth = BoardEditorStyle.contentWidth(this.width, 540);
+        int availableHeight = Math.max(1, this.height - BoardEditorStyle.HEADER_HEIGHT - 12);
         int panelHeight = Math.min(250, availableHeight);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
-        int panelY = MmmUi.TOP_BAR_HEIGHT + Math.max(6, (availableHeight - panelHeight) / 2);
+        int panelX = (this.width - panelWidth) / 2;
+        int panelY = BoardEditorStyle.HEADER_HEIGHT + Math.max(6, (availableHeight - panelHeight) / 2);
         int contentX = panelX + 14;
         int contentY = panelY + 14;
         int contentWidth = Math.max(1, panelWidth - 28);

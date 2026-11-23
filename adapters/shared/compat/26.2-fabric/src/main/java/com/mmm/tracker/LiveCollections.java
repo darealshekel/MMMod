@@ -75,10 +75,10 @@ public final class LiveCollections {
                 if (failure == null) accept(result);
             }));
         }
-        if (!sending && !outbox.isEmpty() && now >= sendAt && Configs.Generic.SHARE_COLLECTION_MILESTONES.getBooleanValue()) {
+        if (!sending && !outbox.isEmpty() && now >= sendAt && CollectionMessages.enabled()) {
             sending = true;
             String message = outbox.peekFirst();
-            PublicChatClient.sendCollectionMessage(message).whenComplete((ok, error) -> client.execute(() -> {
+            CollectionMessages.send(message).whenComplete((ok, error) -> client.execute(() -> {
                 if (!uuid.equals(account)) return;
                 sending = false; sendAt = System.currentTimeMillis() + (Boolean.TRUE.equals(ok) ? 3_000 : 30_000);
                 if (Boolean.TRUE.equals(ok) && message.equals(outbox.peekFirst())) { outbox.removeFirst(); persist(); }
@@ -106,7 +106,7 @@ public final class LiveCollections {
             if (name == null) name = BuiltInRegistries.BLOCK.getValue(Identifier.parse(CollectionProgress.iconId(collection))).getName().getString();
             String amount = CollectionProgress.targetLabel(goal);
             String message = "completed the " + name + " Collection " + amount + " milestone!";
-            if (WebsiteLinkManager.isCurrentPlayerLinked() && Configs.Generic.SHARE_COLLECTION_MILESTONES.getBooleanValue()) {
+            if (WebsiteLinkManager.isCurrentPlayerLinked() && CollectionMessages.enabled()) {
                 if (outbox.size() < 512) outbox.addLast(message);
             } else {
                 client.player.sendSystemMessage(Component.literal("[MMM] " + message).withStyle(ChatFormatting.GREEN));

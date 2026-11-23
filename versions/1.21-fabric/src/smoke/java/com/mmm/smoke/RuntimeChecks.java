@@ -111,12 +111,14 @@ final class RuntimeChecks
     {
         var type = com.mmm.sync.RankOvertakeClient.class;
         Field name = type.getDeclaredField("username");
+        Field playerKey = type.getDeclaredField("playerKey");
         Field refresh = type.getDeclaredField("nextRefresh");
         Field estimate = type.getDeclaredField("websitePlayer");
         Field progress = type.getDeclaredField("progress");
         Field rows = type.getDeclaredField("rows");
         Field hudUpdate = type.getDeclaredField("nextHudUpdate");
         name.setAccessible(true);
+        playerKey.setAccessible(true);
         refresh.setAccessible(true);
         estimate.setAccessible(true);
         progress.setAccessible(true);
@@ -126,6 +128,7 @@ final class RuntimeChecks
         try
         {
             name.set(null, client.getSession().getUsername());
+            playerKey.set(null, client.getSession().getUuidOrNull().toString());
             refresh.setLong(null, Long.MAX_VALUE);
             estimate.set(null, new com.mmm.sync.RankOvertakeEstimate.Player(name.get(null).toString(), 48, 100));
             progress.set(null, new com.mmm.sync.RankLocalProgress(100, 0));

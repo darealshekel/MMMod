@@ -1,24 +1,26 @@
 package com.mmm.ui;
 
+import static com.mmm.ui.BoardEditorStyle.*;
+
 import com.mmm.config.Configs;
 import com.mmm.config.value.ConfigColor;
 import java.awt.Color;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 public final class MmmColorEditorScreen extends CompatScreen
 {
-    private static final int PANEL_WIDTH = 260;
-    private static final int PANEL_HEIGHT = 218;
+    private static final int MAX_WIDTH = 352;
+    private static final int HUE_WIDTH = 20;
     private final Screen parent;
     private final ConfigColor config;
     private final Runnable onClose;
     private EditBox hexField;
-    private int panelX;
-    private int panelY;
+    private Button back;
+    private int left, top, sheetWidth, sheetHeight, planeX, planeY, planeWidth, planeHeight, hueX;
     private float hue;
     private float saturation;
     private float brightness;
@@ -38,80 +40,95 @@ public final class MmmColorEditorScreen extends CompatScreen
     @Override
     protected void init()
     {
-        this.panelX = (this.width - PANEL_WIDTH) / 2;
-        this.panelY = (this.height - PANEL_HEIGHT) / 2;
-        this.hexField = new EditBox(this.font, this.panelX + 18, this.panelY + 166, 150, 20, Component.literal("Hex color"));
-        this.hexField.setMaxLength(9);
-        this.hexField.setValue(formatColor());
-        this.hexField.setResponder(this::onHexChanged);
-        this.addRenderableWidget(this.hexField);
-        this.addRenderableWidget(Button.builder(Component.literal("DONE"), button -> onClose())
-                .bounds(this.panelX + 176, this.panelY + 166, 66, 20).build());
+        MmmUi.ensureCursorVisible();
+        dragTarget = DragTarget.NONE;
+        sheetWidth = contentWidth(width, MAX_WIDTH);
+        left = contentX(width, MAX_WIDTH);
+        sheetHeight = Math.max(1, Math.min(210, height - HEADER_HEIGHT - 8));
+        top = HEADER_HEIGHT + (height - HEADER_HEIGHT - sheetHeight) / 2;
+        planeX = left + 8;
+        planeY = top + 28;
+        planeWidth = Math.max(2, sheetWidth - HUE_WIDTH - 25);
+        planeHeight = Math.max(2, sheetHeight - 60);
+        hueX = left + sheetWidth - 8 - HUE_WIDTH;
+
+        // Keep partially typed hex values on resize, without treating them as edits.
+        String draft = hexField == null ? formatColor() : hexField.getValue();
+        hexField = new EditBox(font, left + 65, top + sheetHeight - 20,
+                Math.max(1, sheetWidth - 79), 14, Component.literal("Hex color"));
+        hexField.setBordered(false);
+        hexField.setMaxLength(9);
+        hexField.setTextColor(TEXT);
+        hexField.setValue(draft);
+        hexField.setResponder(this::onHexChanged);
+        addRenderableWidget(hexField);
+        back = addRenderableWidget(Button.builder(Component.literal("Back"), b -> onClose())
+                .bounds(left + sheetWidth - 48, (HEADER_HEIGHT - 18) / 2, 48, 18).build());
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
+    public void extractRenderState(GuiGraphicsExtractor c, int mx, int my, float delta)
     {
-        context.fill(0, 0, this.width, this.height, 0xB8000000);
-        context.fill(this.panelX, this.panelY, this.panelX + PANEL_WIDTH, this.panelY + PANEL_HEIGHT, 0xFF090909);
-        MmmUi.drawBorder(context, this.panelX, this.panelY, PANEL_WIDTH, PANEL_HEIGHT, 0xFF2A2A2A);
-        context.fill(this.panelX + 14, this.panelY + 14, this.panelX + 18, this.panelY + 28, MmmUi.accent());
-        context.text(this.font, Component.literal("CUSTOM COLOR"), this.panelX + 26, this.panelY + 17, 0xFFF5F5F5, false);
+        c.fill(0, 0, width, height, FLOOR);
+        BoardMenuChrome.header(c, font, width, "Color picker");
 
-        int colorX = this.panelX + 18;
-        int colorY = this.panelY + 40;
-        int colorW = 188;
-        int colorH = 112;
-        for (int row = 0; row < 28; row++)
-        {
-            float value = 1.0F - row / 27.0F;
-            int y1 = colorY + row * colorH / 28;
-            int y2 = colorY + (row + 1) * colorH / 28;
-            for (int column = 0; column < 47; column++)
-            {
-                float sat = column / 46.0F;
-                int x1 = colorX + column * colorW / 47;
-                int x2 = colorX + (column + 1) * colorW / 47;
-                context.fill(x1, y1, x2, y2, 0xFF000000 | Color.HSBtoRGB(this.hue, sat, value));
-            }
+        c.fill(left, top, left + sheetWidth, top + sheetHeight, SURFACE);
+        c.fill(left, top, left + 20, top + 2, ROSE);
+        MmmUi.drawTextWithin(c, font, config.getPrettyName(), planeX, top + 10, planeWidth, TEXT, false);
+        c.centeredText(font, "Hue", hueX + HUE_WIDTH / 2, top + 10, MUTED);
+
+        // One strip per GUI pixel: saturation changes across X, while each strip fades
+        // continuously to black across Y. No scaled bitmap or coarse tile boundaries.
+        for (int x = 0; x < planeWidth; x++) {
+            int color = Color.HSBtoRGB(hue, x / (float)(planeWidth - 1), 1f);
+            c.fillGradient(planeX + x, planeY, planeX + x + 1, planeY + planeHeight, color, 0xff000000);
         }
-        MmmUi.drawBorder(context, colorX, colorY, colorW, colorH, 0xFF343434);
-        int markerX = colorX + Math.round(this.saturation * (colorW - 1));
-        int markerY = colorY + Math.round((1.0F - this.brightness) * (colorH - 1));
-        MmmUi.drawBorder(context, markerX - 2, markerY - 2, 5, 5, 0xFFFFFFFF);
-
-        int hueX = this.panelX + 218;
-        for (int row = 0; row < 28; row++)
-        {
-            int y1 = colorY + row * colorH / 28;
-            int y2 = colorY + (row + 1) * colorH / 28;
-            context.fill(hueX, y1, hueX + 24, y2, 0xFF000000 | Color.HSBtoRGB(row / 27.0F, 1.0F, 1.0F));
+        c.outline(planeX - 1, planeY - 1, planeWidth + 2, planeHeight + 2, LINE);
+        for (int band = 0; band < 6; band++) {
+            c.fillGradient(hueX, planeY + band * planeHeight / 6, hueX + HUE_WIDTH, planeY + (band + 1) * planeHeight / 6,
+                    Color.HSBtoRGB(band / 6f, 1, 1), Color.HSBtoRGB((band + 1) / 6f, 1, 1));
         }
-        MmmUi.drawBorder(context, hueX, colorY, 24, colorH, 0xFF343434);
-        int hueMarkerY = colorY + Math.round(this.hue * (colorH - 1));
-        context.fill(hueX - 2, hueMarkerY - 1, hueX + 26, hueMarkerY + 2, 0xFFFFFFFF);
+        c.outline(hueX - 1, planeY - 1, HUE_WIDTH + 2, planeHeight + 2, LINE);
+        int markerX = planeX + Math.round(saturation * (planeWidth - 1));
+        int markerY = planeY + Math.round((1 - brightness) * (planeHeight - 1));
+        c.outline(markerX - 3, markerY - 3, 7, 7, FLOOR);
+        c.outline(markerX - 2, markerY - 2, 5, 5, 0xffffffff);
+        int hueY = planeY + Math.round(hue * (planeHeight - 1));
+        c.outline(hueX - 2, hueY - 2, HUE_WIDTH + 4, 5, FLOOR);
+        c.outline(hueX - 1, hueY - 1, HUE_WIDTH + 2, 3, 0xffffffff);
 
-        int preview = currentArgb();
-        context.fill(this.panelX + 18, this.panelY + 194, this.panelX + 242, this.panelY + 204, preview);
-        MmmUi.drawBorder(context, this.panelX + 18, this.panelY + 194, 224, 10, 0xFF343434);
-        super.extractRenderState(context, mouseX, mouseY, delta);
+        int fieldY = top + sheetHeight - 25;
+        for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) {
+            c.fill(planeX + 4*x, fieldY + 1 + 4*y, planeX + 4*x + 4, fieldY + 5 + 4*y,
+                    (x + y) % 2 == 0 ? 0xffb0b0b0 : 0xff555555);
+        }
+        c.fill(planeX, fieldY + 1, planeX + 16, fieldY + 17, currentArgb());
+        c.outline(planeX - 1, fieldY, 18, 18, LINE);
+        c.text(font, "Hex", planeX + 24, fieldY + 5, MUTED, false);
+        int fieldX = hexField.getX() - 5, fieldWidth = hexField.getWidth() + 10;
+        c.fill(fieldX, fieldY, fieldX + fieldWidth, fieldY + 18, FLOOR);
+        c.outline(fieldX, fieldY, fieldWidth, 18, hexField.isFocused() ? ROSE : LINE);
+        super.extractRenderState(c, mx, my, delta);
     }
+
+    @Override
+    public void extractBackground(GuiGraphicsExtractor c, int mx, int my, float delta) {}
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && !inside(mouseX, mouseY, this.panelX, this.panelY, PANEL_WIDTH, PANEL_HEIGHT))
+        if (button == 0 && !back.isMouseOver(mouseX, mouseY) && !inside(mouseX, mouseY, left, top, sheetWidth, sheetHeight))
         {
             onClose();
             return true;
         }
-        if (button == 0 && inside(mouseX, mouseY, this.panelX + 18, this.panelY + 40, 188, 112))
+        if (button == 0 && inside(mouseX, mouseY, planeX, planeY, planeWidth, planeHeight))
         {
             this.dragTarget = DragTarget.COLOR;
             updateFromMouse(mouseX, mouseY);
             return true;
         }
-        if (button == 0 && inside(mouseX, mouseY, this.panelX + 218, this.panelY + 40, 24, 112))
+        if (button == 0 && inside(mouseX, mouseY, hueX, planeY, HUE_WIDTH, planeHeight))
         {
             this.dragTarget = DragTarget.HUE;
             updateFromMouse(mouseX, mouseY);
@@ -145,7 +162,7 @@ public final class MmmColorEditorScreen extends CompatScreen
         this.onClose.run();
         if (this.minecraft != null)
         {
-            this.minecraft.gui.setScreen(this.parent);
+            BoardPlatform.open(this.parent);
         }
     }
 
@@ -153,12 +170,12 @@ public final class MmmColorEditorScreen extends CompatScreen
     {
         if (this.dragTarget == DragTarget.COLOR)
         {
-            this.saturation = clamp((float) ((mouseX - (this.panelX + 18)) / 187.0D));
-            this.brightness = 1.0F - clamp((float) ((mouseY - (this.panelY + 40)) / 111.0D));
+            this.saturation = clamp((float) ((mouseX - planeX) / (planeWidth - 1)));
+            this.brightness = 1.0F - clamp((float) ((mouseY - planeY) / (planeHeight - 1)));
         }
         else if (this.dragTarget == DragTarget.HUE)
         {
-            this.hue = clamp((float) ((mouseY - (this.panelY + 40)) / 111.0D));
+            this.hue = clamp((float) ((mouseY - planeY) / (planeHeight - 1)));
         }
         applyColor();
     }
@@ -177,7 +194,7 @@ public final class MmmColorEditorScreen extends CompatScreen
 
     private void onHexChanged(String value)
     {
-        if (this.syncingField || value == null || !value.matches("#?[0-9a-fA-F]{6,8}"))
+        if (this.syncingField || value == null || !value.matches("#?(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})"))
         {
             return;
         }

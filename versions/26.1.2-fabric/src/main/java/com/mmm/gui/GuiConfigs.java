@@ -1,5 +1,7 @@
 package com.mmm.gui;
 
+import com.mmm.ui.BoardMenuChrome;
+
 import com.mmm.ui.CompatScreen;
 
 import com.mmm.config.Configs;
@@ -38,6 +40,7 @@ public final class GuiConfigs extends CompatScreen
     private int listTop;
     private int listBottom;
     private MmmHotkey capturing;
+    private net.minecraft.client.gui.components.Button backButton;
     private EditBox searchField;
     private String searchQuery = "";
 
@@ -74,8 +77,10 @@ public final class GuiConfigs extends CompatScreen
             this.scrollOffset = 0;
         });
         this.addRenderableWidget(this.searchField);
+        int right = width - MmmUi.centerContentX(width, Math.min(MmmUi.contentWidth(width), MAX_LIST_WIDTH));
+        this.backButton = addRenderableWidget(BoardMenuChrome.backButton(this, right));
 
-        this.listTop = MmmUi.TOP_BAR_HEIGHT + 62;
+        this.listTop = MmmUi.TOP_BAR_HEIGHT + 39;
         this.listBottom = this.height - 10;
     }
 
@@ -105,15 +110,13 @@ public final class GuiConfigs extends CompatScreen
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta)
     {
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "HOTKEYS");
-        int left = MmmUi.contentLeft(this.width);
-        int contentWidth = MmmUi.contentWidth(this.width);
-        int listWidth = Math.max(1, Math.min(contentWidth, MAX_LIST_WIDTH));
-        context.text(this.font, Component.literal("HOTKEYS"), left + 8, MmmUi.TOP_BAR_HEIGHT + 10, MmmUi.accent(), false);
+        int listWidth = Math.min(MmmUi.contentWidth(this.width), MAX_LIST_WIDTH);
+        int left = MmmUi.centerContentX(this.width, listWidth);
+        BoardMenuChrome.header(context, font, this.width, left, "Tools / Hotkeys");
 
         this.rowTargets.clear();
         int searchX = left + 8;
-        int searchY = MmmUi.TOP_BAR_HEIGHT + 30;
+        int searchY = MmmUi.TOP_BAR_HEIGHT + 10;
         int searchWidth = Math.max(80, Math.min(SEARCH_WIDTH, listWidth - 16));
         boolean canClearSearch = !this.searchQuery.isBlank();
         int clearWidth = canClearSearch ? 20 : 0;
@@ -135,7 +138,7 @@ public final class GuiConfigs extends CompatScreen
         }
 
         List<Row> rows = filteredRows();
-        int top = MmmUi.TOP_BAR_HEIGHT + 62;
+        int top = MmmUi.TOP_BAR_HEIGHT + 39;
         int bottom = this.height - 10;
         this.listTop = top;
         this.listBottom = bottom;
@@ -174,7 +177,7 @@ public final class GuiConfigs extends CompatScreen
 
     private void drawRow(GuiGraphicsExtractor context, Row row, int x, int y, int width, int mouseX, int mouseY)
     {
-        MmmUi.card(context, x, y, width, ROW_HEIGHT, MmmUi.CARD, MmmUi.BORDER_SOFT);
+        BoardMenuChrome.record(context, x, y, width, ROW_HEIGHT, this.capturing == row.hotkey(), inside(mouseX, mouseY, x, y, width, ROW_HEIGHT));
         int hotkeyWidth = Math.min(HOTKEY_WIDTH, Math.max(60, width / 5));
         int hotkeyX = x + width - hotkeyWidth - 10;
         int labelWidth = Math.max(40, hotkeyX - x - 20);
@@ -192,9 +195,9 @@ public final class GuiConfigs extends CompatScreen
             hotkeyLabel = "UNBOUND";
         }
         boolean hotkeyHovered = inside(mouseX, mouseY, hotkeyX, y + 7, hotkeyWidth, 18);
-        MmmUi.card(context, hotkeyX, y + 7, hotkeyWidth, 18, MmmUi.INSET,
-                hotkeyHovered || this.capturing == row.hotkey() ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        BoardMenuChrome.choice(context, hotkeyX, y + 7, hotkeyWidth, 18, this.capturing == row.hotkey(), hotkeyHovered);
         MmmUi.drawTextWithin(context, this.font, hotkeyLabel, hotkeyX + 5, y + 12, hotkeyWidth - 10, MmmUi.TEXT, false);
+        if (y + 7 < listTop || y + 25 > listBottom) return;
         this.rowTargets.add(new RowTarget(hotkeyX, y + 7, hotkeyWidth, 18, () -> beginCapture(row.hotkey())));
     }
 
@@ -220,13 +223,7 @@ public final class GuiConfigs extends CompatScreen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "HOTKEYS"))
-        {
-            this.capturing = null;
-            this.chordCapture.clear();
-            return true;
-        }
-
+        if (button == 0 && backButton.isMouseOver(mouseX, mouseY)) return false;
         if (this.capturing != null)
         {
             this.chordCapture.press("MOUSE_" + (button + 1));

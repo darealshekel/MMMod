@@ -119,6 +119,8 @@ public final class BlockBreakdownCatalog
             "minecraft:pale_moss_block"
     );
 
+    public static Set<String> blockIds() { return VALID_BLOCK_IDS; }
+
     private BlockBreakdownCatalog()
     {
     }

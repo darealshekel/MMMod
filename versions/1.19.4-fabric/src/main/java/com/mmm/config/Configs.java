@@ -97,6 +97,10 @@ public class Configs
 
         public static final ConfigBoolean WEBSITE_SYNC_ENABLED = new ConfigBoolean("websiteSyncEnabled", false, "Sync your player stats, source scoreboard, and source total together.");
         public static final ConfigBoolean WEBSITE_SYNC_DEBUG = new ConfigBoolean("websiteSyncDebug", false, "Enable verbose website sync debug logging.");
+        public static final ConfigInteger COLLECTION_FILTER = new ConfigInteger("collectionProgressFilter", 0, 0, 2, "Last collection progress filter.");
+        public static final ConfigInteger COLLECTION_SORT = new ConfigInteger("collectionSort", 0, 0, 2, "Last collection sort order.");
+        public static final ConfigInteger COLLECTION_CATEGORY = new ConfigInteger("collectionCategory", 0, 0, com.mmm.leaderboard.BlockRankingCategory.values().length, "Last collection category.");
+        public static final ConfigBoolean COLLECTION_GLOBAL = new ConfigBoolean("collectionGlobal", true, "Browse all worlds.");
         public static final ConfigInteger MAX_BLOCKS_PER_MINUTE = new ConfigInteger("maxBlocksPerMinute", 1200, 1, 1200, "Maximum accepted local valid block breaks per minute. Excess local counts are logged and ignored.");
         public static final ConfigBoolean ABBREVIATED_NUMBERS = new ConfigBoolean("abbreviatedNumbers", false, "Show shortened large numbers such as 10M instead of 10,000,000.");
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
@@ -315,6 +319,7 @@ public class Configs
         public static final ImmutableList<IConfigBase> PERSISTED_OPTIONS = ImmutableList.of(
                 WEBSITE_SYNC_ENABLED,
                 WEBSITE_SYNC_DEBUG,
+                COLLECTION_FILTER, COLLECTION_SORT, COLLECTION_CATEGORY, COLLECTION_GLOBAL,
                 MAX_BLOCKS_PER_MINUTE,
                 ABBREVIATED_NUMBERS,
                 DAILY_GOAL,

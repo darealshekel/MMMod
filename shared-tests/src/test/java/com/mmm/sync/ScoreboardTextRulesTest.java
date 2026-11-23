@@ -12,6 +12,19 @@ class ScoreboardTextRulesTest
     private static final List<String> PERSONAL_MARKERS = List.of("your", "you", "player", "my", "me", "self");
 
     @Test
+    void preservesFormattingWhitespaceAndUsernameRules()
+    {
+        assertTrue(ScoreboardTextRules.containsAnyStandaloneMarker("\u00a7aYOUR\u00a0\t digs: 70", PERSONAL_MARKERS));
+        assertFalse(ScoreboardTextRules.containsAnyStandaloneMarker(null, PERSONAL_MARKERS));
+        assertFalse(ScoreboardTextRules.containsAnyStandaloneMarker("Your digs", null));
+        assertTrue(ScoreboardTextRules.isMinecraftUsername("_SleepyZZZ"));
+        assertFalse(ScoreboardTextRules.isMinecraftUsername("Your"));
+        assertFalse(ScoreboardTextRules.isMinecraftUsername("Not-A-Name"));
+        assertFalse(ScoreboardTextRules.isMinecraftUsername("name\n"));
+    }
+
+
+    @Test
     void doesNotTreatMarkersInsideUsernamesAsPersonalRows()
     {
         assertFalse(ScoreboardTextRules.containsAnyStandaloneMarker("Timer_16K 100000", PERSONAL_MARKERS));

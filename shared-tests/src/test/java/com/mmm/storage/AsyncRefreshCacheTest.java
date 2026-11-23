@@ -2,11 +2,35 @@ package com.mmm.storage;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.ArrayDeque;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class AsyncRefreshCacheTest
 {
+    @Test
+    void rejectedRefreshKeepsCachedValueAndRetriesAfterInterval()
+    {
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        AtomicInteger submissions = new AtomicInteger();
+        AtomicInteger loads = new AtomicInteger();
+        AtomicInteger failures = new AtomicInteger();
+        AsyncRefreshCache<Integer> cache = new AsyncRefreshCache<>(task -> {
+            if (submissions.incrementAndGet() == 2) throw new RejectedExecutionException("busy");
+            tasks.add(task);
+        }, loads::incrementAndGet, 1000, failure -> failures.incrementAndGet());
+
+        cache.get(0);
+        tasks.remove().run();
+        assertEquals(1, cache.get(1000));
+        assertEquals(1, failures.get());
+        assertEquals(1, cache.get(1999));
+        assertTrue(tasks.isEmpty());
+        assertEquals(1, cache.get(2000));
+        tasks.remove().run();
+        assertEquals(2, cache.get(2001));
+    }
+
     @Test
     void neverRunsLoaderOnCallerAndCoalescesRequests()
     {

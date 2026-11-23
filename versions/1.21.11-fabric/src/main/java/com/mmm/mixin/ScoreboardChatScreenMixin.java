@@ -9,6 +9,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ChatScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -40,7 +41,7 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     @Inject(method = "init", at = @At("TAIL"))
     private void mmm$initializeChannel(CallbackInfo ci)
     {
-        if (this.chatField == null)
+        if (!mmm$channelTabsEnabled() || this.chatField == null)
         {
             return;
         }
@@ -60,7 +61,7 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     @Inject(method = "render", at = @At("TAIL"))
     private void mmm$renderChannelTabs(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci)
     {
-        if (this.chatField == null)
+        if (!mmm$channelTabsEnabled() || this.chatField == null)
         {
             return;
         }
@@ -79,7 +80,7 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         double mouseX = click.x();
         double mouseY = click.y();
         int button = click.button();
-        if (button != 0 || this.chatField == null)
+        if (!mmm$channelTabsEnabled() || button != 0 || this.chatField == null)
         {
             return;
         }
@@ -105,7 +106,7 @@ public abstract class ScoreboardChatScreenMixin extends Screen
     @Inject(method = "sendMessage(Ljava/lang/String;Z)V", at = @At("HEAD"), cancellable = true)
     private void mmm$sendPublicMessage(String message, boolean addToHistory, CallbackInfo ci)
     {
-        if (mmm$publicChannelSelected == false)
+        if (!mmm$channelTabsEnabled() || mmm$publicChannelSelected == false)
         {
             return;
         }
@@ -129,7 +130,24 @@ public abstract class ScoreboardChatScreenMixin extends Screen
             return;
         }
 
-        PublicChatClient.sendMessage(normalized);
+        if (PublicChatClient.sendMessage(normalized) && addToHistory)
+            client.inGameHud.getChatHud().addToMessageHistory(normalized);
+    }
+
+    @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
+    private void mmm$keepRejectedDraft(KeyInput input, CallbackInfoReturnable<Boolean> cir)
+    {
+        if (!mmm$channelTabsEnabled() || !mmm$publicChannelSelected || this.chatField == null
+                || !input.isEnter()) return;
+        MinecraftClient client = MinecraftClient.getInstance();
+        String message = this.chatField.getText().trim();
+        if (PublicChatClient.sendMessage(message)) {
+            client.inGameHud.getChatHud().addToMessageHistory(message);
+            // 1.21.11 saves interrupted screens as drafts; do not retain a submitted message.
+            this.chatField.setText("");
+            client.setScreen(null);
+        }
+        cir.setReturnValue(true);
     }
 
     @Redirect(
@@ -173,6 +191,13 @@ public abstract class ScoreboardChatScreenMixin extends Screen
         }
 
         mmm$publicChannelSelected = publicChannel;
+    }
+
+    private boolean mmm$channelTabsEnabled()
+    {
+        boolean enabled = Configs.Generic.SHOW_MMM_CHAT_MESSAGES.getBooleanValue();
+        if (!enabled) mmm$publicChannelSelected = false;
+        return enabled;
     }
 
     private int mmm$tabWidth(String label)

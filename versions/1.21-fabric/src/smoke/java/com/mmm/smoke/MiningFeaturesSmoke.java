@@ -20,6 +20,7 @@ final class MiningFeaturesSmoke
     private int phase, ticks;
     private long started = System.currentTimeMillis();
     private CollectionBookScreen book;
+    private MmmSettingsScreen settings;
     private SessionData demo;
     private SummaryScreen efficiency;
     private net.minecraft.world.GameMode originalMode;
@@ -31,6 +32,12 @@ final class MiningFeaturesSmoke
                 if (System.currentTimeMillis() - started > 90_000) throw new AssertionError("Features smoke timeout: " + phase);
                 if (phase == 0) {
                     client.options.pauseOnLostFocus = false;
+                    var commands = net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.getActiveDispatcher();
+                    var mmm = commands == null ? null : commands.getRoot().getChild("mmm");
+                    if (mmm == null || mmm.getChild("collections") == null || mmm.getChild("timelapse") != null)
+                        throw new AssertionError("Incorrect release command registration");
+                    if (field(com.mmm.advancement.MmmAdvancementManager.class, "notificationRenderer") == null)
+                        throw new AssertionError("Achievement renderer was not registered");
                     MiningStats.startNewSession();
                     client.setScreen(null);
                     checkClassification(client);
@@ -116,6 +123,10 @@ final class MiningFeaturesSmoke
                         throw new AssertionError("Global collections did not include unsynced mining");
                     clickSlot(book, "World scope");
                     websiteField.set(book, null);
+                    clickSlot(book, "Nether collections");
+                    if (!field(book, "category").toString().equals("NETHER")) throw new AssertionError("Nether tab not selected");
+                    clickSlot(book, "Ores collections");
+                    if (!field(book, "category").toString().equals("ORES")) throw new AssertionError("Direct category switch failed");
                     clickSlot(book, "All collections");
                     var field = book.children().stream().filter(c -> c instanceof TextFieldWidget).map(c -> (TextFieldWidget)c).findFirst().orElseThrow();
                     book.setFocused(field);
@@ -169,6 +180,9 @@ final class MiningFeaturesSmoke
                     seedCollectionRank(client, "minecraft:stone", 28, 1000);
                     clickSlot(book, "Stone");
                     if (field(book, "selected") == null) throw new AssertionError("Collection details did not open");
+                    if (book.children().stream().filter(CollectionSlotButton.class::isInstance).map(CollectionSlotButton.class::cast)
+                            .noneMatch(c -> c.getMessage().getString().equals("Tier VIII")))
+                        throw new AssertionError("The next Stone milestone should be visible immediately");
                     checkTierPanes(book, 16, 7);
                     book.init(client, 320, 240); checkBounds(book);
                     checkTierPanes(book, 16, 7);
@@ -201,6 +215,11 @@ final class MiningFeaturesSmoke
                         throw new AssertionError("Stone pin failed to advance to 15M");
                     worldStone(25000000);
                     for (int i = 0; i < 20; i++) book.tick();
+                    if ((int)field(book, "firstEarned") != 8 || (int)field(book, "lastEarned") != 16)
+                        throw new AssertionError("Only newly reached tiers should pulse");
+                    long earnedAt = (long)field(book, "earnedAt");
+                    for (int i = 0; i < 20; i++) book.tick();
+                    if ((long)field(book, "earnedAt") != earnedAt) throw new AssertionError("Refresh replayed the unlock");
                     checkTierPanes(book, 16, 16);
                     sample.setLong(null, 0); PinnedCollection.tick(client);
                     if (!PinnedCollection.view().completed() || PinnedCollection.view().fraction() != 1)
@@ -221,8 +240,7 @@ final class MiningFeaturesSmoke
                     if (field(book, "category") != null) throw new AssertionError("Red book did not return to tier overview");
                     var progressBook = book.children().stream().filter(c -> c instanceof CollectionSlotButton)
                             .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().equals("Collection progress")).findFirst().orElseThrow();
-                    if (progressBook.details.get().stream().noneMatch(line -> line.getString().contains("Collections maxed out:"))
-                            || progressBook.details.get().stream().noneMatch(line -> line.getString().equals("Click to view!")))
+                    if (progressBook.details.get().stream().noneMatch(line -> line.getString().contains("discovered /") && line.getString().endsWith("mastered")))
                         throw new AssertionError("Book tooltip missing collection summary");
                     book.init(client, 320, 240); checkBounds(book);
                     for (int i = 0; i < 40; i++) book.mouseScrolled((int)field(book, "x") + 20, (int)field(book, "gridY") + 20, 0, -1);
@@ -267,8 +285,144 @@ final class MiningFeaturesSmoke
                     if (!((TextFieldWidget)field(exit, "searchField")).visible) throw new AssertionError("World exit search inaccessible");
                     efficiency.close();
                     if (client.currentScreen != null) throw new AssertionError("Close failed");
+                    checkCollectionPreferences(client);
+                    client.getTutorialManager().setStep(net.minecraft.client.tutorial.TutorialStep.NONE);
+                    client.getToastManager().clear();
+                    client.getWindow().setWindowedSize(1280,720);
+                    client.options.getGuiScale().setValue(2); client.onResolutionChanged();
+                    settings = new MmmSettingsScreen(null);
+                    client.setScreen(settings);
+                    ticks = 0; phase = 30;
+                } else if (phase == 30) {
+                    ticks++;
+                    motionFrame(client,"settings",ticks);
+                    var buttons = (java.util.List<?>)field(settings,"navigationButtons");
+                    if (ticks == 5 || ticks == 19) {
+                        client.setNavigationType(net.minecraft.client.gui.navigation.GuiNavigationType.KEYBOARD_TAB);
+                        settings.setFocused((ButtonWidget)buttons.get(ticks == 5 ? 0 : 2));
+                    }
+                    if (ticks == 29) {
+                        if (field(settings,"previewTopic") != buttons.get(2)) throw new AssertionError("Keyboard focus did not inspect HUD settings");
+                        shot(client,"settings-category-board.png");
+                    }
+                    if (ticks == 36) {
+                        worldStone(240000);
+                        book = new CollectionBookScreen(null); client.setScreen(book);
+                        if ((boolean)field(book,"allWorlds")) clickSlot(book,"World scope");
+                        clickSlot(book,"All collections");
+                        ((TextFieldWidget)field(book,"searchField")).setText("stone");
+                        clickSlot(book,"Stone");
+                        book.setFocused(null);
+                        ticks = 0; phase = 31;
+                    }
+                } else if (phase == 31) {
+                    ticks++;
+                    motionFrame(client,"collections",ticks);
+                    if (ticks == 10) clickSlot(book,"Tier IX");
+                    if (ticks == 20) {
+                        if (((CollectionBoardState)field(book,"board")).inspectedTier() != 9 || PinnedCollection.hasPin())
+                            throw new AssertionError("Inspection changed the pin or lost the inspected tier");
+                        shot(client,"collections-tier-board.png");
+                        clickSlot(book,"Tier IX");
+                        worldStone(250000);
+                        for (int i=0;i<20;i++) book.tick();
+                    }
+                    if (ticks < 38) return;
+                    if (((CollectionBoardState)field(book,"board")).inspectedTier() != 0 || (int)field(book,"lastEarned") != 8)
+                        throw new AssertionError("Next tier did not advance after releasing inspection");
+                    client.setScreen(settings);
+                    ticks = 0; phase = 32;
+                } else if (phase == 32 && ++ticks > 8) {
+                    var entry = button(settings, "Website Link");
+                    settings.mouseClicked(entry.getX() + 4, entry.getY() + 4, 0);
+                    if (!(client.currentScreen instanceof WebsiteLinkScreen)) throw new AssertionError("Header did not open account linking");
+                    ticks = 0; phase = 33;
+                } else if (phase == 33 && ++ticks > 8) {
+                    var account = (WebsiteLinkScreen)client.currentScreen;
+                    var submit = button(account, "Link Account");
+                    if (submit.active || !button(account, "Open Website").active) throw new AssertionError("Invalid unlinked form");
+                    shot(client, "settings-website-link.png");
+                    var input = (TextFieldWidget)field(account, "code");
+                    input.setText("ab-c1234");
+                    if (!submit.active || !input.getText().equals("ABC1234")) throw new AssertionError("Code validation failed");
+                    account.resize(client, 320, 240);
+                    if (!((TextFieldWidget)field(account, "code")).getText().equals("ABC1234")) throw new AssertionError("Resize lost draft");
+                    checkBounds(account);
+                    account.keyPressed(256, 0, 0);
+                    if (client.currentScreen != settings) throw new AssertionError("Back did not restore settings");
+                    ((TextFieldWidget)field(settings, "searchField")).setText("Website Link");
+                    ticks = 0; phase = 34;
+                } else if (phase == 34 && ++ticks > 5) {
+                    var targets = (java.util.List<?>)field(settings, "clickTargets");
+                    var open = targets.getLast();
+                    settings.mouseClicked((int)field(open, "x") + 3, (int)field(open, "y") + 3, 0);
+                    if (!(client.currentScreen instanceof WebsiteLinkScreen)) throw new AssertionError("Search did not open account linking");
+                    client.currentScreen.close();
+                    for (Screen editor : java.util.List.of(new GoalSoundSettingsScreen(settings), new PerimeterBlockListScreen(settings),
+                            new MmmChatIgnoreListScreen(settings), new SyncScoreboardScreen(settings))) {
+                        client.setScreen(editor);
+                        // The old left rail would consume this click and open another screen.
+                        editor.mouseClicked(13, 54, 0);
+                        if (client.currentScreen != editor) throw new AssertionError("Hidden sidebar in " + editor.getTitle());
+                        editor.close();
+                        if (client.currentScreen != settings) throw new AssertionError("Wrong editor return screen");
+                    }
+                    client.options.getGuiScale().setValue(1); client.onResolutionChanged();
+                    client.setScreen(new MmmColorEditorScreen(settings, Configs.Generic.HUD_TITLE_HEX_COLOR, null));
+                    ticks = 0; phase = 35;
+                } else if ((phase == 35 || phase == 36) && ++ticks > 6) {
+                    var picker = (MmmColorEditorScreen)client.currentScreen;
+                    var hex = (TextFieldWidget)field(picker, "hexField");
+                    hex.setText("#8080FF00");
+                    int x = (int)field(picker, "planeX"), y = (int)field(picker, "planeY");
+                    if (!picker.mouseClicked(x, y, 0)) throw new AssertionError("Color field missed its white corner");
+                    picker.mouseReleased(x, y, 0);
+                    if (!hex.getText().equalsIgnoreCase("#80FFFFFF")) throw new AssertionError("Picker lost alpha or missed white endpoint");
+                    int right = x + (int)field(picker, "planeWidth") - 1, bottom = y + (int)field(picker, "planeHeight") - 1;
+                    picker.mouseClicked(right, bottom, 0); picker.mouseReleased(right, bottom, 0);
+                    if (!hex.getText().equalsIgnoreCase("#80000000")) throw new AssertionError("Picker missed black endpoint");
+                    hex.setText("#8080FF00");
+                    shot(client, phase == 35 ? "picker-scale-1.png" : "picker-scale-2.png");
+                    if (phase == 35) {
+                        client.options.getGuiScale().setValue(2); client.onResolutionChanged();
+                        ticks = 0; phase = 36; return;
+                    }
+                    picker.close();
+                    if (client.currentScreen != settings) throw new AssertionError("Color picker did not return to Settings");
+                    client.setScreen(new GoalSoundSettingsScreen(settings));
+                    ticks = 0; phase = 37;
+                } else if (phase == 37 && ++ticks > 6) {
+                    shot(client, "settings-sounds.png");
+                    button(client.currentScreen, "Done").onPress();
+                    if (client.currentScreen != settings) throw new AssertionError("Sound editor Done lost parent");
+                    ((TextFieldWidget)field(settings, "searchField")).setText("");
+                    var hotkeys = button(settings, "Hotkeys");
+                    settings.mouseClicked(hotkeys.getX()+4, hotkeys.getY()+4, 0);
+                    if (!(client.currentScreen instanceof com.mmm.gui.GuiConfigs)) throw new AssertionError("Header Hotkeys missed");
+                    ticks = 0; phase = 38;
+                } else if (phase == 38 && ++ticks > 6) {
+                    shot(client, "settings-hotkeys.png");
+                    client.currentScreen.close();
+                    if (client.currentScreen != settings) throw new AssertionError("Hotkeys Back lost parent");
+                    ticks = 0; phase = 39;
+                } else if (phase == 39 && ++ticks > 5) {
+                    var tools = button(settings, "Tools");
+                    settings.mouseClicked(tools.getX()+8, tools.getY()+8, 0);
+                    ticks = 0; phase = 40;
+                } else if (phase == 40 && ++ticks > 8) {
+                    shot(client, "settings-tools.png");
+                    var projects = button(settings, "Projects");
+                    settings.mouseClicked(projects.getX()+8, projects.getY()+8, 0);
+                    if (client.currentScreen == settings) throw new AssertionError("Projects tile did not open");
+                    ticks = 0; phase = 41;
+                } else if (phase == 41 && ++ticks > 6) {
+                    shot(client, "settings-projects.png");
+                    client.currentScreen.close();
+                    if (client.currentScreen != settings || !((java.util.List<?>)field(settings,"navigationButtons")).stream()
+                            .anyMatch(b -> ((ButtonWidget)b).getMessage().getString().equals("Projects")))
+                        throw new AssertionError("Projects Back lost Tools directory");
                     phase = 99;
-                    Files.writeString(Path.of("mmm-features-smoke-result.txt"), "PASS: inventory book, cursor safety, recipe layout, categories, grid, tiers, pagination, live updates, search, efficiency, responsive bounds, screenshots");
+                    Files.writeString(Path.of("mmm-features-smoke-result.txt"), "PASS: inventory book, collections, mining, settings routes, color picker at GUI scales 1 and 2, screenshots");
                     System.out.println("MMM_FEATURES_SMOKE_PASS"); client.scheduleStop();
                 }
             } catch (Throwable error) {
@@ -279,7 +433,37 @@ final class MiningFeaturesSmoke
         });
     }
     private static Object field(Object object, String name) throws Exception {
-        var field = object.getClass().getDeclaredField(name); field.setAccessible(true); return field.get(object);
+        var field = (object instanceof Class<?> type ? type : object.getClass()).getDeclaredField(name);
+        field.setAccessible(true); return field.get(object instanceof Class<?> ? null : object);
+    }
+    private static ButtonWidget button(Screen screen, String label) {
+        return screen.children().stream().filter(ButtonWidget.class::isInstance).map(ButtonWidget.class::cast)
+                .filter(b -> b.visible && b.getMessage().getString().equals(label)).findFirst().orElseThrow();
+    }
+    private static void checkCollectionPreferences(MinecraftClient client) throws Exception {
+        var screen = new CollectionBookScreen(null);
+        client.setScreen(screen);
+        clickSlot(screen, "Ores collections");
+        clickSlot(screen, "Progress filter");
+        clickSlot(screen, "Sort collections");
+        clickSlot(screen, "World scope");
+        int filter = (int)field(screen, "filter"), sort = (int)field(screen, "sort");
+        boolean global = (boolean)field(screen, "allWorlds");
+        ((TextFieldWidget)field(screen, "searchField")).setText("iron");
+        screen.close();
+        AsyncPersistence.flush(Duration.ofSeconds(5));
+        Configs.Generic.COLLECTION_SORT.resetToDefault();
+        Configs.Generic.COLLECTION_FILTER.resetToDefault();
+        Configs.Generic.COLLECTION_CATEGORY.resetToDefault();
+        Configs.Generic.COLLECTION_GLOBAL.setBooleanValue(!global);
+        Configs.loadFromFile();
+        var reopened = new CollectionBookScreen(null);
+        client.setScreen(reopened);
+        if ((int)field(reopened, "filter") != filter || (int)field(reopened, "sort") != sort
+                || (boolean)field(reopened, "allWorlds") != global || !field(reopened, "category").toString().equals("ORES")
+                || !((TextFieldWidget)field(reopened, "searchField")).getText().isEmpty())
+            throw new AssertionError("Collection choices did not survive a config reload and reopen");
+        reopened.close();
     }
     private static InventoryCollectionButton inventoryButton(Screen screen) {
         return screen.children().stream().filter(c -> c instanceof InventoryCollectionButton)
@@ -304,6 +488,8 @@ final class MiningFeaturesSmoke
                 .map(c -> (TexturedButtonWidget)c).findFirst().orElseThrow().onPress();
     }
     private static void checkTierPanes(Screen screen, int total, int green) throws Exception {
+        int opened = (int)field(screen, "detailPage");
+        while ((int)field(screen, "detailPage") > 0) clickSlot(screen, "Previous milestones");
         int completed = 0, found = 0;
         var labels = new java.util.HashSet<String>();
         do {
@@ -312,11 +498,12 @@ final class MiningFeaturesSmoke
                     .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().startsWith("Tier ")).toList();
             for (var pane : panes) {
                 if (!labels.add(pane.getMessage().getString())) throw new AssertionError("Duplicate milestone page");
-                if (pane.getY() + pane.getHeight() + 9 >= (int)field(screen, "footerY") - 18)
+                if (pane.getY() + pane.getHeight() > (int)field(screen, "footerY") - 4)
                     throw new AssertionError("Milestone overlaps footer");
-                var icon = (net.minecraft.item.ItemStack)field(pane, "icon");
-                if (icon.isOf(net.minecraft.item.Items.LIME_STAINED_GLASS_PANE)) completed++;
-                else if (!icon.isOf(net.minecraft.item.Items.RED_STAINED_GLASS_PANE)) throw new AssertionError("Tier is not a glass pane");
+                String state = field(pane, "tier").toString();
+                String expected = found < green ? "EARNED" : found == green ? "NEXT" : "LOCKED";
+                if (!state.equals(expected)) throw new AssertionError("Unexpected milestone state: " + state + " at " + found);
+                if (state.equals("EARNED")) completed++;
                 if (pane.details.get().stream().noneMatch(line -> line.getString().contains("Milestone:")))
                     throw new AssertionError("Milestone tooltip missing target");
                 found++;
@@ -328,7 +515,7 @@ final class MiningFeaturesSmoke
         } while (true);
         if (found != total) throw new AssertionError("Wrong number of glass-pane tiers: " + found + "/" + total);
         if (completed != green) throw new AssertionError("Tier pane colors did not update: " + completed + "/" + green);
-        while ((int)field(screen, "detailPage") > 0) clickSlot(screen, "Previous milestones");
+        while ((int)field(screen, "detailPage") > opened) clickSlot(screen, "Previous milestones");
     }
 
     private static void clickSlot(Screen screen, String label) {
@@ -391,6 +578,10 @@ final class MiningFeaturesSmoke
     }
     private static void shot(MinecraftClient client, String file) {
         ScreenshotRecorder.saveScreenshot(client.runDirectory, file, client.getFramebuffer(), message -> {});
+    }
+    private static void motionFrame(MinecraftClient client, String screen, int frame) {
+        if ("true".equalsIgnoreCase(System.getenv("MMM_BOARD_CAPTURE")))
+            shot(client, String.format(java.util.Locale.ROOT,"motion-%s-%03d.png",screen,frame));
     }
     private static void seedCollectionRank(MinecraftClient client, String block, long rank, long population) throws Exception {
         var cacheField = CollectionRankClient.class.getDeclaredField("CACHE"); cacheField.setAccessible(true);

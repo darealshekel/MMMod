@@ -1,5 +1,9 @@
 // Compile the selected shared implementation with each loader's existing mapping/toolchain.
 def repositoryRoot = projectDir.toPath().resolve('../..').normalize().toFile()
+
+tasks.withType(Jar).configureEach {
+    from(repositoryRoot) { include 'LICENSE', 'LICENSE-MIT', 'LICENSING.md' }
+}
 def sourceManifest = file('source-set.json')
 def sourceMap = new groovy.json.JsonSlurper().parse(sourceManifest)
 def generatedRoot = layout.buildDirectory.dir('shared-sources')

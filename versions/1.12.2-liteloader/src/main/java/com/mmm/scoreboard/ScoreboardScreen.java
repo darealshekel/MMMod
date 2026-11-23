@@ -14,7 +14,11 @@ public final class ScoreboardScreen extends ScoreboardBaseScreen {
                     && o != Configs.Generic.SCOREBOARD_DEFAULT_TEAM_CHAT).toList();
     private int offset;
     public ScoreboardScreen(Screen parent) { super(parent, "Scoreboard"); }
-    private int capacity() { return Math.max(1, (height - 118) / 26); }
+    private int columns() { return panelWidth >= 560 ? 2 : 1; }
+    private int cellWidth() { return (panelWidth + 4) / columns() - 4; }
+    private int cellX(int i) { return left + i % columns() * (cellWidth() + 4); }
+    private int cellY(int i) { return 84 + i / columns() * 35; }
+    private int capacity() { return Math.max(1, (height - 125) / 35) * columns(); }
     @Override public void init() {
         super.init();
         offset = Math.max(0, Math.min(offset, Math.max(0, options.size() - capacity())));
@@ -26,7 +30,7 @@ public final class ScoreboardScreen extends ScoreboardBaseScreen {
         button(5, left + (w + 4) * 4, 40, w, "Edit");
         for (int i = 0; i < capacity() && offset + i < options.size(); i++) {
             IConfigBase option = options.get(offset + i);
-            int y = 68 + i * 26, right = left + panelWidth;
+            int y = cellY(i) + 6, right = cellX(i) + cellWidth() - 3;
             if (option instanceof IConfigBoolean bool)
                 button(100 + i * 4, right - 130, y, 98, bool.getBooleanValue() ? "ON" : "OFF");
             else if (option instanceof ConfigOptionList list)
@@ -37,20 +41,23 @@ public final class ScoreboardScreen extends ScoreboardBaseScreen {
             }
             button(102 + i * 4, right - 28, y, 28, "R");
         }
-        button(10, left, height - 38, 24, "<");
-        button(11, left + 28, height - 38, 24, ">");
+        button(10, left, height - 38, 24, "<").active = offset > 0;
+        button(11, left + 28, height - 38, 24, ">").active = offset + capacity() < options.size();
         button(12, left + panelWidth - 90, height - 38, 42, "<<");
         button(13, left + panelWidth - 44, height - 38, 44, ">>");
     }
     @Override public void render(int x, int y, float delta) {
-        shell();
+        shell(); section("Display options", 68);
         for (int i = 0; i < capacity() && offset + i < options.size(); i++) {
             IConfigBase option = options.get(offset + i);
-            text(textRenderer.trim(label(option.getName()), panelWidth - 170), left, 74 + i * 26, 0xFFFFFFFF);
+            int top = cellY(i), px = cellX(i), w = cellWidth();
+            com.mmm.legacy.BoardArt.row(new com.mmm.legacy.LegacyDrawContext(), px, top, w, 31,
+                    x >= px && x < px+w && y >= top && y < top+31);
+            fit(label(option.getName()), px + 7, top + 11, w - (option instanceof ConfigOptionList ? 174 : 144), com.mmm.ui.BoardEditorStyle.TEXT);
             if (option instanceof IConfigInteger value)
-                text(Integer.toString(value.getIntegerValue()), left + panelWidth - 103, 74 + i * 26, 0xFFDDDDDD);
+                text(Integer.toString(value.getIntegerValue()), px + w - 106, top + 12, 0xFFDDDDDD);
             else if (option instanceof IConfigDouble value)
-                text(String.format(Locale.US, "%.2f", value.getDoubleValue()), left + panelWidth - 103, 74 + i * 26, 0xFFDDDDDD);
+                text(String.format(Locale.US, "%.2f", value.getDoubleValue()), px + w - 106, top + 12, 0xFFDDDDDD);
         }
         super.render(x, y, delta);
     }

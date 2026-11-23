@@ -30,6 +30,7 @@ final class RollingMiningMetrics
     long sumLatest(int requestedTicks)
     {
         int ticks = Math.max(0, Math.min(requestedTicks, size));
+        if (ticks == size) return total;
         long sum = 0L;
         int index = nextIndex;
         for (int offset = 0; offset < ticks; offset++)

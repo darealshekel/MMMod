@@ -161,10 +161,15 @@ public final class MiningStats
 
     public static void recordBlockMined(Block block)
     {
-        recordBlockMined(block, null, null);
+        recordBlockMined(block, null, null, false);
     }
 
     public static void recordBlockMined(Block block, BlockPos pos, BlockState previousState)
+    {
+        recordBlockMined(block, pos, previousState, false);
+    }
+
+    public static void recordBlockMined(Block block, BlockPos pos, BlockState previousState, boolean nonInstant)
     {
         Minecraft miningClient = Minecraft.getInstance();
         if (miningClient == null || miningClient.player == null || miningClient.player.isCreative() || miningClient.player.isSpectator()) return;
@@ -200,6 +205,9 @@ public final class MiningStats
         // to that scoreboard instead of exposing this local prediction.
         Configs.totalBlocksMined++;
         Configs.WorldStatsEntry worldStats = touchCurrentWorldStats(now);
+        LiveCollections.mined(BlockBreakdownCatalog.blockId(block));
+        if (nonInstant && block == net.minecraft.world.level.block.Blocks.DEEPSLATE)
+            LiveCollections.nonInstantDeepslate(WorldSessionContext.getCurrentWorldId());
         worldStats.totalBlocks++;
         if (worldStats.scoreboardTotalUpdatedAtMs > 0L)
         {

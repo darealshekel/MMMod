@@ -1,5 +1,7 @@
 package com.mmm.liteloader;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,7 +11,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ReferenceParityTest {
-    @Test void sharedRulesMatchCurrentModernReference() throws Exception {
+    @Test void sharedRulesMatchSelectedReference() throws Exception {
+        Path root = Path.of("../..");
+        JsonObject legacy = new JsonParser().parse(Files.readString(Path.of("source-set.json"))).getAsJsonObject().getAsJsonObject("main");
+        JsonObject modern = new JsonParser().parse(Files.readString(root.resolve("versions/1.21-fabric/source-set.json"))).getAsJsonObject().getAsJsonObject("main");
         // LiteLoader HTTP compatibility differs; ApiClientTest and WebsiteAccessFailureTest cover it.
         for (String file : new String[] {
                 "config/Configs.java", "config/Hotkeys.java", "config/FeatureToggle.java",
@@ -20,13 +25,31 @@ class ReferenceParityTest {
                 "sync/RankOvertakeEstimate.java", "sync/SyncSchedule.java",
                 "util/DailyProgressPolicy.java", "util/WeeklyProgressPolicy.java"
         }) {
-            assertEquals(fingerprint(Path.of("reference-1.21/src/main/java/com/mmm", file)),
-                    fingerprint(Path.of(System.getProperty("mmm.sources", "src/main/java"), "com/mmm", file)), "Reference behavior drift: " + file);
+            String logical = "com/mmm/" + file;
+            String owner = legacy.get(logical).getAsString();
+            // Shared owners evolve together; compatibility variants keep their original parity baseline.
+            Path reference = owner.equals(modern.get(logical).getAsString())
+                    ? root.resolve(owner)
+                    : Path.of("reference-1.21/src/main/java/com/mmm", file);
+            String baseline = Files.readString(reference);
+            if (file.equals("config/Configs.java")) {
+                // Only the four collection preferences are adopted from the newer config model.
+                String latest = Files.readString(root.resolve(modern.get(logical).getAsString()));
+                var additions = latest.lines().filter(line -> line.matches(".*public static final Config(Integer|Boolean) COLLECTION_(FILTER|SORT|CATEGORY|GLOBAL) =.*")).toList();
+                assertEquals(4, additions.size());
+                baseline = baseline.replace("        public static final ConfigBoolean SHARE_COLLECTION_MILESTONES",
+                        String.join("\n", additions) + "\n        public static final ConfigBoolean SHARE_COLLECTION_MILESTONES");
+                int persisted = baseline.indexOf("PERSISTED_OPTIONS = ImmutableList.of(");
+                baseline = baseline.substring(0, persisted) + baseline.substring(persisted).replace("                SHARE_COLLECTION_MILESTONES,",
+                        "                SHARE_COLLECTION_MILESTONES,\n                COLLECTION_FILTER, COLLECTION_SORT, COLLECTION_CATEGORY, COLLECTION_GLOBAL,");
+            }
+            assertEquals(fingerprint(baseline),
+                    fingerprint(Files.readString(Path.of(System.getProperty("mmm.sources", "src/main/java"), "com/mmm", file))), "Reference behavior drift: " + file);
         }
     }
 
-    private static String fingerprint(Path path) throws Exception {
-        String source = Files.readString(path)
+    private static String fingerprint(String input) throws Exception {
+        String source = input
                 .replace("\r", "")
                 .replace("import com.mmm.MMM;", "import com.mmm.util.MmmLog;")
                 .replace("MMM.LOGGER", "MmmLog.LOGGER")

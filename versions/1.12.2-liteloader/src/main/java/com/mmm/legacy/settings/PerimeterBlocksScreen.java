@@ -17,16 +17,17 @@ public final class PerimeterBlocksScreen extends LegacyScreen {
     private int offset;
     private String status = "";
     public PerimeterBlocksScreen(Screen parent) { super(parent, "Perimeter Block List"); }
+    @Override protected int maxContentWidth() { return 520; }
     private int capacity() { return Math.max(1, (height - 118) / 24); }
     @Override public void init() {
         String text = input == null ? "" : input.getText();
         super.init();
-        input = new TextFieldWidget(1, textRenderer, left + 4, 45, panelWidth - 62, 18);
+        input = new BoardField(1, textRenderer, left + 4, 45, panelWidth - 62, 18);
         input.setMaxLength(128); input.setText(text);
         button(1, left + panelWidth - 52, 43, 52, "Add");
         var blocks = Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST.getStrings();
         offset = SettingsUi.clampScroll(offset, blocks.size(), capacity());
-        for (int i = 0; i < capacity() && offset + i < blocks.size(); i++) button(100 + i, left + panelWidth - 24, 75 + i * 24, 24, "x");
+        for (int i = 0; i < capacity() && offset + i < blocks.size(); i++) button(100 + i, left + panelWidth - 24, 86 + i * 24, 24, "x");
     }
     @Override protected void buttonClicked(ButtonWidget b) {
         List<String> blocks = new ArrayList<>(Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST.getStrings());
@@ -46,11 +47,13 @@ public final class PerimeterBlocksScreen extends LegacyScreen {
         if (input.getText().isEmpty() && !input.isFocused()) fit("minecraft:stone", left + 8, 50, panelWidth - 72, 0xFF949494);
         var blocks = Configs.Generic.PERIMETER_OUTLINE_BLOCKS_LIST.getStrings();
         for (int i = 0; i < capacity() && offset + i < blocks.size(); i++) {
-            String id = blocks.get(offset + i); int py = 78 + i * 24;
-            new LegacyDrawContext().drawItem(LegacyBlockItems.icon(id), left, py - 3);
-            fit(LegacyBlockItems.name(id), left + 24, py, panelWidth - 56, 0xFFFFFFFF);
+            String id = blocks.get(offset + i); int py = 89 + i * 24;
+            recordRow(py - 4, 22, x >= left && x < left + panelWidth && y >= py - 4 && y < py + 18);
+            new LegacyDrawContext().drawItem(LegacyBlockItems.icon(id), left + 4, py - 2);
+            fit(LegacyBlockItems.name(id), left + 26, py + 2, panelWidth - 56, 0xFFFFFFFF);
         }
-        if (blocks.isEmpty()) fit("No protected block types", left, 79, panelWidth, 0xFF949494);
+        section("Protected blocks / " + blocks.size(), 72);
+        if (blocks.isEmpty()) fit("No protected block types", left + 7, 90, panelWidth, 0xFF949494);
         fit(status, left, height - 20, panelWidth, 0xFFFFB84D);
         super.render(x, y, delta);
     }

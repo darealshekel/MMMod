@@ -102,6 +102,10 @@ public class Configs
         public static final ConfigInteger DAILY_GOAL = new ConfigInteger("dailyGoal", MIN_DAILY_GOAL, MIN_DAILY_GOAL, 1_000_000, "Daily goal target.");
         public static final ConfigBoolean GOAL_PICKAXE_ANIMATION = new ConfigBoolean("goalPickaxeAnimation", true, "Show a pickaxe animation at each main daily-goal milestone.");
         public static final ConfigBoolean SHARE_GOAL_MILESTONES = new ConfigBoolean("shareGoalMilestones", true, "Share daily-goal milestones with linked MMM players.");
+        public static final ConfigInteger COLLECTION_FILTER = new ConfigInteger("collectionProgressFilter", 0, 0, 2, "Last collection progress filter.");
+        public static final ConfigInteger COLLECTION_SORT = new ConfigInteger("collectionSort", 0, 0, 2, "Last collection sort order.");
+        public static final ConfigInteger COLLECTION_CATEGORY = new ConfigInteger("collectionCategory", 0, 0, com.mmm.leaderboard.BlockRankingCategory.values().length, "Last collection tab. Zero opens the overview.");
+        public static final ConfigBoolean COLLECTION_GLOBAL = new ConfigBoolean("collectionGlobal", true, "Browse collections across all worlds.");
         public static final ConfigBoolean SHARE_COLLECTION_MILESTONES = new ConfigBoolean("shareCollectionMilestones", true, "Share newly completed collection tiers in MMM chat.");
         public static final ConfigBoolean RECEIVE_GOAL_MILESTONES = new ConfigBoolean("receiveGoalMilestones", true, "Show daily-goal milestones from linked MMM players.");
         public static final ConfigBoolean SHOW_MMM_CHAT_MESSAGES = new ConfigBoolean("showMmmChatMessages", true, "Show messages from linked MMM players in Minecraft chat.");
@@ -321,6 +325,7 @@ public class Configs
                 GOAL_PICKAXE_ANIMATION,
                 SHARE_GOAL_MILESTONES,
                 SHARE_COLLECTION_MILESTONES,
+                COLLECTION_FILTER, COLLECTION_SORT, COLLECTION_CATEGORY, COLLECTION_GLOBAL,
                 RECEIVE_GOAL_MILESTONES,
                 SHOW_MMM_CHAT_MESSAGES,
                 CENSOR_MMM_CHAT,

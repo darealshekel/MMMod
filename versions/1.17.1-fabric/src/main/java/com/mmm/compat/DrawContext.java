@@ -89,7 +89,16 @@ public final class DrawContext extends DrawableHelper
 
     public void drawItem(ItemStack stack, int x, int y)
     {
-        this.client.getItemRenderer().renderInGui(stack, x, y);
+        // 1.17 reads the global model-view stack, not the GUI's MatrixStack.
+        var model = RenderSystem.getModelViewStack();
+        model.push();
+        try {
+            model.peek().getModel().multiply(this.matrices.peek().getModel());
+            this.client.getItemRenderer().renderInGui(stack, x, y);
+        } finally {
+            model.pop();
+            RenderSystem.applyModelViewMatrix();
+        }
     }
 
     public void drawTexture(Identifier texture, int x, int y, int u, int v, int width, int height)
@@ -120,5 +129,16 @@ public final class DrawContext extends DrawableHelper
     public void disableScissor()
     {
         RenderSystem.disableScissor();
+    }
+    public void drawTooltip(TextRenderer renderer, java.util.List<Text> lines, int x, int y)
+    {
+        if (this.client.currentScreen != null)
+            this.client.currentScreen.renderTooltip(this.matrices, lines, x, y);
+    }
+
+    public void drawOrderedTooltip(TextRenderer renderer, java.util.List<OrderedText> lines, int x, int y)
+    {
+        if (this.client.currentScreen != null)
+            this.client.currentScreen.renderOrderedTooltip(this.matrices, lines, x, y);
     }
 }

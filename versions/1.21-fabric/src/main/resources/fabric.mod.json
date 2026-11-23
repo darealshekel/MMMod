@@ -7,11 +7,12 @@
   "authors": [
     "Shekel"
   ],
-  "license": "MIT",
+  "license": "LGPL-3.0-only",
   "environment": "client",
   "entrypoints": {
     "client": [
-      "com.mmm.MMM"
+      "com.mmm.MMM",
+      "com.mmm.ClientSessionHooks"
     ],
     "modmenu": [
       "com.mmm.gui.ModMenuCompat"

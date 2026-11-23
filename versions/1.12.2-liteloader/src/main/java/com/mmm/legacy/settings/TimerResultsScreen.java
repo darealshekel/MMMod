@@ -16,21 +16,24 @@ public final class TimerResultsScreen extends LegacyScreen {
     private final long elapsed = Math.max(0, MmmTimerState.getDurationMs() - MmmTimerState.getRemainingMs());
     private int offset;
     public TimerResultsScreen(Screen parent) { super(parent, "Timer Results"); }
+    @Override protected int maxContentWidth() { return 520; }
     @Override public void render(int x, int y, float delta) {
-        shell();
-        fit(UiFormat.formatBlocks(total) + " / " + MmmTimerState.formatTime(elapsed), left, 48, panelWidth, 0xFFFFFFFF);
-        fit("Best Hour: " + UiFormat.formatCompact(bestHour) + " / Average: " + UiFormat.formatBlocksPerHour(elapsed <= 0 ? 0 : Math.round(total * 3600000.0 / elapsed)), left, 64, panelWidth, 0xFFBBBBBB);
-        int capacity = Math.max(1, (height - 102) / 22);
+        shell(); recordRow(37, 38, false);
+        fit(UiFormat.formatBlocks(total) + " / " + MmmTimerState.formatTime(elapsed), left + 7, 44, panelWidth - 14, com.mmm.ui.BoardEditorStyle.ROSE);
+        fit("Best Hour: " + UiFormat.formatCompact(bestHour) + " / Average: " + UiFormat.formatBlocksPerHour(elapsed <= 0 ? 0 : Math.round(total * 3600000.0 / elapsed)), left + 7, 60, panelWidth - 14, 0xFFBBBBBB);
+        section("Block totals / " + blocks.size(), 83);
+        int capacity = Math.max(1, (height - 117) / 22);
         offset = SettingsUi.clampScroll(offset, blocks.size(), capacity);
         LegacyDrawContext context = new LegacyDrawContext();
         for (int i = offset; i < Math.min(blocks.size(), offset + capacity); i++) {
-            var item = blocks.get(i); int py = 87 + (i - offset) * 22;
-            context.drawItem(LegacyBlockItems.icon(item.id()), left, py - 4);
+            var item = blocks.get(i); int py = 106 + (i - offset) * 22;
+            recordRow(py - 5, 21, false);
+            context.drawItem(LegacyBlockItems.icon(item.id()), left + 4, py - 4);
             String count = UiFormat.formatBlocks(item.count());
             fit(LegacyBlockItems.name(item.id()), left + 24, py, panelWidth - textRenderer.getWidth(count) - 30, 0xFFDDDDDD);
             text(count, left + panelWidth - textRenderer.getWidth(count), py, 0xFFFFFFFF);
         }
-        if (blocks.isEmpty()) fit("No blocks recorded", left, 88, panelWidth, 0xFF949494);
+        if (blocks.isEmpty()) fit("No blocks recorded", left + 7, 106, panelWidth - 14, 0xFF949494);
         super.render(x, y, delta);
     }
     @Override public void handleMouse() { super.handleMouse(); int wheel = Mouse.getEventDWheel(); if (wheel != 0) offset += wheel > 0 ? -3 : 3; }

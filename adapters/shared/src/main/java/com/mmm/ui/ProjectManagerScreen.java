@@ -13,11 +13,9 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
-import net.minecraft.util.math.MathHelper;
 
 public class ProjectManagerScreen extends Screen
 {
-    private static final int PANEL_MARGIN = 20;
     private static final int PANEL_PADDING = 18;
     private static final int CARD_PADDING = 12;
     private static final int CARD_GAP = 10;
@@ -25,24 +23,17 @@ public class ProjectManagerScreen extends Screen
     private static final int ROW_HEIGHT = 32;
     private static final int SCROLLBAR_WIDTH = 8;
     private static final int SCROLLBAR_MIN_THUMB = 18;
-    private static final int COLOR_PANEL = MmmUi.PANEL;
-    private static final int COLOR_CARD = MmmUi.CARD;
-    private static final int COLOR_CARD_SOFT = MmmUi.CARD_SOFT;
     private static final int COLOR_INSET = MmmUi.INSET;
-    private static final int COLOR_BORDER = MmmUi.BORDER;
-    private static final int COLOR_BORDER_SOFT = MmmUi.BORDER_SOFT;
     private static final int COLOR_VALUE = MmmUi.TEXT;
-    private static final int COLOR_LABEL = MmmUi.LABEL;
-    private static final int COLOR_MUTED = MmmUi.MUTED;
+    private static final int COLOR_LABEL = BoardEditorStyle.MUTED;
+    private static final int COLOR_MUTED = BoardEditorStyle.MUTED;
     private static final int COLOR_SUCCESS = MmmUi.SUCCESS;
-    private static final int COLOR_ROW_ALT = MmmUi.ROW_ALT;
 
     private final Screen parent;
     private int selectedIndex;
     private int scrollOffset;
     private boolean draggingScrollbar;
     private boolean deleteConfirm;
-    private long openedAtMs;
 
     private TextFieldWidget nameField;
     private ButtonWidget applyButton;
@@ -59,7 +50,6 @@ public class ProjectManagerScreen extends Screen
     protected void init()
     {
         this.clearChildren();
-        this.openedAtMs = System.currentTimeMillis();
         ensureCursorVisible();
         this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, Configs.PROJECTS.size() - 1));
 
@@ -70,7 +60,7 @@ public class ProjectManagerScreen extends Screen
         {
             applyCurrentEdits();
             Configs.saveToFile();
-            MinecraftClient.getInstance().setScreen(new ProjectManagerScreen(this.parent));
+            refreshSelection();
         }).dimensions(layout.detailX + CARD_PADDING, getApplyButtonY(layout), layout.detailWidth - CARD_PADDING * 2, BUTTON_HEIGHT).build());
 
         this.setActiveButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Set Active"), button ->
@@ -81,7 +71,7 @@ public class ProjectManagerScreen extends Screen
             {
                 Configs.activeProjectId = selected.id;
                 Configs.saveToFile();
-                MinecraftClient.getInstance().setScreen(new ProjectManagerScreen(this.parent));
+                refreshSelection();
             }
         }).dimensions(layout.detailX + CARD_PADDING, getSetActiveButtonY(layout), layout.detailWidth - CARD_PADDING * 2, BUTTON_HEIGHT).build());
 
@@ -92,11 +82,11 @@ public class ProjectManagerScreen extends Screen
             this.selectedIndex = Configs.PROJECTS.indexOf(entry);
             Configs.activeProjectId = entry.id;
             Configs.saveToFile();
-            MinecraftClient.getInstance().setScreen(new ProjectManagerScreen(this.parent));
-        }).dimensions(getFooterButtonX(layout, true), getFooterButtonY(layout), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
+            refreshSelection();
+        }).dimensions(getFooterButtonX(layout, true), getFooterButtonY(layout, true), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
 
-        this.deleteButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Remove"), button -> handleDelete()).dimensions(getFooterButtonX(layout, false), getFooterButtonY(layout), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close()).dimensions(layout.panelRight - 74, layout.headerY - 2, 64, BUTTON_HEIGHT).build());
+        this.deleteButton = this.addDrawableChild(ButtonWidget.builder(Text.literal("Remove"), button -> handleDelete()).dimensions(getFooterButtonX(layout, false), getFooterButtonY(layout, false), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
+        this.addDrawableChild(MmmUi.backButton(this, layout.listX));
 
         populateFields();
         refreshButtons();
@@ -107,22 +97,12 @@ public class ProjectManagerScreen extends Screen
     {
         ensureCursorVisible();
         Layout layout = computeLayout();
-        float animation = getOpenAnimationProgress();
-        int animatedPanelY = layout.panelY + Math.round((1.0F - animation) * 14.0F);
-        Layout animatedLayout = layout.withPanelY(animatedPanelY);
-        updateFieldPositions(animatedLayout);
-
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "PROJECTS");
-        fillCard(context, animatedLayout.panelX, animatedLayout.panelY, animatedLayout.panelWidth, animatedLayout.panelHeight, COLOR_PANEL, COLOR_BORDER);
-
-        drawHeader(context, animatedLayout);
-        drawProjectList(context, animatedLayout, mouseX, mouseY);
-        drawDetailCard(context, animatedLayout);
+        MmmUi.toolBoard(context, this.textRenderer, this.width, this.height, layout.listX, "Tools / Projects");
+        drawProjectList(context, layout, mouseX, mouseY);
+        drawDetailCard(context, layout);
         drawFieldShell(context, this.nameField);
 
         super.render(context, mouseX, mouseY, delta);
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
     }
 
     @Override
@@ -139,11 +119,6 @@ public class ProjectManagerScreen extends Screen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "PROJECTS"))
-        {
-            return true;
-        }
-
         if (button == 0 && isOverScrollbar(mouseX, mouseY))
         {
             this.draggingScrollbar = true;
@@ -230,24 +205,10 @@ public class ProjectManagerScreen extends Screen
         }
     }
 
-    private void drawHeader(DrawContext context, Layout layout)
-    {
-        MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
-        if (!layout.compact)
-        {
-            drawPill(context, layout.contentX, layout.headerY + 18, Math.min(220, layout.contentWidth / 2), 16, "Project Progress", COLOR_CARD, MmmUi.accent());
-            MmmUi.drawTextWithin(context, this.textRenderer, "Stored progress and active project edits stay in one clean panel.", layout.contentX + 2, layout.headerY + 38, layout.contentWidth - 4, COLOR_LABEL, false);
-        }
-    }
-
     private void drawProjectList(DrawContext context, Layout layout, int mouseX, int mouseY)
     {
-        fillCard(context, layout.listX, layout.listY, layout.listWidth, layout.listHeight, COLOR_CARD_SOFT, COLOR_BORDER);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Projects", layout.listX + CARD_PADDING, layout.listY + 10, layout.listWidth - CARD_PADDING * 2, COLOR_VALUE, false);
-        if (!layout.compact)
-        {
-            MmmUi.drawTextWithin(context, this.textRenderer, "Choose a project to edit or switch active progress.", layout.listX + CARD_PADDING, layout.listY + 24, layout.listWidth - CARD_PADDING * 2, COLOR_MUTED, false);
-        }
+        sectionRule(context, layout.listX, layout.listY, layout.listWidth);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Saved projects (" + Configs.PROJECTS.size() + ")", layout.listX + CARD_PADDING, layout.listY + 10, layout.listWidth - CARD_PADDING * 2, COLOR_VALUE, false);
 
         int listX = layout.listX + CARD_PADDING;
         int listY = getListViewportY(layout);
@@ -256,7 +217,6 @@ public class ProjectManagerScreen extends Screen
         int viewportWidth = listWidth - SCROLLBAR_WIDTH - 6;
 
         context.fill(listX, listY, listX + listWidth, listY + listHeight, COLOR_INSET);
-        context.drawBorder(listX, listY, listWidth, listHeight, COLOR_BORDER_SOFT);
 
         int visibleRows = getVisibleRowCount(layout);
         this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, Configs.PROJECTS.size() - visibleRows)));
@@ -274,18 +234,19 @@ public class ProjectManagerScreen extends Screen
             ProjectEntry project = Configs.PROJECTS.get(projectIndex);
             int rowY = drawY + row * ROW_HEIGHT;
             boolean hovered = mouseX >= listX && mouseX <= listX + viewportWidth && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 4;
-            int rowColor = projectIndex == this.selectedIndex ? MmmUi.rowSelected() : hovered ? MmmUi.rowHover() : ((row & 1) == 0 ? COLOR_ROW_ALT : COLOR_INSET);
-            context.fill(listX + 4, rowY, listX + viewportWidth - 4, rowY + ROW_HEIGHT - 4, rowColor);
+            MmmUi.boardRow(context, listX, rowY, viewportWidth, ROW_HEIGHT - 2, hovered, projectIndex == this.selectedIndex);
 
-            String stats = UiFormat.formatCompact(project.progress) + " blocks";
-            int statsWidth = this.textRenderer.getWidth(stats);
-            int statsMaxWidth = Math.min(statsWidth, Math.max(42, viewportWidth / 2 - 16));
-            int nameMaxWidth = Math.max(0, viewportWidth - statsMaxWidth - 36);
-            MmmUi.drawTextWithin(context, this.textRenderer, project.name, listX + 12, rowY + 6, nameMaxWidth, COLOR_VALUE, false);
-            MmmUi.drawTextRightWithin(context, this.textRenderer, stats, listX + viewportWidth - 12, rowY + 6, statsMaxWidth, MmmUi.accent(), false);
-
-            String state = project.id.equals(Configs.activeProjectId) ? "Active" : "Stored";
-            MmmUi.drawTextWithin(context, this.textRenderer, state, listX + 12, rowY + 18, viewportWidth - 24, project.id.equals(Configs.activeProjectId) ? COLOR_SUCCESS : COLOR_MUTED, false);
+            boolean active = project.id.equals(Configs.activeProjectId);
+            int textWidth = viewportWidth - 12;
+            MmmUi.drawTextWithin(context, this.textRenderer, project.name, listX + 6, rowY + 6, textWidth, COLOR_VALUE, false);
+            String state = active ? "Active" : "Stored";
+            int stateWidth = this.textRenderer.getWidth(state);
+            int statsWidth = Math.max(0, textWidth - stateWidth - 6);
+            String amount = UiFormat.formatCompact(project.progress);
+            String stats = amount + " blocks";
+            if (this.textRenderer.getWidth(stats) > statsWidth) stats = amount;
+            MmmUi.drawTextWithin(context, this.textRenderer, state, listX + 6, rowY + 18, stateWidth, active ? COLOR_SUCCESS : COLOR_MUTED, false);
+            MmmUi.drawTextRightWithin(context, this.textRenderer, stats, listX + viewportWidth - 6, rowY + 18, statsWidth, COLOR_LABEL, false);
         }
 
         context.disableScissor();
@@ -294,12 +255,8 @@ public class ProjectManagerScreen extends Screen
 
     private void drawDetailCard(DrawContext context, Layout layout)
     {
-        fillCard(context, layout.detailX, layout.detailY, layout.detailWidth, layout.detailHeight, COLOR_CARD, COLOR_BORDER);
+        sectionRule(context, layout.detailX, layout.detailY, layout.detailWidth);
         MmmUi.drawTextWithin(context, this.textRenderer, "Project Detail", layout.detailX + CARD_PADDING, layout.detailY + 10, layout.detailWidth - CARD_PADDING * 2, COLOR_VALUE, false);
-        if (!layout.compact)
-        {
-            MmmUi.drawTextWithin(context, this.textRenderer, "Edit the saved project name. Progress updates from mined blocks.", layout.detailX + CARD_PADDING, layout.detailY + 24, layout.detailWidth - CARD_PADDING * 2, COLOR_MUTED, false);
-        }
 
         ProjectEntry selected = getSelectedProject();
         if (selected == null)
@@ -318,44 +275,23 @@ public class ProjectManagerScreen extends Screen
         }
 
         int statsY = layout.detailY + (layout.compact ? 116 : 178);
+        if (detailWidth < 206)
+        {
+            drawCompactStat(context, detailX, statsY, detailWidth, "Project", selected.progress);
+            drawCompactStat(context, detailX, statsY + 18, detailWidth, "Session", MiningStats.getSessionBlocksMined());
+            return;
+        }
         int statWidth = (detailWidth - CARD_GAP) / 2;
         drawStatCard(context, detailX, statsY, statWidth, 46, "Project Total", UiFormat.formatCompact(selected.progress), "blocks");
         drawStatCard(context, detailX + statWidth + CARD_GAP, statsY, statWidth, 46, "Current Session", UiFormat.formatCompact(MiningStats.getSessionBlocksMined()), "blocks");
-    }
-
-    private void updateFieldPositions(Layout layout)
-    {
-        if (this.nameField != null)
-        {
-            this.nameField.setX(getDetailFieldX(layout) + FIELD_PAD_X);
-            this.nameField.setY(getDetailFieldY(layout) + FIELD_PAD_Y);
-            this.nameField.setWidth(getDetailFieldWidth(layout) - FIELD_PAD_X * 2);
-        }
-        if (this.applyButton != null)
-        {
-            this.applyButton.setX(layout.detailX + CARD_PADDING);
-            this.applyButton.setY(getApplyButtonY(layout));
-            this.applyButton.setWidth(layout.detailWidth - CARD_PADDING * 2);
-        }
-        if (this.setActiveButton != null)
-        {
-            this.setActiveButton.setX(layout.detailX + CARD_PADDING);
-            this.setActiveButton.setY(getSetActiveButtonY(layout));
-            this.setActiveButton.setWidth(layout.detailWidth - CARD_PADDING * 2);
-        }
-        if (this.deleteButton != null)
-        {
-            this.deleteButton.setX(getFooterButtonX(layout, false));
-            this.deleteButton.setY(getFooterButtonY(layout));
-            this.deleteButton.setWidth(getFooterButtonWidth(layout));
-        }
     }
 
     private int getFooterButtonX(Layout layout, boolean leftButton)
     {
         int innerWidth = layout.listWidth - CARD_PADDING * 2;
         int buttonWidth = getFooterButtonWidth(layout);
-        int gap = Math.min(14, Math.max(6, innerWidth / 12));
+        if (stackedActions(layout)) return layout.listX + CARD_PADDING;
+        int gap = 6;
         int totalWidth = buttonWidth * 2 + gap;
         int startX = layout.listX + CARD_PADDING + Math.max(0, (innerWidth - totalWidth) / 2);
         return leftButton ? startX : startX + buttonWidth + gap;
@@ -364,12 +300,27 @@ public class ProjectManagerScreen extends Screen
     private int getFooterButtonWidth(Layout layout)
     {
         int innerWidth = Math.max(1, layout.listWidth - CARD_PADDING * 2);
-        return Math.max(32, Math.min(104, (innerWidth - 6) / 2));
+        return stackedActions(layout) ? innerWidth : Math.min(104, (innerWidth - 6) / 2);
     }
 
-    private int getFooterButtonY(Layout layout)
+    private boolean stackedActions(Layout layout)
     {
-        return layout.listY + layout.listHeight - CARD_PADDING - BUTTON_HEIGHT - 4;
+        return layout.listWidth - CARD_PADDING * 2 < 168;
+    }
+
+    private int getFooterButtonY(Layout layout, boolean first)
+    {
+        return layout.listY + layout.listHeight - BUTTON_HEIGHT - 4
+                - (first && stackedActions(layout) ? BUTTON_HEIGHT + 4 : 0);
+    }
+
+    private void drawCompactStat(DrawContext context, int x, int y, int width, String label, long amount)
+    {
+        MmmUi.boardRow(context, x, y, width, 18, false, false);
+        String value = UiFormat.formatCompact(amount);
+        int valueWidth = Math.min(width / 2, this.textRenderer.getWidth(value));
+        MmmUi.drawTextWithin(context, this.textRenderer, label, x + 4, y + 5, width - valueWidth - 12, COLOR_LABEL, false);
+        MmmUi.drawTextRightWithin(context, this.textRenderer, value, x + width - 4, y + 5, valueWidth, COLOR_VALUE, false);
     }
 
     private static final int FIELD_SHELL_HEIGHT = 22;
@@ -398,7 +349,10 @@ public class ProjectManagerScreen extends Screen
 
         int shellX = field.getX() - FIELD_PAD_X;
         int shellY = field.getY() - FIELD_PAD_Y;
-        fillCard(context, shellX, shellY, field.getWidth() + FIELD_PAD_X * 2, FIELD_SHELL_HEIGHT, COLOR_INSET, field.isFocused() ? MmmUi.accent() : COLOR_BORDER_SOFT);
+        int right = shellX + field.getWidth() + FIELD_PAD_X * 2;
+        int bottom = shellY + FIELD_SHELL_HEIGHT;
+        context.fill(shellX, shellY, right, bottom, MmmUi.menuSurface(BoardEditorStyle.TILE));
+        context.fill(shellX, bottom - 1, right, bottom, field.isFocused() ? BoardEditorStyle.ROSE : BoardEditorStyle.LINE);
     }
 
     private int getDetailFieldWidth(Layout layout)
@@ -433,7 +387,16 @@ public class ProjectManagerScreen extends Screen
 
     private int getListViewportHeight(Layout layout)
     {
-        return Math.max(24, layout.listHeight - (layout.compact ? 38 : 56) - BUTTON_HEIGHT - 10);
+        return Math.max(1, getFooterButtonY(layout, true) - getListViewportY(layout) - 5);
+    }
+
+    private void refreshSelection()
+    {
+        int visible = getVisibleRowCount(computeLayout());
+        this.deleteConfirm = false;
+        setScrollOffset(Math.clamp(this.scrollOffset, Math.max(0, this.selectedIndex - visible + 1), this.selectedIndex));
+        populateFields();
+        refreshButtons();
     }
 
     private void populateFields()
@@ -517,36 +480,30 @@ public class ProjectManagerScreen extends Screen
         }
         this.deleteConfirm = false;
         Configs.saveToFile();
-        MinecraftClient.getInstance().setScreen(new ProjectManagerScreen(this.parent));
+        this.selectedIndex = Math.min(this.selectedIndex, Configs.PROJECTS.size() - 1);
+        refreshSelection();
     }
 
     private void drawStatusChip(DrawContext context, int x, int y, String label, int accentColor)
     {
         int width = this.textRenderer.getWidth(label) + 14;
-        fillCard(context, x, y, width, 16, COLOR_INSET, accentColor);
+        context.fill(x, y + 4, x + 3, y + 12, accentColor);
         MmmUi.drawTextWithin(context, this.textRenderer, label, x + 7, y + 4, width - 14, accentColor, false);
     }
 
     private void drawStatCard(DrawContext context, int x, int y, int width, int height, String label, String value, String suffix)
     {
-        fillCard(context, x, y, width, height, COLOR_CARD_SOFT, COLOR_BORDER_SOFT);
+        MmmUi.boardRow(context, x, y, width, height, false, false);
         int textWidth = width - CARD_PADDING * 2;
         MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y + 7, textWidth, COLOR_LABEL, false);
         MmmUi.drawTextWithin(context, this.textRenderer, value, x + CARD_PADDING, y + 20, textWidth, COLOR_VALUE, false);
         MmmUi.drawTextWithin(context, this.textRenderer, suffix, x + CARD_PADDING, y + 32, textWidth, COLOR_MUTED, false);
     }
 
-    private void drawPill(DrawContext context, int x, int y, int width, int height, String text, int fillColor, int borderColor)
+    private static void sectionRule(DrawContext context, int x, int y, int width)
     {
-        fillCard(context, x, y, width, height, fillColor, borderColor);
-        String clipped = MmmUi.truncate(this.textRenderer, text, width - 8);
-        int textX = x + Math.max(4, (width - this.textRenderer.getWidth(clipped)) / 2);
-        context.drawText(this.textRenderer, Text.literal(clipped), textX, y + 4, MmmUi.accent(), false);
-    }
-
-    private void fillCard(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
-    {
-        MmmUi.card(context, x, y, width, height, fillColor, borderColor);
+        context.fill(x, y, x + width, y + 1, BoardEditorStyle.LINE);
+        context.fill(x, y, x + Math.min(22, width), y + 2, BoardEditorStyle.ROSE);
     }
 
     private void drawScrollbar(DrawContext context, int x, int y, int height, int mouseX, int mouseY, int visibleRows)
@@ -560,7 +517,6 @@ public class ProjectManagerScreen extends Screen
         int thumbHeight = getScrollbarThumbHeight(height, visibleRows);
         int thumbY = y + getScrollbarThumbOffset(height, thumbHeight, maxScroll);
         context.fill(x, y, x + SCROLLBAR_WIDTH, y + height, MmmUi.SCROLLBAR_TRACK);
-        context.drawBorder(x, y, SCROLLBAR_WIDTH, height, COLOR_BORDER_SOFT);
         int thumbColor = MmmUi.scrollbarThumb();
         context.fill(x + 1, thumbY, x + SCROLLBAR_WIDTH - 1, thumbY + thumbHeight, thumbColor);
     }
@@ -576,7 +532,7 @@ public class ProjectManagerScreen extends Screen
         return mouseX >= layout.listX + CARD_PADDING
                 && mouseX <= layout.listX + layout.listWidth - CARD_PADDING
                 && mouseY >= getListViewportY(layout)
-                && mouseY <= layout.listY + layout.listHeight - BUTTON_HEIGHT - 16;
+                && mouseY < getListViewportY(layout) + getListViewportHeight(layout);
     }
 
     private boolean isOverScrollbar(double mouseX, double mouseY)
@@ -638,99 +594,19 @@ public class ProjectManagerScreen extends Screen
         this.scrollOffset = Math.max(0, Math.min(maxScroll, offset));
     }
 
-    private float getOpenAnimationProgress()
-    {
-        if (this.openedAtMs <= 0L)
-        {
-            return 1.0F;
-        }
-        long elapsed = System.currentTimeMillis() - this.openedAtMs;
-        float normalized = MathHelper.clamp(elapsed / 280.0F, 0.0F, 1.0F);
-        return normalized * normalized * (3.0F - 2.0F * normalized);
-    }
-
     private Layout computeLayout()
     {
-        boolean compact = this.height < 400 || MmmUi.contentWidth(this.width) < 520;
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - PANEL_MARGIN);
-        int panelWidth = Math.min(760, availableWidth);
-        int topY = MmmUi.TOP_BAR_HEIGHT + 10;
-        int availableHeight = Math.max(1, this.height - topY - 12);
-        int panelHeight = Math.min(520, availableHeight);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
-        int panelY = topY + Math.max(0, (availableHeight - panelHeight) / 2);
-        int padding = compact ? 8 : PANEL_PADDING;
-        int contentX = panelX + padding;
-        int contentWidth = panelWidth - padding * 2;
-        int headerY = panelY + padding;
-        int listY = headerY + (compact ? 24 : 58);
-        int listHeight = panelHeight - (listY - panelY) - padding;
-        int listWidth = Math.max(48, (contentWidth - CARD_GAP) / 2);
-        int detailWidth = Math.max(48, contentWidth - listWidth - CARD_GAP);
-
-        return new Layout(
-                panelX,
-                panelY,
-                panelWidth,
-                panelHeight,
-                panelX + panelWidth,
-                panelY + panelHeight,
-                contentX,
-                contentWidth,
-                headerY,
-                contentX,
-                listY,
-                listWidth,
-                listHeight,
-                contentX + listWidth + CARD_GAP,
-                listY,
-                detailWidth,
-                listHeight,
-                compact);
+        int width = BoardEditorStyle.contentWidth(this.width, 760);
+        boolean compact = this.height < 400 || width < 520;
+        int inset = compact ? 0 : PANEL_PADDING;
+        int left = (this.width - width) / 2 + inset;
+        int inner = width - 2 * inset;
+        int top = MmmUi.TOP_BAR_HEIGHT + (compact ? 8 : 18);
+        int listWidth = (inner - CARD_GAP) / 2;
+        return new Layout(left, top, listWidth, Math.min(520, this.height - top - 8),
+                left + listWidth + CARD_GAP, top, inner - listWidth - CARD_GAP, compact);
     }
 
-    private record Layout(
-            int panelX,
-            int panelY,
-            int panelWidth,
-            int panelHeight,
-            int panelRight,
-            int panelBottom,
-            int contentX,
-            int contentWidth,
-            int headerY,
-            int listX,
-            int listY,
-            int listWidth,
-            int listHeight,
-            int detailX,
-            int detailY,
-            int detailWidth,
-            int detailHeight,
-            boolean compact)
-    {
-        private Layout withPanelY(int newPanelY)
-        {
-            int delta = newPanelY - this.panelY;
-            return new Layout(
-                    this.panelX,
-                    newPanelY,
-                    this.panelWidth,
-                    this.panelHeight,
-                    this.panelRight,
-                    this.panelBottom + delta,
-                    this.contentX,
-                    this.contentWidth,
-                    this.headerY + delta,
-                    this.listX,
-                    this.listY + delta,
-                    this.listWidth,
-                    this.listHeight,
-                    this.detailX,
-                    this.detailY + delta,
-                    this.detailWidth,
-                    this.detailHeight,
-                    this.compact);
-        }
-    }
+    private record Layout(int listX, int listY, int listWidth, int listHeight,
+                          int detailX, int detailY, int detailWidth, boolean compact) {}
 }

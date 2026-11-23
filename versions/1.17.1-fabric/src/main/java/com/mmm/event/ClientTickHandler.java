@@ -27,6 +27,8 @@ public class ClientTickHandler
         WebsiteProfileTotals.refresh(false);
         MmmBlockBreakDetector.onClientTick(mc);
         MmmTimerState.onClientTick(mc);
+        com.mmm.tracker.LiveCollections.tick(mc);
+        com.mmm.tracker.PinnedCollection.tick(mc);
         PublicChatClient.onClientTick(mc);
         TierTagManager.onClientTick(mc);
 

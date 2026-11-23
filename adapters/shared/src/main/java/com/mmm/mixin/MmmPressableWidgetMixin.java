@@ -1,6 +1,7 @@
 package com.mmm.mixin;
 
 import com.mmm.ui.MmmUi;
+import com.mmm.ui.BoardEditorStyle;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -27,9 +28,9 @@ public abstract class MmmPressableWidgetMixin
 
         PressableWidget button = (PressableWidget) (Object) this;
         boolean highlighted = button.isHovered() || button.isFocused();
-        int fill = button.active ? (highlighted ? MmmUi.accentHover() : MmmUi.INSET) : MmmUi.CARD;
-        int border = button.active && highlighted ? MmmUi.accent() : MmmUi.BORDER_SOFT;
-        int textColor = button.active ? (highlighted ? MmmUi.TEXT : MmmUi.MUTED) : MmmUi.INACTIVE;
+        int fill = button.active ? (highlighted ? 0xff35282b : BoardEditorStyle.TILE) : BoardEditorStyle.SURFACE;
+        int border = button.active && highlighted ? BoardEditorStyle.ROSE : BoardEditorStyle.LINE;
+        int textColor = button.active ? BoardEditorStyle.TEXT : MmmUi.INACTIVE;
         MmmUi.card(context, button.getX(), button.getY(), button.getWidth(), button.getHeight(), fill, border);
         button.drawMessage(context, client.textRenderer, textColor);
         ci.cancel();

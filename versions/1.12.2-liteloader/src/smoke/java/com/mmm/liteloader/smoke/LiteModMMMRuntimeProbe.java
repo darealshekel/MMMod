@@ -34,6 +34,9 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
     private boolean started, ready, failed;
     private long pausedAt;
     private final LegacyReliabilityProbe reliability = new LegacyReliabilityProbe();
+    private final LegacyAchievementProbe achievements = new LegacyAchievementProbe();
+    private final LegacyAfkProbe afk = new LegacyAfkProbe();
+    private final LegacyHudProbe hud = new LegacyHudProbe();
     @Override public String getName() { return "MMM Runtime Probe"; }
     @Override public String getVersion() { return "test-only"; }
     @Override public void init(File configPath) {}
@@ -49,12 +52,38 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
                 client.options.pauseOnUnfocus = false;
                 client.options.viewDistance = 2;
                 client.options.guiScale = 2;
-                client.startGame("mmm-runtime-probe", "MMM Isolated Runtime Probe",
-                        new WorldSettings(1, GameMode.SURVIVAL, false, false, WorldGeneratorType.FLAT).enableCommands());
+                boolean idle = Boolean.getBoolean("mmm.afkProbe");
+                boolean hudOnly = Boolean.getBoolean("mmm.hudProbe");
+                client.startGame(hudOnly ? "mmm-hud-probe" : idle ? "mmm-afk-probe" : "mmm-runtime-probe", "MMM Isolated Runtime Probe",
+                        new WorldSettings(1, idle || hudOnly ? GameMode.CREATIVE : GameMode.SURVIVAL, false, false, WorldGeneratorType.FLAT).enableCommands());
                 System.out.println("MMM_RUNTIME_WORLD_REQUESTED");
                 return;
             }
             if (client.world == null || client.player == null) return;
+            if (Boolean.getBoolean("mmm.hudProbe")) {
+                if (hud.tick(client)) {
+                    System.out.println("MMM_RUNTIME_PROBE_OK");
+                    failed = true;
+                    client.stop();
+                }
+                return;
+            }
+            if (Boolean.getBoolean("mmm.afkProbe")) {
+                if (afk.tick(client)) {
+                    System.out.println("MMM_RUNTIME_PROBE_OK");
+                    failed = true;
+                    client.stop();
+                }
+                return;
+            }
+            if (Boolean.getBoolean("mmm.achievementProbe")) {
+                if (achievements.tick(client)) {
+                    System.out.println("MMM_RUNTIME_PROBE_OK");
+                    failed = true;
+                    client.stop();
+                }
+                return;
+            }
             if (!ready) {
                 if (++ticks < 80) return;
                 if (!reliability.tick(client)) return;
@@ -74,9 +103,7 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
                 add("inventory", () -> new SurvivalInventoryScreen(client.player));
                 add("chat", ProbeChatScreen::new);
                 add("command-collections", ProbeChatScreen::new);
-                for (Object page : LegacyMenuScreen.class.getDeclaredField("page").getType().getEnumConstants()) {
-                    add("settings-" + ((Enum<?>) page).name().toLowerCase(), () -> settings(page));
-                }
+                add("settings-board", () -> new LegacyMenuScreen(null));
                 add("collections", () -> new CollectionBookScreen(null));
                 add("leaderboards", () -> new LeaderboardScreen(null));
                 add("scoreboard", () -> new ScoreboardScreen(null));
@@ -137,14 +164,14 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
             screenIndex++;
             if (screenIndex >= screens.size()) {
                 System.out.println("MMM_RUNTIME_PROBE_OK");
-                client.shutdown();
+                client.stop();
                 failed = true;
             } else client.openScreen(screens.get(screenIndex).get());
         } catch (Throwable error) {
             failed = true;
             error.printStackTrace();
             System.out.println("MMM_RUNTIME_PROBE_FAILED " + error);
-            client.shutdown();
+            client.stop();
         }
     }
 
@@ -152,13 +179,7 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
 
     private static void verifyWebsiteLink(Minecraft client) throws Exception {
         var menu = client.screen;
-        var left = LegacyScreen.class.getDeclaredField("left");
-        left.setAccessible(true);
-        java.lang.reflect.Method click;
-        try { click = Screen.class.getDeclaredMethod("mouseClicked", int.class, int.class, int.class); }
-        catch (NoSuchMethodException ignored) { click = Screen.class.getDeclaredMethod("a", int.class, int.class, int.class); }
-        click.setAccessible(true);
-        click.invoke(menu, left.getInt(menu) + 120, 15, 0);
+        LiteModMMMBoardProbe.click(menu, "Website Link");
         Screen link = client.screen;
         if (!link.getClass().getSimpleName().equals("LegacyLinkScreen")) throw new AssertionError("Header did not open website link");
         var codeField = link.getClass().getDeclaredField("code");
@@ -174,8 +195,8 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
     }
 
     private static void verifyTimerClicks(Minecraft client) throws Exception {
-        clickButton(client.screen, 10);
-        clickButton(client.screen, 100);
+        for (char c : "Block timer controls".toCharArray()) LiteModMMMBoardProbe.key(client.screen, c, org.lwjgl.input.Keyboard.KEY_NONE);
+        LiteModMMMBoardProbe.click(client.screen, "Open");
         if (!(client.screen instanceof TimerScreen)) throw new AssertionError("Timer menu did not open");
         clickButton(client.screen, 1);
         clickButton(client.screen, 2);
@@ -203,11 +224,7 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
             }
         }
         if (target == null || !target.active) throw new AssertionError("Missing active button " + id + " in " + screen.getClass());
-        java.lang.reflect.Method click;
-        try { click = Screen.class.getDeclaredMethod("mouseClicked", int.class, int.class, int.class); }
-        catch (NoSuchMethodException ignored) { click = Screen.class.getDeclaredMethod("a", int.class, int.class, int.class); }
-        click.setAccessible(true);
-        click.invoke(screen, target.x + target.getWidth() / 2, target.y + 10, 0);
+        LiteModMMMBoardProbe.mouse(screen, target.x + target.getWidth() / 2, target.y + 10);
     }
 
     private static void verifyWorldTotal(Minecraft client) {
@@ -246,13 +263,5 @@ public final class LiteModMMMRuntimeProbe implements Tickable {
             chatField.setText("/mmm collections");
             keyPressed('\r', org.lwjgl.input.Keyboard.KEY_RETURN);
         }
-    }
-    private static Screen settings(Object page) {
-        try {
-            LegacyMenuScreen screen = new LegacyMenuScreen(null);
-            var field = LegacyMenuScreen.class.getDeclaredField("page");
-            field.setAccessible(true); field.set(screen, page);
-            return screen;
-        } catch (ReflectiveOperationException error) { throw new IllegalStateException(error); }
     }
 }

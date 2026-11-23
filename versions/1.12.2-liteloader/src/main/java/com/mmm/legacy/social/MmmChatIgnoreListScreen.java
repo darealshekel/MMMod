@@ -6,6 +6,7 @@ import com.mmm.social.MmmChatIgnoreList;
 import java.util.List;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import com.mmm.legacy.settings.BoardField;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -16,47 +17,48 @@ public final class MmmChatIgnoreListScreen extends LegacyScreen {
     private String status = "";
     private List<String> entries = List.of();
 
-    public MmmChatIgnoreListScreen(Screen parent) { super(parent, "MMM Chat - Ignored Players"); }
+    public MmmChatIgnoreListScreen(Screen parent) { super(parent, "Ignored Players"); }
 
+    @Override protected int maxContentWidth() { return 580; }
     @Override public void init() {
         super.init();
         String draft = username == null ? "" : username.getText();
-        panelWidth = Math.min(580, Math.max(80, width - 24));
-        left = (width - panelWidth) / 2;
-        username = new TextFieldWidget(1, textRenderer, left + 4, 75, Math.max(20, panelWidth - 82), 20);
+        username = new BoardField(1, textRenderer, left + 4, 75, Math.max(20, panelWidth - 82), 20);
         username.setMaxLength(16);
         username.setText(draft);
         username.setFocused(true);
         rebuild();
     }
 
-    private int rows() { return Math.max(0, (height - 150) / 24); }
+    private int rows() { return Math.max(0, (height - 165) / 24); }
 
     private void rebuild() {
         entries = MmmChatIgnoreList.entries();
         offset = Math.max(0, Math.min(offset, Math.max(0, entries.size() - rows())));
         buttons.clear();
-        addButton(new ButtonWidget(0, left + panelWidth - 60, 12, 60, 20, "Done"));
-        addButton(new ButtonWidget(1, left + panelWidth - 70, 74, 70, 20, "Ignore"));
+        button(0, left + panelWidth - 60, 5, 60, "Done");
+        button(1, left + panelWidth - 70, 74, 70, "Ignore");
         int half = (panelWidth - 4) / 2;
-        addButton(new ButtonWidget(2, left, 42, half, 20, "Censor: " + (Configs.Generic.CENSOR_MMM_CHAT.getBooleanValue() ? "ON" : "OFF")));
-        addButton(new ButtonWidget(3, left + half + 4, 42, half, 20, "Chat: " + (Configs.Generic.SHOW_MMM_CHAT_MESSAGES.getBooleanValue() ? "ON" : "OFF")));
+        button(2, left, 42, half, "Censor: " + (Configs.Generic.CENSOR_MMM_CHAT.getBooleanValue() ? "ON" : "OFF"));
+        button(3, left + half + 4, 42, half, "Chat: " + (Configs.Generic.SHOW_MMM_CHAT_MESSAGES.getBooleanValue() ? "ON" : "OFF"));
         for (int index = 0; index < rows() && offset + index < entries.size(); index++)
-            addButton(new ButtonWidget(100 + index, left + panelWidth - 24, 103 + index * 24, 24, 20, "X"));
+            button(100 + index, left + panelWidth - 24, 118 + index * 24, 24, "X");
     }
 
     @Override public void render(int mouseX, int mouseY, float delta) {
-        fill(0, 0, width, height, 0xEA080808);
-        textRenderer.draw(textRenderer.trim("MMM Chat - Ignored Players", Math.max(1, panelWidth - 68)), left, 18, 0xFFF5F5F5, false);
-        fill(left, 36, left + panelWidth, 37, 0xFFE00000);
+        shell();
         username.render();
-        if (entries.isEmpty()) textRenderer.draw("No ignored players", left + 4, 109, 0xFFAAAAAA, false);
-        for (int index = 0; index < rows() && offset + index < entries.size(); index++)
-            textRenderer.draw(textRenderer.trim(entries.get(offset + index), panelWidth - 34), left + 4, 109 + index * 24, 0xFFFFFFFF, false);
+        section("Ignored players / " + entries.size(), 103);
+        if (entries.isEmpty()) fit("No ignored players", left + 7, 124, panelWidth - 14, com.mmm.ui.BoardEditorStyle.MUTED);
+        for (int index = 0; index < rows() && offset + index < entries.size(); index++) {
+            int y = 118 + index * 24;
+            recordRow(y, 21, mouseX >= left && mouseX < left + panelWidth && mouseY >= y && mouseY < y + 21);
+            fit(entries.get(offset + index), left + 7, y + 6, panelWidth - 38, com.mmm.ui.BoardEditorStyle.TEXT);
+        }
         textRenderer.draw(textRenderer.trim(status, panelWidth), left, height - 22, 0xFFAAAAAA, false);
         super.render(mouseX, mouseY, delta);
         for (int index = 0; index < rows() && offset + index < entries.size(); index++) {
-            int y = 103 + index * 24;
+            int y = 118 + index * 24;
             if (mouseX >= left + panelWidth - 24 && mouseX < left + panelWidth && mouseY >= y && mouseY < y + 20)
                 renderTooltip("Unignore " + entries.get(offset + index), mouseX, mouseY);
         }

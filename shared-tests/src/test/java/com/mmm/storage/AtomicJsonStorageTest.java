@@ -1,6 +1,7 @@
 package com.mmm.storage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
@@ -14,6 +15,23 @@ class AtomicJsonStorageTest
 {
     @TempDir
     Path tempDir;
+
+    @Test
+    void preservesJsonEncodingAndLeavesNoTemporaryFiles() throws Exception
+    {
+        Path target = this.tempDir.resolve("nested/state.json");
+        JsonObject value = new JsonObject();
+        value.addProperty("name", "\u00e9 <miner> & \"quoted\"");
+        AtomicJsonStorage.write(target, value, false);
+
+        assertEquals("{\n  \"name\": \"\u00e9 <miner> & \\\"quoted\\\"\"\n}" + System.lineSeparator(), Files.readString(target));
+        assertFalse(Files.exists(AtomicJsonStorage.backupPath(target)));
+        try (var files = Files.list(target.getParent()))
+        {
+            assertEquals(1L, files.count());
+        }
+    }
+
 
     @Test
     void writesValidJsonAtomically()

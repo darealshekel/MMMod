@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.function.Supplier;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import com.mmm.legacy.settings.BoardField;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.item.ItemStack;
 import org.lwjgl.input.Keyboard;
@@ -43,11 +44,14 @@ public abstract class CollectionScreen extends Screen {
         slots.add(slot); return addButton(slot);
     }
     protected ButtonWidget button(int x, int y, int width, String label, Runnable action) {
-        var button = new ActionButton(buttons.size(), x, y, width, textRenderer.trim(label, Math.max(0, width - 6)), action);
+        return button(x, y, width, label, false, action);
+    }
+    protected ButtonWidget button(int x, int y, int width, String label, boolean selected, Runnable action) {
+        var button = new ActionButton(buttons.size(), x, y, width, textRenderer.trim(label, Math.max(0, width - 6)), selected, action);
         return addButton(button);
     }
     protected TextFieldWidget search(int x, int y, int width, String value) {
-        var field = new TextFieldWidget(1000, textRenderer, x, y, width, 18);
+        var field = new BoardField(1000, textRenderer, x, y, width, 18);
         field.setMaxLength(64); field.setText(value); return field;
     }
     protected void searchChanged(String value) {}
@@ -81,7 +85,10 @@ public abstract class CollectionScreen extends Screen {
     @Override public void render(int mx, int my, float delta) {
         if (searchField != null && searchField.isVisible()) searchField.render();
         super.render(mx, my, delta);
-        for (var slot : slots) if (slot.contains(mx, my)) {
+        renderSlotTooltip(mx, my);
+    }
+    protected void renderSlotTooltip(int mx, int my) {
+        for (var slot : slots) if (slot.contains(mx, my) && !(slot.tier > 0 && slot.chosen)) {
             renderTooltip(slot.details.get(), mx, my); break;
         }
     }
@@ -90,10 +97,10 @@ public abstract class CollectionScreen extends Screen {
     @Override public void removed() { if (captured) Keyboard.enableRepeatEvents(repeat); captured = false; }
     @Override public boolean shouldPauseGame() { return minecraft != null && minecraft.isSingleplayer(); }
 
-    private static final class ActionButton extends ButtonWidget {
+    private static final class ActionButton extends com.mmm.legacy.settings.ActionButton {
         final Runnable action;
-        ActionButton(int id, int x, int y, int width, String label, Runnable action) {
-            super(id, x, y, Math.max(1, width), 20, label); this.action = action;
+        ActionButton(int id, int x, int y, int width, String label, boolean selected, Runnable action) {
+            super(id, x, y, Math.max(1, width), label, selected); this.action = action;
         }
     }
 }

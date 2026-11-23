@@ -15,7 +15,8 @@ public final class SettingButton extends ButtonWidget {
     @Override public void render(Minecraft client, int mouseX, int mouseY, float delta) {
         if (!visible) return;
         hovered = mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
-        fill(x, y, x + width, y + height, SettingsUi.opacity(hovered ? 0xFF303030 : 0xFF171717));
+        com.mmm.ui.BoardEditorStyle.plate(net.minecraft.client.gui.GuiElement::fill, x, y, width, height,
+                SettingsUi.opacity(com.mmm.legacy.BoardArt.TILE), SettingsUi.opacity(hovered ? com.mmm.legacy.BoardArt.ROSE : com.mmm.legacy.BoardArt.LINE));
         if (slider) {
             int amount = (int) Math.round((width - 4) * SettingsUi.fraction(config));
             fill(x + 2, y + height - 4, x + 2 + amount, y + height - 2, Configs.getMenuColor());

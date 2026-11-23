@@ -40,7 +40,6 @@ public class ProjectManagerScreen extends CompatScreen
     private int scrollOffset;
     private boolean draggingScrollbar;
     private boolean deleteConfirm;
-    private long openedAtMs;
 
     private EditBox nameField;
     private Button applyButton;
@@ -57,7 +56,6 @@ public class ProjectManagerScreen extends CompatScreen
     protected void init()
     {
         this.clearWidgets();
-        this.openedAtMs = System.currentTimeMillis();
         ensureCursorVisible();
         this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, Configs.PROJECTS.size() - 1));
 
@@ -94,7 +92,7 @@ public class ProjectManagerScreen extends CompatScreen
         }).bounds(getFooterButtonX(layout, true), getFooterButtonY(layout), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
 
         this.deleteButton = this.addRenderableWidget(Button.builder(Component.literal("Remove"), button -> handleDelete()).bounds(getFooterButtonX(layout, false), getFooterButtonY(layout), getFooterButtonWidth(layout), BUTTON_HEIGHT).build());
-        this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose()).bounds(layout.panelRight - 74, layout.headerY - 2, 64, BUTTON_HEIGHT).build());
+        this.addRenderableWidget(Button.builder(Component.literal("Back"), button -> onClose()).bounds(layout.panelRight - 74, layout.headerY - 2, 64, BUTTON_HEIGHT).build());
 
         populateFields();
         refreshButtons();
@@ -105,22 +103,17 @@ public class ProjectManagerScreen extends CompatScreen
     {
         ensureCursorVisible();
         Layout layout = computeLayout();
-        float animation = getOpenAnimationProgress();
-        int animatedPanelY = layout.panelY + Math.round((1.0F - animation) * 14.0F);
-        Layout animatedLayout = layout.withPanelY(animatedPanelY);
-        updateFieldPositions(animatedLayout);
+        updateFieldPositions(layout);
 
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "PROJECTS");
-        fillCard(context, animatedLayout.panelX, animatedLayout.panelY, animatedLayout.panelWidth, animatedLayout.panelHeight, COLOR_PANEL, COLOR_BORDER);
+        BoardMenuChrome.header(context, font, this.width, layout.contentX, "Tools / Projects");
 
-        drawHeader(context, animatedLayout);
-        drawProjectList(context, animatedLayout, mouseX, mouseY);
-        drawDetailCard(context, animatedLayout);
+        drawHeader(context, layout);
+        drawProjectList(context, layout, mouseX, mouseY);
+        drawDetailCard(context, layout);
         drawFieldShell(context, this.nameField);
 
         super.extractRenderState(context, mouseX, mouseY, delta);
-        MmmUi.drawMmmTopBar(context, this.font, this.width);
     }
 
     @Override
@@ -137,11 +130,6 @@ public class ProjectManagerScreen extends CompatScreen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "PROJECTS"))
-        {
-            return true;
-        }
-
         if (button == 0 && isOverScrollbar(mouseX, mouseY))
         {
             this.draggingScrollbar = true;
@@ -233,14 +221,13 @@ public class ProjectManagerScreen extends CompatScreen
         MmmUi.drawTextWithin(context, this.font, this.title.getString(), layout.contentX, layout.headerY, layout.contentWidth, COLOR_VALUE, true);
         if (!layout.compact)
         {
-            drawPill(context, layout.contentX, layout.headerY + 18, Math.min(220, layout.contentWidth / 2), 16, "Project Progress", COLOR_CARD, MmmUi.accent());
-            MmmUi.drawTextWithin(context, this.font, "Stored progress and active project edits stay in one clean panel.", layout.contentX + 2, layout.headerY + 38, layout.contentWidth - 4, COLOR_LABEL, false);
+            MmmUi.drawTextWithin(context, this.font, Configs.PROJECTS.size() + " saved", layout.contentX, layout.headerY + 16, layout.contentWidth - 80, COLOR_MUTED, false);
         }
     }
 
     private void drawProjectList(GuiGraphicsExtractor context, Layout layout, int mouseX, int mouseY)
     {
-        fillCard(context, layout.listX, layout.listY, layout.listWidth, layout.listHeight, COLOR_CARD_SOFT, COLOR_BORDER);
+        BoardMenuChrome.section(context, layout.listX, layout.listY, layout.listWidth, layout.listHeight, false);
         MmmUi.drawTextWithin(context, this.font, "Projects", layout.listX + CARD_PADDING, layout.listY + 10, layout.listWidth - CARD_PADDING * 2, COLOR_VALUE, false);
         if (!layout.compact)
         {
@@ -253,8 +240,6 @@ public class ProjectManagerScreen extends CompatScreen
         int listHeight = getListViewportHeight(layout);
         int viewportWidth = listWidth - SCROLLBAR_WIDTH - 6;
 
-        context.fill(listX, listY, listX + listWidth, listY + listHeight, COLOR_INSET);
-        MmmUi.drawBorder(context, listX, listY, listWidth, listHeight, COLOR_BORDER_SOFT);
 
         int visibleRows = getVisibleRowCount(layout);
         this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, Configs.PROJECTS.size() - visibleRows)));
@@ -272,8 +257,7 @@ public class ProjectManagerScreen extends CompatScreen
             ProjectEntry project = Configs.PROJECTS.get(projectIndex);
             int rowY = drawY + row * ROW_HEIGHT;
             boolean hovered = mouseX >= listX && mouseX <= listX + viewportWidth && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 4;
-            int rowColor = projectIndex == this.selectedIndex ? MmmUi.rowSelected() : hovered ? MmmUi.rowHover() : ((row & 1) == 0 ? COLOR_ROW_ALT : COLOR_INSET);
-            context.fill(listX + 4, rowY, listX + viewportWidth - 4, rowY + ROW_HEIGHT - 4, rowColor);
+            BoardMenuChrome.record(context, listX + 4, rowY, viewportWidth - 8, ROW_HEIGHT - 4, projectIndex == this.selectedIndex, hovered);
 
             String stats = UiFormat.formatCompact(project.progress) + " blocks";
             int statsWidth = this.font.width(stats);
@@ -292,17 +276,13 @@ public class ProjectManagerScreen extends CompatScreen
 
     private void drawDetailCard(GuiGraphicsExtractor context, Layout layout)
     {
-        fillCard(context, layout.detailX, layout.detailY, layout.detailWidth, layout.detailHeight, COLOR_CARD, COLOR_BORDER);
+        BoardMenuChrome.section(context, layout.detailX, layout.detailY, layout.detailWidth, layout.detailHeight, true);
         MmmUi.drawTextWithin(context, this.font, "Project Detail", layout.detailX + CARD_PADDING, layout.detailY + 10, layout.detailWidth - CARD_PADDING * 2, COLOR_VALUE, false);
-        if (!layout.compact)
-        {
-            MmmUi.drawTextWithin(context, this.font, "Edit the saved project name. Progress updates from mined blocks.", layout.detailX + CARD_PADDING, layout.detailY + 24, layout.detailWidth - CARD_PADDING * 2, COLOR_MUTED, false);
-        }
 
         ProjectEntry selected = getSelectedProject();
         if (selected == null)
         {
-            MmmUi.drawTextWithin(context, this.font, "No project selected.", layout.detailX + CARD_PADDING, layout.detailY + 34, layout.detailWidth - CARD_PADDING * 2, COLOR_MUTED, false);
+            MmmUi.drawTextWithin(context, this.font, "No project selected.", layout.detailX + CARD_PADDING, layout.detailY + 44, layout.detailWidth - CARD_PADDING * 2, COLOR_MUTED, false);
             return;
         }
 
@@ -521,25 +501,17 @@ public class ProjectManagerScreen extends CompatScreen
     private void drawStatusChip(GuiGraphicsExtractor context, int x, int y, String label, int accentColor)
     {
         int width = this.font.width(label) + 14;
-        fillCard(context, x, y, width, 16, COLOR_INSET, accentColor);
+        context.fill(x, y + 5, x + 3, y + 11, accentColor);
         MmmUi.drawTextWithin(context, this.font, label, x + 7, y + 4, width - 14, accentColor, false);
     }
 
     private void drawStatCard(GuiGraphicsExtractor context, int x, int y, int width, int height, String label, String value, String suffix)
     {
-        fillCard(context, x, y, width, height, COLOR_CARD_SOFT, COLOR_BORDER_SOFT);
+        BoardMenuChrome.metric(context, x, y, width, height);
         int textWidth = width - CARD_PADDING * 2;
         MmmUi.drawTextWithin(context, this.font, label, x + CARD_PADDING, y + 7, textWidth, COLOR_LABEL, false);
         MmmUi.drawTextWithin(context, this.font, value, x + CARD_PADDING, y + 20, textWidth, COLOR_VALUE, false);
         MmmUi.drawTextWithin(context, this.font, suffix, x + CARD_PADDING, y + 32, textWidth, COLOR_MUTED, false);
-    }
-
-    private void drawPill(GuiGraphicsExtractor context, int x, int y, int width, int height, String text, int fillColor, int borderColor)
-    {
-        fillCard(context, x, y, width, height, fillColor, borderColor);
-        String clipped = MmmUi.truncate(this.font, text, width - 8);
-        int textX = x + Math.max(4, (width - this.font.width(clipped)) / 2);
-        context.text(this.font, Component.literal(clipped), textX, y + 4, MmmUi.accent(), false);
     }
 
     private void fillCard(GuiGraphicsExtractor context, int x, int y, int width, int height, int fillColor, int borderColor)
@@ -636,22 +608,6 @@ public class ProjectManagerScreen extends CompatScreen
         this.scrollOffset = Math.max(0, Math.min(maxScroll, offset));
     }
 
-    private float getOpenAnimationProgress()
-    {
-        if (this.openedAtMs <= 0L)
-        {
-            return 1.0F;
-        }
-        long elapsed = System.currentTimeMillis() - this.openedAtMs;
-        float normalized = Mth.clamp(elapsed / 280.0F, 0.0F, 1.0F);
-        return normalized * normalized * (3.0F - 2.0F * normalized);
-    }
-
-    private String truncateToWidth(String value, int maxWidth)
-    {
-        return MmmUi.truncate(this.font, value, maxWidth);
-    }
-
     private Layout computeLayout()
     {
         boolean compact = this.height < 400 || MmmUi.contentWidth(this.width) < 520;
@@ -666,7 +622,7 @@ public class ProjectManagerScreen extends CompatScreen
         int contentX = panelX + padding;
         int contentWidth = panelWidth - padding * 2;
         int headerY = panelY + padding;
-        int listY = headerY + (compact ? 24 : 58);
+        int listY = headerY + (compact ? 24 : 38);
         int listHeight = panelHeight - (listY - panelY) - padding;
         int listWidth = Math.max(48, (contentWidth - CARD_GAP) / 2);
         int detailWidth = Math.max(48, contentWidth - listWidth - CARD_GAP);
@@ -712,28 +668,5 @@ public class ProjectManagerScreen extends CompatScreen
             int detailHeight,
             boolean compact)
     {
-        private Layout withPanelY(int newPanelY)
-        {
-            int delta = newPanelY - this.panelY;
-            return new Layout(
-                    this.panelX,
-                    newPanelY,
-                    this.panelWidth,
-                    this.panelHeight,
-                    this.panelRight,
-                    this.panelBottom + delta,
-                    this.contentX,
-                    this.contentWidth,
-                    this.headerY + delta,
-                    this.listX,
-                    this.listY + delta,
-                    this.listWidth,
-                    this.listHeight,
-                    this.detailX,
-                    this.detailY + delta,
-                    this.detailWidth,
-                    this.detailHeight,
-                    this.compact);
-        }
     }
 }

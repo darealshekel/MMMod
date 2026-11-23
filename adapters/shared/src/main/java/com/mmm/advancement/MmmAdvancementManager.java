@@ -42,6 +42,12 @@ public final class MmmAdvancementManager
     private static boolean progressReady;
     private static boolean initialProgressPending;
     private static boolean pendingFirstTimeNotification;
+    private static java.util.function.Consumer<MmmAdvancementDefinition> notificationRenderer;
+
+    public static void setNotificationRenderer(java.util.function.Consumer<MmmAdvancementDefinition> renderer)
+    {
+        notificationRenderer = renderer;
+    }
 
     private MmmAdvancementManager()
     {
@@ -300,7 +306,14 @@ public final class MmmAdvancementManager
     private static void announce(MinecraftClient client, MmmAdvancementDefinition definition)
     {
         client.execute(() -> {
-            client.getToastManager().add(new AdvancementToast(MmmAdvancementTree.entry(definition)));
+            if (notificationRenderer == null)
+            {
+                client.getToastManager().add(new AdvancementToast(MmmAdvancementTree.entry(definition)));
+            }
+            else
+            {
+                notificationRenderer.accept(definition);
+            }
             PublicChatClient.publishAdvancement(definition.title(), definition.description());
         });
     }

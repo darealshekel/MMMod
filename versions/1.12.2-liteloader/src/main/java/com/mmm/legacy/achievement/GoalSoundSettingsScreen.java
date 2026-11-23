@@ -1,6 +1,8 @@
 package com.mmm.legacy.achievement;
 
 import com.mmm.legacy.LegacyDrawContext;
+import com.mmm.legacy.LegacyScreen;
+import com.mmm.legacy.settings.ActionButton;
 import com.mmm.sound.GoalSoundLibrary;
 import java.awt.EventQueue;
 import java.awt.FileDialog;
@@ -13,36 +15,33 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import org.lwjgl.input.Keyboard;
 
-public final class GoalSoundSettingsScreen extends Screen {
-    private final Screen parent;
+public final class GoalSoundSettingsScreen extends LegacyScreen {
     private int selected = 25;
     private boolean choosing;
     private boolean failed;
     private String status = "";
-    private int left;
-    private int contentWidth;
     private String displayName = "";
 
-    public GoalSoundSettingsScreen(Screen parent) { this.parent = parent; }
+    public GoalSoundSettingsScreen(Screen parent) { super(parent, "Milestone Sounds"); }
 
+    @Override protected int maxContentWidth() { return 500; }
     @Override public void init() {
+        super.init();
         buttons.clear();
         displayName = GoalSoundLibrary.getDisplayName(selected);
-        contentWidth = Math.min(500, width - 24);
-        left = (width - contentWidth) / 2;
-        int tabWidth = (contentWidth - 18) / 4;
+        int tabWidth = (panelWidth - 18) / 4;
         for (int i = 0; i < 4; i++) {
             int threshold = GoalSoundLibrary.MILESTONES.get(i);
-            ButtonWidget button = addButton(new ButtonWidget(threshold, left + i * (tabWidth + 6), 48, tabWidth, 20,
-                    threshold + "%"));
+            ButtonWidget button = addButton(new ActionButton(threshold, left + i * (tabWidth + 6), 48, tabWidth,
+                    threshold + "%", selected == threshold));
             button.active = threshold != selected && !choosing;
         }
-        int actionWidth = (contentWidth - 12) / 3;
-        addButton(new ButtonWidget(1, left, 114, actionWidth, 20, "Choose OGG")).active = !choosing;
-        addButton(new ButtonWidget(2, left + actionWidth + 6, 114, actionWidth, 20, "Preview")).active = !choosing;
-        addButton(new ButtonWidget(3, left + (actionWidth + 6) * 2, 114, actionWidth, 20, "Use Default")).active =
+        int actionWidth = (panelWidth - 12) / 3;
+        button(1, left, 114, actionWidth, "Choose OGG").active = !choosing;
+        button(2, left + actionWidth + 6, 114, actionWidth, "Preview").active = !choosing;
+        button(3, left + (actionWidth + 6) * 2, 114, actionWidth, "Use Default").active =
                 !choosing && GoalSoundLibrary.hasCustomSound(selected);
-        addButton(new ButtonWidget(4, left + contentWidth - 60, 12, 60, 20, "Done"));
+        button(4, left + panelWidth - 60, 5, 60, "Done");
     }
 
     @Override protected void buttonClicked(ButtonWidget button) {
@@ -98,13 +97,12 @@ public final class GoalSoundSettingsScreen extends Screen {
 
     @Override public void render(int mouseX, int mouseY, float delta) {
         LegacyDrawContext context = new LegacyDrawContext();
-        context.fill(0, 0, width, height, 0xEF080808);
-        context.drawText(textRenderer, "Milestone Sounds", left, 18, 0xFFFFFF, false);
-        context.fill(left, 37, left + contentWidth, 38, 0xFFE00000);
-        context.drawText(textRenderer, selected + "% - " + textRenderer.trim(displayName,
-                contentWidth - 44), left, 83, 0xFFFFFF, false);
+        shell();
+        recordRow(75, 32, false);
+        text("Selected sound / " + selected + "%", left + 7, 79, com.mmm.ui.BoardEditorStyle.MUTED);
+        fit(displayName, left + 7, 92, panelWidth - 14, com.mmm.ui.BoardEditorStyle.TEXT);
         int y = 148;
-        for (String line : textRenderer.split(status, contentWidth)) {
+        for (String line : textRenderer.split(status, panelWidth)) {
             if (y + textRenderer.fontHeight >= height) break;
             context.drawText(textRenderer, line, left, y, failed ? 0xFF5555 : 0xBBBBBB, false);
             y += textRenderer.fontHeight + 2;

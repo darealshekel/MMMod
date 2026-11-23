@@ -12,11 +12,11 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.item.ItemStack;
 
 public final class LeaderboardScreen extends CompatScreen
 {
     private static final int ROW_HEIGHT = 24;
+    private final Map<Identifier, BoardItemIcon> icons = new HashMap<>();
     private final Screen parent;
     private final boolean chooseSidebar;
     private LeaderboardData.Kind kind = LeaderboardData.Kind.PLAYERS;
@@ -47,8 +47,8 @@ public final class LeaderboardScreen extends CompatScreen
     @Override protected void init() {
         removed = false;
         MmmUi.ensureCursorVisible();
-        x = MmmUi.contentLeft(width) + 10;
-        contentWidth = Math.max(1, width - x - 10);
+        contentWidth = MmmUi.contentWidth(width);
+        x = MmmUi.centerContentX(width, contentWidth);
         int y = MmmUi.TOP_BAR_HEIGHT + 8;
         int columns = contentWidth >= 200 ? 8 : 4;
         int cellWidth = contentWidth / columns;
@@ -97,7 +97,7 @@ public final class LeaderboardScreen extends CompatScreen
         int navWidth = Math.min(72, contentWidth / 4);
         previous = button(x, height - 28, navWidth, "< Prev", () -> { page--; offset = 0; load(false); });
         next = button(x + navWidth + 4, height - 28, navWidth, "Next >", () -> { page++; offset = 0; load(false); });
-        button(x + contentWidth - navWidth, height - 28, navWidth, "Done", this::onClose);
+        button(x + contentWidth - navWidth, height - 28, navWidth, "Back", this::onClose);
         filterBlocks();
         if (data == null && !loading && !picking() && error == null && searchAt == 0) load(false);
         updateButtons();
@@ -153,7 +153,7 @@ public final class LeaderboardScreen extends CompatScreen
     }
     @Override public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         MmmUi.backdrop(context, width, height);
-        MmmUi.drawMmmScreensSidebar(context, font, width, height, mouseX, mouseY, "LEADERBOARDS");
+        BoardMenuChrome.header(context, font, this.width, x, "Tools / Leaderboards");
         String status = picking() ? visibleBlocks.size() + " blocks" : loading || searchAt > 0 ? "Loading rankings..."
                 : error != null ? error : data == null ? "" : kind.label + " | " + data.page() + "/" + data.pages() + " | " + format(data.total()) + " entries";
         MmmUi.drawTextWithin(context, font, status, x, listTop - 11, contentWidth, error != null ? MmmUi.ERROR : MmmUi.MUTED, false);
@@ -165,19 +165,19 @@ public final class LeaderboardScreen extends CompatScreen
             for (int i = offset; i < Math.min(count, offset + visible); i++) {
                 int y = listTop + (i - offset) * ROW_HEIGHT;
                 boolean hovered = mouseX >= x && mouseX < x + contentWidth && mouseY >= y && mouseY < y + ROW_HEIGHT;
-                context.fill(x, y, x + contentWidth, y + ROW_HEIGHT - 1, hovered ? MmmUi.accentSoft() : MmmUi.INSET);
+                BoardMenuChrome.record(context, x, y, contentWidth, ROW_HEIGHT, false, hovered);
                 if (picking()) {
                     String id = visibleBlocks.get(i);
                     Identifier identifier = Identifier.tryParse(id);
                     if (identifier != null && BuiltInRegistries.ITEM.containsKey(identifier))
-                        context.item(new ItemStack(BuiltInRegistries.ITEM.getValue(identifier)), x + 4, y + 5);
+                        icons.computeIfAbsent(identifier, key -> new BoardItemIcon(BuiltInRegistries.ITEM.getValue(key))).draw(context, x + 4, y + 5);
                     MmmUi.drawTextWithin(context, font, blockName(id), x + 26, y + 10, contentWidth - 36, MmmUi.TEXT, false);
                 } else {
                     var row = data.rows().get(i);
                     int amountWidth = Math.min(118, contentWidth / 2);
                     MmmUi.drawTextWithin(context, font, "#" + row.rank() + " " + row.name(), x + 5, y + 4, contentWidth - amountWidth - 12, MmmUi.TEXT, false);
                     MmmUi.drawTextWithin(context, font, row.detail(), x + 5, y + 16, contentWidth - amountWidth - 12, MmmUi.MUTED, false);
-                    MmmUi.drawTextRightWithin(context, font, format(row.blocks()), x + contentWidth - 6, y + 5, amountWidth, 0xFFFF5A1F, false);
+                    MmmUi.drawTextRightWithin(context, font, format(row.blocks()), x + contentWidth - 6, y + 5, amountWidth, BoardEditorStyle.ROSE, false);
                     MmmUi.drawTextRightWithin(context, font, "blocks mined", x + contentWidth - 6, y + 16, amountWidth, MmmUi.MUTED, false);
                 }
             }
@@ -194,12 +194,11 @@ public final class LeaderboardScreen extends CompatScreen
         if (kind == LeaderboardData.Kind.BLOCKS) {
             Identifier icon = Identifier.tryParse(picking() ? "minecraft:" + category.icon : selectedBlock);
             if (icon != null && BuiltInRegistries.ITEM.containsKey(icon))
-                context.item(new ItemStack(BuiltInRegistries.ITEM.getValue(icon)), x + 4, blockChoiceY + 2);
+                icons.computeIfAbsent(icon, key -> new BoardItemIcon(BuiltInRegistries.ITEM.getValue(key))).draw(context, x + 4, blockChoiceY + 2);
         }
     }
     private static String format(long value) { return NumberFormat.getIntegerInstance(Locale.US).format(value); }
     @Override public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, parent, mouseX, mouseY, "LEADERBOARDS")) return true;
         if (button == 0 && picking() && mouseX >= x && mouseX < x + contentWidth && mouseY >= listTop && mouseY < listBottom) {
             int index = offset + (int) (mouseY - listTop) / ROW_HEIGHT;
             if (index < visibleBlocks.size()) {

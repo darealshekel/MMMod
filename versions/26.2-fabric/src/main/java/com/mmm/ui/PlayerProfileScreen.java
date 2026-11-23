@@ -43,7 +43,7 @@ public class PlayerProfileScreen extends CompatScreen
                 .build();
         profileButton.active = hasProfileName();
         this.addRenderableWidget(profileButton);
-        this.addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose())
+        this.addRenderableWidget(Button.builder(Component.literal("Back"), button -> onClose())
                 .bounds(layout.panelRight - 70, layout.headerY - 2, 60, BUTTON_HEIGHT)
                 .build());
     }
@@ -54,8 +54,7 @@ public class PlayerProfileScreen extends CompatScreen
         MmmUi.ensureCursorVisible();
         Layout layout = computeLayout();
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "PROFILE");
-        MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
+        BoardMenuChrome.header(context, font, this.width, layout.contentX, "Tools / Profile");
 
         MmmUi.drawTextWithin(context, this.font, this.title.getString(), layout.contentX, layout.headerY, Math.max(0, layout.contentWidth - 196), MmmUi.TEXT, true);
         if (!layout.compact)
@@ -70,18 +69,6 @@ public class PlayerProfileScreen extends CompatScreen
         drawBreakdownCard(context, layout.rightX, layout.lowerY, layout.cardWidth, layout.lowerHeight);
 
         super.extractRenderState(context, mouseX, mouseY, delta);
-        MmmUi.drawMmmTopBar(context, this.font, this.width);
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button)
-    {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "PROFILE"))
-        {
-            return true;
-        }
-
-        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
@@ -105,7 +92,7 @@ public class PlayerProfileScreen extends CompatScreen
     {
         long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
         long worldTotal = MiningStats.getCurrentSourceTotalMined();
-        MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
+        BoardMenuChrome.section(context, x, y, width, height, false);
         drawCardTitle(context, x, y, width, "Totals");
         int firstRow = height < 90 ? 26 : 30;
         int step = height < 90 ? 20 : 26;
@@ -123,7 +110,7 @@ public class PlayerProfileScreen extends CompatScreen
         long weeklyBlocks = MiningStats.getWeeklyBlocksMined();
         long dailyRecord = MiningStats.getPersonalRecordDailyBlocks();
         long weeklyRecord = MiningStats.getPersonalRecordWeeklyBlocks();
-        MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
+        BoardMenuChrome.section(context, x, y, width, height, false);
         drawCardTitle(context, x, y, width, "Records");
         int firstRow = height < 90 ? 25 : 28;
         int step = height < 90 ? 19 : 24;
@@ -136,7 +123,7 @@ public class PlayerProfileScreen extends CompatScreen
     private void drawSourceCard(GuiGraphicsExtractor context, int x, int y, int width, int height)
     {
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
-        MmmUi.card(context, x, y, width, height, MmmUi.CARD_SOFT, MmmUi.BORDER);
+        BoardMenuChrome.section(context, x, y, width, height, true);
         drawCardTitle(context, x, y, width, "Current Source");
         int firstRow = height < 130 ? 26 : 30;
         int step = height < 130 ? 19 : 26;
@@ -159,7 +146,7 @@ public class PlayerProfileScreen extends CompatScreen
     {
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
         Configs.WorldStatsEntry stats = Configs.getOrCreateWorldStats(world.id(), world.displayName(), world.kind(), world.host());
-        MmmUi.card(context, x, y, width, height, MmmUi.CARD_SOFT, MmmUi.BORDER);
+        BoardMenuChrome.section(context, x, y, width, height, false);
         drawCardTitle(context, x, y, width, "Mined Blocks");
 
         if (stats.blockBreakdown == null || stats.blockBreakdown.isEmpty())
@@ -189,7 +176,7 @@ public class PlayerProfileScreen extends CompatScreen
 
     private void drawCardTitle(GuiGraphicsExtractor context, int x, int y, int width, String title)
     {
-        MmmUi.drawTextWithin(context, this.font, title, x + CARD_PADDING, y + 10, width - CARD_PADDING * 2, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.font, title, x + CARD_PADDING, y + 10, width - CARD_PADDING * 2, BoardMenuChrome.focusInk(), false);
     }
 
     private void drawMetric(GuiGraphicsExtractor context, int x, int y, int width, String label, String value, int valueColor)

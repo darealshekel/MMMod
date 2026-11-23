@@ -1,5 +1,9 @@
 plugins { id 'java-library' }
 
+tasks.withType(Jar).configureEach {
+    from('../') { include 'LICENSE', 'LICENSE-MIT', 'LICENSING.md' }
+}
+
 group = 'com.mmm'
 version = 'shared-core-development'
 repositories { mavenCentral() }

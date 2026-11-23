@@ -1,5 +1,7 @@
 package com.mmm.scoreboard;
 
+import com.mmm.ui.BoardEditorStyle;
+
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -69,8 +71,7 @@ public final class ScoreboardRecordsScreen extends com.mmm.ui.CompatScreen
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SCOREBOARD");
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
+        MmmUi.boardHeader(context, textRenderer, this.width, MmmUi.contentLeft(this.width), "Tools / Scoreboard / Records");
 
         int x = MmmUi.contentLeft(this.width);
         int y = MmmUi.TOP_BAR_HEIGHT;
@@ -86,7 +87,7 @@ public final class ScoreboardRecordsScreen extends com.mmm.ui.CompatScreen
     {
         int y = viewportY + 16 - (int) Math.round(this.scrollY);
         MmmUi.drawTextWithin(context, this.textRenderer, "RECORDED SCOREBOARDS", x, y, width, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Build one CSV from several scoreboard snapshots.", x, y + 16, width, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, "Build one CSV from several scoreboard snapshots.", x, y + 16, width, BoardEditorStyle.MUTED, false);
         y += 38;
 
         this.recordButton.setDimensionsAndPosition(Math.min(120, width / 3), 18, x, y);
@@ -101,9 +102,9 @@ public final class ScoreboardRecordsScreen extends com.mmm.ui.CompatScreen
         List<ScoreboardState.Snapshot> snapshots = ScoreboardState.getSnapshots();
         if (snapshots.isEmpty())
         {
-            MmmUi.card(context, x, y, width, 52, MmmUi.CARD, MmmUi.BORDER);
+            MmmUi.boardRow(context, x, y, width, 52, MmmUi.CARD, MmmUi.BORDER);
             MmmUi.drawTextWithin(context, this.textRenderer, "NO RECORDS", x + 12, y + 12, width - 24, MmmUi.TEXT, false);
-            MmmUi.drawTextWithin(context, this.textRenderer, "Record the current sidebar to add it here.", x + 12, y + 29, width - 24, MmmUi.MUTED, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "Record the current sidebar to add it here.", x + 12, y + 29, width - 24, BoardEditorStyle.MUTED, false);
             this.contentHeight = y + 64 - viewportY + (int) Math.round(this.scrollY);
             return;
         }
@@ -111,13 +112,13 @@ public final class ScoreboardRecordsScreen extends com.mmm.ui.CompatScreen
         for (int index = 0; index < snapshots.size(); index++)
         {
             ScoreboardState.Snapshot snapshot = snapshots.get(index);
-            MmmUi.card(context, x, y, width, ROW_HEIGHT - 4, MmmUi.CARD, MmmUi.BORDER);
+            MmmUi.boardRow(context, x, y, width, ROW_HEIGHT - 4, MmmUi.CARD, MmmUi.BORDER);
             int buttonsWidth = 42 + 48 + 58 + 12;
             MmmUi.drawTextWithin(context, this.textRenderer, snapshot.displayName(), x + 10, y + 8,
                     Math.max(20, width - buttonsWidth - 24), MmmUi.TEXT, false);
             String detail = snapshot.rows().size() + " rows  |  " + TIME_FORMAT.format(Instant.ofEpochMilli(snapshot.capturedAtMs()));
             MmmUi.drawTextWithin(context, this.textRenderer, detail, x + 10, y + 22,
-                    Math.max(20, width - buttonsWidth - 24), MmmUi.MUTED, false);
+                    Math.max(20, width - buttonsWidth - 24), BoardEditorStyle.MUTED, false);
 
             RecordButtons controls = this.rowButtons.get(index);
             int buttonX = x + width - buttonsWidth - 6;
@@ -170,16 +171,6 @@ public final class ScoreboardRecordsScreen extends com.mmm.ui.CompatScreen
         {
             this.clearAndInit();
         }
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button)
-    {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SCOREBOARD"))
-        {
-            return true;
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override

@@ -4,6 +4,7 @@
   "mcversion": "1.12.2",
   "version": "${version}",
   "author": "Shekel",
+  "license": "LGPL-3.0-only",
   "description": "Mining sessions, Collections, leaderboards and MMM social features for Minecraft 1.12.2.",
   "mixinConfigs": ["mmm-legacy.mixins.json", "mmm-input.mixins.json", "mmm-collection.mixins.json", "mmm-social.mixins.json", "mmm-visual.mixins.json", "mmm-achievement.mixins.json"]
 }

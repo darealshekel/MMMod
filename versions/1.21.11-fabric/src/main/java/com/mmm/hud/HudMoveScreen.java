@@ -30,6 +30,7 @@ public class HudMoveScreen extends com.mmm.ui.CompatScreen
     protected void init()
     {
         MmmUi.ensureCursorVisible();
+        MinedBlockOverlayRenderer.preparePreview(MinecraftClient.getInstance());
         ControlLayout layout = this.controlLayout();
         this.addDrawableChild(ButtonWidget.builder(Text.literal("-"), button -> adjustScale(-0.05D)).dimensions(layout.x() + 12, layout.y() + layout.height() - 28, 22, 20).build());
         this.addDrawableChild(ButtonWidget.builder(Text.literal("+"), button -> adjustScale(0.05D)).dimensions(layout.x() + 38, layout.y() + layout.height() - 28, 22, 20).build());
@@ -70,6 +71,12 @@ public class HudMoveScreen extends com.mmm.ui.CompatScreen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
+        // CompatScreen dispatches typed widget events after this legacy hook returns false.
+        for (var child : this.children())
+        {
+            if (child instanceof ButtonWidget widget && widget.visible && widget.isMouseOver(mouseX, mouseY))
+                return false;
+        }
         if (super.mouseClicked(mouseX, mouseY, button))
         {
             return true;
@@ -104,6 +111,10 @@ public class HudMoveScreen extends com.mmm.ui.CompatScreen
 
         for (HudModuleId module : movableModules())
         {
+            if (module != HudModuleId.MAIN && !TimerHudRenderer.isVisible(module) && module != this.selected)
+            {
+                continue;
+            }
             int[] bounds = TimerHudRenderer.getBounds(client, module);
             if (mouseX >= bounds[0] && mouseX <= bounds[2] && mouseY >= bounds[1] && mouseY <= bounds[3])
             {
@@ -243,6 +254,8 @@ public class HudMoveScreen extends com.mmm.ui.CompatScreen
             case HOURLY -> Configs.Generic.HOURLY_STATS_SCALE.getDoubleValue();
             case BLOCK_STATS -> Configs.Generic.BLOCK_STATS_SCALE.getDoubleValue();
             case NOTIFICATION -> Configs.Generic.TIMER_NOTIFICATION_SCALE.getDoubleValue();
+            case ACTIVE_DIGGERS -> Configs.Generic.ACTIVE_DIGGERS_SCALE.getDoubleValue();
+            case MINED_BLOCKS -> Configs.Generic.MINED_BLOCK_OVERLAY_SCALE.getDoubleValue();
         };
     }
 
@@ -284,6 +297,6 @@ public class HudMoveScreen extends com.mmm.ui.CompatScreen
 
     private static HudModuleId[] movableModules()
     {
-        return new HudModuleId[] { HudModuleId.MAIN, HudModuleId.TIMER, HudModuleId.BLOCK_STATS };
+        return new HudModuleId[] { HudModuleId.MAIN, HudModuleId.TIMER, HudModuleId.BLOCK_STATS, HudModuleId.ACTIVE_DIGGERS, HudModuleId.MINED_BLOCKS };
     }
 }

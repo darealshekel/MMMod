@@ -55,6 +55,33 @@ java {
     targetCompatibility = JavaVersion.VERSION_25
 }
 
+if (project.hasProperty('smokeTest')) {
+    sourceSets {
+        smoke {
+            java.srcDir '../../adapters/shared/compat/26.2-fabric/src/smoke/java'
+            compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+            runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+        }
+    }
+    dependencies { runtimeOnly "maven.modrinth:modmenu:$project.modmenu_version" }
+    loom.mods {
+        smoke { sourceSet sourceSets.smoke }
+    }
+    tasks.named('runClient') {
+        // No external HTTP during local gameplay verification.
+        systemProperty 'http.proxyHost', '127.0.0.1'
+        systemProperty 'http.proxyPort', '1'
+        systemProperty 'https.proxyHost', '127.0.0.1'
+        systemProperty 'https.proxyPort', '1'
+        dependsOn tasks.named('smokeClasses')
+        classpath += sourceSets.smoke.output
+        if (!project.hasProperty('verificationRunId')) {
+            environment 'APPDATA', file('build/smoke-appdata').absolutePath
+            jvmArgs '-Duser.home=' + file('build/smoke-home').absolutePath
+        }
+    }
+}
+
 apply from: '../../gradle/shared-sources.gradle'
 
 if (project.hasProperty('verificationRunId')) {

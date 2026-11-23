@@ -225,6 +225,18 @@ public final class MiningHudRenderer
             lines.add(HudLine.text("Session IGT: " + sessionIgtClock, inactiveTextColor(sessionIgtClock, sessionPaused)));
             lines.add(HudLine.text("Session Time: " + sessionTimeClock, inactiveTextColor(sessionTimeClock, false)));
         }
+        if (Configs.Generic.HUD_WORLD_PLAYTIME_VISIBLE.getBooleanValue())
+        {
+            lines.add(HudLine.text("World Playtime: " + com.mmm.tracker.PlaytimeTracker.worldClock(), hudTextColor()));
+        }
+        if (Configs.Generic.HUD_MOD_PLAYTIME_VISIBLE.getBooleanValue())
+        {
+            lines.add(HudLine.text("MMMod Playtime: " + com.mmm.tracker.PlaytimeTracker.modClock(), hudTextColor()));
+        }
+        if (Configs.Generic.HUD_ALL_WORLDS_PLAYTIME_VISIBLE.getBooleanValue())
+        {
+            lines.add(HudLine.text("All Worlds Playtime: " + com.mmm.tracker.PlaytimeTracker.allWorldsClock(), hudTextColor()));
+        }
         if (Configs.Generic.HUD_DAILY_RESET_VISIBLE.getBooleanValue() && FeatureToggle.MMM_DAILY_GOAL.getBooleanValue())
         {
             lines.add(HudLine.text("Daily Reset In: " + MiningStats.getDailyResetCountdownClock(), hudTextColor()));

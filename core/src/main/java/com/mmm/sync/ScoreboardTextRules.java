@@ -7,6 +7,9 @@ import java.util.regex.Pattern;
 
 final class ScoreboardTextRules
 {
+    private static final Pattern USERNAME_CHARACTERS = Pattern.compile("[A-Za-z0-9_]+");
+    private static final Pattern FORMATTING = Pattern.compile("\u00a7.");
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
     private static final Pattern USERNAME_PATTERN = Pattern.compile("(?i)(?:^|\\s|[#>\\[(])([A-Za-z0-9_]{3,16})(?:$|\\s|[\\])<:,.-])");
 
     private ScoreboardTextRules()
@@ -66,7 +69,7 @@ final class ScoreboardTextRules
 
     static boolean isMinecraftUsername(String value)
     {
-        if (value == null || value.length() < 3 || value.length() > 16 || value.matches("[A-Za-z0-9_]+") == false)
+        if (value == null || value.length() < 3 || value.length() > 16 || USERNAME_CHARACTERS.matcher(value).matches() == false)
         {
             return false;
         }
@@ -87,10 +90,8 @@ final class ScoreboardTextRules
     {
         return value == null
                 ? ""
-                : value
-                        .replaceAll("§.", "")
-                        .replace('\u00A0', ' ')
-                        .replaceAll("\\s+", " ")
+                : WHITESPACE.matcher(FORMATTING.matcher(value).replaceAll("").replace('\u00A0', ' '))
+                        .replaceAll(" ")
                         .trim();
     }
 }

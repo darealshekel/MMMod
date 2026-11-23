@@ -12,6 +12,7 @@ final class LegacyLinkScreen extends LegacyScreen {
     private ButtonWidget submit;
     private String browserError = "";
     LegacyLinkScreen(Screen parent) { super(parent, "Website account"); }
+    @Override protected int maxContentWidth() { return 520; }
     @Override public void init() {
         String previous = code == null ? "" : code.getText();
         super.init();
@@ -46,14 +47,16 @@ final class LegacyLinkScreen extends LegacyScreen {
         String saved = linked ? "Linked as " + WebsiteLinkManager.getPersistedUsername()
                 : WebsiteLinkManager.hasPersistedLink() ? "Saved link belongs to " + WebsiteLinkManager.getPersistedUsername()
                 + "; link your current account." : "Not linked to the website";
-        fit(saved, left, 45, panelWidth, linked ? 0xFF69D59A : 0xFFFFBA69);
-        fit(CloudSyncManager.getStatusSummary(), left, 60, panelWidth, 0xFFBBBBBB);
+        recordRow(37, 35, false);
+        fit(saved, left + 7, 43, panelWidth - 14, linked ? 0xFF69D59A : 0xFFFFBA69);
+        fit(CloudSyncManager.getStatusSummary(), left + 7, 57, panelWidth - 14, 0xFFBBBBBB);
         fit("Generate a mod link code on the website, then enter it below.", left, 77, panelWidth, 0xFFF5F5F5);
         code.render();
         String detail = browserError.isEmpty() ? WebsiteLinkManager.getState().detail() : browserError;
         if (detail.isBlank()) detail = CloudSyncManager.getStatusDetail();
+        section("Connection status", 148);
         var lines = textRenderer.split(detail, panelWidth);
-        for (int i = 0; i < lines.size() && 151 + i * 12 < height - 12; i++) text(lines.get(i), left, 151 + i * 12, 0xFFCCCCCC);
+        for (int i = 0; i < lines.size() && 164 + i * 12 < height - 12; i++) text(lines.get(i), left, 164 + i * 12, 0xFFCCCCCC);
         refresh();
         super.render(x, y, delta);
     }

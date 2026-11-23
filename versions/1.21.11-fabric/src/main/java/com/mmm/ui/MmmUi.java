@@ -2,7 +2,6 @@ package com.mmm.ui;
 
 import java.util.List;
 
-import com.mmm.Reference;
 import com.mmm.config.Configs;
 import com.mmm.gui.GuiConfigs;
 import com.mmm.hud.SessionHistoryScreen;
@@ -58,11 +57,9 @@ public final class MmmUi
     public static final int SCROLLBAR_THUMB = 0xFFC20000;
     public static final int SCROLLBAR_THUMB_HOVER = RED;
     public static final int SCROLLBAR_THUMB_ACTIVE = RED;
-    public static final int TOP_BAR_HEIGHT = 42;
-    public static final int SIDEBAR_WIDTH = 150;
+    public static final int TOP_BAR_HEIGHT = BoardEditorStyle.HEADER_HEIGHT;
     public static final int PAGE_PAD = 14;
 
-    private static final int SIDEBAR_ROW_HEIGHT = 24;
 
     private MmmUi()
     {
@@ -138,29 +135,7 @@ public final class MmmUi
 
     public static void backdrop(DrawContext context, int width, int height)
     {
-        context.fill(0, 0, width, height, menuSurface(OVERLAY));
-    }
-
-    public static int contentLeft()
-    {
-        return SIDEBAR_WIDTH + PAGE_PAD;
-    }
-
-    public static int sidebarWidth(int screenWidth)
-    {
-        if (screenWidth < 520)
-        {
-            return 84;
-        }
-        if (screenWidth < 720)
-        {
-            return 104;
-        }
-        if (screenWidth < 900)
-        {
-            return 128;
-        }
-        return SIDEBAR_WIDTH;
+        context.fill(0, 0, width, height, menuSurface(BoardEditorStyle.SURFACE));
     }
 
     public static int pagePad(int screenWidth)
@@ -170,127 +145,66 @@ public final class MmmUi
 
     public static int contentLeft(int screenWidth)
     {
-        return sidebarWidth(screenWidth) + pagePad(screenWidth);
+        return centerContentX(screenWidth, contentWidth(screenWidth));
     }
 
     public static int contentWidth(int screenWidth)
     {
-        return Math.max(1, screenWidth - contentLeft(screenWidth) - pagePad(screenWidth));
+        return BoardEditorStyle.contentWidth(screenWidth, 840);
     }
 
     public static int centerContentX(int screenWidth, int contentWidth)
     {
-        return contentLeft(screenWidth) + Math.max(0, (contentWidth(screenWidth) - contentWidth) / 2);
+        return Math.max(0, (screenWidth - contentWidth) / 2);
     }
 
-    public static int sidebarStartY(int screenHeight)
+    public static void boardHeader(DrawContext c, TextRenderer font, int width, int left, String section)
     {
-        return sidebarMetrics(screenHeight).startY();
+        c.fill(0, 0, width, TOP_BAR_HEIGHT, menuSurface(BoardEditorStyle.FLOOR));
+        c.fill(0, TOP_BAR_HEIGHT - 1, width, TOP_BAR_HEIGHT, BoardEditorStyle.LINE);
+        c.drawText(font, "MMM", left, 11, BoardEditorStyle.ROSE, true);
+        drawTextWithin(c, font, "/ " + section, left + 28, 11, width - left - 88, BoardEditorStyle.TEXT, false);
     }
 
-    public static int sidebarRowHeight(int screenHeight)
+    public static net.minecraft.client.gui.widget.ButtonWidget backButton(Screen screen, int right)
     {
-        return sidebarMetrics(screenHeight).rowHeight();
+        return net.minecraft.client.gui.widget.ButtonWidget.builder(Text.literal("Back"), ignored -> screen.close())
+                .dimensions(right - 48, 6, 48, 18).build();
     }
 
-    public static int sidebarRowGap(int screenHeight)
+    public static void boardRow(DrawContext c, int x, int y, int w, int h, int fill, int edge)
     {
-        return sidebarMetrics(screenHeight).rowGap();
+        if (fill == PANEL) return;
+        int face = fill == CARD ? BoardEditorStyle.TILE : fill == INSET ? BoardEditorStyle.FLOOR : fill;
+        c.fill(x, y, x + w, y + h, menuSurface(face));
+        c.fill(x, y + h - 1, x + w, y + h, edge == BORDER || edge == BORDER_SOFT ? BoardEditorStyle.LINE : edge);
     }
 
-    public static boolean sidebarFooterVisible(int screenHeight)
+    public static void boardControl(DrawContext c, int x, int y, int w, int h, boolean hot)
     {
-        return sidebarMetrics(screenHeight).showFooter();
+        BoardEditorStyle.plate(c::fill, x, y, w, h, menuSurface(hot ? CollectionBoardArt.ACTIVE : BoardEditorStyle.TILE),
+                hot ? BoardEditorStyle.ROSE : BoardEditorStyle.LINE);
     }
 
-    public static void drawMmmScreensSidebar(DrawContext context, TextRenderer renderer, int width, int height, int mouseX, int mouseY, String activeId)
+    public static void sectionRule(DrawContext c, int x, int y, int w)
     {
-        drawMmmTopBar(context, renderer, width);
-        int sidebarWidth = sidebarWidth(width);
-        int sidePad = sidebarWidth < 120 ? 8 : 12;
-        SidebarMetrics metrics = sidebarMetrics(height);
-        context.fill(0, TOP_BAR_HEIGHT, sidebarWidth, height, menuSurface(0xE9080808));
-        com.mmm.ui.MmmUi.drawBorder(context, 0, TOP_BAR_HEIGHT, sidebarWidth, Math.max(1, height - TOP_BAR_HEIGHT), BORDER);
+        if (w <= 0) return;
+        c.fill(x, y, x + w, y + 1, BoardEditorStyle.LINE);
+        c.fill(x, y, x + Math.min(12, w), y + 1, BoardEditorStyle.ROSE);
+    }
 
-        int titleY = metrics.titleY();
-        drawSectionHeading(context, renderer, "MMM SCREENS", sidePad, titleY, sidebarWidth - sidePad * 2);
-
-        int y = metrics.startY();
-        for (SidebarRoute route : SidebarRoute.values())
-        {
-            boolean active = route.id.equals(activeId);
-            boolean hovered = mouseX >= sidePad && mouseX < sidebarWidth - sidePad && mouseY >= y && mouseY < y + metrics.rowHeight();
-            int fill = active ? accentSoft() : hovered ? accentHover() : INSET;
-            int border = active || hovered ? accent() : BORDER_SOFT;
-            context.fill(sidePad, y, sidebarWidth - sidePad, y + metrics.rowHeight(), menuSurface(fill));
-            com.mmm.ui.MmmUi.drawBorder(context, sidePad, y, sidebarWidth - sidePad * 2, metrics.rowHeight(), border);
-            int textY = y + Math.max(2, (metrics.rowHeight() - 8) / 2);
-            String label = sidebarWidth < 120 ? route.compactLabel : route.label;
-            drawTextWithin(context, renderer, label, sidePad + 8, textY, sidebarWidth - sidePad * 2 - 16, active ? TEXT : MUTED, false);
-            y += metrics.rowHeight() + metrics.rowGap();
+    public static void listRow(DrawContext c, int x, int y, int w, int h, boolean selected, boolean hovered)
+    {
+        if (selected || hovered) {
+            c.fill(x, y, x + w, y + h, menuSurface(BoardEditorStyle.TILE));
+            c.fill(x, y + 1, x + 2, y + h - 1, selected ? BoardEditorStyle.ROSE : BoardEditorStyle.MUTED);
         }
-
-        if (metrics.showFooter())
-        {
-            int bottomY = height - 42;
-            com.mmm.ui.MmmUi.drawBorder(context, sidePad, bottomY, sidebarWidth - sidePad * 2, 28, BORDER_SOFT);
-            drawTextWithin(context, renderer, "MMM MOD", sidePad + 8, bottomY + 7, sidebarWidth - sidePad * 2 - 16, TEXT, false);
-            drawTextWithin(context, renderer, Reference.MOD_VERSION, sidePad + 8, bottomY + 18, sidebarWidth - sidePad * 2 - 16, MUTED, false);
-        }
-    }
-
-    public static void drawMmmTopBar(DrawContext context, TextRenderer renderer, int width)
-    {
-        context.fill(0, 0, width, TOP_BAR_HEIGHT, menuSurface(0xF0060606));
-        com.mmm.ui.MmmUi.drawBorder(context, 0, 0, width, TOP_BAR_HEIGHT, BORDER);
-        context.fill(14, 12, 18, 30, accent());
-        drawTextWithin(context, renderer, "MMM", 26, 10, 40, accent(), false);
-        int versionWidth = renderer.getWidth(Reference.MOD_VERSION);
-        int versionSpace = width >= 300 ? versionWidth + 24 : 0;
-        int brandWidth = Math.max(0, width - 68 - versionSpace - 12);
-        if (brandWidth >= 72)
-        {
-            drawTextWithin(context, renderer, "Manual Mining Maniacs", 68, 10, brandWidth, TEXT, false);
-        }
-        if (versionSpace > 0)
-        {
-            drawTextRightWithin(context, renderer, Reference.MOD_VERSION, width - 16, 10, versionWidth, MUTED, false);
-        }
-    }
-
-    public static boolean handleMmmScreensSidebarClick(Screen current, Screen parent, double mouseX, double mouseY, String activeId)
-    {
-        int sidebarWidth = sidebarWidth(current.width);
-        int sidePad = sidebarWidth < 120 ? 8 : 12;
-        SidebarMetrics metrics = sidebarMetrics(current.height);
-        if (mouseX < sidePad || mouseX >= sidebarWidth - sidePad)
-        {
-            return false;
-        }
-
-        int y = metrics.startY();
-        for (SidebarRoute route : SidebarRoute.values())
-        {
-            if (mouseY >= y && mouseY < y + metrics.rowHeight())
-            {
-                if (route.id.equals(activeId))
-                {
-                    return true;
-                }
-                openSidebarRoute(current, parent, route);
-                return true;
-            }
-            y += metrics.rowHeight() + metrics.rowGap();
-        }
-
-        return false;
+        c.fill(x, y + h - 1, x + w, y + h, BoardEditorStyle.LINE);
     }
 
     public static void drawSectionHeading(DrawContext context, TextRenderer renderer, String title, int x, int y, int maxWidth)
     {
-        int textHeight = renderer.fontHeight;
-        context.fill(x, y, x + 4, y + textHeight, accent());
-        drawTextWithin(context, renderer, title, x + 12, y, maxWidth - 12, TEXT, false);
+        drawTextWithin(context, renderer, title, x, y, maxWidth, BoardEditorStyle.ROSE, false);
     }
 
     public static void card(DrawContext context, int x, int y, int width, int height, int fillColor, int borderColor)
@@ -301,12 +215,12 @@ public final class MmmUi
 
     public static void fieldShell(DrawContext context, int x, int y, int width, int height, boolean focused)
     {
-        card(context, x, y, width, height, INSET, focused ? accent() : BORDER_SOFT);
+        boardRow(context, x, y, width, height, INSET, focused ? BoardEditorStyle.ROSE : BoardEditorStyle.LINE);
     }
 
     public static void pill(DrawContext context, TextRenderer renderer, int x, int y, int width, int height, String text)
     {
-        card(context, x, y, width, height, CARD, accent());
+        boardRow(context, x, y, width, height, CARD, BoardEditorStyle.LINE);
         String clipped = truncate(renderer, text, width - 8);
         int textX = x + Math.max(4, (width - renderer.getWidth(clipped)) / 2);
         context.drawText(renderer, Text.literal(clipped), textX, y + 4, accent(), false);
@@ -315,7 +229,7 @@ public final class MmmUi
     public static void statusChip(DrawContext context, TextRenderer renderer, int x, int y, String text, int borderColor)
     {
         int width = renderer.getWidth(text) + 14;
-        card(context, x, y, width, 16, INSET, borderColor);
+        boardRow(context, x, y, width, 16, INSET, borderColor);
         drawTextWithin(context, renderer, text, x + 7, y + 4, width - 14, TEXT, false);
     }
 
@@ -384,68 +298,21 @@ public final class MmmUi
         return trimmed + ellipsis;
     }
 
-    private static void openSidebarRoute(Screen current, Screen parent, SidebarRoute route)
+    static List<ToolDirectory> availableTools()
     {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client == null)
-        {
-            return;
-        }
-
-        Screen routeParent = parent != null ? parent : current;
-        switch (route)
-        {
-            case SETTINGS -> client.setScreen(new MmmSettingsScreen(routeParent));
-            case HOTKEYS -> client.setScreen(new GuiConfigs(routeParent));
-            case PROJECTS -> client.setScreen(new ProjectManagerScreen(routeParent));
-            case PROFILE -> client.setScreen(new PlayerProfileScreen(routeParent));
-            case WEBSITE_LINK -> client.setScreen(new WebsiteLinkScreen(routeParent));
-            case HISTORY -> client.setScreen(new SessionHistoryScreen(routeParent));
-            case SUMMARY -> client.setScreen(new SummaryScreen(MiningStats.getCurrentSession(), routeParent));
-            case SCOREBOARD -> client.setScreen(new ScoreboardScreen(routeParent));
-            case LEADERBOARDS -> client.setScreen(new LeaderboardScreen(routeParent));
-        }
+        return List.of(ToolDirectory.values());
     }
 
-    private static SidebarMetrics sidebarMetrics(int screenHeight)
+    static void openTool(Screen parent, ToolDirectory tool)
     {
-        int routeCount = SidebarRoute.values().length;
-        boolean compact = screenHeight < 360;
-        int titleY = TOP_BAR_HEIGHT + (compact ? 8 : 16);
-        int startY = titleY + (compact ? 18 : 28);
-        boolean showFooter = !compact && screenHeight - startY >= routeCount * 24 + 50;
-        int available = Math.max(routeCount * 10, screenHeight - startY - (showFooter ? 50 : 8));
-        int rowGap = available >= routeCount * 24 + (routeCount - 1) * 7 ? 7
-                : available >= routeCount * 18 + (routeCount - 1) * 3 ? 3 : 1;
-        int rowHeight = Math.max(10, Math.min(SIDEBAR_ROW_HEIGHT, (available - rowGap * (routeCount - 1)) / routeCount));
-        return new SidebarMetrics(titleY, startY, rowHeight, rowGap, showFooter);
-    }
-
-    private record SidebarMetrics(int titleY, int startY, int rowHeight, int rowGap, boolean showFooter)
-    {
-    }
-
-    private enum SidebarRoute
-    {
-        SETTINGS("SETTINGS", "Settings", "Settings"),
-        HOTKEYS("HOTKEYS", "Hotkeys", "Hotkeys"),
-        PROJECTS("PROJECTS", "Projects", "Projects"),
-        PROFILE("PROFILE", "Profile", "Profile"),
-        WEBSITE_LINK("WEBSITE_LINK", "Website Link", "Link"),
-        HISTORY("HISTORY", "History", "History"),
-        SUMMARY("SUMMARY", "Summary", "Summary"),
-        SCOREBOARD("SCOREBOARD", "Scoreboard", "Scores"),
-        LEADERBOARDS("LEADERBOARDS", "Leaderboards", "Rankings");
-
-        private final String id;
-        private final String label;
-        private final String compactLabel;
-
-        SidebarRoute(String id, String label, String compactLabel)
-        {
-            this.id = id;
-            this.label = label;
-            this.compactLabel = compactLabel;
-        }
+        MinecraftClient.getInstance().setScreen(switch (tool) {
+            case HOTKEYS -> new GuiConfigs(parent);
+            case PROJECTS -> new ProjectManagerScreen(parent);
+            case PROFILE -> new PlayerProfileScreen(parent);
+            case HISTORY -> new SessionHistoryScreen(parent);
+            case SUMMARY -> new SummaryScreen(MiningStats.getCurrentSession(), parent);
+            case SCOREBOARD -> new ScoreboardScreen(parent);
+            case LEADERBOARDS -> new LeaderboardScreen(parent);
+        });
     }
 }

@@ -20,6 +20,9 @@ final class MiningFeaturesSmoke
     private int phase, ticks;
     private long started = System.currentTimeMillis();
     private CollectionBookScreen book;
+    private MmmSettingsScreen settings;
+    private int checkedSurfaces;
+    private String surfaceError;
     private SessionData demo;
     private SummaryScreen efficiency;
     private net.minecraft.world.GameMode originalMode;
@@ -31,6 +34,12 @@ final class MiningFeaturesSmoke
                 if (System.currentTimeMillis() - started > 90_000) throw new AssertionError("Features smoke timeout: " + phase);
                 if (phase == 0) {
                     client.options.pauseOnLostFocus = false;
+                    var commands = net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.getActiveDispatcher();
+                    var mmm = commands == null ? null : commands.getRoot().getChild("mmm");
+                    if (mmm == null || mmm.getChild("collections") == null || mmm.getChild("timelapse") != null)
+                        throw new AssertionError("Incorrect release command registration");
+                    if (field(com.mmm.advancement.MmmAdvancementManager.class, "notificationRenderer") == null)
+                        throw new AssertionError("Achievement renderer was not registered");
                     MiningStats.startNewSession();
                     client.setScreen(null);
                     checkClassification(client);
@@ -85,14 +94,27 @@ final class MiningFeaturesSmoke
                     for (int i = 0; i < 10; i++) EfficiencyTracker.tick(client);
                     if (before != session.efficiency.tracked()) throw new AssertionError("Paused samples gained time");
                     MiningStats.togglePauseSession();
-                    client.options.getGuiScale().setValue(2); client.onResolutionChanged();
+                    client.options.getGuiScale().setValue(1); client.onResolutionChanged();
+                    Configs.WORLD_STATS.clear();
+                    // The isolated game directory may contain pending mining from a previous run.
+                    Configs.collectionLiveState = "{}";
+                    var account = LiveCollections.class.getDeclaredField("account");
+                    account.setAccessible(true);
+                    account.set(null, "");
+                    Configs.Generic.COLLECTION_SORT.resetToDefault();
+                    Configs.Generic.COLLECTION_FILTER.resetToDefault();
+                    Configs.Generic.COLLECTION_CATEGORY.resetToDefault();
+                    Configs.Generic.COLLECTION_GLOBAL.resetToDefault();
                     var world = Configs.getOrCreateWorldStats(WorldSessionContext.getCurrentWorldId(), "Smoke world", "singleplayer", "");
                     world.blockBreakdown = new java.util.LinkedHashMap<>(Map.of("minecraft:stone", 99_800L,
                             "minecraft:dirt", 10_000_000L, "minecraft:netherrack", 200_000L));
+                    for (String block : java.util.List.of("diamond_ore", "emerald_ore", "deepslate_emerald_ore", "raw_iron_block", "spawner"))
+                        world.blockBreakdown.put("minecraft:" + block, 1000L);
                     book = new CollectionBookScreen(null); client.setScreen(book);
                     checkBounds(book); ticks = 0; phase = 4;
                 } else if (phase == 4 && ++ticks > 20) {
                     shot(client, "collections-categories.png");
+                    Configs.WORLD_STATS.forEach(world -> world.blockBreakdown.keySet().removeIf(id -> CollectionProgress.cap(id) == 1000));
                     var otherWorld = Configs.getOrCreateWorldStats("collection-smoke-other", "Other world", "singleplayer", "");
                     otherWorld.blockBreakdown = new java.util.LinkedHashMap<>(Map.of("minecraft:stone", 1200L));
                     for (int i = 0; i < 20; i++) book.tick();
@@ -106,13 +128,17 @@ final class MiningFeaturesSmoke
                     clickSlot(book, "World scope");
                     if (!Long.valueOf(800000).equals(((Map<?, ?>)field(book, "counts")).get("minecraft:stone"))
                             || !Long.valueOf(1234).equals(((Map<?, ?>)field(book, "counts")).get("minecraft:diamond_ore")))
-                        throw new AssertionError("Global website worlds missing or double counted");
+                        throw new AssertionError("Global website worlds missing or double counted: " + field(book, "counts"));
                     LiveCollections.mined("minecraft:stone");
                     for (int i = 0; i < 20; i++) book.tick();
                     if (!Long.valueOf(800001).equals(((Map<?, ?>)field(book, "counts")).get("minecraft:stone")))
                         throw new AssertionError("Global collections did not include unsynced mining");
                     clickSlot(book, "World scope");
                     websiteField.set(book, null);
+                    clickSlot(book, "Nether collections");
+                    if (!field(book, "category").toString().equals("NETHER")) throw new AssertionError("Nether tab not selected");
+                    clickSlot(book, "Ores collections");
+                    if (!field(book, "category").toString().equals("ORES")) throw new AssertionError("Direct category switch failed");
                     clickSlot(book, "All collections");
                     var field = book.children().stream().filter(c -> c instanceof TextFieldWidget).map(c -> (TextFieldWidget)c).findFirst().orElseThrow();
                     book.setFocused(field);
@@ -128,7 +154,9 @@ final class MiningFeaturesSmoke
                     var completedTiers = (long[])field(book, "tierCompletions");
                     for (int i = 0; i < completedTiers.length; i++) {
                         long goal = CollectionProgress.OVERVIEW_MILESTONES.get(i);
-                        long expected = goal == 10000 || goal == 100000 ? 3 : goal == 1000000 || goal == 2500000 ? 1 : 0;
+                        long expected = (CollectionProgress.milestones("stone").contains(goal) && goal <= 100000 ? 1 : 0)
+                                + (CollectionProgress.milestones("netherrack").contains(goal) && goal <= 200000 ? 1 : 0)
+                                + (CollectionProgress.milestones("dirt").contains(goal) && goal <= 10000000 ? 1 : 0);
                         if (completedTiers[i] != expected) throw new AssertionError("Tier count wrong at " + goal);
                     }
                     if (((long[])field(book, "tierTotals"))[CollectionProgress.OVERVIEW_MILESTONES.indexOf(25000000L)] != 2)
@@ -158,13 +186,18 @@ final class MiningFeaturesSmoke
                     clickSlot(book, "Back");
                     ((TextFieldWidget)field(book, "searchField")).setText("oak log");
                     clickSlot(book, "Oak Log");
-                    checkTierPanes(book, 2, 0);
+                    checkTierPanes(book, 7, 0);
                     clickSlot(book, "Back");
                     ((TextFieldWidget)field(book, "searchField")).setText("stone");
+                    seedCollectionRank(client, "minecraft:stone", 28, 1000);
                     clickSlot(book, "Stone");
                     if (field(book, "selected") == null) throw new AssertionError("Collection details did not open");
-                    checkTierPanes(book, 5, 2);
+                    if (book.children().stream().filter(CollectionSlotButton.class::isInstance).map(CollectionSlotButton.class::cast)
+                            .noneMatch(c -> c.getMessage().getString().equals("Tier VIII")))
+                        throw new AssertionError("The next Stone milestone should be visible immediately");
+                    checkTierPanes(book, 16, 7);
                     book.init(320, 240); checkBounds(book);
+                    checkTierPanes(book, 16, 7);
                     client.onResolutionChanged();
                     ticks = 0; phase = 14;
                 } else if (phase == 14 && ++ticks > 20) {
@@ -175,7 +208,7 @@ final class MiningFeaturesSmoke
                 } else if (phase == 15 && ++ticks > 20) {
                     shot(client, "collections-tiers.png");
                     clickSlot(book, "Pin collection");
-                    if (!PinnedCollection.matches("minecraft:stone", false) || PinnedCollection.view().target() != 1000000)
+                    if (!PinnedCollection.matches("minecraft:stone", false) || PinnedCollection.view().target() != 250000)
                         throw new AssertionError("Collection pin did not activate with next tier");
                     AsyncPersistence.flush(Duration.ofSeconds(3));
                     var saved = new com.google.gson.JsonObject();
@@ -190,16 +223,21 @@ final class MiningFeaturesSmoke
                     worldStone(10000000);
                     var sample = PinnedCollection.class.getDeclaredField("nextSample"); sample.setAccessible(true); sample.setLong(null, 0);
                     PinnedCollection.tick(client);
-                    if (PinnedCollection.view().completed() || PinnedCollection.view().target() != 25000000)
-                        throw new AssertionError("Stone pin failed to advance to 25M");
+                    if (PinnedCollection.view().completed() || PinnedCollection.view().target() != 15000000)
+                        throw new AssertionError("Stone pin failed to advance to 15M");
                     worldStone(25000000);
                     for (int i = 0; i < 20; i++) book.tick();
-                    checkTierPanes(book, 5, 5);
+                    if ((int)field(book, "firstEarned") != 8 || (int)field(book, "lastEarned") != 16)
+                        throw new AssertionError("Only newly reached tiers should pulse");
+                    long earnedAt = (long)field(book, "earnedAt");
+                    for (int i = 0; i < 20; i++) book.tick();
+                    if ((long)field(book, "earnedAt") != earnedAt) throw new AssertionError("Refresh replayed the unlock");
+                    checkTierPanes(book, 16, 16);
                     sample.setLong(null, 0); PinnedCollection.tick(client);
                     if (!PinnedCollection.view().completed() || PinnedCollection.view().fraction() != 1)
                         throw new AssertionError("Completed pin failed");
                     worldStone(125000); sample.setLong(null, 0); PinnedCollection.tick(client);
-                    if (PinnedCollection.view().count() != 125000 || PinnedCollection.view().target() != 1000000)
+                    if (PinnedCollection.view().count() != 125000 || PinnedCollection.view().target() != 250000)
                         throw new AssertionError("Pin did not update with local mining count");
                     client.setScreen(null);
                     ticks = 0; phase = 18;
@@ -214,8 +252,8 @@ final class MiningFeaturesSmoke
                     if (field(book, "category") != null) throw new AssertionError("Red book did not return to tier overview");
                     var progressBook = book.children().stream().filter(c -> c instanceof CollectionSlotButton)
                             .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().equals("Collection progress")).findFirst().orElseThrow();
-                    if (progressBook.details.get().size() != CollectionProgress.OVERVIEW_MILESTONES.size() + 1)
-                        throw new AssertionError("Book tooltip missing tier counts");
+                    if (progressBook.details.get().stream().noneMatch(line -> line.getString().contains("discovered /") && line.getString().endsWith("mastered")))
+                        throw new AssertionError("Book tooltip missing collection summary");
                     book.init(320, 240); checkBounds(book);
                     for (int i = 0; i < 40; i++) book.mouseScrolled((int)field(book, "x") + 20, (int)field(book, "gridY") + 20, 0, -1);
                     var maxScroll = book.getClass().getDeclaredMethod("maxOverviewScroll"); maxScroll.setAccessible(true);
@@ -259,6 +297,85 @@ final class MiningFeaturesSmoke
                     if (!((TextFieldWidget)field(exit, "searchField")).visible) throw new AssertionError("World exit search inaccessible");
                     efficiency.close();
                     if (client.currentScreen != null) throw new AssertionError("Close failed");
+                    checkCollectionPreferences(client);
+                    client.getTutorialManager().setStep(net.minecraft.client.tutorial.TutorialStep.NONE);
+                    client.getToastManager().clear();
+                    org.lwjgl.glfw.GLFW.glfwSetWindowSize(client.getWindow().getHandle(), 1280, 720);
+                    client.options.getGuiScale().setValue(2); client.onResolutionChanged();
+                    runCommand(client, "mmm");
+                    ticks = 0; phase = 30;
+                } else if (phase == 30) {
+                    if (!(client.currentScreen instanceof MmmSettingsScreen current)) throw new AssertionError("/mmm did not open settings");
+                    settings = current;
+                    ticks++;
+                    var buttons = (java.util.List<?>)field(settings,"navigationButtons");
+                    if (ticks == 5 || ticks == 19) {
+                        client.setNavigationType(net.minecraft.client.gui.navigation.GuiNavigationType.KEYBOARD_TAB);
+                        settings.setFocused((ButtonWidget)buttons.get(ticks == 5 ? 0 : 2));
+                    }
+                    if (ticks == 29) {
+                        if (field(settings,"previewTopic") != buttons.get(2)) throw new AssertionError("Keyboard focus did not inspect HUD settings");
+                        shot(client,"settings-category-board.png");
+                        verifySurface(client, "category slip", 0x96545c);
+                    }
+                    if (ticks == 36) {
+                        worldStone(240000);
+                        runCommand(client, "mmm collections");
+                        ticks = 0; phase = 35;
+                    }
+                } else if (phase == 35) {
+                        if (!(client.currentScreen instanceof CollectionBookScreen current)) throw new AssertionError("/mmm collections did not open the board");
+                        book = current;
+                        if ((boolean)field(book,"allWorlds")) clickSlot(book,"World scope");
+                        clickSlot(book,"All collections");
+                        ((TextFieldWidget)field(book,"searchField")).setText("stone");
+                        clickSlot(book,"Stone");
+                        book.setFocused(null);
+                        ticks = 0; phase = 31;
+                } else if (phase == 31) {
+                    ticks++;
+                    if (ticks == 10) clickSlot(book,"Tier IX");
+                    if (ticks == 20) {
+                        if (((CollectionBoardState)field(book,"board")).inspectedTier() != 9 || PinnedCollection.hasPin())
+                            throw new AssertionError("Inspection changed the pin or lost the inspected tier");
+                        shot(client,"collections-tier-board.png");
+                        verifySurface(client, "earned tier rim", 0x675155);
+                        clickSlot(book,"Tier IX");
+                        worldStone(250000);
+                        for (int i=0;i<20;i++) book.tick();
+                    }
+                    if (ticks < 38) return;
+                    if (((CollectionBoardState)field(book,"board")).inspectedTier() != 0 || (int)field(book,"lastEarned") != 8)
+                        throw new AssertionError("Next tier did not advance after releasing inspection");
+                    client.setScreen(settings);
+                    ticks = 0; phase = 32;
+                } else if (phase == 32 && ++ticks > 8) {
+                    var entry = button(settings, "Website Link");
+                    settings.mouseClicked(new net.minecraft.client.gui.Click(entry.getX() + 4, entry.getY() + 4, new net.minecraft.client.input.MouseInput(0, 0)), false);
+                    if (!(client.currentScreen instanceof WebsiteLinkScreen)) throw new AssertionError("Header did not open account linking");
+                    ticks = 0; phase = 33;
+                } else if (phase == 33 && ++ticks > 8) {
+                    var account = (WebsiteLinkScreen)client.currentScreen;
+                    var submit = button(account, "Link Account");
+                    if (submit.active || !button(account, "Open Website").active) throw new AssertionError("Invalid unlinked form");
+                    shot(client, "settings-website-link.png");
+                    var input = (TextFieldWidget)field(account, "code");
+                    input.setText("ab-c1234");
+                    if (!submit.active || !input.getText().equals("ABC1234")) throw new AssertionError("Code validation failed");
+                    account.resize(320, 240);
+                    if (!((TextFieldWidget)field(account, "code")).getText().equals("ABC1234")) throw new AssertionError("Resize lost draft");
+                    checkBounds(account);
+                    account.keyPressed(new net.minecraft.client.input.KeyInput(256, 0, 0));
+                    if (client.currentScreen != settings) throw new AssertionError("Back did not restore settings");
+                    ((TextFieldWidget)field(settings, "searchField")).setText("Website Link");
+                    ticks = 0; phase = 34;
+                } else if (phase == 34 && ++ticks > 5) {
+                    if (surfaceError != null) throw new AssertionError(surfaceError);
+                    if (checkedSurfaces != 2) return;
+                    var targets = (java.util.List<?>)field(settings, "clickTargets");
+                    var open = targets.getLast();
+                    settings.mouseClicked(new net.minecraft.client.gui.Click((int)field(open, "x") + 3, (int)field(open, "y") + 3, new net.minecraft.client.input.MouseInput(0, 0)), false);
+                    if (!(client.currentScreen instanceof WebsiteLinkScreen)) throw new AssertionError("Search did not open account linking");
                     phase = 99;
                     Files.writeString(Path.of("mmm-features-smoke-result.txt"), "PASS: inventory book, cursor safety, recipe layout, categories, grid, tiers, pagination, live updates, search, efficiency, responsive bounds, screenshots");
                     System.out.println("MMM_FEATURES_SMOKE_PASS"); client.scheduleStop();
@@ -271,7 +388,37 @@ final class MiningFeaturesSmoke
         });
     }
     private static Object field(Object object, String name) throws Exception {
-        var field = object.getClass().getDeclaredField(name); field.setAccessible(true); return field.get(object);
+        var field = (object instanceof Class<?> type ? type : object.getClass()).getDeclaredField(name);
+        field.setAccessible(true); return field.get(object instanceof Class<?> ? null : object);
+    }
+    private static ButtonWidget button(Screen screen, String label) {
+        return screen.children().stream().filter(ButtonWidget.class::isInstance).map(ButtonWidget.class::cast)
+                .filter(b -> b.visible && b.getMessage().getString().equals(label)).findFirst().orElseThrow();
+    }
+    private static void checkCollectionPreferences(MinecraftClient client) throws Exception {
+        var screen = new CollectionBookScreen(null);
+        client.setScreen(screen);
+        clickSlot(screen, "Ores collections");
+        clickSlot(screen, "Progress filter");
+        clickSlot(screen, "Sort collections");
+        clickSlot(screen, "World scope");
+        int filter = (int)field(screen, "filter"), sort = (int)field(screen, "sort");
+        boolean global = (boolean)field(screen, "allWorlds");
+        ((TextFieldWidget)field(screen, "searchField")).setText("iron");
+        screen.close();
+        AsyncPersistence.flush(Duration.ofSeconds(5));
+        Configs.Generic.COLLECTION_SORT.resetToDefault();
+        Configs.Generic.COLLECTION_FILTER.resetToDefault();
+        Configs.Generic.COLLECTION_CATEGORY.resetToDefault();
+        Configs.Generic.COLLECTION_GLOBAL.setBooleanValue(!global);
+        Configs.loadFromFile();
+        var reopened = new CollectionBookScreen(null);
+        client.setScreen(reopened);
+        if ((int)field(reopened, "filter") != filter || (int)field(reopened, "sort") != sort
+                || (boolean)field(reopened, "allWorlds") != global || !field(reopened, "category").toString().equals("ORES")
+                || !((TextFieldWidget)field(reopened, "searchField")).getText().isEmpty())
+            throw new AssertionError("Collection choices did not survive a config reload and reopen");
+        reopened.close();
     }
     private static InventoryCollectionButton inventoryButton(Screen screen) {
         return screen.children().stream().filter(c -> c instanceof InventoryCollectionButton)
@@ -296,20 +443,49 @@ final class MiningFeaturesSmoke
                 .map(c -> (TexturedButtonWidget)c).findFirst().orElseThrow().onPress(new net.minecraft.client.input.KeyInput(32, 0, 0));
     }
     private static void checkTierPanes(Screen screen, int total, int green) throws Exception {
-        var panes = screen.children().stream().filter(c -> c instanceof CollectionSlotButton)
-                .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().startsWith("Tier ")).toList();
-        if (panes.size() != total) throw new AssertionError("Wrong number of glass-pane tiers");
-        int completed = 0;
-        for (var pane : panes) {
-            var icon = (net.minecraft.item.ItemStack)field(pane, "icon");
-            if (icon.isOf(net.minecraft.item.Items.LIME_STAINED_GLASS_PANE)) completed++;
-            else if (!icon.isOf(net.minecraft.item.Items.RED_STAINED_GLASS_PANE)) throw new AssertionError("Tier is not a glass pane");
-        }
-        if (completed != green) throw new AssertionError("Tier pane colors did not update");
+        int opened = (int)field(screen, "detailPage");
+        while ((int)field(screen, "detailPage") > 0) clickSlot(screen, "Previous milestones");
+        int completed = 0, found = 0;
+        var labels = new java.util.HashSet<String>();
+        do {
+            checkBounds(screen);
+            var panes = screen.children().stream().filter(c -> c instanceof CollectionSlotButton)
+                    .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().startsWith("Tier ")).toList();
+            for (var pane : panes) {
+                if (!labels.add(pane.getMessage().getString())) throw new AssertionError("Duplicate milestone page");
+                if (pane.getY() + pane.getHeight() > (int)field(screen, "footerY") - 4)
+                    throw new AssertionError("Milestone overlaps footer");
+                String state = field(pane, "tier").toString();
+                String expected = found < green ? "EARNED" : found == green ? "NEXT" : "LOCKED";
+                if (!state.equals(expected)) throw new AssertionError("Unexpected milestone state: " + state + " at " + found);
+                if (state.equals("EARNED")) completed++;
+                if (pane.details.get().stream().noneMatch(line -> line.getString().contains("Milestone:")))
+                    throw new AssertionError("Milestone tooltip missing target");
+                found++;
+            }
+            var next = screen.children().stream().filter(c -> c instanceof CollectionSlotButton)
+                    .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().equals("Next milestones") && c.active).findFirst();
+            if (next.isEmpty()) break;
+            next.get().onPress(new net.minecraft.client.input.KeyInput(32, 0, 0));
+        } while (true);
+        if (found != total) throw new AssertionError("Wrong number of milestone records: " + found + "/" + total);
+        if (completed != green) throw new AssertionError("Earned tier count did not update: " + completed + "/" + green);
+        while ((int)field(screen, "detailPage") > opened) clickSlot(screen, "Previous milestones");
     }
+
     private static void clickSlot(Screen screen, String label) {
-        screen.children().stream().filter(c -> c instanceof CollectionSlotButton)
-                .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().equals(label)).findFirst().orElseThrow().onPress();
+        var slot = screen.children().stream().filter(CollectionSlotButton.class::isInstance)
+                .map(CollectionSlotButton.class::cast).filter(c -> c.visible && c.active && c.getMessage().getString().equals(label))
+                .findFirst().orElseThrow(() -> new AssertionError("Missing collection control: " + label));
+        var click = new net.minecraft.client.gui.Click(slot.getX() + slot.getWidth() / 2.0,
+                slot.getY() + slot.getHeight() / 2.0, new net.minecraft.client.input.MouseInput(0, 0));
+        if (!screen.mouseClicked(click, false)) throw new AssertionError("Click did not reach " + label);
+        screen.mouseReleased(click);
+    }
+    private static void runCommand(MinecraftClient client, String command) throws Exception {
+        var dispatcher = net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.getActiveDispatcher();
+        if (dispatcher == null || dispatcher.execute(command, (net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource)
+                client.getNetworkHandler().getCommandSource()) != 1) throw new AssertionError("Rejected client command: " + command);
     }
     private static void checkClassification(MinecraftClient client) throws Exception {
         var method = EfficiencyTracker.class.getDeclaredMethod("classify", MinecraftClient.class, boolean.class, boolean.class);
@@ -347,8 +523,10 @@ final class MiningFeaturesSmoke
             client.interactionManager.setGameMode(net.minecraft.world.GameMode.SURVIVAL);
             client.player.setStackInHand(net.minecraft.util.Hand.MAIN_HAND, net.minecraft.item.ItemStack.EMPTY);
             client.world.setBlockState(pos, net.minecraft.block.Blocks.DEEPSLATE.getDefaultState());
-            com.mmm.timer.MmmBlockBreakDetector.trackAttack(pos);
+            var attempt = com.mmm.timer.MmmBlockBreakDetector.beginBreak(pos);
             client.world.setBlockState(pos, net.minecraft.block.Blocks.AIR.getDefaultState());
+            com.mmm.timer.MmmBlockBreakDetector.completeBreak(attempt, true);
+            com.mmm.timer.MmmBlockBreakDetector.acknowledged(client.world, pos, net.minecraft.block.Blocks.AIR.getDefaultState());
             com.mmm.timer.MmmBlockBreakDetector.onClientTick(client);
             com.mmm.timer.MmmBlockBreakDetector.onClientTick(client);
             if (LiveCollections.localCounts(Map.of(), world).get("mmm:non_insta_deepslate") != before + 1)
@@ -366,5 +544,26 @@ final class MiningFeaturesSmoke
     }
     private static void shot(MinecraftClient client, String file) {
         ScreenshotRecorder.saveScreenshot(client.runDirectory, file, client.getFramebuffer(), 1, message -> {});
+    }
+    private void verifySurface(MinecraftClient client, String name, int rgb) {
+        ScreenshotRecorder.takeScreenshot(client.getFramebuffer(), image -> {
+            try (image) {
+                int count = 0;
+                for (int y = 0; y < image.getHeight() && count < 24; y++)
+                    for (int x = 0; x < image.getWidth() && count < 24; x++)
+                        if ((image.getColorArgb(x, y) & 0xffffff) == rgb) count++;
+                if (count < 24) surfaceError = "Missing rendered " + name;
+            } finally { checkedSurfaces++; }
+        });
+    }
+    private static void seedCollectionRank(MinecraftClient client, String block, long rank, long population) throws Exception {
+        var cacheField = CollectionRankClient.class.getDeclaredField("CACHE"); cacheField.setAccessible(true);
+        var cachedType = Class.forName("com.mmm.tracker.CollectionRankClient$Cached");
+        var constructor = cachedType.getDeclaredConstructors()[0]; constructor.setAccessible(true);
+        var value = new CollectionRankClient.Rank(CollectionRankClient.Status.RANKED, rank, population);
+        var cached = constructor.newInstance(java.util.concurrent.CompletableFuture.completedFuture(value), System.currentTimeMillis() + 120000);
+        synchronized (CollectionRankClient.class) {
+            ((Map)cacheField.get(null)).put(block + ":" + client.player.getGameProfile().name().toLowerCase(java.util.Locale.ROOT), cached);
+        }
     }
 }

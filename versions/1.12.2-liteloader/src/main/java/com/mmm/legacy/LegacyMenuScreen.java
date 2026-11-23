@@ -2,217 +2,271 @@ package com.mmm.legacy;
 
 import com.mmm.config.Configs;
 import com.mmm.config.value.*;
-import com.mmm.hotkey.MmmHotkey;
 import com.mmm.legacy.settings.*;
-import com.mmm.sync.*;
+import com.mmm.ui.SettingsNavigation.Page;
+import com.mmm.ui.ToolDirectory;
+import com.mmm.legacy.SettingsBoard.Row;
+import com.mmm.legacy.SettingsBoard.Section;
+import com.mmm.legacy.collection.CollectionIcons;
+import com.mmm.sync.CloudSyncManager;
+import com.mmm.sync.WebsiteLinkManager;
 import java.util.*;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import com.mmm.legacy.settings.BoardField;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.item.ItemStack;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
-import com.mmm.legacy.LegacySettingsModel.Page;
+import static com.mmm.legacy.BoardArt.*;
 
 public final class LegacyMenuScreen extends LegacyScreen {
-    private Page page = Page.GENERAL;
+    private final SettingsBoard board = new SettingsBoard();
+    private final LegacyDrawContext draw = new LegacyDrawContext();
+    private Page<Row, Section> page = board.home;
+    private record Location(Page<Row, Section> page, int offset) {}
+    private final Deque<Location> history = new ArrayDeque<>();
+    private final Map<Integer,Runnable> actions = new HashMap<>();
+    private final List<Topic> topics = new ArrayList<>();
+    private record Topic(Page<Row,Section> page, List<Row> rows, ItemStack icon, LegacyMenuButton button, int index) {}
+    private List<Row> rows = List.of();
     private TextFieldWidget search;
-    private int offset, sideOffset, contentLeft, contentWidth, maxScroll, sideWidth;
     private String query = "";
-    private final List<Placed> placed = new ArrayList<>();
-    private final List<Card> cards = new ArrayList<>();
-    private final Map<Integer, Runnable> actions = new HashMap<>();
+    private int offset, searchOrigin, capacity, total, contentX, contentW, cols, inspectorW, top, bottom, rowH;
+    private int inspection, lastMouseX = -1, lastMouseY = -1;
+    private long inspectedAt = now();
     private SettingButton dragging;
-    private record Row(String label, String description, String section, IConfigBase config, boolean slider, String value, Runnable action) {}
-    private record Placed(Row row, int x, int y, int width, int controlWidth) {}
-    private record Card(String title, int x, int y, int width, int height) {}
+    private static final int TOPIC_H = 35;
+    public LegacyMenuScreen(Screen parent) { super(parent, "Settings"); }
+    @Override protected int maxContentWidth() { return 920; }
+    private boolean branching() { return query.isBlank() && !page.children().isEmpty(); }
 
-    public LegacyMenuScreen(Screen parent) { super(parent, "MMM Settings"); }
     @Override public void init() {
         boolean focused = search != null && search.isFocused();
         int cursor = search == null ? query.length() : search.getCursor();
         int selection = search == null ? cursor : search.getSelectionEnd();
         super.init();
-        panelWidth = Math.max(1, Math.min(1060, width - 16)); left = (width - panelWidth) / 2;
-        buttons.clear(); actions.clear(); placed.clear(); cards.clear();
-        button(900, left + panelWidth - 56, 10, 56, "Done");
-        sideWidth = width < 460 ? 82 : 106;
-        contentLeft = left + sideWidth + 12; contentWidth = panelWidth - sideWidth - 12;
-        List<Page> pages = Arrays.stream(Page.values()).filter(this::hasPage).toList();
-        int sideCapacity = SettingsUi.sidebarCapacity(height);
-        sideOffset = SettingsUi.clampScroll(sideOffset, pages.size(), sideCapacity);
-        for (int i = 0; i < sideCapacity && i + sideOffset < pages.size(); i++) {
-            Page item = pages.get(i + sideOffset);
-            int id = item.ordinal();
-            addButton(new ActionButton(id, left, 44 + i * 22, sideWidth, item.label, page == item));
-            actions.put(id, () -> { page = item; query = ""; offset = 0; init(); });
-        }
-        if (pages.size() > sideCapacity) {
-            action(40, left, height - 27, sideWidth / 2 - 2, "<", () -> { sideOffset--; init(); });
-            action(41, left + sideWidth / 2 + 2, height - 27, sideWidth / 2 - 2, ">", () -> { sideOffset++; init(); });
-        }
-        search = new TextFieldWidget(50, textRenderer, contentLeft + 4, 46, Math.max(24, contentWidth - 30), 18);
+        buttons.clear(); actions.clear(); topics.clear();
+        int right = left + panelWidth;
+        action(900, right - 22, 7, 22, "X", () -> minecraft.openScreen(parent));
+        action(901, right - 112, 7, 86, "Website Link", () -> minecraft.openScreen(new LegacyLinkScreen(this)));
+        contentX = left; contentW = panelWidth;
+        if (page == board.home && query.isEmpty())
+            action(906, right - 66, 36, 66, ToolDirectory.HOTKEYS.label,
+                    () -> minecraft.openScreen(board.tools.get(ToolDirectory.HOTKEYS).apply(this)));
+        if (!history.isEmpty() || !query.isEmpty()) action(902, contentX, 38, 44, "Back", this::back);
+        search = new BoardField(50,textRenderer,contentX + 1,62,contentW - 26,18);
         search.setMaxLength(128); search.setText(query); search.setFocused(focused);
-        search.setCursor(Math.min(cursor, query.length())); search.setSelectionEnd(Math.min(selection, query.length()));
-        action(42, contentLeft + contentWidth - 22, 44, 22, "x", () -> { query = ""; offset = 0; init(); });
-        List<Row> rows = rows();
-        Map<String, List<Row>> groups = new LinkedHashMap<>();
-        for (Row row : rows) groups.computeIfAbsent(row.section, ignored -> new ArrayList<>()).add(row);
-        int columns = SettingsUi.columns(contentWidth);
-        int cardWidth = SettingsUi.cardWidth(contentWidth);
-        int[] ends = new int[columns];
-        int id = 100;
-        for (var group : groups.entrySet()) {
-            int column = columns == 2 && ends[1] < ends[0] ? 1 : 0;
-            int x = contentLeft + column * (cardWidth + 12);
-            int top = 87 + ends[column] - offset;
-            int h = 28 + group.getValue().size() * 36;
-            cards.add(new Card(group.getKey(), x, top, cardWidth, h));
-            for (int i = 0; i < group.getValue().size(); i++) {
-                Row row = group.getValue().get(i); int y = top + 26 + i * 36;
-                int control = SettingsUi.controlWidth(cardWidth);
-                placed.add(new Placed(row, x + 8, y, cardWidth - 16, control));
-                if (y >= 87 && y + 30 <= height - 30) {
-                    int controlX = x + cardWidth - control - (row.config == null ? 8 : 30);
-                    if (row.config != null) {
-                        SettingButton b = new SettingButton(id, controlX, y + 4, control, row.config, row.slider);
-                        addButton(b); actions.put(id++, () -> { if (!b.slider) edit(row.config); });
-                        action(id++, x + cardWidth - 26, y + 4, 18, "R", () -> { row.config.resetToDefault(); Configs.saveToFile(); init(); });
-                    } else action(id++, controlX, y + 4, control, row.value, row.action);
+        search.setCursor(Math.min(cursor,query.length())); search.setSelectionEnd(Math.min(selection,query.length()));
+        action(903,right-22,61,22,"x",this::clearSearch);
+        top = 86; bottom = height - 29;
+        inspectorW = contentW >= 430 ? Math.min(191,contentW/3) : 0;
+        if (branching()) {
+            if (inspectorW == 0) bottom -= 37;
+            int boardW = contentW - (inspectorW == 0 ? 0 : inspectorW + 7);
+            cols = boardW >= 315 ? 2 : 1;
+            capacity = Math.max(1,(bottom-top)/TOPIC_H) * cols;
+            total = page.children().size(); clampOffset();
+            int span = boardW / cols;
+            for (int i=offset; i<Math.min(total,offset+capacity); i++) {
+                var child = page.children().get(i);
+                int index = i-offset;
+                var options = SettingsBoard.options(child);
+                var item = icon(child);
+                var tool = toolTile(child);
+                String detail = tool != null ? tool.description : child.children().isEmpty()
+                        ? options.size()+" controls" : child.children().size()+" topics";
+                var tile = new LegacyMenuButton(2000+i, contentX+index%cols*span,
+                        top+index/cols*TOPIC_H,span-3,TOPIC_H-3,child.title(),detail,item,false);
+                addButton(tile);
+                topics.add(new Topic(child,options,item,tile,i));
+                actions.put(tile.id, () -> activate(child));
+            }
+            inspection = Math.max(offset,Math.min(inspection,Math.min(total,offset+capacity)-1));
+        } else {
+            rows = query.isBlank() ? page.rows() : board.search(query);
+            rowH = 32; cols = 1; capacity = Math.max(1,(bottom-top)/rowH); total = rows.size(); clampOffset();
+            for (int i=offset; i<Math.min(total,offset+capacity); i++) {
+                var row = rows.get(i); int y = top + (i-offset)*rowH + 5, id = 100+(i-offset)*2;
+                int cw = SettingsUi.controlWidth(contentW), x = right - cw - 26;
+                if (row.config()!=null) {
+                    var b = new SettingButton(id,x,y,cw,row.config(),row.slider());
+                    addButton(b); actions.put(id,() -> edit(row));
+                    action(id+1,right-22,y,21,"R",() -> { row.config().resetToDefault(); Configs.saveToFile(); init(); });
+                } else action(id,x+22,y,cw,row.value(),() -> minecraft.openScreen(row.action().apply(this)));
+            }
+        }
+        if (total > capacity) {
+            action(904,right-48,height-25,22,"<",() -> scroll(-capacity)).active = offset > 0;
+            action(905,right-22,height-25,22,">",() -> scroll(capacity)).active = offset+capacity < total;
+        }
+    }
+    private ItemStack icon(Page<Row,Section> child) {
+        ToolDirectory tool = toolTile(child);
+        if (tool != null) return CollectionIcons.item(switch (tool) {
+            case HOTKEYS -> "feather"; case PROJECTS -> "iron_pickaxe"; case HISTORY -> "book";
+            case SUMMARY -> "clock"; case SCOREBOARD -> "sign"; case LEADERBOARDS -> "gold_ingot"; default -> "compass";
+        });
+        String id = child.title().equals("Everyday settings") ? "compass" : switch (child.source() == null
+                ? child.title() : child.source().category()) {
+            case "SYNC" -> "ender_pearl"; case "SOCIAL", "SESSIONS" -> "writable_book";
+            case "HUD", "COLORS" -> "comparator"; case "Mining visuals", "VISUALS", "BLOCK_ESP" -> "redstone";
+            case "HOTKEYS" -> "feather"; case "TIMER" -> "clock"; default -> "iron_pickaxe";
+        };
+        return CollectionIcons.item(id);
+    }
+    private ButtonWidget action(int id,int x,int y,int w,String name,Runnable run) {
+        actions.put(id,run); return button(id,x,y,w,name);
+    }
+    private void edit(Row r) {
+        var config = r.config();
+        if (config instanceof IConfigBoolean b) { b.toggleBooleanValue(); Configs.saveToFile(); init(); }
+        else if (config instanceof ConfigOptionList o) minecraft.openScreen(new OptionPickerScreen(this,o));
+        else minecraft.openScreen(new ValueEditorScreen(this,config));
+    }
+    private ToolDirectory toolTile(Page<Row,Section> dest) {
+        return dest.source()!=null && "Tools".equals(dest.source().title()) && dest.rows().size()==1
+                ? ToolDirectory.find(dest.rows().get(0).label()) : null;
+    }
+    private void activate(Page<Row,Section> dest) {
+        if (toolTile(dest)!=null) { minecraft.openScreen(dest.rows().get(0).action().apply(this)); return; }
+        history.push(new Location(page,offset)); open(dest);
+    }
+    private void open(Page<Row,Section> dest) {
+        query=""; page=dest; inspection=offset=0; inspectedAt=now(); search.setFocused(false); init();
+    }
+    private void clearSearch() { query=""; offset=searchOrigin; search.setFocused(false); init(); }
+    private void back() {
+        if (!query.isEmpty()) { clearSearch(); return; }
+        if (history.isEmpty()) { minecraft.openScreen(parent); return; }
+        Location loc=history.pop(); open(loc.page); offset=loc.offset; init();
+    }
+    private void clampOffset() { offset = Math.max(0,Math.min(offset,Math.max(0,((total-1)/capacity)*capacity))); }
+    private void scroll(int n) { offset+=n; clampOffset(); inspection=offset; inspectedAt=now(); init(); }
+    @Override protected void buttonClicked(ButtonWidget b) { Runnable run=actions.get(b.id); if (run!=null) run.run(); }
+    @Override public void render(int mx,int my,float delta) {
+        fill(0,0,width,height,SettingsUi.opacity(BASE));
+        BoardArt.header(draw, textRenderer, width, left, panelWidth - 116, title);
+        boolean linked=WebsiteLinkManager.isCurrentPlayerLinked();
+        String account=linked ? "Linked: "+WebsiteLinkManager.getPersistedUsername() :
+                WebsiteLinkManager.hasPersistedLink() ? "Wrong linked account" : "Website link required";
+        if (panelWidth>=475) {
+            fit(account,left+110,6,panelWidth-226,linked ? 0xff69d59a : ROSE);
+            fit(CloudSyncManager.getStatusSummary(),left+110,19,panelWidth-226,MUTED);
+        }
+        int shift=history.isEmpty() && query.isEmpty() ? 0 : 52;
+        fit(query.isBlank() ? page==board.home ? "Controls & preferences" : page.title() : "Search results",
+                contentX+shift,44,contentW-shift-(page==board.home && query.isEmpty()?70:0),TEXT);
+        search.render();
+        if (query.isEmpty() && !search.isFocused()) fit("Search settings and hotkeys",contentX+5,67,contentW-38,MUTED);
+        boolean moved=mx!=lastMouseX || my!=lastMouseY; lastMouseX=mx; lastMouseY=my;
+        List<String> hint=null;
+        if (branching()) {
+            for (Topic t:topics) if (moved && mx>=t.button.x && mx<t.button.x+t.button.getWidth()
+                    && my>=t.button.y && my<t.button.y+TOPIC_H-3) inspect(t.index);
+            for (Topic t:topics) {
+                boolean selected=t.index==inspection;
+                t.button.selected=selected;
+                if(selected) renderInspector(t);
+            }
+        } else {
+            for (int i=offset;i<Math.min(total,offset+capacity);i++) {
+                Row row=rows.get(i); int yy=top+(i-offset)*rowH, w=contentW-SettingsUi.controlWidth(contentW)-38;
+                fill(contentX,yy,contentX+contentW,yy+rowH-2,SettingsUi.opacity(TILE));
+                fit(row.label(),contentX+6,yy+5,w,TEXT);
+                fit(query.isBlank()?row.description():row.section(),contentX+6,yy+17,w,MUTED);
+                if(mx>=contentX && mx<contentX+contentW && my>=yy && my<yy+rowH-2 && dragging==null) {
+                    hint=new ArrayList<>(textRenderer.split(row.label(),Math.min(280,width-24)));
+                    if(!row.description().isEmpty()) hint.addAll(textRenderer.split(row.description(),Math.min(280,width-24)));
+                    if(row.config()!=null) hint.addAll(textRenderer.split("Value: "+row.value()+" / Default: "+row.config().getDefaultStringValue(),Math.min(280,width-24)));
                 }
             }
-            ends[column] += h + 12;
+            if(total==0) text("No matching settings",contentX,top+10,MUTED);
         }
-        maxScroll = Math.max(0, Arrays.stream(ends).max().orElse(0) - (height - 117));
-        if (offset > maxScroll) { offset = maxScroll; init(); return; }
-        action(43, contentLeft + contentWidth - 48, height - 26, 22, "<", () -> scroll(-Math.max(36, height - 150)));
-        action(44, contentLeft + contentWidth - 22, height - 26, 22, ">", () -> scroll(Math.max(36, height - 150)));
-        buttons.stream().filter(b -> b.id == 43).forEach(b -> b.active = offset > 0);
-        buttons.stream().filter(b -> b.id == 44).forEach(b -> b.active = offset < maxScroll);
+        if(total>capacity) text((offset+1)+"-"+Math.min(total,offset+capacity)+" / "+total,contentX,height-19,MUTED);
+        super.render(mx,my,delta);
+        if(hint!=null) renderTooltip(hint,mx,my);
+        if(panelWidth>=475 && mx>=left+110 && mx<left+panelWidth-116 && my>=5 && my<30)
+            renderTooltip(textRenderer.split(account+" / "+CloudSyncManager.getStatusDetail(),Math.min(280,width-24)),mx,my);
     }
-    private boolean hasPage(Page p) {
-        return p == Page.GENERAL || p == Page.SYNC || p == Page.SESSIONS || p == Page.PROJECTS || p == Page.TIMER || p == Page.HOTKEYS
-                || LegacySettingsModel.settings().stream().anyMatch(s -> s.page() == p)
-                || LegacyUiRegistry.entries().stream().anyMatch(e -> e.category().equalsIgnoreCase(p.name()));
-    }
-    private void action(int id, int x, int y, int w, String label, Runnable action) {
-        button(id, x, y, w, label); actions.put(id, action);
-    }
-    private void command(List<Row> rows, Page category, String section, String label, String value, Runnable action) {
-        if (query.isBlank() ? category != page : !SettingsUi.matches(label + " " + section + " " + category.label, query)) return;
-        rows.add(new Row(label, "", section, null, false, value, action));
-    }
-    private List<Row> rows() {
-        List<Row> rows = new ArrayList<>();
-        command(rows, Page.GENERAL, "Mining helpers", "Perimeter Block List", "Open", () -> minecraft.openScreen(new PerimeterBlocksScreen(this)));
-        command(rows, Page.HUD, "Layout", "Move HUD", "Open", () -> minecraft.openScreen(new HudEditorScreen(this)));
-        command(rows, Page.SESSIONS, "Sessions", "Session Summary", "Open", () -> minecraft.openScreen(new LegacySessionScreen(this, null)));
-        command(rows, Page.SESSIONS, "Sessions", "Saved Sessions", "Open", () -> minecraft.openScreen(new LegacyHistoryScreen(this)));
-        command(rows, Page.PROJECTS, "Projects", "Project Manager", "Open", () -> minecraft.openScreen(new ProjectManagerScreen(this)));
-        command(rows, Page.TIMER, "Block timer", "Timer", "Open", () -> minecraft.openScreen(new TimerScreen(this)));
-        command(rows, Page.SYNC, "Website sync", "Website Account", "Open", () -> minecraft.openScreen(new LegacyLinkScreen(this)));
-        command(rows, Page.SYNC, "Website sync", "Sync Scoreboard", "Select", () -> minecraft.openScreen(new LegacyScoreboardScreen(this)));
-        for (LegacyUiRegistry.Entry entry : LegacyUiRegistry.entries()) {
-            Page category;
-            try { category = Page.valueOf(entry.category().toUpperCase(Locale.ROOT)); } catch (IllegalArgumentException e) { category = Page.GENERAL; }
-            command(rows, category, category.label, entry.label(), "Open", () -> minecraft.openScreen(entry.screen().apply(this)));
-        }
-        for (var setting : LegacySettingsModel.filter(LegacySettingsModel.settings(), page, query))
-            rows.add(new Row(setting.label(), setting.description(), setting.section(), setting.config(), setting.slider(), "", null));
-        if (page == Page.HOTKEYS || !query.isBlank()) for (MmmHotkey key : LegacySettingsModel.hotkeys()) {
-            if (!query.isBlank() && !SettingsUi.matches(key.getPrettyName() + " " + key.getComment() + " Hotkeys " + key.getStorageString(), query)) continue;
-            rows.add(new Row(key.getPrettyName(), key.getComment(), "Hotkeys", null, false,
-                    key.getStorageString().isBlank() ? "Unassigned" : key.getStorageString().replace(',', '+'),
-                    () -> minecraft.openScreen(new HotkeyEditorScreen(this, key, LegacySettingsModel.hotkeys()))));
-        }
-        return rows;
-    }
-    private void edit(IConfigBase config) {
-        if (config instanceof IConfigBoolean b) { b.toggleBooleanValue(); Configs.saveToFile(); init(); }
-        else if (config instanceof ConfigOptionList o) minecraft.openScreen(new OptionPickerScreen(this, o));
-        else minecraft.openScreen(new ValueEditorScreen(this, config));
-    }
-    private void scroll(int amount) { offset = Math.max(0, Math.min(maxScroll, offset + amount)); init(); }
-    @Override protected void buttonClicked(ButtonWidget button) {
-        if (actions.containsKey(button.id)) actions.get(button.id).run(); else super.buttonClicked(button);
-    }
-    @Override public void render(int mouseX, int mouseY, float delta) {
-        shell(); search.render();
-        int statusX = left + 100, statusWidth = panelWidth - 164;
-        boolean linked = WebsiteLinkManager.isCurrentPlayerLinked();
-        String account = linked ? "Linked: " + WebsiteLinkManager.getPersistedUsername()
-                : WebsiteLinkManager.hasPersistedLink() ? "Wrong linked account" : "Website link required";
-        headerStatus(account, statusX, 8, statusWidth, linked ? 0xFF69D59A : 0xFFFFBA69);
-        headerStatus(CloudSyncManager.getStatusSummary(), statusX, 21, statusWidth, 0xFFCCCCCC);
-        if (query.isEmpty() && !search.isFocused()) fit("Search settings and hotkeys", contentLeft + 8, 51, contentWidth - 38, 0xFF949494);
-        fit(query.isBlank() ? page.label : "Search results", contentLeft, 72, contentWidth, 0xFFF5F5F5);
-        Placed hovered = null;
-        LegacyDrawContext context = new LegacyDrawContext();
-        try (var clip = context.clip(contentLeft, 87, contentLeft + contentWidth, height - 30)) {
-            for (Card card : cards) {
-                fill(card.x, card.y, card.x + card.width, card.y + card.height, SettingsUi.opacity(0xE00D0D0D));
-                context.drawBorder(card.x, card.y, card.width, card.height, SettingsUi.opacity(0xFF272727));
-                fit(card.title, card.x + 8, card.y + 8, card.width - 16, Configs.getMenuColor());
+    private void renderInspector(Topic t) {
+        boolean compact=inspectorW==0;
+        boolean hasConfigs=t.rows.stream().anyMatch(r->r.config()!=null);
+        int x=compact?contentX:contentX+contentW-inspectorW, y=compact?bottom+2:top, w=compact?contentW:inspectorW;
+        int h=compact?32:Math.min(152,bottom-top);
+        dossier(draw,x,y,w,h);
+        int tx=x+8+Math.round(5*(1-reveal(inspectedAt,0))), edge=x+w-8;
+        if ("Tools".equals(t.page.title())) {
+            fit("Tools / "+t.rows.size(),tx,y+7,w-16,ROSE);
+            String names = String.join(", ", t.rows.stream().map(Row::label).toList());
+            int yy=y+19;
+            for(String line:textRenderer.split(names,w-16)) {
+                if(yy+9>y+h) break;
+                fit(line,tx,yy,w-16,TEXT); yy+=11;
             }
-            for (Placed p : placed) {
-                int labelWidth = Math.max(12, p.width - p.controlWidth - (p.row.config == null ? 8 : 30));
-                List<String> lines = textRenderer.split(p.row.label, labelWidth);
-                for (int line = 0; line < Math.min(2, lines.size()); line++) fit(lines.get(line), p.x, p.y + 6 + line * 10, labelWidth, 0xFFF5F5F5);
-                if (mouseX >= p.x && mouseX < p.x + p.width && mouseY >= p.y && mouseY < p.y + 32 && mouseY >= 87 && mouseY < height - 30) hovered = p;
-            }
-        }
-        if (cards.isEmpty()) fit("No matching settings", contentLeft, 100, contentWidth, 0xFF949494);
-        if (page == Page.SYNC && query.isBlank()) fit(CloudSyncManager.getStatusSummary(), contentLeft, height - 20, contentWidth - 56, 0xFF949494);
-        super.render(mouseX, mouseY, delta);
-        if (mouseX >= statusX && mouseX < statusX + statusWidth && mouseY >= 6 && mouseY < 33) {
-            List<String> status = new ArrayList<>(textRenderer.split(account, Math.min(280, width - 24)));
-            status.addAll(textRenderer.split(CloudSyncManager.getStatusDetail(), Math.min(280, width - 24)));
-            status.add("Click to open Website Account");
-            renderTooltip(status, mouseX, mouseY);
-        }
-        if (maxScroll > 0) {
-            int track = Math.max(1, height - 117), thumb = Math.max(12, track * track / (track + maxScroll));
-            int y = 87 + (track - thumb) * offset / maxScroll;
-            fill(contentLeft + contentWidth - 4, 87, contentLeft + contentWidth - 2, height - 30, 0xFF272727);
-            fill(contentLeft + contentWidth - 4, y, contentLeft + contentWidth - 2, y + thumb, Configs.getMenuColor());
-        }
-        if (hovered != null && dragging == null) {
-            List<String> tooltip = new ArrayList<>(textRenderer.split(hovered.row.label, Math.min(280, width - 24)));
-            if (!hovered.row.description.isBlank()) tooltip.addAll(textRenderer.split(hovered.row.description, Math.min(280, width - 24)));
-            if (hovered.row.config != null) tooltip.addAll(textRenderer.split("Value: " + hovered.row.config.getStringValue() + " / Default: " + hovered.row.config.getDefaultStringValue(), Math.min(280, width - 24)));
-            renderTooltip(tooltip, mouseX, mouseY);
-        }
-    }
-    private void headerStatus(String value, int x, int y, int available, int color) {
-        String visible = textRenderer.trim(value, Math.max(0, available));
-        text(visible, x + available - textRenderer.getWidth(visible), y, color);
-    }
-    @Override protected void mouseClicked(int x, int y, int button) {
-        if (button == 0 && x >= left + 100 && x < left + panelWidth - 64 && y >= 6 && y < 33) {
-            minecraft.openScreen(new LegacyLinkScreen(this));
             return;
         }
-        search.mouseClicked(x, y, button);
-        if (button == 0) for (ButtonWidget b : buttons) if (b instanceof SettingButton s && s.slider && x >= b.x && x < b.x + b.getWidth() && y >= b.y && y < b.y + 20) {
-            dragging = s; s.slide(x); return;
+        long changed=t.rows.stream().filter(r->r.config()!=null && r.config().isModified()).count();
+        ToolDirectory tool = toolTile(t.page);
+        if (tool != null) {
+            fit(tool.label,tx,y+7,w-16,ROSE);
+            int lineY = y+20;
+            for (String line : textRenderer.split(tool.description,w-16)) {
+                if (lineY+9>y+h) break;
+                fit(line,tx,lineY,w-16,TEXT); lineY+=11;
+            }
+            return;
         }
-        super.mouseClicked(x, y, button);
-    }
-    @Override protected void mouseDragged(int x, int y, int b, long elapsed) { if (dragging != null) dragging.slide(x); }
-    @Override protected void mouseReleased(int x, int y, int b) {
-        if (dragging != null) { dragging = null; Configs.saveToFile(); } super.mouseReleased(x, y, b);
-    }
-    @Override protected void keyPressed(char c, int key) {
-        if (key == Keyboard.KEY_ESCAPE) {
-            if (!query.isEmpty()) { query = ""; offset = 0; init(); } else super.keyPressed(c, key); return;
+        fit(compact?t.page.title()+" / "+changed+" customized":"CATEGORY FILE",tx,y+7,w-16,ROSE);
+        if(!compact) {
+            String number=String.format(Locale.ROOT,"%02d",t.index+1);
+            text(number,edge-textRenderer.getWidth(number),y+7,ROSE);
+            draw.drawItem(t.icon,tx,y+21);
+            fit(t.page.title(),tx+22,y+25,w-40,TEXT);
         }
-        if (!search.isFocused() && !Character.isISOControl(c)) search.setFocused(true);
-        search.keyPressed(c, key);
-        if (!query.equals(search.getText())) { query = search.getText(); offset = 0; init(); search.setFocused(true); }
+        int yy=compact?y+19:y+45, shown=0;
+        for(Row r:t.rows) {
+            if(yy+9>y+h-(compact?2:20) || shown==4) break;
+            if(r.config()==null && r.key()==null && hasConfigs) continue;
+            int valueW=Math.min(w/3,textRenderer.getWidth(r.value()));
+            fit(r.label(),tx,yy,edge-tx-valueW-6,TEXT);
+            fit(r.value(),edge-valueW,yy,valueW,MUTED); yy+=17; shown++;
+        }
+        if(!compact) fit(changed==0?"Default values":changed+" customized",tx,y+h-14,w-16,ROSE);
     }
-    @Override public void handleMouse() { super.handleMouse(); int wheel = Mouse.getEventDWheel(); if (wheel != 0) {
-        int x = Mouse.getEventX() * width / minecraft.width;
-        if (x < contentLeft) { sideOffset += wheel > 0 ? -1 : 1; init(); } else scroll(wheel > 0 ? -36 : 36);
-    }}
+    private void inspect(int n) { if(n!=inspection) { inspection=n; inspectedAt=now(); } }
+    @Override protected void mouseClicked(int x,int y,int b) {
+        search.mouseClicked(x,y,b);
+        if(b==0) {
+            if(panelWidth>=475 && x>=left+110 && x<left+panelWidth-116 && y>=5 && y<30) { minecraft.openScreen(new LegacyLinkScreen(this)); return; }
+            for(var btn:buttons) if(btn instanceof SettingButton s && s.slider && x>=s.x && x<s.x+s.getWidth() && y>=s.y && y<s.y+20) {
+                dragging=s; s.slide(x); return;
+            }
+        }
+        super.mouseClicked(x,y,b);
+    }
+    @Override protected void mouseDragged(int x,int y,int b,long elapsed) { if(dragging!=null) dragging.slide(x); }
+    @Override protected void mouseReleased(int x,int y,int b) { if(dragging!=null) { dragging=null; Configs.saveToFile(); } super.mouseReleased(x,y,b); }
+    @Override protected void keyPressed(char c,int key) {
+        if(key==Keyboard.KEY_ESCAPE) { back(); return; }
+        if(!search.isFocused() && branching()) {
+            int d=switch(key) { case Keyboard.KEY_LEFT -> -1; case Keyboard.KEY_RIGHT,Keyboard.KEY_TAB -> 1;
+                case Keyboard.KEY_UP -> -cols; case Keyboard.KEY_DOWN -> cols; default -> 0; };
+            if(d!=0) {
+                int next=Math.max(0,Math.min(total-1,inspection+d));
+                if(next<offset || next>=offset+capacity) scroll(next<offset?-capacity:capacity);
+                inspect(next); return;
+            }
+            if(key==Keyboard.KEY_RETURN || key==Keyboard.KEY_NUMPADENTER) { activate(page.children().get(inspection)); return; }
+        }
+        if(!search.isFocused() && !Character.isISOControl(c)) search.setFocused(true);
+        search.keyPressed(c,key);
+        if(!query.equals(search.getText())) {
+            if(query.isEmpty()) searchOrigin=offset;
+            query=search.getText(); offset=query.isEmpty()?searchOrigin:0; init();
+        }
+    }
+    @Override public void handleMouse() { super.handleMouse(); int d=Mouse.getEventDWheel(); if(d!=0 && total>capacity) scroll(d>0?-capacity:capacity); }
     @Override public void tick() { search.tick(); }
-    @Override public void removed() { if (dragging != null) Configs.saveToFile(); super.removed(); }
+    @Override public void removed() { if(dragging!=null) Configs.saveToFile(); dragging=null; super.removed(); }
 }

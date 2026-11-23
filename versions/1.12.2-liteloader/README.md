@@ -1,8 +1,8 @@
 # MMM 1.12.2 LiteLoader Port
 
-MMMod **1.0.22** for Minecraft 1.12.2 and LiteLoader (Java 8).
+MMMod **1.0.23** for Minecraft 1.12.2 and LiteLoader (Java 8).
 
-[Download](https://github.com/darealshekel/MMMod/releases/download/v1.0.22/mmm-1.0.22%2B1.12.2-liteloader.litemod) | [Full guide](../../README.md) | [Current release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.22)
+[Download](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.12.2-liteloader.litemod) | [Full guide](../../README.md) | [Current release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23)
 
 - Fixed startup crashes when Forge is installed alongside LiteLoader.
 - Keeps LiteLoader-only compatibility. See [release notes](docs/1.0.20.2-release.md).
@@ -25,7 +25,7 @@ Keep the entire shared-core repository together. Use JDK 21 and Gradle 8.7 from 
 gradle clean test releaseLiteMod
 ```
 
-Output: `build/libs/mmm-1.0.22+1.12.2-liteloader.litemod`.
+Output: `build/libs/mmm-1.0.23+1.12.2-liteloader.litemod`.
 
 Install the `.litemod` file into a Minecraft 1.12.2 LiteLoader instance's mods folder (with or without Forge).
 It is not a Fabric/Ornithe JAR. Do not install another MMM version beside it.
@@ -74,6 +74,6 @@ Authenticated sync/chat, other mods and resource-pack compatibility still need
 account-specific gameplay checks. Automated checks do not certify exact parity
 with every modern-version interaction. See PORT-STATUS.md for the tested scope.
 
-The 1.0.22 release verification is recorded in [the shared release report](../../docs/1.0.22-verification.md). Historical port notes describe their original builds, not new guarantees for every modpack.
+The 1.0.23 release verification is recorded in [the shared release report](../../docs/1.0.23-verification.md). Historical port notes describe their original builds, not new guarantees for every modpack.
 
 Thanks to [useleess](https://github.com/useleess) for the Forge + LiteLoader SRG refmap fix in [PR #21](https://github.com/darealshekel/MMMod/pull/21).

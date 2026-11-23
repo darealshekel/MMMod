@@ -30,6 +30,7 @@ public class HudMoveScreen extends Screen
     protected void init()
     {
         MmmUi.ensureCursorVisible();
+        MinedBlockOverlayRenderer.preparePreview(MinecraftClient.getInstance());
         ControlLayout layout = this.controlLayout();
         this.addDrawableChild(ButtonWidget.builder(Text.literal("-"), button -> adjustScale(-0.05D)).dimensions(layout.x() + 12, layout.y() + layout.height() - 28, 22, 20).build());
         this.addDrawableChild(ButtonWidget.builder(Text.literal("+"), button -> adjustScale(0.05D)).dimensions(layout.x() + 38, layout.y() + layout.height() - 28, 22, 20).build());
@@ -248,6 +249,7 @@ public class HudMoveScreen extends Screen
             case BLOCK_STATS -> Configs.Generic.BLOCK_STATS_SCALE.getDoubleValue();
             case NOTIFICATION -> Configs.Generic.TIMER_NOTIFICATION_SCALE.getDoubleValue();
             case ACTIVE_DIGGERS -> Configs.Generic.ACTIVE_DIGGERS_SCALE.getDoubleValue();
+            case MINED_BLOCKS -> Configs.Generic.MINED_BLOCK_OVERLAY_SCALE.getDoubleValue();
         };
     }
 
@@ -289,6 +291,6 @@ public class HudMoveScreen extends Screen
 
     private static HudModuleId[] movableModules()
     {
-        return new HudModuleId[] { HudModuleId.MAIN, HudModuleId.TIMER, HudModuleId.BLOCK_STATS, HudModuleId.ACTIVE_DIGGERS };
+        return new HudModuleId[] { HudModuleId.MAIN, HudModuleId.TIMER, HudModuleId.BLOCK_STATS, HudModuleId.ACTIVE_DIGGERS, HudModuleId.MINED_BLOCKS };
     }
 }

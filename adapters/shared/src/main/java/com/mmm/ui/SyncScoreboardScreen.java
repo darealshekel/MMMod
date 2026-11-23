@@ -38,9 +38,8 @@ public final class SyncScoreboardScreen extends Screen
         this.clickTargets.clear();
         Layout layout = layout();
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
-        MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "SYNC SCOREBOARD", layout.contentX(), layout.contentY(), layout.contentWidth());
+        MmmUi.drawBoardHeader(context, this.textRenderer, this.width, "Settings", layout.panelX());
+        MmmUi.drawTextWithin(context, this.textRenderer, "Sync scoreboard", layout.contentX(), layout.contentY(), layout.contentWidth(), BoardEditorStyle.TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer,
                 "Choose the mining-total objective for this source. Project and unrelated objectives are hidden.",
                 layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
@@ -90,9 +89,7 @@ public final class SyncScoreboardScreen extends Screen
                             int x, int y, int width, int mouseX, int mouseY)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, ROW_HEIGHT);
-        int fill = selected ? MmmUi.accentSoft() : hovered ? MmmUi.accentHover() : MmmUi.CARD;
-        int border = selected || hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT;
-        MmmUi.card(context, x, y, width, ROW_HEIGHT, fill, border);
+        MmmUi.boardRow(context, x, y, width, ROW_HEIGHT, hovered, selected);
         MmmUi.drawTextWithin(context, this.textRenderer, title, x + 10, y + 7, Math.max(1, width - 190), MmmUi.TEXT, false);
         MmmUi.drawTextWithin(context, this.textRenderer, subtitle, x + 10, y + 23, Math.max(1, width - 190), MmmUi.MUTED, false);
         if (playerCount > 0 || sourceTotal > 0L)
@@ -121,10 +118,6 @@ public final class SyncScoreboardScreen extends Screen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
-        }
         if (button == 0)
         {
             for (ClickTarget target : List.copyOf(this.clickTargets))
@@ -181,10 +174,9 @@ public final class SyncScoreboardScreen extends Screen
 
     private Layout layout()
     {
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - 12);
-        int panelWidth = Math.min(680, availableWidth);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
-        int panelY = MmmUi.TOP_BAR_HEIGHT + 8;
+        int panelWidth = BoardEditorStyle.contentWidth(this.width, 680);
+        int panelX = (this.width - panelWidth) / 2;
+        int panelY = BoardEditorStyle.HEADER_HEIGHT + 8;
         int panelHeight = Math.max(1, this.height - panelY - 8);
         int contentX = panelX + 12;
         int contentY = panelY + 12;

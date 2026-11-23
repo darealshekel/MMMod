@@ -3,6 +3,7 @@
   "package": "com.mmm.mixin",
   "compatibilityLevel": "JAVA_16",
   "client": [
+    "HandledScreenAccessor",
     "ClientPlayNetworkHandlerMixin",
     "ClientPlayerInteractionManagerAccessor",
     "ClientPlayerInteractionManagerMixin",

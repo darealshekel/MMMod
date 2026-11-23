@@ -1,5 +1,8 @@
 package com.mmm.ui;
 
+import com.mmm.ui.BoardChrome;
+import com.mmm.ui.BoardEditorStyle;
+
 import java.awt.EventQueue;
 import java.awt.FileDialog;
 import java.awt.Frame;
@@ -17,7 +20,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
-public class GoalSoundSettingsScreen extends com.mmm.compat.MmmScreen
+public class GoalSoundSettingsScreen extends com.mmm.compat.MmmScreen implements BoardChrome.Page
 {
     private static final int BUTTON_HEIGHT = 20;
     private static final int GAP = 8;
@@ -43,6 +46,7 @@ public class GoalSoundSettingsScreen extends com.mmm.compat.MmmScreen
     {
         MmmUi.ensureCursorVisible();
         this.clearChildren();
+        this.addDrawableChild(BoardChrome.back(this.width, this::close));
         this.thresholdButtons.clear();
         Layout layout = this.layout();
 
@@ -75,31 +79,21 @@ public class GoalSoundSettingsScreen extends com.mmm.compat.MmmScreen
         MmmUi.ensureCursorVisible();
         Layout layout = this.layout();
         this.updateBounds(layout);
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
+        MmmUi.editorFrame(context, width, height, "Goal sounds");
 
-        MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "MILESTONE SOUNDS", layout.contentX(), layout.contentY(), layout.contentWidth());
-        MmmUi.drawTextWithin(context, this.textRenderer, "Set one custom OGG for each fixed daily-goal milestone.", layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
+        MmmUi.editorHeading(context, this.textRenderer, "MILESTONE SOUNDS", layout.contentX(), layout.contentY(), layout.contentWidth() - 70);
+        boolean compact = layout.panelHeight() < 211;
+        if (!compact) MmmUi.drawTextWithin(context, this.textRenderer, "Set one custom OGG for each fixed daily-goal milestone.", layout.contentX(), layout.contentY() + 18, layout.contentWidth(), BoardEditorStyle.MUTED, false);
 
-        MmmUi.card(context, layout.contentX(), layout.infoY(), layout.contentWidth(), 58, MmmUi.CARD, MmmUi.BORDER_SOFT);
-        MmmUi.drawTextWithin(context, this.textRenderer, this.selectedThreshold + "% MILESTONE", layout.contentX() + 10, layout.infoY() + 10, layout.contentWidth() - 20, MmmUi.accent(), false);
-        MmmUi.drawTextWithin(context, this.textRenderer, GoalSoundLibrary.getDisplayName(this.selectedThreshold), layout.contentX() + 10, layout.infoY() + 28, layout.contentWidth() - 20, MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, GoalSoundLibrary.hasCustomSound(this.selectedThreshold) ? "Custom sound active" : "Built-in MMM sound active", layout.contentX() + 10, layout.infoY() + 42, layout.contentWidth() - 20, MmmUi.MUTED, false);
+        MmmUi.editorRow(context, layout.contentX(), layout.infoY(), layout.contentWidth(), compact ? 30 : 58, BoardEditorStyle.TILE, BoardEditorStyle.LINE);
+        if (!compact) MmmUi.drawTextWithin(context, this.textRenderer, this.selectedThreshold + "% MILESTONE", layout.contentX() + 10, layout.infoY() + 10, layout.contentWidth() - 20, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.textRenderer, GoalSoundLibrary.getDisplayName(this.selectedThreshold), layout.contentX() + 10, layout.infoY() + (compact ? 11 : 28), layout.contentWidth() - 20, BoardEditorStyle.TEXT, false);
+        if (!compact) MmmUi.drawTextWithin(context, this.textRenderer, GoalSoundLibrary.hasCustomSound(this.selectedThreshold) ? "Custom sound active" : "Built-in MMM sound active", layout.contentX() + 10, layout.infoY() + 42, layout.contentWidth() - 20, BoardEditorStyle.MUTED, false);
 
-        MmmUi.drawTextWithin(context, this.textRenderer, this.statusMessage, layout.contentX(), layout.statusY(), layout.contentWidth(), this.statusError ? MmmUi.ERROR : MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, this.statusMessage, layout.contentX(), layout.statusY(), layout.contentWidth(), this.statusError ? MmmUi.ERROR : BoardEditorStyle.MUTED, false);
         super.render(context, mouseX, mouseY, delta);
     }
 
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button)
-    {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
 
     @Override
     public void close()
@@ -244,18 +238,18 @@ public class GoalSoundSettingsScreen extends com.mmm.compat.MmmScreen
 
     private Layout layout()
     {
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - 16);
-        int panelWidth = Math.min(540, availableWidth);
+        int panelWidth = BoardEditorStyle.contentWidth(width, 540);
         int availableHeight = Math.max(1, this.height - MmmUi.TOP_BAR_HEIGHT - 12);
         int panelHeight = Math.min(250, availableHeight);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
+        int panelX = BoardEditorStyle.contentX(width, panelWidth);
         int panelY = MmmUi.TOP_BAR_HEIGHT + Math.max(6, (availableHeight - panelHeight) / 2);
         int contentX = panelX + 14;
         int contentY = panelY + 14;
         int contentWidth = Math.max(1, panelWidth - 28);
-        int thresholdY = contentY + 48;
-        int infoY = thresholdY + BUTTON_HEIGHT + 12;
-        int actionY = infoY + 70;
+        boolean compact = panelHeight < 211;
+        int thresholdY = contentY + (compact ? 23 : 42);
+        int infoY = thresholdY + BUTTON_HEIGHT + (compact ? 4 : 8);
+        int actionY = infoY + (compact ? 34 : 66);
         int statusY = actionY + BUTTON_HEIGHT + 12;
         return new Layout(panelX, panelY, panelWidth, panelHeight, contentX, contentY, contentWidth, thresholdY, infoY, actionY, statusY);
     }

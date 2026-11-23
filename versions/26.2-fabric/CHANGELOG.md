@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.23 - Settings and Collections
+
+- New Settings and Collections boards, with a direct Website Link and a vanilla book icon.
+
 ## 1.0.22 - Shared core
 
 - Build shared MMM code from one repository while preserving this version's existing features.

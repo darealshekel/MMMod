@@ -21,7 +21,7 @@ import org.lwjgl.glfw.GLFW;
 public final class GuiConfigs extends Screen
 {
     private static final int ROW_HEIGHT = 32;
-    private static final int ROW_GAP = 4;
+    private static final int ROW_GAP = 1;
     private static final int HOTKEY_WIDTH = 84;
     private static final int MAX_LIST_WIDTH = 560;
     private static final int SEARCH_HEIGHT = 20;
@@ -48,11 +48,6 @@ public final class GuiConfigs extends Screen
         this.parent = parent;
     }
 
-    public static GuiConfigs createForTab(String ignoredTabName, Screen parent)
-    {
-        return new GuiConfigs(parent);
-    }
-
     @Override
     protected void init()
     {
@@ -71,8 +66,14 @@ public final class GuiConfigs extends Screen
         });
         this.addDrawableChild(this.searchField);
 
-        this.listTop = MmmUi.TOP_BAR_HEIGHT + 62;
+        this.addDrawableChild(MmmUi.backButton(this, listLeft()));
+        this.listTop = MmmUi.TOP_BAR_HEIGHT + 40;
         this.listBottom = this.height - 10;
+    }
+
+    private int listLeft()
+    {
+        return MmmUi.centerContentX(this.width, Math.min(MAX_LIST_WIDTH, MmmUi.contentWidth(this.width)));
     }
 
     @Override
@@ -100,17 +101,14 @@ public final class GuiConfigs extends Screen
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "HOTKEYS");
-        int left = MmmUi.contentLeft(this.width);
-        int contentWidth = MmmUi.contentWidth(this.width);
-        int listWidth = Math.max(1, Math.min(contentWidth, MAX_LIST_WIDTH));
-        context.drawText(this.textRenderer, Text.literal("HOTKEYS"), left + 8, MmmUi.TOP_BAR_HEIGHT + 10, MmmUi.accent(), false);
+        int left = listLeft();
+        int listWidth = Math.min(MAX_LIST_WIDTH, MmmUi.contentWidth(this.width));
+        MmmUi.toolBoard(context, this.textRenderer, this.width, this.height, left, "Tools / Hotkeys");
 
         this.rowTargets.clear();
-        int searchX = left + 8;
-        int searchY = MmmUi.TOP_BAR_HEIGHT + 30;
-        int searchWidth = Math.max(80, Math.min(SEARCH_WIDTH, listWidth - 16));
+        int searchX = left;
+        int searchY = MmmUi.TOP_BAR_HEIGHT + 10;
+        int searchWidth = Math.min(SEARCH_WIDTH, listWidth);
         boolean canClearSearch = !this.searchQuery.isBlank();
         int clearWidth = canClearSearch ? 20 : 0;
         this.searchField.setX(searchX + 5);
@@ -131,10 +129,8 @@ public final class GuiConfigs extends Screen
         }
 
         List<Row> rows = filteredRows();
-        int top = MmmUi.TOP_BAR_HEIGHT + 62;
-        int bottom = this.height - 10;
-        this.listTop = top;
-        this.listBottom = bottom;
+        int top = this.listTop;
+        int bottom = this.listBottom;
         int maxVisibleHeight = Math.max(1, bottom - top);
         int maxScroll = Math.max(0, rows.size() * (ROW_HEIGHT + ROW_GAP) - maxVisibleHeight);
         this.scrollOffset = Math.max(0, Math.min(maxScroll, this.scrollOffset));
@@ -144,7 +140,7 @@ public final class GuiConfigs extends Screen
         {
             if (y + ROW_HEIGHT >= top && y < bottom)
             {
-                drawRow(context, row, left + 8, y, listWidth - 16, mouseX, mouseY);
+                drawRow(context, row, left, y, listWidth - 6, mouseX, mouseY);
             }
             y += ROW_HEIGHT + ROW_GAP;
         }
@@ -170,7 +166,7 @@ public final class GuiConfigs extends Screen
 
     private void drawRow(DrawContext context, Row row, int x, int y, int width, int mouseX, int mouseY)
     {
-        MmmUi.card(context, x, y, width, ROW_HEIGHT, MmmUi.CARD, MmmUi.BORDER_SOFT);
+        MmmUi.boardRow(context, x, y, width, ROW_HEIGHT, inside(mouseX, mouseY, x, y, width, ROW_HEIGHT), this.capturing == row.hotkey());
         int hotkeyWidth = Math.min(HOTKEY_WIDTH, Math.max(60, width / 5));
         int hotkeyX = x + width - hotkeyWidth - 10;
         int labelWidth = Math.max(40, hotkeyX - x - 20);
@@ -191,7 +187,12 @@ public final class GuiConfigs extends Screen
         MmmUi.card(context, hotkeyX, y + 7, hotkeyWidth, 18, MmmUi.INSET,
                 hotkeyHovered || this.capturing == row.hotkey() ? MmmUi.accent() : MmmUi.BORDER_SOFT);
         MmmUi.drawTextWithin(context, this.textRenderer, hotkeyLabel, hotkeyX + 5, y + 12, hotkeyWidth - 10, MmmUi.TEXT, false);
-        this.rowTargets.add(new RowTarget(hotkeyX, y + 7, hotkeyWidth, 18, () -> beginCapture(row.hotkey())));
+        int hitTop = Math.max(this.listTop, y + 7);
+        int hitBottom = Math.min(this.listBottom, y + 25);
+        if (hitBottom > hitTop)
+        {
+            this.rowTargets.add(new RowTarget(hotkeyX, hitTop, hotkeyWidth, hitBottom - hitTop, () -> beginCapture(row.hotkey())));
+        }
     }
 
     private void beginCapture(MmmHotkey hotkey)
@@ -216,13 +217,10 @@ public final class GuiConfigs extends Screen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "HOTKEYS"))
+        if (mouseY < MmmUi.TOP_BAR_HEIGHT)
         {
-            this.capturing = null;
-            this.chordCapture.clear();
-            return true;
+            return super.mouseClicked(mouseX, mouseY, button);
         }
-
         if (this.capturing != null)
         {
             this.chordCapture.press("MOUSE_" + (button + 1));
@@ -280,11 +278,6 @@ public final class GuiConfigs extends Screen
 
         if (keyCode == GLFW.GLFW_KEY_ESCAPE)
         {
-            if (this.searchField != null && !this.searchField.getText().isBlank())
-            {
-                this.searchField.setText("");
-                return true;
-            }
             this.close();
             return true;
         }

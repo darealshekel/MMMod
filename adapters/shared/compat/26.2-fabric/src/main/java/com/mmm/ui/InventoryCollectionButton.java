@@ -43,7 +43,7 @@ public final class InventoryCollectionButton extends AbstractButton {
     @Override public void onPress(net.minecraft.client.input.InputWithModifiers input) {
         var client = Minecraft.getInstance();
         if (client.player != null && client.player.containerMenu.getCarried().isEmpty())
-            client.gui.setScreen(new CollectionBookScreen(inventory));
+            BoardPlatform.open(new CollectionBookScreen(inventory));
     }
     @Override protected void extractContents(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
         if (isHovered() || isFocused()) {

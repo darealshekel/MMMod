@@ -10,7 +10,7 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-public final class SyncScoreboardScreen extends com.mmm.ui.CompatScreen
+public final class SyncScoreboardScreen extends CompatScreen
 {
     private static final int ROW_HEIGHT = 42;
     private static final int ROW_GAP = 5;
@@ -30,6 +30,7 @@ public final class SyncScoreboardScreen extends com.mmm.ui.CompatScreen
     {
         MmmUi.ensureCursorVisible();
         this.choices = SyncScoreboardSelector.availableObjectives(MinecraftClient.getInstance());
+        this.addDrawableChild(MmmUi.backButton(this, layout().contentX() + layout().contentWidth()));
     }
 
     @Override
@@ -38,12 +39,10 @@ public final class SyncScoreboardScreen extends com.mmm.ui.CompatScreen
         this.clickTargets.clear();
         Layout layout = layout();
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "SETTINGS");
-        MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "SYNC SCOREBOARD", layout.contentX(), layout.contentY(), layout.contentWidth());
+        MmmUi.boardHeader(context, textRenderer, width, layout.contentX(), getTitle().getString());
         MmmUi.drawTextWithin(context, this.textRenderer,
                 "Choose the mining-total objective for this source. Project and unrelated objectives are hidden.",
-                layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
+                layout.contentX(), layout.contentY(), layout.contentWidth(), BoardEditorStyle.MUTED, false);
 
         String selected = SyncScoreboardSelector.selectedObjectiveName();
         int rowY = layout.listTop();
@@ -79,9 +78,7 @@ public final class SyncScoreboardScreen extends com.mmm.ui.CompatScreen
                                 ? "Selected objective: " + selected
                                 : "Selected scoreboard unavailable. Source sync is paused.";
         MmmUi.drawTextWithin(context, this.textRenderer, status, layout.contentX(), layout.statusY(),
-                layout.contentWidth() - 70, selectedAvailable ? MmmUi.MUTED : MmmUi.WARNING, false);
-        drawButton(context, layout.panelX() + layout.panelWidth() - 70, layout.statusY() - 6,
-                58, 20, "DONE", mouseX, mouseY, this::close);
+                layout.contentWidth(), selectedAvailable ? BoardEditorStyle.MUTED : MmmUi.WARNING, false);
         super.render(context, mouseX, mouseY, delta);
     }
 
@@ -92,13 +89,15 @@ public final class SyncScoreboardScreen extends com.mmm.ui.CompatScreen
         boolean hovered = contains(mouseX, mouseY, x, y, width, ROW_HEIGHT);
         int fill = selected ? MmmUi.accentSoft() : hovered ? MmmUi.accentHover() : MmmUi.CARD;
         int border = selected || hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT;
-        MmmUi.card(context, x, y, width, ROW_HEIGHT, fill, border);
-        MmmUi.drawTextWithin(context, this.textRenderer, title, x + 10, y + 7, Math.max(1, width - 190), MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, subtitle, x + 10, y + 23, Math.max(1, width - 190), MmmUi.MUTED, false);
+        MmmUi.boardRow(context, x, y, width, ROW_HEIGHT, fill, border);
+        int infoWidth = playerCount > 0 || sourceTotal > 0L ? Math.min(width / 3, 152) : 0;
+        if (selected) context.fill(x, y, x + 2, y + ROW_HEIGHT, BoardEditorStyle.ROSE);
+        MmmUi.drawTextWithin(context, this.textRenderer, title, x + 10, y + 7, Math.max(1, width - infoWidth - 20), BoardEditorStyle.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, subtitle, x + 10, y + 23, Math.max(1, width - infoWidth - 20), BoardEditorStyle.MUTED, false);
         if (playerCount > 0 || sourceTotal > 0L)
         {
             String summary = playerCount + " players  /  " + UiFormat.formatCompact(sourceTotal);
-            MmmUi.drawTextRightWithin(context, this.textRenderer, summary, x + width - 10, y + 15, 170, MmmUi.MUTED, false);
+            MmmUi.drawTextRightWithin(context, this.textRenderer, summary, x + width - 10, y + 15, infoWidth, BoardEditorStyle.MUTED, false);
         }
         this.clickTargets.add(new ClickTarget(x, y, width, ROW_HEIGHT, () -> {
             SyncScoreboardSelector.selectObjective(objectiveName);
@@ -106,25 +105,9 @@ public final class SyncScoreboardScreen extends com.mmm.ui.CompatScreen
         }));
     }
 
-    private void drawButton(DrawContext context, int x, int y, int width, int height, String label,
-                            int mouseX, int mouseY, Runnable action)
-    {
-        boolean hovered = contains(mouseX, mouseY, x, y, width, height);
-        MmmUi.card(context, x, y, width, height, hovered ? MmmUi.accentHover() : MmmUi.INSET,
-                hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
-        context.drawText(this.textRenderer, Text.literal(label),
-                x + Math.max(3, (width - this.textRenderer.getWidth(label)) / 2), y + 6,
-                hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
-        this.clickTargets.add(new ClickTarget(x, y, width, height, action));
-    }
-
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
-        }
         if (button == 0)
         {
             for (ClickTarget target : List.copyOf(this.clickTargets))
@@ -181,15 +164,10 @@ public final class SyncScoreboardScreen extends com.mmm.ui.CompatScreen
 
     private Layout layout()
     {
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - 12);
-        int panelWidth = Math.min(680, availableWidth);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
-        int panelY = MmmUi.TOP_BAR_HEIGHT + 8;
-        int panelHeight = Math.max(1, this.height - panelY - 8);
-        int contentX = panelX + 12;
-        int contentY = panelY + 12;
-        return new Layout(panelX, panelY, panelWidth, panelHeight, contentX, contentY,
-                Math.max(1, panelWidth - 24), contentY + 42, panelY + panelHeight - 22);
+        int contentWidth = BoardEditorStyle.contentWidth(width, 640);
+        int contentX = BoardEditorStyle.contentX(width, 640);
+        int contentY = BoardEditorStyle.HEADER_HEIGHT + 10;
+        return new Layout(contentX, contentY, contentWidth, contentY + 20, height - 19);
     }
 
     private static boolean contains(double mouseX, double mouseY, int x, int y, int width, int height)
@@ -197,8 +175,7 @@ public final class SyncScoreboardScreen extends com.mmm.ui.CompatScreen
         return mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
     }
 
-    private record Layout(int panelX, int panelY, int panelWidth, int panelHeight,
-                          int contentX, int contentY, int contentWidth, int listTop, int statusY)
+    private record Layout(int contentX, int contentY, int contentWidth, int listTop, int statusY)
     {
     }
 

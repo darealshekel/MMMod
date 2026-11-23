@@ -6,6 +6,8 @@ import java.util.Map;
 
 import com.mmm.config.Configs;
 import com.mmm.hud.HudModuleId;
+import com.mmm.hud.ActiveDiggersHudRenderer;
+import com.mmm.hud.MinedBlockOverlayRenderer;
 import com.mmm.ui.MmmUi;
 import com.mmm.util.UiFormat;
 
@@ -72,6 +74,13 @@ public final class TimerHudRenderer
             return;
         }
 
+        if (module == HudModuleId.MINED_BLOCKS)
+        {
+            if (preview) MinedBlockOverlayRenderer.renderPreview(context, client);
+            else MinedBlockOverlayRenderer.render(context, client);
+            return;
+        }
+
         int[] bounds = getBounds(client, module);
         int x = bounds[0];
         int y = bounds[1];
@@ -85,6 +94,7 @@ public final class TimerHudRenderer
             case HOURLY -> drawHourly(context, client, preview);
             case BLOCK_STATS -> drawBlockStats(context, client, preview);
             case NOTIFICATION -> drawNotification(context, client, preview);
+            case ACTIVE_DIGGERS -> ActiveDiggersHudRenderer.draw(context, client, preview);
             default -> {}
         }
         context.getMatrices().popMatrix();
@@ -92,6 +102,7 @@ public final class TimerHudRenderer
 
     public static int[] getBounds(MinecraftClient client, HudModuleId module)
     {
+        if (module == HudModuleId.MINED_BLOCKS) return MinedBlockOverlayRenderer.getBounds(client);
         if (module == HudModuleId.MAIN)
         {
             return com.mmm.hud.MiningHudRenderer.getBounds(client);
@@ -116,6 +127,8 @@ public final class TimerHudRenderer
             case HOURLY -> Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue();
             case BLOCK_STATS -> Configs.Generic.BLOCK_STATS_VISIBLE.getBooleanValue();
             case NOTIFICATION -> Configs.Generic.TIMER_NOTIFICATIONS.getBooleanValue();
+            case ACTIVE_DIGGERS -> Configs.Generic.SHOW_ACTIVE_DIGGERS.getBooleanValue();
+            case MINED_BLOCKS -> Configs.Generic.MINED_BLOCK_OVERLAY.getBooleanValue();
         };
     }
 
@@ -127,6 +140,8 @@ public final class TimerHudRenderer
             case HOURLY -> Configs.Generic.HOURLY_STATS_VISIBLE.setBooleanValue(!Configs.Generic.HOURLY_STATS_VISIBLE.getBooleanValue());
             case BLOCK_STATS -> Configs.Generic.BLOCK_STATS_VISIBLE.setBooleanValue(!Configs.Generic.BLOCK_STATS_VISIBLE.getBooleanValue());
             case NOTIFICATION -> Configs.Generic.TIMER_NOTIFICATIONS.setBooleanValue(!Configs.Generic.TIMER_NOTIFICATIONS.getBooleanValue());
+            case ACTIVE_DIGGERS -> Configs.Generic.SHOW_ACTIVE_DIGGERS.setBooleanValue(!Configs.Generic.SHOW_ACTIVE_DIGGERS.getBooleanValue());
+            case MINED_BLOCKS -> Configs.Generic.MINED_BLOCK_OVERLAY.setBooleanValue(!Configs.Generic.MINED_BLOCK_OVERLAY.getBooleanValue());
             default -> {}
         }
         Configs.saveToFile();
@@ -176,6 +191,12 @@ public final class TimerHudRenderer
         Configs.Generic.TIMER_NOTIFICATION_X.resetToDefault();
         Configs.Generic.TIMER_NOTIFICATION_Y.resetToDefault();
         Configs.Generic.TIMER_NOTIFICATION_SCALE.resetToDefault();
+        Configs.Generic.ACTIVE_DIGGERS_X.resetToDefault();
+        Configs.Generic.ACTIVE_DIGGERS_Y.resetToDefault();
+        Configs.Generic.ACTIVE_DIGGERS_SCALE.resetToDefault();
+        Configs.Generic.MINED_BLOCK_OVERLAY_X.resetToDefault();
+        Configs.Generic.MINED_BLOCK_OVERLAY_Y.resetToDefault();
+        Configs.Generic.MINED_BLOCK_OVERLAY_SCALE.resetToDefault();
         Configs.saveToFile();
         MmmTimerState.save();
     }
@@ -360,6 +381,7 @@ public final class TimerHudRenderer
             case HOURLY -> WIDTH_HOURLY;
             case BLOCK_STATS -> WIDTH_BLOCKS;
             case NOTIFICATION -> WIDTH_NOTIFICATION;
+            case ACTIVE_DIGGERS -> ActiveDiggersHudRenderer.WIDTH;
             default -> 190;
         };
     }
@@ -372,6 +394,7 @@ public final class TimerHudRenderer
             case HOURLY -> HEIGHT_HOURLY;
             case BLOCK_STATS -> blockStatsHeight(MmmTimerState.getTopBlocks().size());
             case NOTIFICATION -> HEIGHT_NOTIFICATION;
+            case ACTIVE_DIGGERS -> ActiveDiggersHudRenderer.height(client);
             default -> 120;
         };
     }
@@ -384,6 +407,8 @@ public final class TimerHudRenderer
             case HOURLY -> Configs.Generic.HOURLY_STATS_X;
             case BLOCK_STATS -> Configs.Generic.BLOCK_STATS_X;
             case NOTIFICATION -> Configs.Generic.TIMER_NOTIFICATION_X;
+            case ACTIVE_DIGGERS -> Configs.Generic.ACTIVE_DIGGERS_X;
+            case MINED_BLOCKS -> Configs.Generic.MINED_BLOCK_OVERLAY_X;
             default -> Configs.Generic.HUD_X;
         };
     }
@@ -396,6 +421,8 @@ public final class TimerHudRenderer
             case HOURLY -> Configs.Generic.HOURLY_STATS_Y;
             case BLOCK_STATS -> Configs.Generic.BLOCK_STATS_Y;
             case NOTIFICATION -> Configs.Generic.TIMER_NOTIFICATION_Y;
+            case ACTIVE_DIGGERS -> Configs.Generic.ACTIVE_DIGGERS_Y;
+            case MINED_BLOCKS -> Configs.Generic.MINED_BLOCK_OVERLAY_Y;
             default -> Configs.Generic.HUD_Y;
         };
     }
@@ -408,6 +435,8 @@ public final class TimerHudRenderer
             case HOURLY -> Configs.Generic.HOURLY_STATS_SCALE;
             case BLOCK_STATS -> Configs.Generic.BLOCK_STATS_SCALE;
             case NOTIFICATION -> Configs.Generic.TIMER_NOTIFICATION_SCALE;
+            case ACTIVE_DIGGERS -> Configs.Generic.ACTIVE_DIGGERS_SCALE;
+            case MINED_BLOCKS -> Configs.Generic.MINED_BLOCK_OVERLAY_SCALE;
             default -> Configs.Generic.HUD_SCALE;
         };
     }

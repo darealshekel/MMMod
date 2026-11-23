@@ -11,7 +11,7 @@ public final class ScoreboardRecordsScreen extends ScoreboardBaseScreen {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
     private int offset;
     public ScoreboardRecordsScreen(Screen parent) { super(parent, "Recorded Scoreboards"); }
-    private int capacity() { return Math.max(1, (height - 116) / 36); }
+    private int capacity() { return Math.max(1, (height - 132) / 36); }
     @Override public void init() {
         super.init();
         var rows = ScoreboardState.getSnapshots();
@@ -19,7 +19,7 @@ public final class ScoreboardRecordsScreen extends ScoreboardBaseScreen {
         button(1, left, 40, 90, "Record");
         button(2, left + 94, 40, 90, "Export");
         for (int i = 0; i < capacity() && offset + i < rows.size(); i++) {
-            int x = left + panelWidth - 82, y = 72 + i * 36;
+            int x = left + panelWidth - 82, y = 87 + i * 36;
             button(100 + i * 3, x, y, 24, "^").active = offset + i > 0;
             button(101 + i * 3, x + 28, y, 24, "v").active = offset + i + 1 < rows.size();
             button(102 + i * 3, x + 56, y, 26, "X");
@@ -30,12 +30,14 @@ public final class ScoreboardRecordsScreen extends ScoreboardBaseScreen {
     @Override public void render(int x, int y, float delta) {
         shell();
         var rows = ScoreboardState.getSnapshots();
-        if (rows.isEmpty()) text("No records", left, 76, 0xFFBBBBBB);
+        section("Saved records / " + rows.size(), 68);
+        if (rows.isEmpty()) { recordRow(84, 27, false); text("No records", left + 7, 93, com.mmm.ui.BoardEditorStyle.MUTED); }
         for (int i = 0; i < capacity() && offset + i < rows.size(); i++) {
             var row = rows.get(offset + i);
-            text(textRenderer.trim(row.displayName(), panelWidth - 90), left, 72 + i * 36, 0xFFFFFFFF);
-            text(textRenderer.trim(TIME.format(Instant.ofEpochMilli(row.capturedAtMs())) + "  " + row.rows().size() + " rows", panelWidth - 90),
-                    left, 84 + i * 36, 0xFFAAAAAA);
+            recordRow(84 + i * 36, 32, x >= left && x < left + panelWidth && y >= 84 + i * 36 && y < 116 + i * 36);
+            text(textRenderer.trim(row.displayName(), panelWidth - 100), left + 7, 89 + i * 36, 0xFFFFFFFF);
+            text(textRenderer.trim(TIME.format(Instant.ofEpochMilli(row.capturedAtMs())) + "  " + row.rows().size() + " rows", panelWidth - 100),
+                    left + 7, 102 + i * 36, 0xFFAAAAAA);
         }
         super.render(x, y, delta);
     }

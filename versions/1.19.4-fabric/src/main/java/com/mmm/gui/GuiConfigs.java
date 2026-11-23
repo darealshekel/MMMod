@@ -1,5 +1,8 @@
 package com.mmm.gui;
 
+import com.mmm.ui.BoardChrome;
+import com.mmm.ui.BoardEditorStyle;
+
 import com.mmm.config.Configs;
 import com.mmm.config.FeatureToggle;
 import com.mmm.config.Hotkeys;
@@ -18,12 +21,12 @@ import net.minecraft.client.util.InputUtil;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
-public final class GuiConfigs extends com.mmm.compat.MmmScreen
+public final class GuiConfigs extends com.mmm.compat.MmmScreen implements BoardChrome.Page
 {
     private static final int ROW_HEIGHT = 32;
     private static final int ROW_GAP = 4;
     private static final int HOTKEY_WIDTH = 84;
-    private static final int MAX_LIST_WIDTH = 560;
+    private static final int MAX_LIST_WIDTH = 720;
     private static final int SEARCH_HEIGHT = 20;
     private static final int SEARCH_WIDTH = 260;
     private final Screen parent;
@@ -58,10 +61,11 @@ public final class GuiConfigs extends com.mmm.compat.MmmScreen
     {
         MmmUi.ensureCursorVisible();
         this.clearChildren();
+        this.addDrawableChild(BoardChrome.back(this.width, this::close));
         this.searchField = new TextFieldWidget(this.textRenderer, 0, 0, SEARCH_WIDTH - 10, SEARCH_HEIGHT, Text.literal("Search hotkeys"));
         this.searchField.setDrawsBackground(false);
-        this.searchField.setEditableColor(MmmUi.TEXT);
-        this.searchField.setUneditableColor(MmmUi.MUTED);
+        this.searchField.setEditableColor(BoardEditorStyle.TEXT);
+        this.searchField.setUneditableColor(BoardEditorStyle.MUTED);
         this.searchField.setMaxLength(64);
         this.searchField.setPlaceholder(Text.literal("Search hotkeys..."));
         this.searchField.setText(this.searchQuery);
@@ -71,7 +75,7 @@ public final class GuiConfigs extends com.mmm.compat.MmmScreen
         });
         this.addDrawableChild(this.searchField);
 
-        this.listTop = MmmUi.TOP_BAR_HEIGHT + 62;
+        this.listTop = MmmUi.TOP_BAR_HEIGHT + 37;
         this.listBottom = this.height - 10;
     }
 
@@ -100,30 +104,28 @@ public final class GuiConfigs extends com.mmm.compat.MmmScreen
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "HOTKEYS");
-        int left = MmmUi.contentLeft(this.width);
+        MmmUi.editorFrame(context, width, height, "Hotkeys");
+        int left = BoardEditorStyle.contentX(width, MAX_LIST_WIDTH);
         int contentWidth = MmmUi.contentWidth(this.width);
         int listWidth = Math.max(1, Math.min(contentWidth, MAX_LIST_WIDTH));
-        context.drawText(this.textRenderer, Text.literal("HOTKEYS"), left + 8, MmmUi.TOP_BAR_HEIGHT + 10, MmmUi.accent(), false);
 
         this.rowTargets.clear();
         int searchX = left + 8;
-        int searchY = MmmUi.TOP_BAR_HEIGHT + 30;
+        int searchY = MmmUi.TOP_BAR_HEIGHT + 8;
         int searchWidth = Math.max(80, Math.min(SEARCH_WIDTH, listWidth - 16));
         boolean canClearSearch = !this.searchQuery.isBlank();
         int clearWidth = canClearSearch ? 20 : 0;
         this.searchField.setX(searchX + 5);
         this.searchField.setY(searchY + 5);
         this.searchField.setWidth(Math.max(40, searchWidth - 10 - clearWidth));
-        MmmUi.fieldShell(context, searchX, searchY, searchWidth, SEARCH_HEIGHT, this.searchField.isFocused());
+        MmmUi.editorField(context, searchX, searchY, searchWidth, SEARCH_HEIGHT, this.searchField.isFocused());
         if (canClearSearch)
         {
             int clearX = searchX + searchWidth - 19;
             boolean clearHovered = inside(mouseX, mouseY, clearX, searchY, 18, SEARCH_HEIGHT);
-            MmmUi.card(context, clearX, searchY, 18, SEARCH_HEIGHT, clearHovered ? MmmUi.accentHover() : MmmUi.INSET,
-                    clearHovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
-            MmmUi.drawTextWithin(context, this.textRenderer, "X", clearX + 6, searchY + 6, 8, MmmUi.TEXT, false);
+            MmmUi.editorRow(context, clearX, searchY, 18, SEARCH_HEIGHT, clearHovered ? BoardEditorStyle.TILE : BoardEditorStyle.TILE,
+                    clearHovered ? MmmUi.accent() : BoardEditorStyle.LINE);
+            MmmUi.drawTextWithin(context, this.textRenderer, "X", clearX + 6, searchY + 6, 8, BoardEditorStyle.TEXT, false);
             this.rowTargets.add(new RowTarget(clearX, searchY, 18, SEARCH_HEIGHT, () -> {
                 this.searchField.setText("");
                 this.searchField.setFocused(true);
@@ -131,29 +133,31 @@ public final class GuiConfigs extends com.mmm.compat.MmmScreen
         }
 
         List<Row> rows = filteredRows();
-        int top = MmmUi.TOP_BAR_HEIGHT + 62;
+        int top = MmmUi.TOP_BAR_HEIGHT + 37;
         int bottom = this.height - 10;
         this.listTop = top;
         this.listBottom = bottom;
         int maxVisibleHeight = Math.max(1, bottom - top);
-        int maxScroll = Math.max(0, rows.size() * (ROW_HEIGHT + ROW_GAP) - maxVisibleHeight);
+        int columns = listWidth >= 580 ? 2 : 1;
+        int tileWidth = (listWidth - 16 - (columns - 1) * ROW_GAP) / columns;
+        int lines = (rows.size() + columns - 1) / columns;
+        int maxScroll = Math.max(0, lines * (ROW_HEIGHT + ROW_GAP) - maxVisibleHeight);
         this.scrollOffset = Math.max(0, Math.min(maxScroll, this.scrollOffset));
-        int y = top - this.scrollOffset;
         context.enableScissor(left, top, left + listWidth, bottom);
-        for (Row row : rows)
+        for (int i = 0; i < rows.size(); i++)
         {
+            int y = top - this.scrollOffset + i / columns * (ROW_HEIGHT + ROW_GAP);
             if (y + ROW_HEIGHT >= top && y < bottom)
             {
-                drawRow(context, row, left + 8, y, listWidth - 16, mouseX, mouseY);
+                drawRow(context, rows.get(i), left + 8 + i % columns * (tileWidth + ROW_GAP), y, tileWidth, mouseX, mouseY);
             }
-            y += ROW_HEIGHT + ROW_GAP;
         }
         context.disableScissor();
 
         if (rows.isEmpty())
         {
             MmmUi.drawTextWithin(context, this.textRenderer, "No hotkeys match your search.", left + 16, top + 12,
-                    listWidth - 32, MmmUi.MUTED, false);
+                    listWidth - 32, BoardEditorStyle.MUTED, false);
         }
 
         if (maxScroll > 0)
@@ -170,12 +174,13 @@ public final class GuiConfigs extends com.mmm.compat.MmmScreen
 
     private void drawRow(DrawContext context, Row row, int x, int y, int width, int mouseX, int mouseY)
     {
-        MmmUi.card(context, x, y, width, ROW_HEIGHT, MmmUi.CARD, MmmUi.BORDER_SOFT);
+        boolean hot = mouseY >= this.listTop && mouseY < this.listBottom && inside(mouseX, mouseY, x, y, width, ROW_HEIGHT);
+        MmmUi.editorButton(context, x, y, width, ROW_HEIGHT, true, hot || this.capturing == row.hotkey());
         int hotkeyWidth = Math.min(HOTKEY_WIDTH, Math.max(60, width / 5));
         int hotkeyX = x + width - hotkeyWidth - 10;
         int labelWidth = Math.max(40, hotkeyX - x - 20);
-        MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x + 9, y + 5, labelWidth, MmmUi.TEXT, false);
-        MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x + 9, y + 17, labelWidth, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, row.label(), x + 9, y + 5, labelWidth, BoardEditorStyle.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, row.description(), x + 9, y + 17, labelWidth, BoardEditorStyle.MUTED, false);
 
         String hotkeyStorage = this.capturing == row.hotkey()
                 ? (this.chordCapture.isEmpty()
@@ -187,11 +192,11 @@ public final class GuiConfigs extends com.mmm.compat.MmmScreen
         {
             hotkeyLabel = "UNBOUND";
         }
-        boolean hotkeyHovered = inside(mouseX, mouseY, hotkeyX, y + 7, hotkeyWidth, 18);
-        MmmUi.card(context, hotkeyX, y + 7, hotkeyWidth, 18, MmmUi.INSET,
-                hotkeyHovered || this.capturing == row.hotkey() ? MmmUi.accent() : MmmUi.BORDER_SOFT);
-        MmmUi.drawTextWithin(context, this.textRenderer, hotkeyLabel, hotkeyX + 5, y + 12, hotkeyWidth - 10, MmmUi.TEXT, false);
-        this.rowTargets.add(new RowTarget(hotkeyX, y + 7, hotkeyWidth, 18, () -> beginCapture(row.hotkey())));
+        MmmUi.editorRow(context, hotkeyX, y + 7, hotkeyWidth, 18, BoardEditorStyle.TILE,
+                hot || this.capturing == row.hotkey() ? MmmUi.accent() : BoardEditorStyle.LINE);
+        MmmUi.drawTextWithin(context, this.textRenderer, hotkeyLabel, hotkeyX + 5, y + 12, hotkeyWidth - 10, BoardEditorStyle.TEXT, false);
+        int top = Math.max(this.listTop, y), bottom = Math.min(this.listBottom, y + ROW_HEIGHT);
+        if (bottom > top) this.rowTargets.add(new RowTarget(x, top, width, bottom - top, () -> beginCapture(row.hotkey())));
     }
 
     private void beginCapture(MmmHotkey hotkey)
@@ -216,13 +221,7 @@ public final class GuiConfigs extends com.mmm.compat.MmmScreen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "HOTKEYS"))
-        {
-            this.capturing = null;
-            this.chordCapture.clear();
-            return true;
-        }
-
+        if (button == 0 && mouseY < MmmUi.TOP_BAR_HEIGHT && super.mouseClicked(mouseX, mouseY, button)) return true;
         if (this.capturing != null)
         {
             this.chordCapture.press("MOUSE_" + (button + 1));
@@ -280,11 +279,6 @@ public final class GuiConfigs extends com.mmm.compat.MmmScreen
 
         if (keyCode == GLFW.GLFW_KEY_ESCAPE)
         {
-            if (this.searchField != null && !this.searchField.getText().isBlank())
-            {
-                this.searchField.setText("");
-                return true;
-            }
             this.close();
             return true;
         }
@@ -377,7 +371,10 @@ public final class GuiConfigs extends com.mmm.compat.MmmScreen
         {
             return "";
         }
-        return storage.replace(',', '+');
+        return storage.replace("LEFT_CONTROL", "LCtrl").replace("RIGHT_CONTROL", "RCtrl")
+                .replace("LEFT_SHIFT", "LShift").replace("RIGHT_SHIFT", "RShift")
+                .replace("LEFT_ALT", "LAlt").replace("RIGHT_ALT", "RAlt")
+                .replace("PAGE_UP", "PgUp").replace("PAGE_DOWN", "PgDn").replace(',', '+');
     }
 
     private static String keyName(int keyCode, int scanCode)

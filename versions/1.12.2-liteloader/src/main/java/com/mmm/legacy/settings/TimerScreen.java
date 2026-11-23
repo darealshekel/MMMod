@@ -13,6 +13,7 @@ public final class TimerScreen extends LegacyScreen {
     private String status = "";
     private boolean confirmReset;
     public TimerScreen(Screen parent) { super(parent, "Block Timer"); }
+    @Override protected int maxContentWidth() { return 440; }
     @Override public void init() {
         String value = duration == null ? Long.toString(MmmTimerState.getDurationMs() / 1000) + "s" : duration.getText();
         super.init(); duration = field(1, 84, value);
@@ -49,8 +50,9 @@ public final class TimerScreen extends LegacyScreen {
     @Override public void render(int x, int y, float delta) {
         shell();
         String state = MmmTimerState.isRunning() ? "Running" : MmmTimerState.isPaused() ? "Paused" : MmmTimerState.isExpired() ? "Finished" : "Stopped";
-        fit(MmmTimerState.formatTime(MmmTimerState.getRemainingMs()) + " / " + state, left, 47, panelWidth, 0xFFFFFFFF);
-        fit(UiFormat.formatBlocks(MmmTimerState.getBlocksBroken()), left, 64, panelWidth, 0xFFBBBBBB);
+        recordRow(37, 40, false);
+        fit(MmmTimerState.formatTime(MmmTimerState.getRemainingMs()) + " / " + state, left + 7, 45, panelWidth - 14, com.mmm.ui.BoardEditorStyle.ROSE);
+        fit(UiFormat.formatBlocks(MmmTimerState.getBlocksBroken()), left + 7, 61, panelWidth - 14, 0xFFBBBBBB);
         duration.render(); fit(status, left, 176, panelWidth, 0xFFFFB84D); super.render(x, y, delta);
     }
     @Override public void tick() { duration.tick(); updateButtons(); }

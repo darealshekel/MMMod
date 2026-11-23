@@ -43,7 +43,7 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
                 .build();
         profileButton.active = hasProfileName();
         this.addDrawableChild(profileButton);
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), button -> close())
+        this.addDrawableChild(ButtonWidget.builder(Text.literal("Back"), button -> close())
                 .dimensions(layout.panelRight - 70, layout.headerY - 2, 60, BUTTON_HEIGHT)
                 .build());
     }
@@ -54,14 +54,13 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
         MmmUi.ensureCursorVisible();
         Layout layout = computeLayout();
         MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.textRenderer, this.width, this.height, mouseX, mouseY, "PROFILE");
-        MmmUi.card(context, layout.panelX, layout.panelY, layout.panelWidth, layout.panelHeight, MmmUi.PANEL, MmmUi.BORDER);
+        MmmUi.boardHeader(context, textRenderer, this.width, layout.contentX, "Tools / Profile");
 
         MmmUi.drawTextWithin(context, this.textRenderer, this.title.getString(), layout.contentX, layout.headerY, Math.max(0, layout.contentWidth - 196), MmmUi.TEXT, true);
         if (!layout.compact)
         {
             MmmUi.statusChip(context, this.textRenderer, layout.contentX, layout.headerY + 18, syncLabel(), syncColor());
-            MmmUi.drawTextWithin(context, this.textRenderer, "Local mining data is stored on this client and sent on your account cadence.", layout.contentX, layout.headerY + 42, layout.contentWidth, MmmUi.LABEL, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "Local mining data is stored on this client and sent on your account cadence.", layout.contentX, layout.headerY + 42, layout.contentWidth, BoardEditorStyle.MUTED, false);
         }
 
         drawTotalsCard(context, layout.leftX, layout.cardsY, layout.cardWidth, layout.topHeight);
@@ -70,18 +69,6 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
         drawBreakdownCard(context, layout.rightX, layout.lowerY, layout.cardWidth, layout.lowerHeight);
 
         super.render(context, mouseX, mouseY, delta);
-        MmmUi.drawMmmTopBar(context, this.textRenderer, this.width);
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button)
-    {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "PROFILE"))
-        {
-            return true;
-        }
-
-        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
@@ -105,7 +92,7 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
     {
         long globalTotal = MiningStats.getGlobalTotalMinedForDisplay();
         long worldTotal = MiningStats.getCurrentSourceTotalMined();
-        MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
+        MmmUi.sectionRule(context, x, y, width);
         drawCardTitle(context, x, y, width, "Totals");
         int firstRow = height < 90 ? 26 : 30;
         int step = height < 90 ? 20 : 26;
@@ -113,7 +100,7 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
         drawBlocksMetric(context, x, y + firstRow + step, width, "World Total", worldTotal);
         if (height >= 86)
         {
-            MmmUi.drawTextWithin(context, this.textRenderer, lastGlobalUpdateText(), x + CARD_PADDING, y + height - 14, width - CARD_PADDING * 2, MmmUi.MUTED, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, lastGlobalUpdateText(), x + CARD_PADDING, y + height - 14, width - CARD_PADDING * 2, BoardEditorStyle.MUTED, false);
         }
     }
 
@@ -123,7 +110,7 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
         long weeklyBlocks = MiningStats.getWeeklyBlocksMined();
         long dailyRecord = MiningStats.getPersonalRecordDailyBlocks();
         long weeklyRecord = MiningStats.getPersonalRecordWeeklyBlocks();
-        MmmUi.card(context, x, y, width, height, MmmUi.CARD, MmmUi.BORDER);
+        MmmUi.sectionRule(context, x, y, width);
         drawCardTitle(context, x, y, width, "Records");
         int firstRow = height < 90 ? 25 : 28;
         int step = height < 90 ? 19 : 24;
@@ -136,7 +123,7 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
     private void drawSourceCard(DrawContext context, int x, int y, int width, int height)
     {
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
-        MmmUi.card(context, x, y, width, height, MmmUi.CARD_SOFT, MmmUi.BORDER);
+        MmmUi.sectionRule(context, x, y, width);
         drawCardTitle(context, x, y, width, "Current Source");
         int firstRow = height < 130 ? 26 : 30;
         int step = height < 130 ? 19 : 26;
@@ -159,12 +146,12 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
     {
         WorldSessionContext.WorldInfo world = WorldSessionContext.getCurrentWorldInfo();
         Configs.WorldStatsEntry stats = Configs.getOrCreateWorldStats(world.id(), world.displayName(), world.kind(), world.host());
-        MmmUi.card(context, x, y, width, height, MmmUi.CARD_SOFT, MmmUi.BORDER);
+        MmmUi.sectionRule(context, x, y, width);
         drawCardTitle(context, x, y, width, "Mined Blocks");
 
         if (stats.blockBreakdown == null || stats.blockBreakdown.isEmpty())
         {
-            MmmUi.drawTextWithin(context, this.textRenderer, "No per-block data stored for this source yet.", x + CARD_PADDING, y + 34, width - CARD_PADDING * 2, MmmUi.MUTED, false);
+            MmmUi.drawTextWithin(context, this.textRenderer, "No per-block data stored for this source yet.", x + CARD_PADDING, y + 34, width - CARD_PADDING * 2, BoardEditorStyle.MUTED, false);
             return;
         }
 
@@ -189,14 +176,14 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
 
     private void drawCardTitle(DrawContext context, int x, int y, int width, String title)
     {
-        MmmUi.drawTextWithin(context, this.textRenderer, title, x + CARD_PADDING, y + 10, width - CARD_PADDING * 2, MmmUi.TEXT, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, title, x + CARD_PADDING, y + 10, width - CARD_PADDING * 2, BoardEditorStyle.ROSE, false);
     }
 
     private void drawMetric(DrawContext context, int x, int y, int width, String label, String value, int valueColor)
     {
         int labelWidth = Math.min(86, Math.max(58, (width - CARD_PADDING * 2) / 2));
         int valueWidth = Math.max(0, width - CARD_PADDING * 2 - labelWidth - 8);
-        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y, labelWidth, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y, labelWidth, BoardEditorStyle.MUTED, false);
         MmmUi.drawTextRightWithin(context, this.textRenderer, value, x + width - CARD_PADDING, y, valueWidth, valueColor, false);
     }
 
@@ -204,7 +191,7 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
     {
         int labelWidth = Math.min(86, Math.max(58, (width - CARD_PADDING * 2) / 2));
         int valueWidth = Math.max(0, width - CARD_PADDING * 2 - labelWidth - 8);
-        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y, labelWidth, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y, labelWidth, BoardEditorStyle.MUTED, false);
         String number = UiFormat.formatCompact(value);
         String suffix = " Blocks Mined";
         int suffixWidth = this.textRenderer.getWidth(suffix);
@@ -231,7 +218,7 @@ public class PlayerProfileScreen extends com.mmm.ui.CompatScreen
     {
         int labelWidth = Math.min(86, Math.max(58, (width - CARD_PADDING * 2) / 2));
         int valueWidth = Math.max(0, width - CARD_PADDING * 2 - labelWidth - 8);
-        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y, labelWidth, MmmUi.MUTED, false);
+        MmmUi.drawTextWithin(context, this.textRenderer, label, x + CARD_PADDING, y, labelWidth, BoardEditorStyle.MUTED, false);
         String leftText = UiFormat.formatCompact(left);
         String separator = " / ";
         String rightText = UiFormat.formatCompact(right);

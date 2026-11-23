@@ -9,6 +9,8 @@ import com.mmm.util.MmmLog;
 import com.mmm.util.UiFormat;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.client.Minecraft;
 import net.minecraft.text.Formatting;
 import net.minecraft.text.Text;
@@ -18,6 +20,8 @@ import static com.mmm.legacy.social.LegacySocialText.text;
 public final class PublicChatClient {
     public static final String PUBLIC_ROOM_ID = "5e2f7e9aa53b975bfb92affe138a51df82306936f2fb71acda97e51aeaf02e48";
     public static final int MAX_MESSAGE_LENGTH = 200;
+    private static final ArrayBlockingQueue<Runnable> CLIENT_TASKS = new ArrayBlockingQueue<>(256);
+    private static final AtomicBoolean warnedAboutBacklog = new AtomicBoolean();
     private static final String ENDPOINT = System.getProperty("mmm.socialEndpoint", "https://www.mmmaniacs.com/api/mod-social");
     private static final SocialSession SESSION = new SocialSession(new SocialSession.Transport() {
         @Override public CompletableFuture<SocialHttp.Response> post(String path, String token, JsonObject payload) {
@@ -38,6 +42,7 @@ public final class PublicChatClient {
 
     public static void onClientTick(Minecraft client) {
         SESSION.identify(identity(client));
+        drainClientTasks();
         if (++ticks < 20) return;
         ticks = 0;
         SESSION.tick(MiningStats.isActivelyMining());
@@ -73,7 +78,24 @@ public final class PublicChatClient {
                 .append(text(safeTitle, Formatting.WHITE)).append(text(" - " + safeDescription, Formatting.GRAY)));
     }
 
-    public static void disconnect() { SESSION.disconnect(); ticks = 0; }
+    public static void disconnect() {
+        SESSION.disconnect();
+        CLIENT_TASKS.clear();
+        warnedAboutBacklog.set(false);
+        ticks = 0;
+    }
+
+    static void drainClientTasks() {
+        // Never execute under the queue lock: actions recheck the synchronized social session.
+        for (int count = 0; count < 64; count++) {
+            Runnable task = CLIENT_TASKS.poll();
+            if (task == null) return;
+            try { task.run(); }
+            catch (RuntimeException failure) {
+                MmmLog.LOGGER.warn("[MMM] Could not display a social update", failure);
+            }
+        }
+    }
 
     private static SocialSession.Identity identity(Minecraft client) {
         if (client == null || client.player == null || client.world == null || !WebsiteLinkManager.isCurrentPlayerLinked()) return null;
@@ -88,7 +110,12 @@ public final class PublicChatClient {
     private static final class ClientSink implements SocialSession.Sink {
         @Override public void execute(Runnable action) {
             Minecraft client = Minecraft.getInstance();
-            if (client != null) client.executeTask(action);
+            if (client == null) return;
+            if (client.isOnSameThread()) action.run();
+            // Minecraft 1.12.2 holds its task-queue monitor while running tasks.
+            // Enqueuing there under SocialSession's lock can deadlock both threads.
+            else if (!CLIENT_TASKS.offer(action) && warnedAboutBacklog.compareAndSet(false, true))
+                MmmLog.LOGGER.warn("[MMM] Social display backlog full; dropping excess events until the client catches up.");
         }
         @Override public boolean isCurrent(SocialSession.Identity expected) { return expected.equals(identity(Minecraft.getInstance())); }
         @Override public void chat(String username, String message, String rawMessage) {

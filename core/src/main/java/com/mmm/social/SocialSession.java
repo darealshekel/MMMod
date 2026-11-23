@@ -45,7 +45,7 @@ final class SocialSession {
     private AutoCloseable stream;
     private boolean connecting, connected, sending, sendingPresence;
     private Boolean lastPresence;
-    private long lastPresenceAt, nextConnectionAt, nextAdvancementAt;
+    private long lastPresenceAt, nextConnectionAt, nextAdvancementAt, nextPresenceAt;
 
     SocialSession(Transport transport, Sink sink, LongSupplier clock) {
         this.transport = transport;
@@ -69,7 +69,7 @@ final class SocialSession {
         connectionId++;
         identity = null;
         connected = connecting = sending = sendingPresence = false;
-        nextConnectionAt = nextAdvancementAt = lastPresenceAt = 0;
+        nextConnectionAt = nextAdvancementAt = lastPresenceAt = nextPresenceAt = 0;
         lastPresence = null;
         // Keep delivered IDs across dimension transitions/reconnects for this account.
         advancements.clear();
@@ -199,7 +199,8 @@ final class SocialSession {
     }
 
     private void sendPresence(boolean active, long now) {
-        if (sendingPresence || (Boolean.valueOf(active).equals(lastPresence) && now - lastPresenceAt < 20_000)) return;
+        if (sendingPresence || now < nextPresenceAt
+                || (Boolean.valueOf(active).equals(lastPresence) && now - lastPresenceAt < 20_000)) return;
         long version = generation;
         JsonObject payload = payload();
         payload.addProperty("active", active);
@@ -209,7 +210,13 @@ final class SocialSession {
                 synchronized (SocialSession.this) {
                     if (version != generation) return;
                     sendingPresence = false;
-                    if (error != null || response == null || !response.successful()) return;
+                    if (error != null || response == null || !response.successful()) {
+                        int status = response == null ? 0 : response.status();
+                        nextPresenceAt = clock.getAsLong()
+                                + (status == 429 || status == 401 || status == 403 ? 60_000 : 20_000);
+                        return;
+                    }
+                    nextPresenceAt = 0;
                     lastPresence = active;
                     lastPresenceAt = clock.getAsLong();
                     try {
@@ -219,7 +226,10 @@ final class SocialSession {
                     } catch (RuntimeException ignored) { }
                 }
             });
-        } catch (RuntimeException ignored) { sendingPresence = false; }
+        } catch (RuntimeException ignored) {
+            sendingPresence = false;
+            nextPresenceAt = clock.getAsLong() + 20_000;
+        }
     }
 
     private JsonObject payload() {

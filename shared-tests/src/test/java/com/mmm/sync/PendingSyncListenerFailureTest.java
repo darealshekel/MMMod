@@ -38,7 +38,10 @@ class PendingSyncListenerFailureTest
             queue.enqueue(SyncItemType.CLOUD_LIVE_STATE, "live", payload, true, "test");
             queue.requestFlush("test");
 
-            await(() -> queue.snapshot().queueSize() == 0);
+            await(() -> {
+                PendingSyncQueue.Snapshot state = queue.snapshot();
+                return state.queueSize() == 0 && !state.flushActive();
+            });
             assertFalse(queue.snapshot().flushActive());
             assertTrue(queue.snapshot().lastSuccessfulSyncAtMs() > 0L);
             assertEquals(0, queue.snapshotItemsForTests().size());

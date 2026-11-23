@@ -37,10 +37,8 @@ public final class SyncScoreboardScreen extends CompatScreen
     {
         this.clickTargets.clear();
         Layout layout = layout();
-        MmmUi.backdrop(context, this.width, this.height);
-        MmmUi.drawMmmScreensSidebar(context, this.font, this.width, this.height, mouseX, mouseY, "SETTINGS");
-        MmmUi.card(context, layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.font, "SYNC SCOREBOARD", layout.contentX(), layout.contentY(), layout.contentWidth());
+        BoardMenuChrome.editor(context, this.font, this.width, this.height, "Settings / Sync scoreboard");
+        MmmUi.drawSectionHeading(context, this.font, "Scoreboard objectives", layout.contentX(), layout.contentY(), layout.contentWidth());
         MmmUi.drawTextWithin(context, this.font,
                 "Choose the mining-total objective for this source. Project and unrelated objectives are hidden.",
                 layout.contentX(), layout.contentY() + 18, layout.contentWidth(), MmmUi.MUTED, false);
@@ -90,9 +88,7 @@ public final class SyncScoreboardScreen extends CompatScreen
                             int x, int y, int width, int mouseX, int mouseY)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, ROW_HEIGHT);
-        int fill = selected ? MmmUi.accentSoft() : hovered ? MmmUi.accentHover() : MmmUi.CARD;
-        int border = selected || hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT;
-        MmmUi.card(context, x, y, width, ROW_HEIGHT, fill, border);
+        BoardMenuChrome.record(context, x, y, width, ROW_HEIGHT, selected, hovered);
         MmmUi.drawTextWithin(context, this.font, title, x + 10, y + 7, Math.max(1, width - 190), MmmUi.TEXT, false);
         MmmUi.drawTextWithin(context, this.font, subtitle, x + 10, y + 23, Math.max(1, width - 190), MmmUi.MUTED, false);
         if (playerCount > 0 || sourceTotal > 0L)
@@ -110,8 +106,7 @@ public final class SyncScoreboardScreen extends CompatScreen
                             int mouseX, int mouseY, Runnable action)
     {
         boolean hovered = contains(mouseX, mouseY, x, y, width, height);
-        MmmUi.card(context, x, y, width, height, hovered ? MmmUi.accentHover() : MmmUi.INSET,
-                hovered ? MmmUi.accent() : MmmUi.BORDER_SOFT);
+        BoardMenuChrome.choice(context, x, y, width, height, false, hovered);
         context.text(this.font, Component.literal(label),
                 x + Math.max(3, (width - this.font.width(label)) / 2), y + 6,
                 hovered ? MmmUi.TEXT : MmmUi.MUTED, false);
@@ -121,10 +116,6 @@ public final class SyncScoreboardScreen extends CompatScreen
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && MmmUi.handleMmmScreensSidebarClick(this, this.parent, mouseX, mouseY, "SETTINGS"))
-        {
-            return true;
-        }
         if (button == 0)
         {
             for (ClickTarget target : List.copyOf(this.clickTargets))
@@ -165,7 +156,7 @@ public final class SyncScoreboardScreen extends CompatScreen
     @Override
     public void onClose()
     {
-        Minecraft.getInstance().gui.setScreen(this.parent);
+        BoardPlatform.open(this.parent);
     }
 
     @Override
@@ -181,9 +172,8 @@ public final class SyncScoreboardScreen extends CompatScreen
 
     private Layout layout()
     {
-        int availableWidth = Math.max(1, MmmUi.contentWidth(this.width) - 12);
-        int panelWidth = Math.min(680, availableWidth);
-        int panelX = MmmUi.centerContentX(this.width, panelWidth);
+        int panelWidth = BoardEditorStyle.contentWidth(this.width, 680);
+        int panelX = BoardEditorStyle.contentX(this.width, panelWidth);
         int panelY = MmmUi.TOP_BAR_HEIGHT + 8;
         int panelHeight = Math.max(1, this.height - panelY - 8);
         int contentX = panelX + 12;

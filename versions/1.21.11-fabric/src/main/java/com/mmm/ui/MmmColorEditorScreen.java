@@ -5,20 +5,18 @@ import com.mmm.config.value.ConfigColor;
 import java.awt.Color;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 
 public final class MmmColorEditorScreen extends com.mmm.ui.CompatScreen
 {
-    private static final int PANEL_WIDTH = 260;
-    private static final int PANEL_HEIGHT = 218;
     private final Screen parent;
     private final ConfigColor config;
     private final Runnable onClose;
     private TextFieldWidget hexField;
-    private int panelX;
-    private int panelY;
+    private int fieldX, fieldY, fieldWidth, fieldHeight;
+    private int hueX() { return fieldX + fieldWidth + 9; }
+    private int controlsY() { return fieldY + fieldHeight + 9; }
     private float hue;
     private float saturation;
     private float brightness;
@@ -38,80 +36,69 @@ public final class MmmColorEditorScreen extends com.mmm.ui.CompatScreen
     @Override
     protected void init()
     {
-        this.panelX = (this.width - PANEL_WIDTH) / 2;
-        this.panelY = (this.height - PANEL_HEIGHT) / 2;
-        this.hexField = new TextFieldWidget(this.textRenderer, this.panelX + 18, this.panelY + 166, 150, 20, Text.literal("Hex color"));
+        fieldX = BoardEditorStyle.contentX(width, 292);
+        fieldWidth = BoardEditorStyle.contentWidth(width, 292) - 31;
+        fieldY = BoardEditorStyle.HEADER_HEIGHT + 18;
+        fieldHeight = Math.max(12, Math.min(143, height - fieldY - 50));
+        this.hexField = new TextFieldWidget(textRenderer, fieldX, controlsY(), fieldWidth - 44, 20, Text.literal("Hex color"));
         this.hexField.setMaxLength(9);
         this.hexField.setText(formatColor());
         this.hexField.setChangedListener(this::onHexChanged);
         this.addDrawableChild(this.hexField);
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("DONE"), button -> close())
-                .dimensions(this.panelX + 176, this.panelY + 166, 66, 20).build());
+        this.addDrawableChild(MmmUi.backButton(this, hueX() + 22));
+    }
+
+    @Override public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // The game calls this before render(); its default implementation blurs the world.
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta)
     {
-        context.fill(0, 0, this.width, this.height, 0xB8000000);
-        context.fill(this.panelX, this.panelY, this.panelX + PANEL_WIDTH, this.panelY + PANEL_HEIGHT, 0xFF090909);
-        com.mmm.ui.MmmUi.drawBorder(context, this.panelX, this.panelY, PANEL_WIDTH, PANEL_HEIGHT, 0xFF2A2A2A);
-        context.fill(this.panelX + 14, this.panelY + 14, this.panelX + 18, this.panelY + 28, MmmUi.accent());
-        context.drawText(this.textRenderer, Text.literal("CUSTOM COLOR"), this.panelX + 26, this.panelY + 17, 0xFFF5F5F5, false);
+        MmmUi.backdrop(context, width, height);
+        MmmUi.boardHeader(context, textRenderer, width, fieldX, "Color picker");
+        MmmUi.drawTextWithin(context, textRenderer, config.getPrettyName(), fieldX, fieldY - 13,
+                fieldWidth, BoardEditorStyle.MUTED, false);
 
-        int colorX = this.panelX + 18;
-        int colorY = this.panelY + 40;
-        int colorW = 188;
-        int colorH = 112;
-        for (int row = 0; row < 28; row++)
-        {
-            float value = 1.0F - row / 27.0F;
-            int y1 = colorY + row * colorH / 28;
-            int y2 = colorY + (row + 1) * colorH / 28;
-            for (int column = 0; column < 47; column++)
-            {
-                float sat = column / 46.0F;
-                int x1 = colorX + column * colorW / 47;
-                int x2 = colorX + (column + 1) * colorW / 47;
-                context.fill(x1, y1, x2, y2, 0xFF000000 | Color.HSBtoRGB(this.hue, sat, value));
-            }
+        // White-to-hue horizontally, then transparent-to-black vertically: HSV at raster resolution.
+        var matrix = context.getMatrices();
+        matrix.pushMatrix();
+        matrix.translate(fieldX + fieldWidth, fieldY);
+        matrix.rotate((float) (Math.PI / 2));
+        context.fillGradient(0, 0, fieldHeight, fieldWidth, Color.HSBtoRGB(hue, 1, 1), 0xffffffff);
+        matrix.popMatrix();
+        context.fillGradient(fieldX, fieldY, fieldX + fieldWidth, fieldY + fieldHeight, 0x00000000, 0xff000000);
+        for (int i = 0; i < 6; i++) {
+            context.fillGradient(hueX(), fieldY + fieldHeight * i / 6, hueX() + 22, fieldY + fieldHeight * (i+1) / 6,
+                    Color.HSBtoRGB(i / 6f, 1, 1), Color.HSBtoRGB((i+1) / 6f, 1, 1));
         }
-        com.mmm.ui.MmmUi.drawBorder(context, colorX, colorY, colorW, colorH, 0xFF343434);
-        int markerX = colorX + Math.round(this.saturation * (colorW - 1));
-        int markerY = colorY + Math.round((1.0F - this.brightness) * (colorH - 1));
-        com.mmm.ui.MmmUi.drawBorder(context, markerX - 2, markerY - 2, 5, 5, 0xFFFFFFFF);
-
-        int hueX = this.panelX + 218;
-        for (int row = 0; row < 28; row++)
-        {
-            int y1 = colorY + row * colorH / 28;
-            int y2 = colorY + (row + 1) * colorH / 28;
-            context.fill(hueX, y1, hueX + 24, y2, 0xFF000000 | Color.HSBtoRGB(row / 27.0F, 1.0F, 1.0F));
-        }
-        com.mmm.ui.MmmUi.drawBorder(context, hueX, colorY, 24, colorH, 0xFF343434);
-        int hueMarkerY = colorY + Math.round(this.hue * (colorH - 1));
-        context.fill(hueX - 2, hueMarkerY - 1, hueX + 26, hueMarkerY + 2, 0xFFFFFFFF);
-
-        int preview = currentArgb();
-        context.fill(this.panelX + 18, this.panelY + 194, this.panelX + 242, this.panelY + 204, preview);
-        com.mmm.ui.MmmUi.drawBorder(context, this.panelX + 18, this.panelY + 194, 224, 10, 0xFF343434);
+        int mx = fieldX + Math.round(saturation * (fieldWidth - 1));
+        int my = fieldY + Math.round((1 - brightness) * (fieldHeight - 1));
+        MmmUi.drawBorder(context, mx - 3, my - 3, 7, 7, 0xff000000);
+        MmmUi.drawBorder(context, mx - 2, my - 2, 5, 5, 0xffffffff);
+        int hy = fieldY + Math.round(hue * (fieldHeight - 1));
+        MmmUi.drawBorder(context, hueX()-2, hy-2, 26, 5, 0xff000000);
+        MmmUi.drawBorder(context, hueX()-1, hy-1, 24, 3, 0xffffffff);
+        int px = fieldX + fieldWidth - 36;
+        context.fill(px, controlsY(), hueX()+22, controlsY()+20, BoardEditorStyle.TILE);
+        context.fill(px+2, controlsY()+2, hueX()+20, controlsY()+18, currentArgb());
         super.render(context, mouseX, mouseY, delta);
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button)
     {
-        if (button == 0 && !inside(mouseX, mouseY, this.panelX, this.panelY, PANEL_WIDTH, PANEL_HEIGHT))
-        {
+        if (button == 0 && (mouseX < fieldX - 6 || mouseX >= hueX() + 28 || mouseY >= controlsY() + 27)) {
             close();
             return true;
         }
-        if (button == 0 && inside(mouseX, mouseY, this.panelX + 18, this.panelY + 40, 188, 112))
+        if (button == 0 && inside(mouseX, mouseY, fieldX, fieldY, fieldWidth, fieldHeight))
         {
             this.dragTarget = DragTarget.COLOR;
             updateFromMouse(mouseX, mouseY);
             return true;
         }
-        if (button == 0 && inside(mouseX, mouseY, this.panelX + 218, this.panelY + 40, 24, 112))
+        if (button == 0 && inside(mouseX, mouseY, hueX(), fieldY, 22, fieldHeight))
         {
             this.dragTarget = DragTarget.HUE;
             updateFromMouse(mouseX, mouseY);
@@ -153,12 +140,12 @@ public final class MmmColorEditorScreen extends com.mmm.ui.CompatScreen
     {
         if (this.dragTarget == DragTarget.COLOR)
         {
-            this.saturation = clamp((float) ((mouseX - (this.panelX + 18)) / 187.0D));
-            this.brightness = 1.0F - clamp((float) ((mouseY - (this.panelY + 40)) / 111.0D));
+            this.saturation = clamp((float) ((mouseX - fieldX) / (fieldWidth - 1)));
+            this.brightness = 1.0F - clamp((float) ((mouseY - fieldY) / (fieldHeight - 1)));
         }
         else if (this.dragTarget == DragTarget.HUE)
         {
-            this.hue = clamp((float) ((mouseY - (this.panelY + 40)) / 111.0D));
+            this.hue = clamp((float) ((mouseY - fieldY) / (fieldHeight - 1)));
         }
         applyColor();
     }

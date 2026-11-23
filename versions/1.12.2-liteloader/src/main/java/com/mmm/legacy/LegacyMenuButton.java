@@ -2,20 +2,29 @@ package com.mmm.legacy;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.item.ItemStack;
+import static com.mmm.legacy.BoardArt.*;
+import com.mmm.legacy.settings.SettingsUi;
+import com.mmm.ui.BoardEditorStyle;
 
-final class LegacyMenuButton extends ButtonWidget {
-    private final boolean selected;
-    LegacyMenuButton(int id, int x, int y, int width, String label, boolean selected) {
-        super(id, x, y, width, 20, label); this.selected = selected;
+/** The clickable area and the two-line record drawn on it have the same bounds. */
+public final class LegacyMenuButton extends ButtonWidget {
+    private final String detail;
+    private final ItemStack icon;
+    boolean selected;
+    public LegacyMenuButton(int id, int x, int y, int width, int height, String label, String detail, ItemStack icon, boolean selected) {
+        super(id, x, y, width, height, label);
+        this.detail = detail; this.icon = icon; this.selected = selected;
     }
     @Override public void render(Minecraft client, int mouseX, int mouseY, float delta) {
         if (!visible) return;
         hovered = mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
-        fill(x, y, x + width, y + height, selected ? 0xFF3C1818 : hovered && active ? 0xFF303030 : 0xFF1A1A1A);
-        if (selected) fill(x, y, x + 2, y + height, 0xFFE00000);
-        else fill(x, y + height - 1, x + width, y + height, 0xFF454545);
-        String label = client.textRenderer.trim(message, width - 8);
-        client.textRenderer.draw(label, x + (width - client.textRenderer.getWidth(label)) / 2, y + 6,
-                active || selected ? 0xFFF5F5F5 : 0xFF858585, false);
+        BoardEditorStyle.plate(net.minecraft.client.gui.GuiElement::fill, x, y, width, height,
+                SettingsUi.opacity(selected || hovered ? ACTIVE : TILE), SettingsUi.opacity(selected || hovered ? ROSE : LINE));
+        int inset = icon == null ? 7 : 27;
+        if (icon != null) new LegacyDrawContext().drawItem(icon, x + 5, y + (height - 16) / 2);
+        int room = Math.max(0, width - inset - 5);
+        client.textRenderer.draw(client.textRenderer.trim(message, room), x + inset, y + 5, TEXT, false);
+        client.textRenderer.draw(client.textRenderer.trim(detail, room), x + inset, y + height - 13, MUTED, false);
     }
 }

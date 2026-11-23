@@ -58,9 +58,6 @@ public final class SettingsUi {
             throw new IllegalArgumentException("Duration must be between 1s and 24h");
         return Math.round(raw);
     }
-    public static int sidebarCapacity(int height) { return Math.max(1, (height - 78) / 22); }
-    public static int columns(int contentWidth) { return contentWidth >= 640 ? 2 : 1; }
-    public static int cardWidth(int contentWidth) { return (contentWidth - 8 - (columns(contentWidth) - 1) * 12) / columns(contentWidth); }
     public static int controlWidth(int cardWidth) { return Math.min(112, Math.max(60, cardWidth / 3)); }
     public static boolean matches(String text, String query) {
         String haystack = text.toLowerCase(Locale.ROOT);

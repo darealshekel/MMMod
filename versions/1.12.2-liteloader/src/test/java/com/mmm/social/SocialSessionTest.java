@@ -162,6 +162,44 @@ class SocialSessionTest {
         assertEquals(0, sink.friends);
     }
 
+    @Test void failedPresenceBacksOffEvenWhenActivityChanges() {
+        session.tick(false);
+        transport.listeners.getFirst().opened();
+        session.tick(false);
+        transport.complete(0, 429, "{}");
+        for (int second = 1; second < 60; second++) {
+            now.addAndGet(1_000);
+            session.tick(second % 2 == 0);
+        }
+        assertEquals(1, transport.posts.size());
+        now.addAndGet(1_000);
+        session.tick(true);
+        assertEquals(2, transport.posts.size());
+        transport.complete(1, 200, "{}");
+        session.tick(false);
+        assertEquals(3, transport.posts.size(), "A successful request restores immediate activity changes");
+    }
+
+    @Test void presenceNetworkFailuresWaitTwentySecondsAndDoNotLeakIntoNewIdentity() {
+        session.tick(false);
+        transport.listeners.getFirst().opened();
+        session.tick(false);
+        transport.posts.getFirst().future.completeExceptionally(new IllegalStateException("offline"));
+        now.addAndGet(19_999);
+        session.tick(false);
+        assertEquals(1, transport.posts.size());
+        now.incrementAndGet();
+        session.tick(false);
+        assertEquals(2, transport.posts.size());
+        session.disconnect();
+        session.identify(identity);
+        session.tick(false);
+        transport.listeners.getLast().opened();
+        transport.complete(1, 429, "{}");
+        session.tick(false);
+        assertEquals(3, transport.posts.size());
+    }
+
     @Test void advancementIsRetriedThenRemovedAfterAcknowledgment() {
         session.queueAdvancement("earned an advancement");
         session.tick(false);
@@ -257,7 +295,7 @@ class SocialSessionTest {
         void event(String type, String data) { listeners.getLast().event(type, data); }
     }
 
-    static final class FakeSink implements SocialSession.Sink {
+    static class FakeSink implements SocialSession.Sink {
         SocialSession.Identity identity;
         final List<Runnable> queued = new ArrayList<>();
         final List<String> messages = new ArrayList<>(), milestones = new ArrayList<>(), errors = new ArrayList<>();

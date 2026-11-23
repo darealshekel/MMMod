@@ -1,6 +1,7 @@
 package com.mmm.storage;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -30,7 +31,16 @@ final class AsyncRefreshCache<T>
         {
             refreshing = true;
             long requestedGeneration = generation;
-            executor.execute(() -> refresh(requestedGeneration, now));
+            try
+            {
+                executor.execute(() -> refresh(requestedGeneration, now));
+            }
+            catch (RejectedExecutionException failure)
+            {
+                refreshing = false;
+                nextRefreshAtMs = now + intervalMs;
+                onFailure.accept(failure);
+            }
         }
         return value;
     }

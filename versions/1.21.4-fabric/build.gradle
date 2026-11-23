@@ -68,6 +68,7 @@ if (project.hasProperty('smokeTest')) {
     }
     sourceSets {
         smoke {
+            java.srcDir '../../tools/smoke/board-1.21/java'
             compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
             runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
         }
@@ -84,6 +85,18 @@ if (project.hasProperty('smokeTest')) {
         jvmArgs '-Duser.home=' + new File(smokeRoot, 'home').absolutePath
         if (project.hasProperty('leaderboardSmoke')) jvmArgs '-Dmmm.leaderboardSmoke=true'
         if (project.hasProperty('miningFeaturesSmoke')) jvmArgs '-Dmmm.miningFeaturesSmoke=true'
+        if (project.hasProperty('boardSmoke')) {
+            def result = new File(smokeRoot, 'game/mmm-board-smoke-result.txt')
+            doFirst { java.nio.file.Files.deleteIfExists(result.toPath()) }
+            doLast {
+                if (!result.isFile() || !result.getText('UTF-8').startsWith('PASS:'))
+                    throw new GradleException(result.isFile() ? result.getText('UTF-8') : 'Board smoke produced no result')
+            }
+            jvmArgs '-Dmmm.boardSmoke=true', '-XX:ActiveProcessorCount=2',
+                    '-Djdk.net.hosts.file=' + file('../../tools/smoke/board-1.21/loopback.hosts').absolutePath,
+                    '-Dhttps.proxyHost=127.0.0.1', '-Dhttps.proxyPort=9',
+                    '-Dhttp.proxyHost=127.0.0.1', '-Dhttp.proxyPort=9'
+        }
     }
 }
 

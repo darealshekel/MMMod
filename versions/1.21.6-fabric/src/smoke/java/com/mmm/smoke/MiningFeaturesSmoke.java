@@ -214,8 +214,8 @@ final class MiningFeaturesSmoke
                     if (field(book, "category") != null) throw new AssertionError("Red book did not return to tier overview");
                     var progressBook = book.children().stream().filter(c -> c instanceof CollectionSlotButton)
                             .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().equals("Collection progress")).findFirst().orElseThrow();
-                    if (progressBook.details.get().size() != CollectionProgress.OVERVIEW_MILESTONES.size() + 1)
-                        throw new AssertionError("Book tooltip missing tier counts");
+                    if (progressBook.details.get().stream().noneMatch(text -> text.getString().contains("mastered")))
+                        throw new AssertionError("Book tooltip missing mastery summary");
                     book.init(client, 320, 240); checkBounds(book);
                     for (int i = 0; i < 40; i++) book.mouseScrolled((int)field(book, "x") + 20, (int)field(book, "gridY") + 20, 0, -1);
                     var maxScroll = book.getClass().getDeclaredMethod("maxOverviewScroll"); maxScroll.setAccessible(true);
@@ -295,17 +295,8 @@ final class MiningFeaturesSmoke
         inventory.children().stream().filter(c -> c instanceof TexturedButtonWidget)
                 .map(c -> (TexturedButtonWidget)c).findFirst().orElseThrow().onPress();
     }
-    private static void checkTierPanes(Screen screen, int total, int green) throws Exception {
-        var panes = screen.children().stream().filter(c -> c instanceof CollectionSlotButton)
-                .map(c -> (CollectionSlotButton)c).filter(c -> c.getMessage().getString().startsWith("Tier ")).toList();
-        if (panes.size() != total) throw new AssertionError("Wrong number of glass-pane tiers");
-        int completed = 0;
-        for (var pane : panes) {
-            var icon = (net.minecraft.item.ItemStack)field(pane, "icon");
-            if (icon.isOf(net.minecraft.item.Items.LIME_STAINED_GLASS_PANE)) completed++;
-            else if (!icon.isOf(net.minecraft.item.Items.RED_STAINED_GLASS_PANE)) throw new AssertionError("Tier is not a glass pane");
-        }
-        if (completed != green) throw new AssertionError("Tier pane colors did not update");
+    private static void checkTierPanes(Screen screen, int total, int earned) throws Exception {
+        BoardSmoke.checkTiers(screen, total, earned);
     }
     private static void clickSlot(Screen screen, String label) {
         screen.children().stream().filter(c -> c instanceof CollectionSlotButton)
@@ -364,7 +355,7 @@ final class MiningFeaturesSmoke
         Configs.WORLD_STATS.stream().filter(world -> world.worldId.equals(WorldSessionContext.getCurrentWorldId()))
                 .forEach(world -> world.blockBreakdown.put("minecraft:stone", count));
     }
-    private static void shot(MinecraftClient client, String file) {
+    static void shot(MinecraftClient client, String file) {
         ScreenshotRecorder.saveScreenshot(client.runDirectory, file, client.getFramebuffer(), 1, message -> {});
     }
 }

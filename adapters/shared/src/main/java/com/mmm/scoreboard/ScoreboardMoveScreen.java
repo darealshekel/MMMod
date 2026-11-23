@@ -30,14 +30,13 @@ public final class ScoreboardMoveScreen extends Screen
     {
         MmmUi.ensureCursorVisible();
         ControlLayout layout = this.controlLayout();
+        this.addDrawableChild(MmmUi.backButton(this, MmmUi.contentLeft(this.width)));
         this.addDrawableChild(ButtonWidget.builder(Text.literal("-"), ignored -> this.adjustScale(-0.05D))
-                .dimensions(layout.x() + 12, layout.y() + layout.height() - 28, 22, 20).build());
+                .dimensions(layout.x(), layout.y(), 22, 20).build());
         this.addDrawableChild(ButtonWidget.builder(Text.literal("+"), ignored -> this.adjustScale(0.05D))
-                .dimensions(layout.x() + 38, layout.y() + layout.height() - 28, 22, 20).build());
+                .dimensions(layout.x() + 26, layout.y(), 22, 20).build());
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Reset"), ignored -> this.resetLayout())
-                .dimensions(layout.x() + layout.width() - 150, layout.y() + layout.height() - 28, 64, 20).build());
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Done"), ignored -> this.close())
-                .dimensions(layout.x() + layout.width() - 80, layout.y() + layout.height() - 28, 64, 20).build());
+                .dimensions(layout.x() + layout.width() - 52, layout.y(), 52, 20).build());
     }
 
     @Override
@@ -61,6 +60,7 @@ public final class ScoreboardMoveScreen extends Screen
                     Math.max(8, (this.width - messageWidth) / 2), Math.max(96, this.height / 2), MmmUi.MUTED, false);
         }
 
+        MmmUi.toolHeader(context, this.textRenderer, this.width, MmmUi.contentLeft(this.width), "Scoreboard / Move");
         this.drawControls(context);
         super.render(context, mouseX, mouseY, delta);
     }
@@ -72,7 +72,9 @@ public final class ScoreboardMoveScreen extends Screen
         {
             return true;
         }
-        if (button != 0)
+        ControlLayout layout = this.controlLayout();
+        if (button != 0 || mouseY < MmmUi.TOP_BAR_HEIGHT || (mouseY >= layout.y() && mouseY < layout.y() + 20
+                && mouseX >= layout.x() && mouseX < layout.x() + layout.width()))
         {
             return false;
         }
@@ -149,14 +151,10 @@ public final class ScoreboardMoveScreen extends Screen
     private void drawControls(DrawContext context)
     {
         ControlLayout layout = this.controlLayout();
-        MmmUi.card(context, layout.x(), layout.y(), layout.width(), layout.height(), MmmUi.PANEL, MmmUi.BORDER);
-        MmmUi.drawSectionHeading(context, this.textRenderer, "MOVE SCOREBOARD",
-                layout.x() + 12, layout.y() + 12, layout.width() - 24);
-        MmmUi.drawTextWithin(context, this.textRenderer, "Drag the live sidebar. Scroll or +/- to resize it.",
-                layout.x() + 12, layout.y() + 28, layout.width() - 24, MmmUi.MUTED, false);
+        MmmUi.boardRow(context, layout.x(), layout.y(), layout.width(), 20, false, false);
         String size = "Size: " + Math.round(Configs.Generic.SCOREBOARD_SCALE.getDoubleValue() * 100.0D) + "%";
-        MmmUi.drawTextWithin(context, this.textRenderer, size, layout.x() + 70,
-                layout.y() + layout.height() - 22, 90, MmmUi.accent(), false);
+        MmmUi.drawTextWithin(context, this.textRenderer, size, layout.x() + 55, layout.y() + 6,
+                layout.width() - 111, MmmUi.TEXT, false);
     }
 
     private void adjustScale(double delta)
@@ -176,12 +174,11 @@ public final class ScoreboardMoveScreen extends Screen
 
     private ControlLayout controlLayout()
     {
-        int panelWidth = 294;
-        int panelHeight = 80;
-        return new ControlLayout(12, 12, panelWidth, panelHeight);
+        int width = Math.min(210, MmmUi.contentWidth(this.width));
+        return new ControlLayout((this.width - width) / 2, MmmUi.TOP_BAR_HEIGHT + 5, width);
     }
 
-    private record ControlLayout(int x, int y, int width, int height)
+    private record ControlLayout(int x, int y, int width)
     {
     }
 }

@@ -93,6 +93,11 @@ if (project.hasProperty('smokeTest')) {
         ['auth', 'account', 'session', 'services'].each { endpoint ->
             jvmArgs "-Dminecraft.api.${endpoint}.host=http://127.0.0.1:9"
         }
+        if (project.hasProperty('boardEditorSmoke')) {
+            jvmArgs '-Dmmm.boardEditorSmoke=true', '-Dhttp.proxyHost=127.0.0.1', '-Dhttp.proxyPort=9',
+                    '-Dhttps.proxyHost=127.0.0.1', '-Dhttps.proxyPort=9'
+            doFirst { ['game','tmp','home','appdata','localappdata'].each { new File(smokeRoot, it).mkdirs() } }
+        }
         if (project.hasProperty('leaderboardSmoke')) jvmArgs '-Dmmm.leaderboardSmoke=true'
         if (project.hasProperty('miningFeaturesSmoke')) jvmArgs '-Dmmm.miningFeaturesSmoke=true'
         if (project.hasProperty('breakingIndicatorSmoke')) jvmArgs '-Dmmm.breakingIndicatorSmoke=true'

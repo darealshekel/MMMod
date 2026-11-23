@@ -1,7 +1,9 @@
 package com.mmm.legacy;
 
+import com.mmm.ui.BoardEditorStyle;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import com.mmm.legacy.settings.BoardField;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import org.lwjgl.input.Keyboard;
 
@@ -14,21 +16,26 @@ public abstract class LegacyScreen extends Screen {
 
     protected LegacyScreen(Screen parent, String title) { this.parent = parent; this.title = title; }
 
+    protected int maxContentWidth() { return 760; }
+
     @Override public void init() {
         if (!repeatCaptured) { repeat = Keyboard.areRepeatEventsEnabled(); repeatCaptured = true; }
         Keyboard.enableRepeatEvents(true);
-        panelWidth = Math.max(1, Math.min(760, width - 24));
-        left = (width - panelWidth) / 2;
+        panelWidth = BoardEditorStyle.contentWidth(width, maxContentWidth());
+        left = BoardEditorStyle.contentX(width, maxContentWidth());
         buttons.clear();
-        button(900, left + panelWidth - 60, 10, 60, "Done");
+        button(900, left + panelWidth - 60, 5, 60, parent instanceof LegacyMenuScreen ? "Back" : "Done");
     }
 
     protected ButtonWidget button(int id, int x, int y, int width, String label) {
         return addButton(new com.mmm.legacy.settings.ActionButton(id, x, y, width, label, false));
     }
 
+    protected ButtonWidget recordButton(int id, int y, String label, boolean selected) {
+        return addButton(new com.mmm.legacy.settings.ActionButton(id, left, y, panelWidth, label, selected, true));
+    }
     protected TextFieldWidget field(int id, int y, String text) {
-        TextFieldWidget field = new TextFieldWidget(id, textRenderer, left + 4, y, panelWidth - 8, 20);
+        TextFieldWidget field = new BoardField(id, textRenderer, left + 4, y, panelWidth - 8, 20);
         field.setMaxLength(256);
         field.setText(text);
         return field;
@@ -42,10 +49,15 @@ public abstract class LegacyScreen extends Screen {
         text(textRenderer.trim(text, Math.max(0, available)), x, y, color);
     }
 
+    protected void section(String label, int y) {
+        BoardArt.section(new LegacyDrawContext(), textRenderer, left, y, panelWidth, label);
+    }
+    protected void recordRow(int y, int h, boolean hovered) {
+        BoardArt.row(new LegacyDrawContext(), left, y, panelWidth, h, hovered);
+    }
     protected void shell() {
         fill(0, 0, width, height, com.mmm.legacy.settings.SettingsUi.background());
-        fill(left, 34, left + panelWidth, 35, com.mmm.config.Configs.getMenuColor());
-        fit(title, left, 16, panelWidth - 70, 0xFFF6F3EF);
+        BoardArt.header(new LegacyDrawContext(), textRenderer, width, left, panelWidth - 66, title);
     }
 
     @Override protected void buttonClicked(ButtonWidget button) {
