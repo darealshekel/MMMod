@@ -25,7 +25,7 @@ Choose the file for your exact Minecraft version and loader.
 | 1.21.11 | Fabric Loader 0.19.2+ | Java 21+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.21.11.jar) |
 | 26.1.2 | Fabric Loader 0.19.3+ | Java 25+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B26.1.2.jar) |
 | 26.2 | Fabric Loader 0.19.3+ | Java 25+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B26.2.jar) |
-| 26.3 | Fabric Loader 0.19.3+ | Java 25+ | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B26.3.jar) |
+| 26.3 | Fabric Loader 0.19.3+ | Launcher Java 25 | [JAR](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B26.3.jar) |
 
 Fabric builds bundle their matching Fabric API. Mod Menu is optional. The 1.12.2 file is a LiteLoader mod, not a Fabric or Ornithe mod. No separate MMM core mod is needed.
 
@@ -92,6 +92,7 @@ A client can only submit player scores it can actually read. Linking does not gi
 - **Missing history:** check the 10,000-block minimum and that the session was ended successfully.
 - **Crash or stutter:** attach the Minecraft version, MMM version, loader, mod list, `latest.log` and crash report to a [GitHub issue](https://github.com/darealshekel/MMMod/issues). Remove tokens, link codes and private server details first.
 - **26.3 native startup crash on Windows:** update the launcher's Minecraft metadata. Affected launchers may need `-XX:StackShadowPages=32` in that instance's Java arguments.
+- **26.3 closes with a crash on Windows:** use the launcher's Java 25 runtime. The release passed twice with Mojang Java 25.0.1; Oracle JDK 26 intermittently exited with a native access violation after the same screens closed.
 
 MMM stores shared data under `%APPDATA%\ManualMiningManiacs` on Windows and `~/.manual-mining-maniacs` on Linux/macOS. Back up this folder before downgrading or testing an unreleased build.
 
