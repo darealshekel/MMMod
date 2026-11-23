@@ -1,6 +1,5 @@
 package com.mmm.legacy;
 
-import com.mmm.config.Configs;
 import com.mmm.config.value.IConfigBase;
 import com.mmm.hotkey.MmmHotkey;
 import com.mmm.legacy.LegacySettingsModel.Page;
@@ -100,10 +99,5 @@ final class SettingsBoard {
             if (SettingsUi.matches(row.label + " " + row.description + " " + row.section + " " + section.categoryLabel()
                     + " " + row.configName(), query)) found.add(row);
         return List.copyOf(found);
-    }
-    static List<Row> options(SettingsNavigation.Page<Row, Section> page) {
-        List<Row> rows = new ArrayList<>(page.rows());
-        for (var child : page.children()) rows.addAll(options(child));
-        return rows;
     }
 }

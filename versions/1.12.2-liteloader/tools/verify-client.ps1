@@ -102,6 +102,8 @@ foreach ($library in $forgeLibraries + @($minecraft.libraries) + @($loader.libra
 }
 $classpath.Add((MavenPath $minecraft.mainJar.name))
 $java = Join-Path $PrismRoot 'java/jre-legacy/bin/java.exe'
+# At GUI scale 3 the packaged check gets a real one-column, paginated Tools grid.
+$windowWidth = if ($PackagedBoardProbe) { '1200' } else { '1280' }
 $arguments = @(
     '-Xmx1G', "-Djava.library.path=$natives", "-Duser.home=$smokeHome", "-Dmmm.runtimeProbe=$($RuntimeProbe.IsPresent.ToString().ToLowerInvariant())",
     "-Dmmm.achievementProbe=$($AchievementProbe.IsPresent.ToString().ToLowerInvariant())",
@@ -112,7 +114,7 @@ $arguments = @(
     '-Dlog4j2.formatMsgNoLookups=true', '-cp', ($classpath -join ';'),
     'net.minecraft.launchwrapper.Launch', '--tweakClass', 'com.mumfrey.liteloader.launch.LiteLoaderTweaker',
     '--gameDir', $game, '--assetsDir', "$PrismRoot/assets", '--assetIndex', '1.12',
-    '--username', 'MMMPortTest', '--version', '1.12.2', '--accessToken', '0', '--userType', 'legacy', '--width', '1280', '--height', '720'
+    '--username', 'MMMPortTest', '--version', '1.12.2', '--accessToken', '0', '--userType', 'legacy', '--width', $windowWidth, '--height', '720'
 )
 if ($WithForge) {
     $arguments += @('--tweakClass', 'net.minecraftforge.fml.common.launcher.FMLTweaker')

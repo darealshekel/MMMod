@@ -4,6 +4,7 @@ import com.mmm.leaderboard.BlockRankingCategory;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
@@ -11,10 +12,35 @@ import static org.junit.jupiter.api.Assertions.*;
 class BoardAdapterTest {
     @Test void settingsAreSearchableAndReachableExactlyOnce() {
         var inventory = MmmSettingsScreen.settingsInventory();
-        var home = MmmSettingsScreen.buildSettingsPages(inventory);
-        assertEquals("Everyday settings", home.children().getFirst().title());
+        var home = SettingsNavigation.build(inventory);
+        var everyday = home.initialCategory();
+        assertEquals("Everyday settings", everyday.title());
+        assertEquals(List.of("Mining Tracker", "Main HUD", "Move HUD", "Daily Goal", "MMM Chat Messages", "Collections"),
+                MmmSettingsScreen.inlineSections(everyday).getFirst().rows().stream()
+                        .map(MmmSettingsScreen.SettingRow::label).toList());
         var counts = new IdentityHashMap<MmmSettingsScreen.SettingRow, Integer>();
-        visit(home, counts);
+        for (var category : home.children()) {
+            var sections = MmmSettingsScreen.inlineSections(category);
+            if ("Tools".equals(category.title())) {
+                assertTrue(sections.isEmpty());
+                assertEquals(MmmUi.availableTools().stream().map(tool -> tool.label).toList(),
+                        category.children().stream().map(SettingsNavigation.Page::title).toList());
+                for (var tile : category.children()) {
+                    assertEquals(1, tile.rows().size());
+                    var action = tile.rows().getFirst();
+                    assertEquals(tile.title(), action.label());
+                    counts.merge(action, 1, Integer::sum);
+                }
+            } else {
+                assertFalse(sections.isEmpty(), category.title());
+                sections.forEach(group -> group.rows().forEach(row -> counts.merge(row, 1, Integer::sum)));
+            }
+            if ("Digging & goals".equals(category.title())) {
+                assertEquals(List.of("Digging helpers", "Goals & notifications"),
+                        sections.stream().map(MmmSettingsScreen.VisibleSection::title).toList());
+                assertEquals("Flat Digger", sections.getFirst().rows().getFirst().label());
+            }
+        }
         var labels = new ArrayList<String>();
         for (var section : inventory) for (var row : section.rows()) {
             if (row.heading()) continue;
@@ -27,11 +53,6 @@ class BoardAdapterTest {
         assertEquals(BoardPlatform.SPEED_GRAPH, labels.contains("Speed Graph"));
         assertEquals(BoardPlatform.SPEED_GRAPH, labels.contains("Rank Overtake Estimate"));
         assertEquals(BoardPlatform.SPEED_GRAPH, labels.contains("Ignored Players"));
-    }
-
-    private static void visit(MmmSettingsScreen.SettingsPage page, IdentityHashMap<MmmSettingsScreen.SettingRow, Integer> count) {
-        page.rows().forEach(row -> count.merge(row, 1, Integer::sum));
-        page.children().forEach(child -> visit(child, count));
     }
 
     @Test void reopeningRestoresCategoryScopeSortAndFilter(@TempDir Path directory) {

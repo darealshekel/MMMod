@@ -6,6 +6,7 @@ import com.mmm.advancement.MmmAdvancementDefinition;
 import com.mmm.advancement.MmmAdvancementManager;
 import com.mmm.ui.MmmSettingsScreen;
 import com.mmm.config.Configs;
+import com.mmm.config.FeatureToggle;
 import com.mmm.storage.MiningCalendarStore;
 import com.mmm.tracker.CollectionLiveProgress;
 import com.mmm.tracker.CollectionWebsiteClient;
@@ -15,8 +16,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.util.ScreenshotRecorder;
 
@@ -43,7 +46,7 @@ final class AchievementSettingsSmoke
                     AchievementCardRenderer.clear();
                     screen = new MmmSettingsScreen(null);
                     List<String> organized = labels(screen);
-                    organized.remove("Test Achievement");
+                    check(organized.remove("Test Achievement"), "Preview build has no Test Achievement action");
                     var raw = new ArrayList<>();
                     var create = MmmSettingsScreen.class.getDeclaredMethod("createSections", List.class);
                     create.setAccessible(true);
@@ -57,12 +60,15 @@ final class AchievementSettingsSmoke
                 }
                 if (ticks == 10)
                 {
+                    check(pageTitle().equals("Everyday settings") && labels((List<?>) get(screen, "visibleSections")).contains("Mining Tracker"),
+                            "Settings did not open directly to Everyday controls");
                     shot(client, "settings-overview.png");
                     ((TextFieldWidget) get(screen, "searchField")).setText("rainbow");
                 }
                 if (ticks == 15)
                 {
-                    check(((List<?>) get(screen, "visibleSections")).size() == 1, "Search did not filter closed sections");
+                    check(((List<?>) get(screen, "visibleSections")).size() == 1
+                            && labels((List<?>) get(screen, "visibleSections")).contains("Rainbow Speed"), "Global search missed Rainbow Speed");
                     shot(client, "settings-search.png");
                     ((TextFieldWidget) get(screen, "searchField")).setText("Test Achievement");
                 }
@@ -70,10 +76,8 @@ final class AchievementSettingsSmoke
                 {
                     shot(client, "settings-preview-button.png");
                     unlocked = MmmAdvancementManager.isUnlocked(MmmAdvancementDefinition.DIG_MASTER);
-                    List<?> targets = (List<?>) get(screen, "clickTargets");
-                    Object button = targets.getLast();
-                    int x = (int) invoke(button, "x"), y = (int) invoke(button, "y");
-                    screen.mouseClicked(x + 4, y + 4, 0);
+                    check(labels((List<?>) get(screen, "visibleSections")).equals(List.of("Test Achievement")), "Wrong preview search result");
+                    clickFirstRowControl();
                     check(client.currentScreen == null, "Preview button did not return to game");
                     check(state().current() == MmmAdvancementDefinition.DIG_MASTER, "Preview did not queue card");
                 }
@@ -130,37 +134,58 @@ final class AchievementSettingsSmoke
                     screen = new MmmSettingsScreen(null);
                     client.setScreen(screen);
                 }
-                if (ticks == 135) clickNavigation("HUD >");
-                if (ticks == 145) clickNavigation("HUD content >");
-                if (ticks == 155) clickNavigation("Mining totals >");
+                if (ticks == 135) clickRail("HUD");
+                if (ticks == 145)
+                {
+                    checkHudGroups();
+                    var hudX = (TextFieldWidget) ((Map<?, ?>) get(screen, "textFields")).get(Configs.Generic.HUD_X);
+                    check(hudX.isVisible() && screen.mouseClicked(hudX.getX() + 2, hudX.getY() + 2, 0)
+                            && hudX.isFocused(), "Inline HUD X control did not take focus");
+                }
+                if (ticks == 155)
+                {
+                    shot(client, "settings-category-detail.png");
+                    ((TextFieldWidget) get(screen, "searchField")).setText("Flat Digger");
+                }
                 if (ticks == 165)
                 {
-                    check(pageTitle().equals("Mining totals"), "Category drill did not reach detail page");
-                    check(((List<?>) invoke(get(screen, "currentPage"), "rows")).size() <= 8, "Detail page is too dense");
-                    shot(client, "settings-category-detail.png");
-                    var back = (net.minecraft.client.gui.widget.ButtonWidget) get(screen, "backButton");
-                    screen.mouseClicked(back.getX() + 4, back.getY() + 4, 0);
-                    check(pageTitle().equals("HUD content"), "Back button did not return to topics");
+                    check(labels((List<?>) get(screen, "visibleSections")).contains("Flat Digger"), "HUD search was not global");
+                    clickButton((ButtonWidget) get(screen, "backButton"), "< Back");
+                    checkHudGroups();
                 }
                 if (ticks == 175)
                 {
-                    screen.keyPressed(256, 0, 0);
-                    check(client.currentScreen == screen && pageTitle().equals("HUD"), "Escape did not return one category");
+                    ((TextFieldWidget) get(screen, "searchField")).setText("Flat Digger");
+                    check(screen.keyPressed(256, 0, 0) && client.currentScreen == screen, "Search Escape closed Settings");
+                    checkHudGroups();
                 }
                 if (ticks == 185)
                 {
-                    screen.keyPressed(256, 0, 0);
-                    check(pageTitle().equals("Settings"), "Escape did not return to category home");
+                    check(screen.keyPressed(256, 0, 0) && client.currentScreen == null, "Category Escape did not return to game");
                     client.options.getGuiScale().setValue(3);
                     org.lwjgl.glfw.GLFW.glfwSetWindowSize(client.getWindow().getHandle(), 960, 540);
                     client.onResolutionChanged();
+                    screen = new MmmSettingsScreen(null);
+                    client.setScreen(screen);
                 }
-                if (ticks == 195) clickNavigation("HUD >");
-                if (ticks == 205) clickNavigation("HUD content >");
-                if (ticks == 215) clickNavigation("Mining totals >");
+                if (ticks == 195)
+                {
+                    check(screen.width < 510 && pageTitle().equals("Everyday settings"), "Compact Everyday entry missing");
+                    clickRail("Digging & goals");
+                }
+                if (ticks == 205)
+                {
+                    var toggle = FeatureToggle.MMM_FLAT_DIGGER;
+                    boolean original = toggle.getBooleanValue();
+                    clickFirstRowControl();
+                    check(toggle.getBooleanValue() != original, "Compact inline Flat Digger did not toggle");
+                    clickFirstRowControl();
+                    check(toggle.getBooleanValue() == original, "Compact inline Flat Digger did not restore");
+                }
+                if (ticks == 215) clickRail("HUD");
                 if (ticks == 225)
                 {
-                    check(pageTitle().equals("Mining totals"), "Small viewport category drill failed");
+                    checkHudGroups();
                     shot(client, "settings-category-detail-small.png");
                     org.lwjgl.glfw.GLFW.glfwSetWindowSize(client.getWindow().getHandle(), 960, 720);
                     client.options.getGuiScale().setValue(3);
@@ -180,15 +205,16 @@ final class AchievementSettingsSmoke
                     client.onResolutionChanged();
                     client.getWindow().setScaleFactor(3.0);
                     screen.resize(client, client.getWindow().getScaledWidth(), client.getWindow().getScaledHeight());
-                    set(screen, "scrollY", 0.0D);
+                    check(screen.keyPressed(268, 0, 0) && (double) get(screen, "scrollY") == 0, "Home did not reset compact scroll");
                 }
                 if (ticks == 255) screen.mouseScrolled(screen.width - 10, screen.height - 10, 0, -1);
                 if (ticks == 265)
                 {
+                    check((double) get(screen, "scrollY") > 0, "Short viewport did not scroll");
                     shot(client, "settings-category-detail-forced-gui3-scrolled.png");
                     done = true;
                     Files.writeString(Path.of("mmm-achievement-settings-smoke.txt"),
-                            "PASS: settings preserved, category/topic navigation, Back/Escape, small detail page, global search, preview click, renderer hook, no unlock mutation, hidden HUD, GUI scales, cleanup, live collection card, one local chat with real streak, daily goal streak, sender-specific remote streak and old-event compatibility, no public duplicate, history/reload suppression");
+                            "PASS: settings preserved, Everyday and category rail, inline HUD groups, compact Digging toggle, search Back/Escape, category exit, preview click, renderer hook, no unlock mutation, hidden HUD, GUI scales, cleanup, live collection card, one local chat with real streak, daily goal streak, sender-specific remote streak and old-event compatibility, no public duplicate, history/reload suppression");
                     System.out.println("MMM_ACHIEVEMENT_SETTINGS_SMOKE_PASS");
                     client.scheduleStop();
                 }
@@ -204,16 +230,15 @@ final class AchievementSettingsSmoke
         });
     }
 
-    private void clickNavigation(String label) throws Exception
+    private void clickRail(String label) throws Exception
     {
-        for (Object item : (List<?>) get(screen, "navigationButtons"))
+        for (Object item : (List<?>) get(screen, "categoryRail"))
         {
-            var button = (net.minecraft.client.gui.widget.ButtonWidget) item;
+            var button = (ButtonWidget) item;
             if (button.getMessage().getString().equals(label))
             {
-                check(button.visible && button.active, "Category button is not usable: " + label);
-                screen.mouseClicked(button.getX() + 4, button.getY() + 4, 0);
-                check(screen.getFocused() != button, "Removed category button retained focus");
+                clickButton(button, label);
+                check(pageTitle().equals(label) && screen.getFocused() != button, "Category or focus did not change: " + label);
                 return;
             }
         }
@@ -221,6 +246,43 @@ final class AchievementSettingsSmoke
     }
 
     private String pageTitle() throws Exception { return (String) invoke(get(screen, "currentPage"), "title"); }
+
+    private void clickButton(ButtonWidget button, String label)
+    {
+        check(button.getMessage().getString().equals(label) && button.visible && button.active
+                && screen.mouseClicked(button.getX() + button.getWidth() / 2.0, button.getY() + button.getHeight() / 2.0, 0),
+                "Missing or inactive button: " + label);
+    }
+
+    private void clickFirstRowControl() throws Exception
+    {
+        var search = (TextFieldWidget) get(screen, "searchField");
+        for (Object hit : (List<?>) get(screen, "clickTargets"))
+        {
+            int y = (int) invoke(hit, "y"), h = (int) invoke(hit, "height"), w = (int) invoke(hit, "width");
+            if (y < search.getY() + search.getHeight() || w <= h) continue;
+            check(screen.mouseClicked((int) invoke(hit, "x") + w / 2.0, y + h / 2.0, 0), "Inline click was not handled");
+            return;
+        }
+        throw new AssertionError("No painted row control below search");
+    }
+
+    private void checkHudGroups() throws Exception
+    {
+        check(pageTitle().equals("HUD") && ((TextFieldWidget) get(screen, "searchField")).getText().isEmpty()
+                && ((List<?>) get(screen, "navigationButtons")).isEmpty(), "Expected inline HUD, not search or topic cards");
+        for (Object group : (List<?>) get(screen, "visibleSections"))
+        {
+            if ("Mining totals".equals(invoke(group, "title")))
+            {
+                var rows = labels(List.of(group));
+                check(rows.size() <= 8 && rows.containsAll(List.of("Mining Totals", "Global Total", "World Total", "Session Total")),
+                        "Wrong inline Mining totals group: " + rows);
+                return;
+            }
+        }
+        throw new AssertionError("Mining totals was not inline in HUD");
+    }
 
     private static void verifyCollections(MinecraftClient client) throws Exception
     {

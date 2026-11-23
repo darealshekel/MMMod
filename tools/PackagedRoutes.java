@@ -21,7 +21,7 @@ final class PackagedRoutes {
     private final List<Route> editors = new ArrayList<>(List.of(
             new Route("Custom Sounds", "com.mmm.ui.GoalSoundSettingsScreen"), new Route("Perimeter Block List", "com.mmm.ui.PerimeterBlockListScreen"),
             new Route("Sync Scoreboard", "com.mmm.ui.SyncScoreboardScreen"), new Route("Custom Color", "com.mmm.ui.MmmColorEditorScreen")));
-    private final boolean mapped, typedClick, sdl, railBoard;
+    private final boolean mapped, typedClick, sdl;
     private Object board;
     private Object book;
     private int bookStep;
@@ -29,13 +29,13 @@ final class PackagedRoutes {
     private final List<String> otherCategories = new ArrayList<>();
     private int categoryIndex;
     private boolean compact, navigationDone;
+    private ResizeWait resizeWait;
     private String oldColor;
 
     PackagedRoutes(String mc) {
         mapped = mc.startsWith("1.");
         typedClick = !mapped || mc.equals("1.21.11");
         sdl = mc.equals("26.3");
-        railBoard = List.of("1.21.1", "1.21.4", "1.21.6").contains(mc);
         if (!mc.equals("1.17.1") && !mc.equals("26.1.2")) {
             editors.add(1, new Route("Ignored Players", "com.mmm.ui.MmmChatIgnoreListScreen"));
         }
@@ -232,12 +232,7 @@ final class PackagedRoutes {
     }
 
     private void page(Object current, boolean home) throws Exception {
-        if (railBoard) { railPage(current, home ? EVERYDAY : "Tools"); return; }
-        PackagedProbe.check(current == board, "Back did not restore the Settings board: " + current);
-        Object page = field(board, "currentPage");
-        PackagedProbe.check(home ? page == field(board, "home") : "Tools".equals(get(page, "title")),
-                "expected " + (home ? "home" : "Tools") + ", got " + get(page, "title"));
-        PackagedProbe.check("".equals(field(board, "searchQuery")), "search still active");
+        railPage(current, home ? EVERYDAY : "Tools");
     }
 
     private List<?> grid() throws Exception { return (List<?>) field(board, "navigationButtons"); }
@@ -249,13 +244,27 @@ final class PackagedRoutes {
                 "expected Settings category " + title + ", got " + current);
         PackagedProbe.check("".equals(field(board, "searchQuery")) && !visible(field(board, "backButton")),
                 "unexpected search or category Back on " + title);
-        for (Object tab : rail()) bounds(board, tab);
+        List<?> pages = (List<?>) get(field(board, "home"), "children");
+        PackagedProbe.check(rail().size() == pages.size(), "missing category rail entries");
+        List<Box> boxes = new ArrayList<>();
+        for (int i = 0; i < pages.size(); i++) {
+            Object tab = rail().get(i);
+            Box box = bounds(board, tab);
+            PackagedProbe.check(get(pages.get(i), "title").equals(label(tab)) && active(tab)
+                    && boxes.stream().noneMatch(box::overlaps), "wrong, disabled, or overlapping rail tab: " + label(tab));
+            boxes.add(box);
+        }
         if (!title.equals("Tools")) {
             List<?> sections = (List<?>) field(board, "visibleSections");
             PackagedProbe.check(grid().isEmpty() && !sections.isEmpty(), "expected inline settings, not cards: " + title);
-            boolean rows = false;
-            for (Object section : sections) rows |= !((List<?>) get(section, "rows")).isEmpty();
-            PackagedProbe.check(rows, "no inline rows in " + title);
+            List<?> groups = (List<?>) get(field(board, "currentPage"), "rowGroups");
+            PackagedProbe.check(groups.size() == sections.size(), "wrong number of inline groups: " + title);
+            for (int i = 0; i < groups.size(); i++) {
+                Object section = sections.get(i), group = groups.get(i);
+                List<?> rows = (List<?>) get(section, "rows");
+                PackagedProbe.check(!rows.isEmpty() && get(group, "source") == get(section, "section")
+                        && rows.equals(get(group, "rows")), "missing/reordered inline rows: " + title + "/" + get(group, "title"));
+            }
         }
     }
 
@@ -335,9 +344,17 @@ final class PackagedRoutes {
     }
 
     private void captureRail(String name) throws Exception {
-        evidence(board, button(board, rail(), EVERYDAY), name, "Everyday");
-        evidence(board, button(board, rail(), DIGGING), name, "Digging");
-        evidence(board, button(board, rail(), "Tools"), name, "Tools");
+        for (Object tab : rail()) evidence(board, tab, name, railKey(label(tab)));
+    }
+
+    private static String railKey(String title) {
+        return switch (title) {
+            case EVERYDAY -> "Everyday";
+            case DIGGING -> "Digging";
+            case "Mining visuals" -> "MiningVisuals";
+            case "Website sync" -> "WebsiteSync";
+            default -> title;
+        };
     }
 
     private void captureHome(Object client, String name) throws Exception {
@@ -350,10 +367,8 @@ final class PackagedRoutes {
         Box w = evidence(board, website, name, "WebsiteLink");
         Box search = bounds(board, field(board, "searchField"));
         PackagedProbe.check(!h.overlaps(w) && !h.overlaps(search) && !w.overlaps(search), "overlapping home controls");
-        if (railBoard) {
-            captureRail(name);
-            exerciseInline(name, false);
-        } else evidence(board, button(board, grid(), "Tools"), name, "Tools");
+        captureRail(name);
+        exerciseInline(name, false);
         shot(client, name);
     }
 
@@ -366,13 +381,44 @@ final class PackagedRoutes {
             PackagedProbe.check(boxes.stream().noneMatch(b::overlaps), "overlapping Tools tile: " + t.label);
             boxes.add(b);
         }
-        if (!(railBoard && compact))
+        if (!compact)
             PackagedProbe.check(new HashSet<>(boxes.stream().map(Box::x).toList()).size() > 1, "Tools is not a grid");
-        if (railBoard) captureRail(name);
+        captureRail(name);
         shot(client, name);
     }
 
-    private void resize(Object client, int width, int height) throws Exception {
+    // GLFW/SDL can return before Minecraft receives the resize and rebuilds this screen.
+    // Sample on separate client ticks; never advance the route or capture at the old size.
+    static final class ResizeWait {
+        final int width, height;
+        final long start;
+        private int lastWidth, lastHeight;
+        private boolean retried;
+
+        ResizeWait(int width, int height, long start) {
+            this.width = width;
+            this.height = height;
+            this.start = start;
+        }
+
+        boolean settled(int sw, int sh, long now) {
+            PackagedProbe.check(now - start < 12_000_000_000L, "resize timed out: requested " + width + "x" + height
+                    + " framebuffer at GUI scale 2; last Settings layout " + sw + "x" + sh);
+            boolean matches = Math.abs(2 * sw - width) <= 1 && sh > 0;
+            boolean ready = matches && sw == lastWidth && sh == lastHeight;
+            lastWidth = sw;
+            lastHeight = sh;
+            return ready;
+        }
+
+        boolean retry(int sw, long now) {
+            if (retried || Math.abs(2 * sw - width) <= 1 || now - start < 3_000_000_000L) return false;
+            retried = true;
+            return true;
+        }
+    }
+
+    private void requestSize(Object client, int width, int height) throws Exception {
         Object window = get(client, mapped ? "method_22683" : "getWindow");
         long handle = (long) get(window, mapped ? "method_4490" : "handle");
         if (sdl) {
@@ -385,9 +431,14 @@ final class PackagedRoutes {
                 .invoke(null, handle, width, height);
     }
 
+    private void resize(Object client, int width, int height) throws Exception {
+        requestSize(client, width, height);
+        resizeWait = new ResizeWait(width, height, System.nanoTime());
+    }
+
     private void navigation(Object client, Object current) throws Exception {
         String view = compact ? "compact-" : "wide-";
-        String entry = view + (railBoard ? "everyday" : "home");
+        String entry = view + "everyday";
         Route route = tools.get(index);
         switch (navStep++) {
             case 0 -> { page(current, true); captureHome(client, entry); }
@@ -408,8 +459,8 @@ final class PackagedRoutes {
             case 7 -> {
                 page(current, true);
                 passed(entry + "-WebsiteLink", WEBSITE.dest);
-                if (railBoard) { press(board, button(board, rail(), DIGGING)); navStep = 14; }
-                else press(board, button(board, grid(), "Tools"));
+                press(board, button(board, rail(), DIGGING));
+                navStep = 14;
             }
             case 8 -> { page(current, false); captureTools(client, view + "tools"); }
             case 9 -> press(board, button(board, grid(), route.label));
@@ -423,17 +474,16 @@ final class PackagedRoutes {
                 page(current, false);
                 passed(view + "tools-" + route.label, route.dest);
                 if (index + 1 < tools.size()) { index++; navStep = 9; }
-                else if (railBoard) press(board, button(board, rail(), EVERYDAY));
-                else press(board, button(board, children(board), "< Back"));
+                else press(board, button(board, rail(), EVERYDAY));
             }
             case 13 -> {
                 page(current, true);
-                button(board, railBoard ? rail() : grid(), "Tools");
+                button(board, rail(), "Tools");
                 passed(view + "tools", board.getClass().getName());
                 passed(entry, board.getClass().getName());
                 index = navStep = 0;
                 if (compact) { navigationDone = true; resize(client, 960, 640); }
-                else { compact = true; resize(client, 680, railBoard ? 840 : 720); }
+                else { compact = true; resize(client, 680, 840); }
             }
             case 14 -> {
                 railPage(current, DIGGING);
@@ -448,7 +498,14 @@ final class PackagedRoutes {
                 categoryIndex = 0;
             }
             case 15 -> {
-                if (categoryIndex > 0) railPage(current, otherCategories.get(categoryIndex-1));
+                if (categoryIndex > 0) {
+                    String title = otherCategories.get(categoryIndex-1);
+                    railPage(current, title);
+                    String path = view + "rail-" + railKey(title);
+                    captureRail(path);
+                    shot(client, path);
+                    passed(path, board.getClass().getName());
+                }
                 if (categoryIndex < otherCategories.size()) {
                     press(board, button(board, rail(), otherCategories.get(categoryIndex++)));
                     navStep = 15;
@@ -464,6 +521,16 @@ final class PackagedRoutes {
 
     boolean advance(Object client, Object current) throws Exception {
         if (board == null) board = current;
+        if (resizeWait != null) {
+            PackagedProbe.check(current == board, "lost Settings while resizing");
+            int w = screenWidth(board), h = (int) field(board, mapped ? "field_22790" : "height");
+            long now = System.nanoTime();
+            if (!resizeWait.settled(w, h, now)) {
+                if (resizeWait.retry(w, now)) requestSize(client, resizeWait.width, resizeWait.height);
+                return false;
+            }
+            resizeWait = null;
+        }
         if (!navigationDone) { navigation(client, current); return false; }
         if (index == editors.size()) return true;
         Route route = editors.get(index);
@@ -496,7 +563,7 @@ final class PackagedRoutes {
             case 5 -> {
                 PackagedProbe.check(current == board, "Back did not restore Settings: " + route);
                 PackagedProbe.check(route.label.equals(field(board, "searchQuery")), "editor lost active search");
-                if (railBoard && index % 2 == 1) escape(board);
+                if (index % 2 == 1) escape(board);
                 else press(board, button(board, children(board), "< Back"));
             }
             case 6 -> {

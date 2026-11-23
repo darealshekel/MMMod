@@ -33,7 +33,27 @@ foreach ($run in $runs) {
     $routes = @(Select-String -LiteralPath $run.stdout -SimpleMatch "MMM_BOARD_ROUTE_OK")
     $tools = @(Select-String -LiteralPath $run.stdout -SimpleMatch "MMM_BOARD_TOOL_OK")
     if ($tools.Count -ne 12) { throw "Missing tool click evidence for $($run.mode)." }
+    $toolKeys = @(Select-String -LiteralPath $run.stdout -SimpleMatch "MMM_BOARD_TOOL_KEYS_OK ")
+    if ($toolKeys.Count -ne 2) { throw "Missing Tools grid keyboard runs for $($run.mode)." }
+    $pager = @(Select-String -LiteralPath $run.stdout -SimpleMatch "MMM_BOARD_PAGER_OK ")
+    if ($pager.Count -ne 2) { throw "Missing Settings pager runs for $($run.mode)." }
     foreach ($size in @('wide','compact')) {
+        if (!($pager.Line -cmatch "MMM_BOARD_PAGER_OK $size forward=(?<count>[1-9][0-9]*) back=\k<count>$")) {
+            throw "Missing matched $size single-click Next/Previous counts for $($run.mode)."
+        }
+        $movement = if ($size -eq 'compact') { 'columns=1 pagedBothWays=true' } else { 'columns=2 pagedBothWays=false' }
+        if (!($toolKeys.Line -cmatch "MMM_BOARD_TOOL_KEYS_OK $size $movement enter=Leaderboards$") -or
+            !(Test-Path -LiteralPath (Join-Path $run.gameDirectory "screenshots/board-tool-keys-$size.png"))) {
+            throw "Missing $size Tools arrow, focus or activation evidence for $($run.mode)."
+        }
+        if (!(Select-String -LiteralPath $run.stdout -Pattern "MMM_BOARD_INLINE_OK $size categories=[1-9][0-9]* controls=[1-9][0-9]*$" -Quiet) -or
+            !(Select-String -LiteralPath $run.stdout -SimpleMatch "MMM_BOARD_EVERYDAY_CLICK_OK $size Mining Tracker" -Quiet) -or
+            !(Select-String -LiteralPath $run.stdout -SimpleMatch "MMM_BOARD_INLINE_PIXELS $size Everyday settings ink=" -Quiet) -or
+            !(Select-String -LiteralPath $run.stdout -SimpleMatch "MMM_BOARD_INLINE_PIXELS $size HUD ink=" -Quiet) -or
+            !(Test-Path -LiteralPath (Join-Path $run.gameDirectory "screenshots/board-launcher-$size.png")) -or
+            !(Test-Path -LiteralPath (Join-Path $run.gameDirectory "screenshots/board-inline-hud-$size.png"))) {
+            throw "Missing $size inline category and return-path verification for $($run.mode)."
+        }
         foreach ($name in @('Hotkeys','Projects','History','Summary','Scoreboard','Leaderboards')) {
             if (!($tools.Line -match "MMM_BOARD_TOOL_OK $size $name$") -or
                 !(Test-Path -LiteralPath (Join-Path $run.gameDirectory "screenshots/board-tool-$size-$($name.ToUpperInvariant()).png"))) {
@@ -42,6 +62,9 @@ foreach ($run in $runs) {
         }
     }
     $run | Add-Member -NotePropertyName toolClicks -NotePropertyValue @($tools | ForEach-Object Line)
+    $run | Add-Member -NotePropertyName toolArrowKeys -NotePropertyValue @($toolKeys | ForEach-Object Line)
+    $run | Add-Member -NotePropertyName pagerClicks -NotePropertyValue @($pager | ForEach-Object Line)
+    $run | Add-Member -NotePropertyName inlineSettings -NotePropertyValue @((Select-String -LiteralPath $run.stdout -Pattern 'MMM_BOARD_(INLINE_OK|INLINE_PIXELS|EVERYDAY_CLICK_OK)').Line)
     if ($markers.Count -ne 2 -or $routes.Count -ne 29 -or
         !(Select-String -LiteralPath $run.stdout -SimpleMatch "MMM_BOARD_EDITORS_OK count=29" -Quiet)) { throw "Missing editor evidence for $($run.mode)." }
     foreach ($name in @("color-compact", "color-wide", "share") + @(0..28 | ForEach-Object { "route-$_" })) {
@@ -64,6 +87,6 @@ $receipt = Join-Path $dir.FullName $name
 [ordered]@{
     status = 'pass'; loader = 'liteloader'; wrapper = '1.12.2-liteloader'; version = $release
     sha256 = $sha; artifact = $artifact; testedExtension = [IO.Path]::GetExtension($runs[0].loadedArtifact); modes = @('liteloader', 'liteloader+forge')
-    scope = 'screens'; legacyEditorRoutes = 'pass'; colorPicker = 'pass'; keyboardFocus = 'pass'; exitCode = 0; verifiedUtc = [DateTime]::UtcNow.ToString('o'); runs = $runs
+    scope = 'screens'; suite = 'legacy-inline-settings-v1'; legacyEditorRoutes = 'pass'; colorPicker = 'pass'; keyboardFocus = 'pass'; exitCode = 0; verifiedUtc = [DateTime]::UtcNow.ToString('o'); runs = $runs
 } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $receipt -Encoding ascii
 Write-Output "Verified $sha in both modes. Receipt: $receipt"

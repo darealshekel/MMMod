@@ -296,13 +296,25 @@ final class MiningFeaturesSmoke
                 } else if (phase == 30) {
                     ticks++;
                     motionFrame(client,"settings",ticks);
-                    var buttons = (java.util.List<?>)field(settings,"navigationButtons");
-                    if (ticks == 5 || ticks == 19) {
+                    if (ticks == 5) {
+                        if (!settingsCategory().equals("Everyday settings")) throw new AssertionError("Expected Everyday entry");
                         client.setNavigationType(net.minecraft.client.gui.navigation.GuiNavigationType.KEYBOARD_TAB);
-                        settings.setFocused((ButtonWidget)buttons.get(ticks == 5 ? 0 : 2));
+                        settings.setFocused(button(settings, "Everyday settings"));
+                    }
+                    if (ticks == 19) {
+                        var hud = button(settings, "HUD");
+                        for (int i = 0; i < settings.children().size() && settings.getFocused() != hud; i++)
+                            settings.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_TAB, 0, 0);
+                        if (settings.getFocused() != hud || !hud.isFocused() || !settingsCategory().equals("Everyday settings"))
+                            throw new AssertionError("Tab did not focus the HUD rail without opening it");
+                        if (!settings.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0))
+                            throw new AssertionError("Focused HUD rail did not accept Enter");
                     }
                     if (ticks == 29) {
-                        if (field(settings,"previewTopic") != buttons.get(2)) throw new AssertionError("Keyboard focus did not inspect HUD settings");
+                        var hudX = (TextFieldWidget)((Map<?, ?>)field(settings, "textFields")).get(Configs.Generic.HUD_X);
+                        if (!settingsCategory().equals("HUD") || !hudX.isVisible()
+                                || !((java.util.List<?>)field(settings, "navigationButtons")).isEmpty())
+                            throw new AssertionError("Keyboard activation did not reveal inline HUD settings");
                         shot(client,"settings-category-board.png");
                     }
                     if (ticks == 36) {
@@ -333,8 +345,7 @@ final class MiningFeaturesSmoke
                     client.setScreen(settings);
                     ticks = 0; phase = 32;
                 } else if (phase == 32 && ++ticks > 8) {
-                    var entry = button(settings, "Website Link");
-                    settings.mouseClicked(entry.getX() + 4, entry.getY() + 4, 0);
+                    clickButton(settings, "Website Link");
                     if (!(client.currentScreen instanceof WebsiteLinkScreen)) throw new AssertionError("Header did not open account linking");
                     ticks = 0; phase = 33;
                 } else if (phase == 33 && ++ticks > 8) {
@@ -396,30 +407,30 @@ final class MiningFeaturesSmoke
                     button(client.currentScreen, "Done").onPress();
                     if (client.currentScreen != settings) throw new AssertionError("Sound editor Done lost parent");
                     ((TextFieldWidget)field(settings, "searchField")).setText("");
-                    var hotkeys = button(settings, "Hotkeys");
-                    settings.mouseClicked(hotkeys.getX()+4, hotkeys.getY()+4, 0);
+                    clickButton(settings, "Hotkeys");
                     if (!(client.currentScreen instanceof com.mmm.gui.GuiConfigs)) throw new AssertionError("Header Hotkeys missed");
                     ticks = 0; phase = 38;
                 } else if (phase == 38 && ++ticks > 6) {
                     shot(client, "settings-hotkeys.png");
-                    client.currentScreen.close();
-                    if (client.currentScreen != settings) throw new AssertionError("Hotkeys Back lost parent");
+                    clickButton(client.currentScreen, "Back");
+                    if (client.currentScreen != settings || !settingsCategory().equals("HUD"))
+                        throw new AssertionError("Hotkeys Back lost originating HUD category");
                     ticks = 0; phase = 39;
                 } else if (phase == 39 && ++ticks > 5) {
-                    var tools = button(settings, "Tools");
-                    settings.mouseClicked(tools.getX()+8, tools.getY()+8, 0);
+                    clickButton(settings, "Tools");
                     ticks = 0; phase = 40;
                 } else if (phase == 40 && ++ticks > 8) {
                     shot(client, "settings-tools.png");
-                    var projects = button(settings, "Projects");
-                    settings.mouseClicked(projects.getX()+8, projects.getY()+8, 0);
-                    if (client.currentScreen == settings) throw new AssertionError("Projects tile did not open");
+                    if (!settingsCategory().equals("Tools") || !((java.util.List<?>)field(settings, "navigationButtons"))
+                            .contains(button(settings, "Projects"))) throw new AssertionError("Projects tile missing from Tools");
+                    clickButton(settings, "Projects");
+                    if (!(client.currentScreen instanceof ProjectManagerScreen)) throw new AssertionError("Projects tile opened wrong screen");
                     ticks = 0; phase = 41;
                 } else if (phase == 41 && ++ticks > 6) {
                     shot(client, "settings-projects.png");
-                    client.currentScreen.close();
-                    if (client.currentScreen != settings || !((java.util.List<?>)field(settings,"navigationButtons")).stream()
-                            .anyMatch(b -> ((ButtonWidget)b).getMessage().getString().equals("Projects")))
+                    clickButton(client.currentScreen, "Back");
+                    if (client.currentScreen != settings || !settingsCategory().equals("Tools")
+                            || !((java.util.List<?>)field(settings, "navigationButtons")).contains(button(settings, "Projects")))
                         throw new AssertionError("Projects Back lost Tools directory");
                     phase = 99;
                     Files.writeString(Path.of("mmm-features-smoke-result.txt"), "PASS: inventory book, collections, mining, settings routes, color picker at GUI scales 1 and 2, screenshots");
@@ -439,6 +450,14 @@ final class MiningFeaturesSmoke
     private static ButtonWidget button(Screen screen, String label) {
         return screen.children().stream().filter(ButtonWidget.class::isInstance).map(ButtonWidget.class::cast)
                 .filter(b -> b.visible && b.getMessage().getString().equals(label)).findFirst().orElseThrow();
+    }
+    private String settingsCategory() throws Exception {
+        return ((SettingsNavigation.Page<?, ?>)field(settings, "currentPage")).title();
+    }
+    private static void clickButton(Screen screen, String label) {
+        var b = button(screen, label);
+        if (!b.active || !screen.mouseClicked(b.getX() + b.getWidth()/2.0, b.getY() + b.getHeight()/2.0, 0))
+            throw new AssertionError("Inactive button: " + label);
     }
     private static void checkCollectionPreferences(MinecraftClient client) throws Exception {
         var screen = new CollectionBookScreen(null);

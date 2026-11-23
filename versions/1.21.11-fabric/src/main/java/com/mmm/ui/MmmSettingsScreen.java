@@ -69,16 +69,11 @@ public class MmmSettingsScreen extends CompatScreen
     private final Map<IConfigBase, TextFieldWidget> textFields = new IdentityHashMap<>();
     private IConfigBase movingToggle;
     private long toggleAt;
-    private final SettingsPage home;
+    private final SettingsNavigation.Page<SettingRow, SettingsSection> home;
     private final List<NavigationButton> categoryRail = new ArrayList<>();
     private long transitionAt;
-    private final SettingsPage toolsPage;
-    private NavigationButton hotkeysButton;
-    private SettingsPage currentPage;
-    private final List<PageLocation> pageHistory = new ArrayList<>();
+    private SettingsNavigation.Page<SettingRow, SettingsSection> currentPage;
     private final List<NavigationButton> navigationButtons = new ArrayList<>();
-    private NavigationButton previewTopic;
-    private long previewSince;
     private ButtonWidget backButton;
     private double browseScrollY;
     private String hoveredDescription;
@@ -102,9 +97,8 @@ public class MmmSettingsScreen extends CompatScreen
         this.suppressAutomaticSearchInput = openedFromHotkey;
         this.openedAtMs = System.currentTimeMillis();
         this.sections.addAll(settingsInventory());
-        this.home = buildSettingsPages(this.sections);
-        this.toolsPage = this.home.children().stream().filter(page -> page.title().equals("Tools")).findFirst().orElseThrow();
-        this.currentPage = this.home;
+        this.home = SettingsNavigation.build(this.sections);
+        this.currentPage = this.home.initialCategory();
     }
 
     @Override
@@ -132,15 +126,13 @@ public class MmmSettingsScreen extends CompatScreen
             this.refreshVisibleSections();
         });
         this.addDrawableChild(this.searchField);
+        var hotkeys = this.addDrawableChild(new NavigationButton("Hotkeys", 55, 19, button -> MmmUi.openTool(this, ToolDirectory.HOTKEYS)));
+        hotkeys.setPosition(workspaceX() + workspaceWidth() - 167, 7);
         var website = this.addDrawableChild(new NavigationButton("Website Link", 82, 19, button -> openWebsiteLink()));
         website.setPosition(workspaceX() + workspaceWidth() - 107, 7);
-        this.hotkeysButton = this.addDrawableChild(new NavigationButton(ToolDirectory.HOTKEYS.label, 62, 18,
-                button -> MmmUi.openTool(this, ToolDirectory.HOTKEYS)));
         this.backButton = this.addDrawableChild(new NavigationButton("< Back", 48, 18, button -> this.goBack()));
-        for (SettingsPage page : this.home.children()) {
+        for (var page : this.home.children()) {
             this.categoryRail.add(this.addDrawableChild(topicButton(page, true, () -> {
-                this.pageHistory.clear();
-                this.pageHistory.add(new PageLocation(this.home, 0));
                 this.searchField.setText("");
                 this.openPage(page);
             })));
@@ -216,7 +208,7 @@ public class MmmSettingsScreen extends CompatScreen
     @Override
     public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean doubleClick)
     {
-        SettingsPage previousPage = this.currentPage;
+        var previousPage = this.currentPage;
         boolean handled = super.mouseClicked(click, doubleClick);
         if (previousPage != this.currentPage) this.resetPageFocus();
         return handled;
@@ -225,7 +217,7 @@ public class MmmSettingsScreen extends CompatScreen
     @Override
     public boolean keyPressed(net.minecraft.client.input.KeyInput input)
     {
-        SettingsPage previousPage = this.currentPage;
+        var previousPage = this.currentPage;
         boolean handled = super.keyPressed(input);
         if (previousPage != this.currentPage) this.resetPageFocus();
         return handled;
@@ -321,8 +313,7 @@ public class MmmSettingsScreen extends CompatScreen
                 this.searchField.setText("");
                 return true;
             }
-            if (!this.pageHistory.isEmpty()) this.goBack();
-            else this.close();
+            this.close();
             return true;
         }
 
@@ -412,42 +403,40 @@ public class MmmSettingsScreen extends CompatScreen
 
     private int workspaceWidth() { return Math.min(650, width - 16); }
     private int workspaceX() { return (width - workspaceWidth()) / 2; }
-    private boolean railVisible() { return width >= 530 && height >= 254 && currentPage != home && currentPage != toolsPage; }
-    private int contentX() { return workspaceX() + (railVisible() ? 134 : 0); }
-    private int contentWidth() { return workspaceWidth() - (railVisible() ? 134 : 0); }
-    private int navColumns() { return contentWidth() >= 300 ? 2 : 1; }
-    private boolean hasDossier() { return currentPage == home && contentWidth() >= 500 && height >= 276; }
-    private int dossierWidth() { return Math.min(218, contentWidth() / 3); }
-    private int topicStep() { return hasDossier() ? 54 : 41; }
+    private boolean wideRail() { return workspaceWidth() >= 510; }
+    private int railSpace() { return wideRail() ? 134 : 32; }
+    private int contentX() { return workspaceX() + railSpace(); }
+    private int contentWidth() { return workspaceWidth() - railSpace(); }
+    private int navColumns() { return contentWidth() >= 250 ? 2 : 1; }
+    private static final int TOOL_STEP = 41;
 
     private void drawTopBar(DrawContext c, int mx, int my) {
         int left = workspaceX(), right = left + workspaceWidth();
         c.fill(0, 0, width, TOP_HEIGHT, MmmUi.menuSurface(TOP_BAR));
         c.fill(0, TOP_HEIGHT - 1, width, TOP_HEIGHT, CollectionBoardArt.LINE);
         c.drawText(textRenderer, "MMM", left + 2, 13, CollectionBoardArt.ROSE, true);
-        c.drawText(textRenderer, "/ Settings", left + 29, 13, TEXT, false);
+        if (workspaceWidth() >= 255) c.drawText(textRenderer, "/ Settings", left + 29, 13, TEXT, false);
         if (width >= 510) {
             String status = syncStatusText();
-            MmmUi.drawTextRightWithin(c, textRenderer, status, right - 115, 13, workspaceWidth() / 3, MUTED, false);
+            MmmUi.drawTextRightWithin(c, textRenderer, status, right - 174, 13, Math.min(workspaceWidth() / 3, workspaceWidth() - 264), MUTED, false);
         }
         drawButtonShell(c, right - 20, 7, 20, 19, "X", mx, my, false);
         clickTargets.add(new ClickTarget(right - 20, 7, 20, 19, this::close));
     }
 
     private void layoutRail(DrawContext c) {
-        boolean visible = railVisible();
-        int left = workspaceX(), top = TOP_HEIGHT + 15;
-        if (visible) {
-            c.drawText(textRenderer, "CATEGORIES", left + 6, top, MUTED, false);
-            c.fill(left + 125, top, left + 126, height - 10, CollectionBoardArt.LINE);
+        int left = workspaceX(), top = TOP_HEIGHT + 7;
+        if (wideRail() && height >= 254) {
+            c.drawText(textRenderer, "CATEGORIES", left + 6, top + 5, MUTED, false);
+            top += 20;
         }
-        SettingsPage section = pageHistory.size() > 1 ? pageHistory.get(1).page() : currentPage;
+        c.fill(contentX() - 6, top, contentX() - 5, height - 6, CollectionBoardArt.LINE);
+        int step = Math.max(1, Math.min(23, (height - top - 3) / Math.max(1, categoryRail.size())));
         for (int i = 0; i < categoryRail.size(); i++) {
             NavigationButton button = categoryRail.get(i);
-            button.visible = visible;
-            button.chosen = section == home.children().get(i);
-            button.setPosition(left, top + 17 + i * 23);
-            button.setWidth(120);
+            button.chosen = currentPage == home.children().get(i) && searchQuery.isBlank();
+            button.setPosition(left, top + i * step);
+            button.setDimensions(wideRail() ? 120 : 24, Math.max(1, Math.min(21, step - 1)));
         }
     }
 
@@ -460,18 +449,13 @@ public class MmmSettingsScreen extends CompatScreen
     {
         int y = viewportY + 10;
         boolean searching = !this.searchQuery.isBlank();
-        this.backButton.visible = searching || !this.pageHistory.isEmpty();
+        this.backButton.visible = searching;
         this.backButton.setPosition(x, y - 5);
-        hotkeysButton.visible = !searching && currentPage == home;
-        hotkeysButton.setPosition(x + width - hotkeysButton.getWidth() - 10, y - 5);
         int titleX = x + (this.backButton.visible ? 53 : 0);
-        String title = searching ? "Search results" : this.currentPage == home ? "Controls & preferences" : this.currentPage.title();
-        if (!searching && pageHistory.size() > 1 && contentWidth() > 370)
-            title = pageHistory.getLast().page().title() + " / " + title;
-        int titleWidth = Math.max(0, (hotkeysButton.visible ? hotkeysButton.getX() - 4 : x + width - 8) - titleX);
-        MmmUi.drawTextWithin(context, this.textRenderer, title, titleX, y, titleWidth, TEXT, false);
-        if (this.textRenderer.getWidth(title) > titleWidth
-                && this.contains(mouseX, mouseY, titleX, y, titleWidth, 12)) this.hoveredDescription = title;
+        String title = searching ? "Search results" : this.currentPage.title();
+        MmmUi.drawTextWithin(context, this.textRenderer, title, titleX, y, width - (titleX - x) - 8, TEXT, false);
+        if (this.textRenderer.getWidth(title) > width - (titleX - x) - 8
+                && this.contains(mouseX, mouseY, titleX, y, width - (titleX - x) - 8, 12)) this.hoveredDescription = title;
 
         int searchY = y + 18;
         int searchWidth = width - 10;
@@ -494,31 +478,22 @@ public class MmmSettingsScreen extends CompatScreen
 
         int gridY = y + CONTENT_HEADER_HEIGHT - (int) Math.round(this.scrollY);
         int cols = navColumns();
-        boolean showDossier = !searching && hasDossier();
-        int span = (width - 6 - (showDossier ? dossierWidth() + 6 : 0)) / cols;
+        int span = (width - 6) / cols;
         for (int i = 0; i < this.navigationButtons.size(); i++)
         {
             NavigationButton button = this.navigationButtons.get(i);
-            int buttonY = gridY + i / cols * topicStep();
+            int buttonY = gridY + i / cols * TOOL_STEP;
             button.setPosition(x + i % cols * span, buttonY);
             button.setWidth(span - 3);
             button.visible = !searching && buttonY >= y + CONTENT_HEADER_HEIGHT
                     && buttonY + button.getHeight() <= this.height - MmmUi.pagePad(this.width);
-            if (showDossier && button.visible && (client.getNavigationType().isKeyboard()
-                    ? button.isFocused() : button.isMouseOver(mouseX, mouseY))) {
-                if (previewTopic != button) { previewTopic = button; previewSince = CollectionBoardArt.now(); }
-            }
             if (!button.visible && button.isFocused())
             {
                 button.setFocused(false);
                 if (this.getFocused() == button) this.setFocused(null);
             }
         }
-        if (showDossier && !navigationButtons.isEmpty()) {
-            if (previewTopic == null) { previewTopic = navigationButtons.getFirst(); previewSince = transitionAt; }
-            drawDossier(context,x + width - dossierWidth() - 6,y + CONTENT_HEADER_HEIGHT,dossierWidth(),previewTopic);
-        }
-        if (!searching && !this.currentPage.children().isEmpty()) return;
+        if (!searching && !navigationButtons.isEmpty()) return;
         if (this.visibleSections.isEmpty())
         {
             MmmUi.drawTextWithin(context, this.textRenderer, "No settings match your search.", x, gridY + 8, width, MUTED, false);
@@ -549,7 +524,11 @@ public class MmmSettingsScreen extends CompatScreen
             MmmUi.drawTextWithin(context, this.textRenderer, section.description(), x + CARD_PAD, y + 25, width - 32, MUTED, false);
         }
 
-        int rowY = y + (this.searchQuery.isBlank() ? 4 : 48);
+        if (this.searchQuery.isBlank() && !visibleSection.title().equals(currentPage.title())) {
+            MmmUi.drawTextWithin(context, textRenderer, visibleSection.title(), x + CARD_PAD, y + 5, width - 24, CollectionBoardArt.ROSE, false);
+            context.fill(x + CARD_PAD, y + 17, x + width - CARD_PAD, y + 18, CollectionBoardArt.LINE);
+        }
+        int rowY = y + rowsOffset(visibleSection);
         for (SettingRow row : visibleSection.rows())
         {
             this.drawSettingRow(context, row, x + CARD_PAD, rowY, width - CARD_PAD * 2, mouseX, mouseY);
@@ -563,6 +542,19 @@ public class MmmSettingsScreen extends CompatScreen
         int clipTop = TOP_HEIGHT + 10 + CONTENT_HEADER_HEIGHT;
         int clipBottom = this.height - MmmUi.pagePad(this.width);
         if (visibleHeight(y, rowHeight, clipTop, clipBottom) == 0) return;
+        ToolDirectory tool = row.kind() == ControlKind.ACTION ? ToolDirectory.find(row.label()) : null;
+        if (tool != null) {
+            boolean hot = contains(mouseX, mouseY, x, y, width, rowHeight) && mouseY >= clipTop && mouseY < clipBottom;
+            CollectionBoardArt.plate(context, x, y+1, width, rowHeight-2, hot ? CollectionBoardArt.ROSE : BORDER,
+                    MmmUi.menuSurface(CollectionBoardArt.TILE));
+            context.drawItem(toolIcon(tool).getDefaultStack(), x+6, y+(rowHeight-16)/2);
+            MmmUi.drawTextWithin(context, textRenderer, tool.label, x+29, y+6, width-50, TEXT, false);
+            MmmUi.drawTextWithin(context, textRenderer, tool.description, x+29, y+17, width-50, MUTED, false);
+            context.drawText(textRenderer, ">", x+width-14, y+(rowHeight-8)/2, CollectionBoardArt.ROSE, false);
+            int top = Math.max(y+1, clipTop), bottom = Math.min(y+rowHeight-1, clipBottom);
+            if (bottom > top) clickTargets.add(new ClickTarget(x, top, width, bottom-top, () -> MmmUi.openTool(this, tool)));
+            return;
+        }
         if (contains(mouseX, mouseY, x, y, width, rowHeight) && mouseY >= clipTop && mouseY < clipBottom)
             context.fill(x - 4, y, x + width + 3, y + rowHeight, MmmUi.menuSurface(CollectionBoardArt.TILE));
         context.fill(x, y + rowHeight - 1, x + width, y + rowHeight, BORDER);
@@ -636,10 +628,6 @@ public class MmmSettingsScreen extends CompatScreen
                 {
                     MmmMessages.actionbar("Generated preview mining run");
                     MinecraftClient.getInstance().setScreen(new SummaryScreen(MiningStats.simulateDevFinishedSession(), this));
-                }
-                else {
-                    ToolDirectory tool = ToolDirectory.find(row.label());
-                    if (tool != null) openTool(tool);
                 }
                 if (com.mmm.advancement.AchievementBuildFlags.PREVIEW
                         && "Test Achievement".equals(row.label()))
@@ -872,7 +860,7 @@ public class MmmSettingsScreen extends CompatScreen
     private void updateLayout()
     {
         int rowY = CONTENT_HEADER_HEIGHT;
-        if (this.searchQuery.isBlank()) rowY += (this.currentPage.children().size() + navColumns() - 1) / navColumns() * topicStep();
+        if (this.searchQuery.isBlank()) rowY += (this.navigationButtons.size() + navColumns() - 1) / navColumns() * TOOL_STEP;
         for (VisibleSection section : this.visibleSections)
         {
             rowY += this.sectionHeight(section) + GAP;
@@ -885,7 +873,13 @@ public class MmmSettingsScreen extends CompatScreen
 
     private int sectionHeight(VisibleSection section)
     {
-        return (this.searchQuery.isBlank() ? 4 : 48) + section.rows().size() * this.settingRowHeight() + CARD_PAD;
+        return rowsOffset(section) + section.rows().size() * this.settingRowHeight() + CARD_PAD;
+    }
+
+    private int rowsOffset(VisibleSection section)
+    {
+        if (!searchQuery.isBlank()) return 48;
+        return section.title().equals(currentPage.title()) ? 4 : 22;
     }
 
     private int settingRowHeight()
@@ -895,39 +889,17 @@ public class MmmSettingsScreen extends CompatScreen
 
     private void rebuildNavigationButtons()
     {
-        previewTopic = null;
         for (ButtonWidget button : this.navigationButtons) this.remove(button);
         this.navigationButtons.clear();
-        for (SettingsPage child : this.currentPage.children())
-        {
-            this.navigationButtons.add(this.addDrawableChild(topicButton(child, false, () -> {
-                ToolDirectory tool = toolForPage(child);
-                if (tool != null) {
-                    openTool(tool);
-                    return;
-                }
-                this.pageHistory.add(new PageLocation(this.currentPage, this.scrollY));
-                this.openPage(child);
-            })));
+        if (!"Tools".equals(currentPage.title())) return;
+        for (var child : currentPage.children()) {
+            ToolDirectory tool = ToolDirectory.find(child.title());
+            if (tool != null) this.navigationButtons.add(this.addDrawableChild(
+                    topicButton(child, false, () -> MmmUi.openTool(this, tool))));
         }
     }
 
-    private static ToolDirectory toolForPage(SettingsPage page) {
-        return page.source() != null && "Tools".equals(page.source().title()) && page.rows().size() == 1
-                ? ToolDirectory.find(page.rows().getFirst().label()) : null;
-    }
-
-    private void openTool(ToolDirectory tool) {
-        if (!searchQuery.isEmpty()) searchField.setText("");
-        if (currentPage != toolsPage) {
-            pageHistory.clear();
-            pageHistory.add(new PageLocation(home, currentPage == home ? scrollY : 0));
-            openPage(toolsPage);
-        }
-        MmmUi.openTool(this, tool);
-    }
-
-    private void openPage(SettingsPage page) {
+    private void openPage(SettingsNavigation.Page<SettingRow, SettingsSection> page) {
         this.currentPage = page;
         this.refreshVisibleSections();
         this.scrollY = 0;
@@ -936,8 +908,8 @@ public class MmmSettingsScreen extends CompatScreen
         this.rebuildNavigationButtons();
     }
 
-    private NavigationButton topicButton(SettingsPage page, boolean rail, Runnable action) {
-        ToolDirectory tool = toolForPage(page);
+    private NavigationButton topicButton(SettingsNavigation.Page<SettingRow, SettingsSection> page, boolean rail, Runnable action) {
+        ToolDirectory tool = ToolDirectory.find(page.title());
         String hint = tool != null ? tool.description : switch (page.title()) {
             case "Tools" -> "Hotkeys and mining tools";
             case "Everyday settings" -> "Tracking, goal, and chat";
@@ -965,68 +937,29 @@ public class MmmSettingsScreen extends CompatScreen
             case VISUALS, BLOCK_ESP -> Items.AMETHYST_SHARD;
             default -> Items.COMPARATOR;
         };
-        if (tool != null) icon = switch (tool) {
-            case HOTKEYS -> Items.TRIPWIRE_HOOK;
-            case PROJECTS -> Items.IRON_PICKAXE;
-            case PROFILE -> Items.PLAYER_HEAD;
-            case HISTORY -> Items.CLOCK;
-            case SUMMARY -> Items.PAPER;
-            case SCOREBOARD -> Items.OAK_SIGN;
-            case LEADERBOARDS -> Items.GOLD_INGOT;
-        };
-        String label = tool != null || page.title().equals("Tools") ? page.title() : page.title() + " >";
-        var button = new NavigationButton(label, 120, rail ? 21 : topicStep() - 5, ignored -> action.run());
+        if (tool != null) icon = toolIcon(tool);
+        else if ("Tools".equals(page.title())) icon = Items.CRAFTING_TABLE;
+        var button = new NavigationButton(page.title(),
+                120, rail ? 21 : TOOL_STEP - 5, ignored -> action.run());
         button.caption = rail && page.title().equals("Everyday settings") ? "Everyday" : page.title();
         button.hint = rail ? "" : hint;
         button.icon = new ItemStack(icon);
         button.order = rail ? 0 : navigationButtons.size();
-        button.fileNumber = (button.order + 1 < 10 ? "0" : "") + (button.order + 1);
-        if (!rail && hasDossier()) collectOptions(page,button.options);
-        else button.setTooltip(net.minecraft.client.gui.tooltip.Tooltip.of(Text.literal(page.title() + ": " + hint)));
+        button.setTooltip(net.minecraft.client.gui.tooltip.Tooltip.of(Text.literal(page.title() + ": " + hint)));
         button.setTooltipDelay(java.time.Duration.ofMillis(600));
         return button;
     }
 
-    private static void collectOptions(SettingsPage page, List<SettingRow> result) {
-        for (var row : page.rows()) if (row.config() != null) result.add(row);
-        for (var child : page.children()) collectOptions(child,result);
-    }
-
-    private void drawDossier(DrawContext c, int x, int y, int w, NavigationButton topic) {
-        int h = 155;
-        CollectionBoardArt.dossier(c,x,y,w,h);
-        long elapsed = CollectionBoardArt.now() - previewSince;
-        int tx = x+10, edge = x+w-10;
-        c.drawText(textRenderer,"CATEGORY FILE",tx,y+12,MUTED,false);
-        MmmUi.drawTextRightWithin(c,textRenderer,topic.fileNumber,edge,y+12,30,CollectionBoardArt.ROSE,false);
-        int inset = Math.round(5*(1-CollectionBoardArt.reveal(elapsed,0)));
-        c.drawItem(topic.icon,tx+inset,y+27);
-        MmmUi.drawTextWithin(c,textRenderer,topic.caption,tx+23+inset,y+32,w-45,TEXT,true);
-        c.fill(tx,y+48,edge,y+49,CollectionBoardArt.LINE);
-        if (topic.caption.equals("Tools")) {
-            int yy = y + 58;
-            for (ToolDirectory tool : MmmUi.availableTools()) {
-                MmmUi.drawTextWithin(c, textRenderer, tool.label, tx, yy, edge - tx, TEXT, false);
-                yy += 13;
-            }
-            return;
-        }
-        int shown = 0, modified = 0;
-        for (var row : topic.options) {
-            if (row.config() instanceof IConfigResettable r && r.isModified()) modified++;
-            if (shown == 4 || row.kind() == ControlKind.TEXT) continue;
-            String value = row.config() instanceof IConfigBoolean b ? (b.getBooleanValue() ? "On" : "Off")
-                    : row.config() instanceof ConfigOptionList list && list.getOptionListValue() instanceof IConfigOptionListEntry entry
-                    ? entry.getDisplayName() : getConfigString(row.config());
-            int valueW = Math.min(w/3,textRenderer.getWidth(value));
-            int yy = y+59+shown*17;
-            int slide = Math.round(6*(1-CollectionBoardArt.reveal(elapsed,shown+1)));
-            MmmUi.drawTextWithin(c,textRenderer,row.label(),tx+slide,yy,edge-tx-valueW-slide-6,TEXT,false);
-            MmmUi.drawTextRightWithin(c,textRenderer,value,edge,yy,valueW,MUTED,false);
-            shown++;
-        }
-        c.fill(tx,y+h-27,edge,y+h-26,CollectionBoardArt.LINE);
-        c.drawText(textRenderer,modified == 0 ? "Default values" : modified + " customized",tx,y+h-17,CollectionBoardArt.ROSE,false);
+    private static Item toolIcon(ToolDirectory tool) {
+        return switch (tool) {
+            case HOTKEYS -> Items.TRIPWIRE_HOOK;
+            case PROJECTS -> Items.CRAFTING_TABLE;
+            case PROFILE -> Items.PLAYER_HEAD;
+            case HISTORY -> Items.CLOCK;
+            case SUMMARY -> Items.WRITABLE_BOOK;
+            case SCOREBOARD -> Items.COMPARATOR;
+            case LEADERBOARDS -> Items.GOLD_INGOT;
+        };
     }
 
     private void resetPageFocus()
@@ -1052,25 +985,6 @@ public class MmmSettingsScreen extends CompatScreen
             this.resetPageFocus();
             return;
         }
-        if (this.pageHistory.isEmpty()) return;
-        PageLocation previous = this.pageHistory.removeLast();
-        this.currentPage = previous.page();
-        this.refreshVisibleSections();
-        this.transitionAt = CollectionBoardArt.now();
-        this.scrollY = previous.scrollY();
-        this.resetPageFocus();
-        this.rebuildNavigationButtons();
-    }
-
-    static SettingsPage buildSettingsPages(List<SettingsSection> sections)
-    {
-        return adaptPage(SettingsNavigation.<SettingRow, SettingsSection>build(sections));
-    }
-
-    private static SettingsPage adaptPage(SettingsNavigation.Page<SettingRow, SettingsSection> page)
-    {
-        return new SettingsPage(page.title(), page.source(), page.rows(), page.children().stream()
-                .map(MmmSettingsScreen::adaptPage).toList());
     }
 
     private static void organizeSections(List<SettingsSection> sections)
@@ -1118,8 +1032,9 @@ public class MmmSettingsScreen extends CompatScreen
         String query = this.searchQuery == null ? "" : this.searchQuery.trim().toLowerCase(Locale.ROOT);
         if (query.isEmpty())
         {
-            if (!this.currentPage.rows().isEmpty())
-                this.visibleSections.add(new VisibleSection(this.currentPage.source(), this.currentPage.rows()));
+            if (!"Tools".equals(currentPage.title()))
+                for (var group : currentPage.rowGroups())
+                    visibleSections.add(new VisibleSection(group.source(), group.rows(), group.title()));
             return;
         }
         this.visibleSections.addAll(searchSections(this.sections, query));
@@ -1587,22 +1502,14 @@ public class MmmSettingsScreen extends CompatScreen
         }
     }
 
-    record VisibleSection(SettingsSection section, List<SettingRow> rows)
+    record VisibleSection(SettingsSection section, List<SettingRow> rows, String title)
     {
-    }
-
-    record SettingsPage(String title, SettingsSection source, List<SettingRow> rows, List<SettingsPage> children)
-    {
-    }
-
-    private record PageLocation(SettingsPage page, double scrollY)
-    {
+        VisibleSection(SettingsSection section, List<SettingRow> rows) { this(section, rows, section.title()); }
     }
 
     private final class NavigationButton extends ButtonWidget {
-        private final List<SettingRow> options = new ArrayList<>();
         private ItemStack icon = ItemStack.EMPTY;
-        private String caption, hint = "", fileNumber = "";
+        private String caption, hint = "";
         private int order;
         private boolean chosen;
         private long hoverFrame;
@@ -1621,29 +1528,31 @@ public class MmmSettingsScreen extends CompatScreen
             float enter = CollectionBoardArt.reveal(now - transitionAt, order);
             int x = getX(), y = getY(), w = getWidth(), h = getHeight();
             boolean slip = !hint.isEmpty();
-            boolean inspecting = slip && hasDossier() && previewTopic == this;
             var matrix = c.getMatrices();
             matrix.pushMatrix();
             try {
                 if (slip) {
                     c.fill(x+3,y+h-3,x+w-2,y+h,CollectionBoardArt.BLACK);
                     // Flip the face into its fixed hit area; never animate the widget bounds.
-                    matrix.translate(x+w/2f,y+h/2f - (inspecting ? 1 : 0) - hover);
+                    matrix.translate(x+w/2f,y+h/2f - hover);
                     matrix.scale(1,.74f+.26f*enter);
                     matrix.translate(-x-w/2f,-y-h/2f);
                 }
                 int face = chosen ? MmmUi.accentSoft() : CollectionBoardArt.TILE;
-                if (inspecting) face = CollectionBoardArt.ACTIVE;
                 int surface = MmmUi.menuSurface(ColorHelper.lerp(hover, face, 0xff443236));
                 if (slip) {
-                    CollectionBoardArt.plate(c,x,y+2,w,h-4,inspecting ? 0xff96545c : 0xff4c4245,surface);
-                    c.fill(x+7,y,x+23,y+3,inspecting ? MmmUi.accent() : 0xff685156);
+                    CollectionBoardArt.plate(c,x,y+2,w,h-4,hot ? 0xff96545c : 0xff4c4245,surface);
+                    c.fill(x+7,y,x+23,y+3,hot ? MmmUi.accent() : 0xff685156);
                 } else c.fill(x,y,x+w,y+h,surface);
                 if (chosen || hot) c.fill(x, y + 2, x + 2, y + h-2, MmmUi.accent());
                 if (isFocused()) MmmUi.drawBorder(c, x, y, w, h, CollectionBoardArt.ROSE);
                 int tx = x + 6 + Math.round(4 * (1f - enter));
                 if (!icon.isEmpty()) {
                     int iy = y + (h - 16) / 2;
+                    if (w <= 24 && hint.isEmpty()) {
+                        c.drawItem(icon, x + (w - 16) / 2, iy);
+                        return;
+                    }
                     if (!hint.isEmpty()) c.fill(tx, iy - 3, tx + 22, iy + 19, CollectionBoardArt.RAIL);
                     c.drawItem(icon, tx + (hint.isEmpty() ? 0 : 3), iy);
                     tx += hint.isEmpty() ? 20 : 28;

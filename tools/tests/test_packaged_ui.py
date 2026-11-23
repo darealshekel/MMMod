@@ -1,5 +1,9 @@
 """Offline regression controls for route identity and framebuffer evidence."""
 import runpy
+import json
+import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,11 +15,21 @@ TOOLS = Path(__file__).resolve().parents[1]
 verifier = runpy.run_path(str(TOOLS / "verify-packaged-fabric.py"))
 audit = runpy.run_path(str(TOOLS / "audit-packaged-ui.py"))
 check_picker = verifier["picker_evidence"]
+JDK_BIN = str(Path(os.environ["JAVA_HOME"]) / "bin") if os.environ.get("JAVA_HOME") else None
+JAVAC, JAVA = (shutil.which(name, path=JDK_BIN) for name in ("javac", "java"))
 
 
 class VisibleToolsTest(unittest.TestCase):
     expected = staticmethod(verifier["expected_routes"])
     check = staticmethod(verifier["route_evidence"])
+
+    @unittest.skipUnless(JAVAC and JAVA, "requires a JDK for the game-free resize driver")
+    def test_pending_resize_requires_stable_real_width_and_times_out(self):
+        with tempfile.TemporaryDirectory() as classes:
+            subprocess.run([JAVAC, "-proc:none", "--release", "16", "-d", classes,
+                            str(TOOLS / "PackagedRoutes.java"), str(TOOLS / "tests/PackagedResizeTest.java")],
+                           check=True, timeout=45)
+            subprocess.run([JAVA, "-cp", classes, "smoke.PackagedResizeTest"], check=True, timeout=15)
 
     @staticmethod
     def log(routes):
@@ -24,8 +38,9 @@ class VisibleToolsTest(unittest.TestCase):
     def test_routes_distinguish_path_and_viewport(self):
         routes = self.expected("1.21")
         self.assertEqual(routes, self.check(self.log(routes), "fresh", "1.21"))
-        for key in ("wide-home-Hotkeys", "wide-tools-Hotkeys", "compact-home-Hotkeys",
-                    "compact-tools-Hotkeys", "compact-home-WebsiteLink", "compact-home", "wide-tools"):
+        for key in ("wide-everyday-Hotkeys", "wide-tools-Hotkeys", "compact-everyday-Hotkeys",
+                    "compact-tools-Hotkeys", "compact-everyday-WebsiteLink", "compact-everyday", "wide-tools",
+                    "wide-rail-HUD", "compact-rail-WebsiteSync"):
             with self.subTest(key=key), self.assertRaisesRegex(ValueError, "wrong or missing"):
                 self.check(self.log({k: v for k, v in routes.items() if k != key}), "fresh", "1.21")
 
@@ -54,27 +69,28 @@ class VisibleToolsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "missing visible"):
             audit["fabric"]({"scope": "screens", "suite": "routes-picker-v2"}, "1.21", "old")
 
-    def test_rail_only_replaces_home_cards_on_shared_board(self):
-        home = self.expected("1.21")
-        for mc in ("1.21.1", "1.21.4", "1.21.6"):
+    def test_all_fabric_wrappers_require_everyday_and_each_available_category(self):
+        wrappers = verifier["read_json"](TOOLS.parent / "versions.json")
+        versions = [v["minecraft"] for v in wrappers if v["id"].endswith("-fabric")]
+        self.assertEqual(11, len(versions))
+        for mc in versions:
             with self.subTest(mc=mc):
-                self.assertEqual("visible-rail-v4", verifier["ui_suite"](mc))
+                old = verifier["released_suite"](mc)
+                self.assertEqual(old, "visible-rail-v4" if mc in ("1.21.1", "1.21.4", "1.21.6") else "visible-tools-v3")
                 with self.assertRaisesRegex(ValueError, "missing visible"):
-                    audit["fabric"]({"scope": "screens", "suite": "visible-tools-v3"}, mc, "old")
+                    audit["fabric"]({"scope": "screens", "suite": old}, mc, "old")
                 routes = self.expected(mc)
                 self.assertEqual(routes, self.check(self.log(routes), "fresh", mc))
+                history = self.expected(mc, old)
+                self.assertEqual(history, self.check(self.log(history), "fresh", mc, old))
                 for view in ("wide", "compact"):
                     self.assertNotIn(view + "-home", routes)
                     self.assertEqual(routes[view + "-everyday"], routes[view + "-digging"])
-                    self.assertEqual(routes[view + "-everyday-Hotkeys"], home[view + "-home-Hotkeys"])
-                    self.assertEqual(routes[view + "-everyday-WebsiteLink"], home[view + "-home-WebsiteLink"])
-                self.assertEqual({k: v for k, v in home.items() if "-home" not in k},
-                                 {k: v for k, v in routes.items() if "-everyday" not in k and "-digging" not in k})
+                    for category in ("HUD", "MiningVisuals", "WebsiteSync"):
+                        self.assertIn(view + "-rail-" + category, routes)
+                    self.assertEqual(view + "-rail-Social" in routes, mc != "1.17.1")
                 with self.assertRaisesRegex(ValueError, "wrong or missing"):
-                    self.check(self.log(home), "fresh", mc)
-        for mc in ("1.21", "1.21.11", "1.20.1", "26.3"):
-            self.assertEqual("visible-tools-v3", verifier["ui_suite"](mc))
-            self.assertIn("wide-home", self.expected(mc))
+                    self.check(self.log(history), "fresh", mc)
 
     def test_legacy_clicks_and_framebuffers_are_required_per_size(self):
         tools = ("Hotkeys", "Projects", "History", "Summary", "Scoreboard", "Leaderboards")
@@ -93,13 +109,88 @@ class VisibleToolsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "framebuffer"):
             check({**run, "screenshots": screenshots[1:]}, log)
 
+    def test_archive_cannot_certify_current_liteloader_inline_behavior(self):
+        with self.assertRaisesRegex(ValueError, "no current LiteLoader"):
+            audit["legacy"]({"scope": "screens", "legacyEditorRoutes": "pass", "colorPicker": "pass"}, "old")
+        lines = [f"[Render] {s}" for size in ("wide", "compact") for s in
+                 (f"MMM_BOARD_INLINE_OK {size} categories=6 controls=103",
+                  f"MMM_BOARD_EVERYDAY_CLICK_OK {size} Mining Tracker",
+                  f"MMM_BOARD_INLINE_PIXELS {size} Everyday settings ink=58",
+                  f"MMM_BOARD_INLINE_PIXELS {size} HUD ink=74")]
+        keys = [f"[Render] MMM_BOARD_TOOL_KEYS_OK {layout} enter=Leaderboards" for layout in
+                ("wide columns=2 pagedBothWays=false", "compact columns=1 pagedBothWays=true")]
+        r = dict(mode="liteloader", inlineSettings=lines, toolArrowKeys=keys,
+                 screenshots=[f"board-{view}-{size}.png" for view in ("inline-hud", "tool-keys") for size in ("wide", "compact")])
+        log = "\n".join([*lines, *keys, "MMM_BOARD_PROBE_OK", "MMM_BOARD_KEYBOARD_OK", "MMM_BOARD_FOCUS_PIXELS"])
+        check = audit["legacy_inline_evidence"]
+        self.assertEqual(lines, check(r, r, log))
+        with self.assertRaisesRegex(ValueError, "inline Settings"):
+            check(r, r, log.replace("compact Mining Tracker", "wide Mining Tracker"))
+        with self.assertRaisesRegex(ValueError, "input checks"):
+            check(r, {**r, "mode": "liteloader+forge"}, log)
+        with self.assertRaisesRegex(ValueError, "keyboard"):
+            check(r, r, log.replace("pagedBothWays=true", "pagedBothWays=false"))
+
+    def test_candidate_diagnostic_is_bound_to_sha_and_its_own_run(self):
+        key = "1.21-fabric"
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            run = out / "runs" / (key + "-abc")
+            run.mkdir(parents=True)
+            path = run / "probe-result.json"
+            result = dict(sha256="current", suite=verifier["UI_SUITE"], diagnostic=True, nonce="abc",
+                          installed=str(run / "game/mods/candidate.jar"), screenshotDir=str(run / "game/screenshots"),
+                          marker=str(run / "probe.pass"), log=str(run / "console.log"))
+            path.write_text(json.dumps(result))
+            self.assertEqual((path, result), audit["candidate_fabric"](out, key, "current"))
+            with self.assertRaisesRegex(ValueError, "no successful candidate"):
+                audit["candidate_fabric"](out, key, "other")
+            path.write_text(json.dumps({**result, "log": str(out / "old.log")}))
+            with self.assertRaisesRegex(ValueError, "mixed candidate"):
+                audit["candidate_fabric"](out, key, "current")
+
+    def test_candidate_liteloader_pager_round_trip_in_both_viewports(self):
+        check = audit["legacy_pager_evidence"]
+        wide = "[Render] MMM_BOARD_PAGER_OK wide forward=12 back=12"
+        compact = "[Render] MMM_BOARD_PAGER_OK compact forward=7 back=7"
+        r = dict(pagerClicks=[wide, compact])
+        self.assertEqual({"wide": 12, "compact": 7}, check(r, r, "\n".join(r["pagerClicks"])))
+        for invalid in ([wide], [wide, wide], [wide, compact, compact],
+                        [wide, compact.replace("7", "0")], [wide, compact.replace("back=7", "back=8")]):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(ValueError, "pager"):
+                check(dict(pagerClicks=invalid), dict(pagerClicks=invalid), "\n".join(invalid))
+        with self.assertRaisesRegex(ValueError, "stale"):
+            check(r, dict(pagerClicks=[wide, wide]), "\n".join(r["pagerClicks"]))
+
     def test_rendered_controls_required_at_reported_positions(self):
-        self.check_rendered_controls("1.21", "home")
+        self.check_rendered_controls("1.21", "visible-tools-v3")
 
     def test_rail_and_inline_controls_must_be_painted_at_both_sizes(self):
-        self.check_rendered_controls("1.21.6", "everyday")
+        self.check_rendered_controls("1.21.6", "visible-rail-v4")
+        self.check_rendered_controls("1.17.1", "visible-rail-v5")
+        self.check_rendered_controls("26.3", "visible-rail-v5")
 
-    def check_rendered_controls(self, mc, entry):
+    def test_compact_sync_icon_requires_center_texture_not_button_background(self):
+        tile = Image.new("RGB", (48, 42), "#202020")
+        draw = ImageDraw.Draw(tile)
+        draw.rectangle((0, 0, 47, 41), outline="white", width=3)
+        check = verifier["compact_sync_icon"]
+        self.assertFalse(check(tile))
+        for y in range(3, 39):
+            draw.line((3, y, 44, y), fill=(y+60, y+30, y))
+        self.assertFalse(check(tile))  # selected tile with a gradient
+        draw.rectangle((13, 12, 34, 29), fill="black")
+        self.assertFalse(check(tile))  # flat, solid center
+        for palette in [("#151019", "#080612", "#281b36"), ("#122329", "#052325", "#284043")]:
+            for x in range(13, 35):
+                draw.line((x, 12, x, 29), fill=palette[x % 3])
+            self.assertTrue(check(tile))  # dark violet or teal textures
+        tile.paste("#202020", (3, 3, 45, 39))
+        draw.rectangle((5, 5, 10, 10), fill="white")
+        self.assertFalse(check(tile))  # off-center overlay
+
+    def check_rendered_controls(self, mc, suite):
+        entry = verifier["entry_page"](suite)
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
             lines = []
@@ -109,18 +200,26 @@ class VisibleToolsTest(unittest.TestCase):
                 shots = {first: ["Hotkeys", "WebsiteLink", "Tools"], f"{view}-tools": list(keys),
                          first + "-Hotkeys": ["Back"], **{f"{view}-tools-{k}": ["Back"] for k in keys}}
                 if entry == "everyday":
-                    shots[first] += ["Everyday", "Digging", "MiningTracker"]
-                    shots[f"{view}-digging"] = ["Everyday", "Digging", "Tools", "FlatDigger"]
-                    shots[f"{view}-tools"] += ["Everyday", "Digging", "Tools"]
+                    extra = verifier["extra_categories"](mc) if suite == "visible-rail-v5" else []
+                    rail = ["Everyday", "Digging", "Tools", *extra]
+                    shots[first] += ["Everyday", "Digging", "MiningTracker", *extra]
+                    shots[f"{view}-digging"] = rail + ["FlatDigger"]
+                    shots[f"{view}-tools"] += rail
+                    shots.update({f"{view}-rail-{key}": rail for key in extra})
                 for name, widgets in shots.items():
                     im = Image.new("RGB", (2*sw, 160))
                     draw = ImageDraw.Draw(im)
                     for i, key in enumerate(widgets):
-                        x = 8 + 32*i
-                        lines.append(f"MMM_UI_WIDGET fresh {name} {key} {x} 8 26 18 {sw} 80")
-                        draw.rectangle((2*x+4, 20, 2*x+12, 29), fill="white")
+                        x, y = 8 + 32*(i % 8), 8 + 26*(i // 8)
+                        lines.append(f"MMM_UI_WIDGET fresh {name} {key} {x} {y} 26 18 {sw} 80")
+                        draw.rectangle((2*x+4, 2*y+4, 2*x+12, 2*y+13), fill="white")
+                        if key == "WebsiteSync":
+                            for i in range(15, 37):
+                                draw.line((2*x+i, 2*y+12, 2*x+i, 2*y+24),
+                                          fill=("#101219", "#182530", "#263244")[i % 3])
                     im.save(folder / (name + ".png"))
-            check = verifier["widget_evidence"]
+            def check(log, nonce, mc, folder):
+                return verifier["widget_evidence"](log, nonce, mc, folder, suite)
             log = "\n".join(lines)
             self.assertIn("Hotkeys", check(log, "fresh", mc, folder)["compact-" + entry])
             with self.assertRaisesRegex(ValueError, "missing visible"):

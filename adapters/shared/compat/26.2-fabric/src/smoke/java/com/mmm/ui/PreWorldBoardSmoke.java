@@ -121,9 +121,13 @@ public final class PreWorldBoardSmoke {
                 widget(current, "Projects");
                 if (routeIndex == 0) shot.accept("title-tools.png");
                 if (routeIndex < MmmUi.availableTools().size()) {
-                    click(current, MmmUi.availableTools().get(routeIndex).label);
+                    var tile = Screens.getWidgets(current).stream()
+                            .filter(w -> w.visible && w.active && w.getY() > 34
+                                    && w.getMessage().getString().equals(MmmUi.availableTools().get(routeIndex).label))
+                            .map(AbstractButton.class::cast).findFirst().orElseThrow();
+                    click(current, tile);
                 } else {
-                    click(current, "< Back");
+                    click(current, "Everyday settings");
                     stage = 21;
                 }
             }
@@ -192,10 +196,13 @@ public final class PreWorldBoardSmoke {
     }
 
     private void click(Screen screen, String name) {
-        var button = widget(screen, name);
+        click(screen, widget(screen, name));
+    }
+
+    private void click(Screen screen, AbstractButton button) {
         var event = new MouseButtonEvent(button.getX() + button.getWidth() / 2.0,
                 button.getY() + button.getHeight() / 2.0, new MouseButtonInfo(leftMouseButton, 0));
-        if (!screen.mouseClicked(event, false)) throw new AssertionError("Inactive button: " + name);
+        if (!screen.mouseClicked(event, false)) throw new AssertionError("Inactive button: " + button.getMessage().getString());
         screen.mouseReleased(event);
     }
 

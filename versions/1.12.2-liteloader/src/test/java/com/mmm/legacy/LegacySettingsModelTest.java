@@ -13,7 +13,19 @@ class LegacySettingsModelTest {
     @Test void boardKeepsEveryAvailableSettingAndBindingExactlyOnce() {
         LegacyNavigation.register();
         var board = new SettingsBoard();
-        var reachable = SettingsBoard.options(board.home);
+        var reachable = board.home.children().stream().flatMap(p -> p.rowGroups().stream())
+                .flatMap(group -> group.rows().stream()).toList();
+        var everyday = board.home.initialCategory();
+        assertEquals("Everyday settings", everyday.title());
+        assertEquals(java.util.List.of("Mining Tracker", "Main HUD", "Move HUD", "Daily Goal", "MMM Chat Messages"),
+                everyday.rows().stream().map(SettingsBoard.Row::label).toList());
+        var hud = board.home.children().stream().filter(p -> "HUD".equals(p.title())).findFirst().orElseThrow();
+        assertTrue(hud.rowGroups().size() > 1);
+        assertTrue(hud.rowGroups().stream().flatMap(g -> g.rows().stream()).anyMatch(r -> r.config()==Configs.Generic.HUD_X));
+        for (var setting : allSettings()) if (!LegacyUiRegistry.available(setting.capability())) {
+            assertTrue(reachable.stream().noneMatch(r -> r.config()==setting.config()), setting.label());
+            assertTrue(board.search(setting.label()).stream().noneMatch(r -> r.config()==setting.config()), setting.label());
+        }
         for (var setting : settings())
             assertEquals(1, reachable.stream().filter(r -> r.config() == setting.config()).count(), setting.label());
         for (var key : hotkeys())
@@ -94,7 +106,8 @@ class LegacySettingsModelTest {
     @Test void settingsControlsLeaveRoomForTheirLabels() {
         for (int width : new int[]{320, 360, 427, 640, 854, 1280, 1920}) {
             int panel = com.mmm.ui.BoardEditorStyle.contentWidth(width, 920);
-            assertTrue(panel - SettingsUi.controlWidth(panel) - 38 >= 48, "Label width at " + width);
+            int content = panel - (panel >= 475 ? 122 : 72) - 7;
+            assertTrue(content - SettingsUi.controlWidth(content) - 38 >= 48, "Label width at " + width);
         }
     }
     @Test void searchMatchesMultipleWordsAndIncludesKeyBindings() {

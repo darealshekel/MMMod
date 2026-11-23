@@ -7,6 +7,7 @@ import com.mmm.hotkey.MmmHotkey;
 import com.mmm.leaderboard.LeaderboardData;
 import com.mmm.ui.BoardEditorStyle;
 import com.mmm.ui.ToolDirectory;
+import com.mmm.ui.SettingsNavigation.Page;
 import com.mmm.legacy.LegacyMenuScreen;
 import com.mmm.legacy.collection.CollectionBookScreen;
 import com.mmm.legacy.collection.InventoryCollectionButton;
@@ -94,14 +95,6 @@ public final class LiteModMMMBoardProbe implements Tickable {
                     menu=mc.screen; check(menu instanceof LegacyMenuScreen,"X,V did not open Settings"); break;
                 case 2:
                     shot(mc,"settings");
-                    check((Integer)get(menu,"total")>4,"Empty category board");
-                    int before=(Integer)get(menu,"inspection");
-                    int direction=before==0?1:-1;
-                    key(menu,(char)0,direction>0?Keyboard.KEY_RIGHT:Keyboard.KEY_LEFT);
-                    check((Integer)get(menu,"inspection")==before+direction,"Category inspection did not move from "+before);
-                    key(menu,(char)13,Keyboard.KEY_RETURN);
-                    check(((java.util.Deque<?>)get(menu,"history")).size()==1,"Category not opened");
-                    key(menu,(char)0,Keyboard.KEY_ESCAPE);
                     for(char c:"menu opacity".toCharArray()) key(menu,c,Keyboard.KEY_NONE);
                     check((Integer)get(menu,"total")>=1,"Search found no matching rows");
                     key(menu,(char)0,Keyboard.KEY_ESCAPE);
@@ -223,14 +216,18 @@ public final class LiteModMMMBoardProbe implements Tickable {
         switch (launcherStep) {
             case 0:
                 check(mc.screen == menu && (compact ? menu.width < 460 : menu.width > 680), "Wrong test viewport");
-                check(get(menu,"left").equals(get(menu,"contentX")), "Category rail still occupies the board");
+                check((Integer)get(menu,"left") < (Integer)get(menu,"contentX"), "Category rail missing");
+                check("Everyday settings".equals(((Page<?,?>)get(menu,"page")).title()),"Did not land directly in Everyday");
+                check(((List<?>)get(menu,"rows")).size()==5,"Everyday controls not inline");
                 ButtonWidget home = named(menu, ToolDirectory.HOTKEYS.label);
                 TextFieldWidget search = (TextFieldWidget)get(menu,"search");
                 check(home != null && home.x >= 0 && home.x + home.getWidth() <= menu.width && home.y+20 <= search.y,
                         "Hotkeys button clipped or overlaps search");
                 plate(mc,home.x,home.y,"home-hotkeys-"+size);
+                verifyInlinePixels(mc,size,"Everyday settings");
                 shot(mc,"launcher-"+size);
-                click(menu, ToolDirectory.HOTKEYS.label); launcherStep++; return;
+                tab(menu,false); check((Integer)get(menu,"focusId")==home.id,"Header Hotkeys not keyboard reachable");
+                key(menu,(char)13,Keyboard.KEY_RETURN); launcherStep++; return;
             case 1:
                 check(mc.screen.getClass().getSimpleName().equals(TOOL_SCREENS[0]),"Home Hotkeys opened wrong screen");
                 verifyBody(mc, TOOL_SCREENS[0]);
@@ -240,21 +237,60 @@ public final class LiteModMMMBoardProbe implements Tickable {
                 check(mc.screen.getClass().getSimpleName().equals("HotkeyEditorScreen"),"Binding did not open editor");
                 click(mc.screen,"Cancel"); check(mc.screen == bindings,"Editor did not return to bindings");
                 click(bindings,"Back"); check(mc.screen == menu,"Home Hotkeys lost parent");
+                verifyRail(mc,size);
+                launcherStep=5; return;
+            case 5:
+                verifyInlinePixels(mc,size,"HUD"); shot(mc,"inline-hud-"+size);
                 click(menu,"Tools"); toolsPage = get(menu,"page");
                 check(mc.screen == menu && ((com.mmm.ui.SettingsNavigation.Page<?,?>)toolsPage).title().equals("Tools"),"Missing Tools page");
-                launcherStep++; return;
+                int columns=compact?1:2;
+                ButtonWidget first=focusedTool(0), second=byId(menu,2001);
+                check(second!=null && (first.y==second.y)==(columns==2),"Wrong Tools grid fixture");
+                check(((Integer)get(menu,"capacity")<TOOLS.length)==compact,"Compact Tools must paginate");
+                arrow(Keyboard.KEY_LEFT,0);
+                arrow(Keyboard.KEY_RIGHT,1);
+                arrow(Keyboard.KEY_DOWN,1+columns);
+                arrow(Keyboard.KEY_UP,1);
+                arrow(Keyboard.KEY_LEFT,0);
+                for (int i=1;i<TOOLS.length;i++) arrow(Keyboard.KEY_RIGHT,i);
+                arrow(Keyboard.KEY_RIGHT,TOOLS.length-1);
+                check(((Integer)get(menu,"offset")>0)==compact,"Right did not reveal last Tools page");
+                launcherStep=6; return;
+            case 6:
+                ButtonWidget last=focusedTool(TOOLS.length-1);
+                var frame=Screenshot.take(mc.width,mc.height,mc.getRenderTarget());
+                int scale=new Window(mc).getScale();
+                try {
+                    for (int x=last.x;x<last.x+last.getWidth();x++)
+                        check((frame.getRGB(x*scale,(last.y-1)*scale)&0xffffff)==(com.mmm.legacy.BoardArt.TEXT&0xffffff),
+                                "Missing keyboard focus on last visible tool");
+                } finally { frame.flush(); }
+                shot(mc,"tool-keys-"+size);
+                key(menu,(char)13,Keyboard.KEY_RETURN);
+                launcherStep=7; return;
+            case 7:
+                check(mc.screen!=menu && TOOL_SCREENS[TOOLS.length-1].equals(mc.screen.getClass().getSimpleName()),
+                        "Enter did not open the focused tool");
+                key(mc.screen,(char)0,Keyboard.KEY_ESCAPE);
+                check(mc.screen==menu && get(menu,"page")==toolsPage,"Esc lost Tools origin");
+                focusedTool(TOOLS.length-1);
+                for (int i=TOOLS.length-2;i>=0;i--) arrow(Keyboard.KEY_LEFT,i);
+                check((Integer)get(menu,"offset")==0,"Left did not restore first Tools page");
+                arrow(Keyboard.KEY_UP,0);
+                System.out.println("MMM_BOARD_TOOL_KEYS_OK "+size+" columns="+(compact?1:2)
+                        +" pagedBothWays="+compact+" enter=Leaderboards");
+                launcherStep=2; return;
             case 2:
                 check(((com.mmm.ui.SettingsNavigation.Page<?,?>)toolsPage).children().size() == TOOLS.length,"Unsupported/missing tool tile");
-                ToolDirectory tool = TOOLS[toolIndex];
-                while (named(menu, tool.label) == null) click(menu,">");
+                while (byId(menu,2000+toolIndex) == null) click(menu,">");
                 // Wait for the framebuffer to reflect this page (including pagination).
                 launcherStep++; return;
             case 3:
-                ButtonWidget tile = named(menu, TOOLS[toolIndex].label);
-                check(tile != null && tile.getClass().getSimpleName().equals("LegacyMenuButton"),"Not a visible tool tile");
+                ButtonWidget tile = byId(menu,2000+toolIndex);
+                check(tile != null && TOOLS[toolIndex].label.equals(tile.message) && tile.getClass().getSimpleName().equals("LegacyMenuButton"),"Not a visible tool tile");
                 plate(mc,tile.x,tile.y,"tool-tile-"+size);
                 if (toolIndex == 0) shot(mc,"tools-"+size);
-                click(menu,TOOLS[toolIndex].label);
+                mouse(menu,tile.x+tile.getWidth()/2,tile.y+9);
                 launcherStep++; return;
             case 4:
                 check(mc.screen != menu && mc.screen.getClass().getSimpleName().equals(TOOL_SCREENS[toolIndex]),
@@ -269,12 +305,106 @@ public final class LiteModMMMBoardProbe implements Tickable {
                 check(mc.screen == menu && get(menu,"page")==toolsPage, "Wrong tool Back target");
                 System.out.println("MMM_BOARD_TOOL_OK "+size+" "+TOOLS[toolIndex].label);
                 if (++toolIndex < TOOLS.length) { launcherStep=2; return; }
-                click(menu,"Back"); check(get(menu,"page")==get(get(menu,"board"),"home"),"Tools lost home");
+                click(menu,"Everyday settings");
+                check("Everyday settings".equals(((Page<?,?>)get(menu,"page")).title()),"Tools lost Everyday rail route");
                 launcherComplete[compact ? 1 : 0]=true; launcherStep=toolIndex=0;
                 if (!compact) { mc.options.guiScale=2; mc.openScreen(menu); }
                 return;
             default: throw new AssertionError("Unexpected launcher step");
         }
+    }
+    private ButtonWidget focusedTool(int index) throws Exception {
+        ButtonWidget tile=byId(menu,2000+index);
+        int start=(Integer)get(menu,"offset");
+        check((Integer)get(menu,"focusId")==2000+index && tile!=null && TOOLS[index].label.equals(tile.message)
+                && index>=start && index<start+(Integer)get(menu,"capacity"),"Focus is not on visible tool "+TOOLS[index].label);
+        return tile;
+    }
+    private void arrow(int keyCode,int expected) throws Exception {
+        key(menu,(char)0,keyCode); focusedTool(expected);
+    }
+    private void verifyRail(Minecraft mc,String size) throws Exception {
+        var root=(Page<?,?>)get(get(menu,"board"),"home");
+        int checked=0, forward=0, backward=0;
+        for (var category:root.children()) {
+            ButtonWidget rail=named(menu,category.title());
+            int railStep=(Integer)get(menu,"railStep");
+            check(rail!=null && rail.x+rail.getWidth()<(Integer)get(menu,"contentX") && rail.y+railStep<=menu.height,
+                    "Offscreen category: "+category.title());
+            mouse(menu,rail.x+rail.getWidth()/2,rail.y+railStep/2);
+            check(get(menu,"page")==category && mc.screen==menu,"Rail did not switch directly: "+category.title());
+            if ("Tools".equals(category.title())) continue;
+            List<Object> expected=new java.util.ArrayList<>();
+            for (var group:category.rowGroups()) expected.addAll(group.rows());
+            List<?> visibleRows=(List<?>)get(menu,"rows");
+            check(!expected.isEmpty() && expected.size()==visibleRows.size(),"Missing inline rows for "+category.title());
+            List<Integer> previousStarts=new java.util.ArrayList<>();
+            check((Integer)get(menu,"offset")==0,"Category did not open at its first row: "+category.title());
+            for (int i=0;i<expected.size();i++) {
+                if (i==(Integer)get(menu,"offset")+(Integer)get(menu,"capacity")) {
+                    previousStarts.add((Integer)get(menu,"offset"));
+                    click(menu,">");
+                    check((Integer)get(menu,"offset")==i,"One Next click should show "+category.title()+" row "+i+", got "+get(menu,"offset"));
+                    forward++;
+                }
+                int id=100+2*(i-(Integer)get(menu,"offset"));
+                var control=byId(menu,id);
+                check(visibleRows.get(i)==expected.get(i) && control!=null && control.y+20<=menu.height-25,
+                        "Missing visible inline control: "+category.title()+" #"+i);
+                if ("Everyday settings".equals(category.title()) && i==0) {
+                    check("Mining Tracker".equals(get(expected.get(i),"label")), "Wrong first Everyday control");
+                    var tracker=com.mmm.config.FeatureToggle.MMM_MINING_TRACKER;
+                    boolean original=tracker.getBooleanValue();
+                    mouse(menu,control.x+control.getWidth()/2,control.y+9);
+                    check(mc.screen==menu && tracker.getBooleanValue()!=original, "Everyday toggle did not change live config");
+                    mouse(menu,control.x+control.getWidth()/2,control.y+9);
+                    check(tracker.getBooleanValue()==original, "Everyday toggle failed to restore");
+                    System.out.println("MMM_BOARD_EVERYDAY_CLICK_OK "+size+" Mining Tracker");
+                }
+                checked++;
+            }
+            for (int j=previousStarts.size()-1;j>=0;j--) {
+                click(menu,"<");
+                check(previousStarts.get(j).equals(get(menu,"offset")),
+                        "One Previous click should show "+category.title()+" row "+previousStarts.get(j)+", got "+get(menu,"offset"));
+                backward++;
+            }
+        }
+        click(menu,"HUD");
+        if (named(menu,">")!=null) click(menu,">");
+        Object hud=get(menu,"page"), offset=get(menu,"offset");
+        row(mc,"Open Config Gui");
+        check(mc.screen.getClass().getSimpleName().equals("HotkeyEditorScreen"),"Cross-category search missed binding");
+        key(mc.screen,(char)0,Keyboard.KEY_ESCAPE);
+        check(mc.screen==menu && "Open Config Gui".equals(get(menu,"query")),"Search result lost origin");
+        key(menu,(char)0,Keyboard.KEY_ESCAPE);
+        check(get(menu,"page")==hud && get(menu,"offset").equals(offset),"Clearing search lost category or offset");
+        click(menu,"Website Link"); key(mc.screen,(char)0,Keyboard.KEY_ESCAPE);
+        check(mc.screen==menu && get(menu,"page")==hud && get(menu,"offset").equals(offset),"Header link lost origin");
+        key(menu,(char)0,Keyboard.KEY_ESCAPE);
+        check(mc.screen==get(menu,"parent"),"Category Escape did not return to Settings caller");
+        mc.openScreen(menu);
+        check(forward>0 && forward==backward,"No complete pager round trip: "+size);
+        System.out.println("MMM_BOARD_PAGER_OK "+size+" forward="+forward+" back="+backward);
+        System.out.println("MMM_BOARD_INLINE_OK "+size+" categories="+root.children().size()+" controls="+checked);
+    }
+    private void verifyInlinePixels(Minecraft mc,String size,String category) throws Exception {
+        var rail=named(menu,category);
+        check(rail!=null && category.equals(((Page<?,?>)get(menu,"page")).title()),"Missing active category: "+category);
+        int scale=new Window(mc).getScale(), x=(Integer)get(menu,"contentX")+6, ink=0;
+        var frame=Screenshot.take(mc.width,mc.height,mc.getRenderTarget());
+        try {
+            check((frame.getRGB((rail.x+5)*scale,rail.y*scale)&0xffffff)==(com.mmm.legacy.BoardArt.ROSE&0xffffff),
+                    "Active category not painted: "+category);
+            for (Object y:(List<?>)get(menu,"rowY")) {
+                int rowInk=0;
+                for (int yy=(Integer)y+5; yy<(Integer)y+15; yy++) for (int xx=x; xx<x+50; xx++)
+                    if ((frame.getRGB(xx*scale,yy*scale)&0xffffff)==(com.mmm.legacy.BoardArt.TEXT&0xffffff)) rowInk++;
+                check(rowInk>4,"Unpainted inline row: "+category+" at "+y); ink+=rowInk;
+            }
+            check(ink>0,"No visible inline controls");
+            System.out.println("MMM_BOARD_INLINE_PIXELS "+size+" "+category+" ink="+ink);
+        } finally { frame.flush(); }
     }
     private void row(Minecraft mc,String label) throws Exception {
         mc.openScreen(menu);
@@ -475,12 +605,14 @@ public final class LiteModMMMBoardProbe implements Tickable {
         if (b == null) throw new AssertionError("No active "+label+" on "+screen.getClass());
         mouse(screen,b.x+b.getWidth()/2,b.y+9);
     }
-    private static ButtonWidget named(Screen screen,String label) throws Exception {
+    private static ButtonWidget byId(Screen screen,int id) throws Exception { return find(screen,null,id); }
+    private static ButtonWidget named(Screen screen,String label) throws Exception { return find(screen,label,-1); }
+    private static ButtonWidget find(Screen screen,String label,int id) throws Exception {
         for(Field f:Screen.class.getDeclaredFields()) if(List.class.isAssignableFrom(f.getType())) {
             f.setAccessible(true);
             for(Object value:(List<?>)f.get(screen)) if(value instanceof ButtonWidget) {
                 ButtonWidget b=(ButtonWidget)value;
-                if(b.active && b.visible && label.equals(b.message)) return b;
+                if(b.active && b.visible && (label==null?id==b.id:label.equals(b.message))) return b;
             }
         }
         return null;

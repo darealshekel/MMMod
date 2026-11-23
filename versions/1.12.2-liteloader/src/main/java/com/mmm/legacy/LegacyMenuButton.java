@@ -11,7 +11,7 @@ import com.mmm.ui.BoardEditorStyle;
 public final class LegacyMenuButton extends ButtonWidget {
     private final String detail;
     private final ItemStack icon;
-    boolean selected;
+    private final boolean selected;
     public LegacyMenuButton(int id, int x, int y, int width, int height, String label, String detail, ItemStack icon, boolean selected) {
         super(id, x, y, width, height, label);
         this.detail = detail; this.icon = icon; this.selected = selected;
@@ -24,6 +24,11 @@ public final class LegacyMenuButton extends ButtonWidget {
         int inset = icon == null ? 7 : 27;
         if (icon != null) new LegacyDrawContext().drawItem(icon, x + 5, y + (height - 16) / 2);
         int room = Math.max(0, width - inset - 5);
+        if (detail.isEmpty()) {
+            String caption = message.equals("Everyday settings") ? "Everyday" : message;
+            client.textRenderer.draw(client.textRenderer.trim(caption, room), x + inset, y + (height - 8) / 2, TEXT, false);
+            return;
+        }
         client.textRenderer.draw(client.textRenderer.trim(message, room), x + inset, y + 5, TEXT, false);
         client.textRenderer.draw(client.textRenderer.trim(detail, room), x + inset, y + height - 13, MUTED, false);
     }

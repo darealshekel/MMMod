@@ -2,7 +2,7 @@
 
 MMMod **1.0.23** for Minecraft 1.12.2 and LiteLoader (Java 8).
 
-[Download](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.12.2-liteloader.litemod) | [Full guide](../../README.md) | [Current release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23)
+[Download](https://github.com/darealshekel/MMMod/releases/download/v1.0.23-hotfix.1/mmm-1.0.23%2B1.12.2-liteloader.litemod) | [Full guide](../../README.md) | [Current release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23-hotfix.1)
 
 - Fixed startup crashes when Forge is installed alongside LiteLoader.
 - Keeps LiteLoader-only compatibility. See [release notes](docs/1.0.20.2-release.md).

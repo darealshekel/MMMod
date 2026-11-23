@@ -11,16 +11,22 @@ const versions = JSON.parse(read('versions.json'));
 const readme = read('README.md');
 
 test('main README lists the current release artifact for every supported wrapper', () => {
-    assert.ok(readme.includes(`Current release: [${release}]`));
+    const current = readme.match(/Current release: \[([^\]]+)\]\(https:\/\/github\.com\/darealshekel\/MMMod\/releases\/tag\/([^/)]+)\)/);
+    assert.ok(current, 'README must link to the current release tag');
+    const suffix = current[1].slice(release.length);
+    assert.ok(current[1].startsWith(release) && /^(?: Hotfix [1-9]\d*)?$/.test(suffix), 'unexpected release label');
+    const releaseTag = 'v' + release + suffix.replace(' Hotfix ', '-hotfix.');
+    assert.equal(current[2], releaseTag);
     const links = [...readme.matchAll(/https:\/\/github\.com\/darealshekel\/MMMod\/releases\/download\/([^/)]+)\/([^\s)]+)/g)];
     assert.equal(links.length, versions.length);
     for (const version of versions) {
         const legacy = version.id.endsWith('liteloader');
         const artifact = `mmm-${release}+${version.minecraft}${legacy ? '-liteloader.litemod' : '.jar'}`;
-        assert.ok(links.some(([, tag, file]) => tag === `v${release}` && decodeURIComponent(file) === artifact), artifact);
+        assert.ok(links.some(([, tag, file]) => tag === releaseTag && decodeURIComponent(file) === artifact), artifact);
         const wrapper = read(`versions/${version.id}/README.md`);
         assert.ok(wrapper.includes(artifact), `${version.id} README artifact`);
         assert.ok(wrapper.includes(`**${release}`), `${version.id} README version`);
+        assert.ok(wrapper.includes('/releases/tag/' + releaseTag + ')'), `${version.id} README release link`);
     }
 });
 

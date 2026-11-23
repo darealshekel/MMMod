@@ -3,6 +3,7 @@ package com.mmm.smoke;
 import com.mmm.config.Configs;
 import com.mmm.ui.MmmSettingsScreen;
 import com.mmm.ui.ProgressShareScreen;
+import com.mmm.ui.SettingsNavigation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -59,8 +60,8 @@ final class HudSettingsSmoke
                         phase++;
                     }
                     case 1 -> {
-                        check(button(client, "Everyday settings >") != null, "Missing collapsed category overview");
-                        shot(client, "01-overview.png");
+                        checkInline("Everyday settings", "Mining Tracker", "Main HUD", "Daily Goal", "Move HUD");
+                        shot(client, "01-everyday.png");
                         press(client, "Hotkeys");
                         phase = 20;
                     }
@@ -70,32 +71,29 @@ final class HudSettingsSmoke
                         phase++;
                     }
                     case 21 -> {
-                        check(client.currentScreen == settings && button(client, "Hotkeys") != null, "Hotkeys did not return home");
+                        check(client.currentScreen == settings, "Hotkeys lost the Settings parent");
+                        checkInline("Everyday settings", "Mining Tracker");
                         press(client, "Tools");
                         phase = 23;
                     }
                     case 23 -> {
                         shot(client, "01-tools.png");
-                        press(client, "< Back");
-                        phase++;
-                    }
-                    case 24 -> {
-                        press(client, "HUD >");
-                        check(settings.getFocused() == null, "Navigation retained a removed button as focus");
+                        press(client, "HUD");
+                        check(settings.getFocused() == null, "Rail navigation retained a removed button as focus");
                         phase = 2;
                     }
-                    case 2 -> { press(client, "HUD content >"); phase++; }
-                    case 3 -> { press(client, "Playtime >"); phase++; }
-                    case 4 -> {
-                        shot(client, "02-playtime.png");
+                    case 2 -> {
+                        checkInline("HUD", "Mined Block Overlay", "World Playtime", "Playtime Format", "HUD Title");
+                        shot(client, "02-hud.png");
                         search().setText("minedBlockOverlay");
-                        phase++;
+                        phase = 5;
                     }
                     case 5 -> {
                         check(!field("visibleSections", java.util.List.class).isEmpty(), "Search missed internal config name");
                         shot(client, "03-search.png");
                         check(settings.keyPressed(new KeyInput(256, 0, 0)), "Escape did not clear search");
                         check(search().getText().isEmpty(), "Search remained after Escape");
+                        checkInline("HUD", "Mined Block Overlay", "Playtime Format");
                         settings.setFocused(null);
                         search().setFocused(false);
                         check(settings.charTyped(new CharInput('p', 0)), "Typed input did not focus search");
@@ -106,6 +104,16 @@ final class HudSettingsSmoke
                         phase++;
                     }
                     case 6 -> {
+                        press(client, "Mining visuals");
+                        checkInline("Mining visuals", "Block ESP", "Lava Opacity", "Small Dig Items");
+                        check(!inlineLabels().contains("Speed Graph"), "Disabled speed graph appeared on the rail page");
+                        phase = 3;
+                    }
+                    case 3 -> {
+                        press(client, "HUD");
+                        phase++;
+                    }
+                    case 4 -> {
                         settings.keyPressed(new KeyInput(267, 0, 0));
                         shot(client, "04-narrow-playtime.png");
                         check(Configs.Generic.MINED_BLOCK_OVERLAY.getBooleanValue() == originalOverlay,
@@ -113,7 +121,7 @@ final class HudSettingsSmoke
                         resize(client, 1280, 720);
                         client.setScreen(ProgressShareScreen.collection(settings, "Stone", "minecraft:stone", 3_785_086,
                                 "Smoke world", new ItemStack(Items.STONE)));
-                        phase++;
+                        phase = 7;
                     }
                     case 7 -> {
                         press(client, "Copy text");
@@ -169,7 +177,11 @@ final class HudSettingsSmoke
                     case 11 -> {
                         shot(client, "editor-" + editors[editor] + ".png");
                         if (editor == 4) checkPicker(client);
-                        if (editor == 5) { press(client, "Back"); phase = 12; return; }
+                        if (editor == 5) {
+                            press(client, "Back");
+                            check(client.currentScreen == settings && search().getText().equals("Hotkeys"), "Search tool lost its return context");
+                            phase = 24; return;
+                        }
                         press(client, "Back");
                         check(client.currentScreen == settings, "Back lost settings for " + queries[editor]);
                         if (editor == 4) {
@@ -179,6 +191,7 @@ final class HudSettingsSmoke
                         search().setText(queries[++editor]);
                         phase = 10;
                     }
+                    case 24 -> { press(client, "Tools"); phase = 12; }
                     case 12 -> {
                         check(client.currentScreen == settings, "Lost Tools board before " + routes[route]);
                         press(client, routes[route]);
@@ -240,6 +253,22 @@ final class HudSettingsSmoke
     }
 
     private TextFieldWidget search() throws Exception { return field("searchField", TextFieldWidget.class); }
+
+    private java.util.List<String> inlineLabels() throws Exception {
+        var labels = new java.util.ArrayList<String>();
+        for (Object group : field("visibleSections", java.util.List.class)) {
+            var rows = group.getClass().getDeclaredMethod("rows");
+            rows.setAccessible(true);
+            for (Object row : (java.util.List<?>)rows.invoke(group)) labels.add(((SettingsNavigation.Row)row).label());
+        }
+        return labels;
+    }
+
+    private void checkInline(String category, String... expected) throws Exception {
+        check(field("currentPage", SettingsNavigation.Page.class).title().equals(category), "Wrong category: " + category);
+        check(field("navigationButtons", java.util.List.class).isEmpty(), "Group gate on " + category);
+        check(inlineLabels().containsAll(java.util.List.of(expected)), "Missing inline rows on " + category);
+    }
 
     private static int integer(Object o, String name) {
         try {

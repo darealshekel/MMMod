@@ -11,9 +11,10 @@ class Pre121SettingsTest {
         var original = new ArrayList<SettingsBoard.SettingsSection>();
         MmmSettingsScreen.createSections(original);
         var sections = SettingsBoard.settingsInventory();
-        var root = SettingsBoard.buildSettingsPages(sections);
+        var root = SettingsNavigation.build(sections);
         assertTrue(root.rows().isEmpty());
-        assertEquals("Everyday settings", root.children().get(0).title());
+        assertSame(root.children().get(0), root.initialCategory());
+        assertEquals("Everyday settings", root.initialCategory().title());
         var leaves = new ArrayList<SettingsBoard.SettingRow>();
         collect(root, leaves);
         for (var section : original) for (var row : section.rows()) {
@@ -28,6 +29,31 @@ class Pre121SettingsTest {
             assertTrue(leaves.stream().anyMatch(row -> row.label().equals(action) && row.kind() == SettingsBoard.ControlKind.ACTION), action);
     }
 
+    @Test void categoriesExposeAllTheirRowsInlineExceptTheDirectToolsGrid() {
+        var root = SettingsNavigation.build(SettingsBoard.settingsInventory());
+        for (var category : root.children()) {
+            var inline = SettingsBoard.inlineSections(category);
+            if ("Tools".equals(category.title())) {
+                assertTrue(inline.isEmpty());
+                continue;
+            }
+            var expected = new ArrayList<SettingsBoard.SettingRow>();
+            collect(category, expected);
+            assertFalse(expected.isEmpty(), category.title());
+            assertEquals(expected, inline.stream().flatMap(group -> group.rows().stream()).toList(), category.title());
+            for (var group : inline) {
+                assertFalse(group.title().isBlank());
+                assertTrue(group.section().rows().containsAll(group.rows()));
+            }
+        }
+        var digging = root.children().stream().filter(page -> "Digging & goals".equals(page.title())).findFirst().orElseThrow();
+        var groups = SettingsBoard.inlineSections(digging);
+        assertTrue(groups.stream().anyMatch(group -> group.section().title().equals("Digging helpers")));
+        assertTrue(groups.stream().anyMatch(group -> group.section().title().equals("Goals & notifications")));
+        var everyday = SettingsBoard.inlineSections(root.initialCategory());
+        assertEquals("Mining Tracker", everyday.get(0).rows().get(0).label());
+    }
+
     @Test void collectionPreferencesUseThePersistedConfigRegistry() {
         assertTrue(Configs.Generic.PERSISTED_OPTIONS.containsAll(List.of(Configs.Generic.COLLECTION_CATEGORY, Configs.Generic.COLLECTION_FILTER,
                 Configs.Generic.COLLECTION_SORT, Configs.Generic.COLLECTION_GLOBAL)));
@@ -39,7 +65,7 @@ class Pre121SettingsTest {
             available.remove(ToolDirectory.LEADERBOARDS);
         assertEquals(available, MmmUi.TOOL_SCREENS.keySet());
         var sections = SettingsBoard.settingsInventory();
-        var root = SettingsBoard.buildSettingsPages(sections);
+        var root = SettingsNavigation.build(sections);
         var board = root.children().stream().filter(page -> page.title().equals("Tools")).findFirst().orElseThrow();
         assertNull(SettingsBoard.toolForPage(board));
         assertEquals(List.copyOf(available), board.children().stream().map(SettingsBoard::toolForPage).toList());
@@ -65,7 +91,8 @@ class Pre121SettingsTest {
             assertTrue(BoardChrome.Page.class.isAssignableFrom(type), type.getSimpleName());
     }
 
-    private static void collect(SettingsBoard.SettingsPage page, List<SettingsBoard.SettingRow> rows) {
+    private static void collect(SettingsNavigation.Page<SettingsBoard.SettingRow, SettingsBoard.SettingsSection> page,
+                                List<SettingsBoard.SettingRow> rows) {
         assertTrue(page.rows().isEmpty() || page.children().isEmpty());
         rows.addAll(page.rows());
         page.children().forEach(child -> collect(child, rows));

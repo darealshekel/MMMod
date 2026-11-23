@@ -18,9 +18,16 @@ class MmmSettingsNavigationTest
         Page<SettingRow, SettingsSection> root = SettingsNavigation.<SettingRow, SettingsSection>build(inventory());
         assertTrue(root.rows().isEmpty());
         assertTrue(root.children().size() <= 7);
-        assertEquals("Everyday settings", root.children().getFirst().title());
+        var initial = root.initialCategory();
+        assertEquals("Everyday settings", initial.title());
+        assertTrue(initial.rowGroups().stream().flatMap(group -> group.rows().stream())
+                .anyMatch(row -> row.label().equals("Mining Tracker") && row.kind() == ControlKind.BOOLEAN));
         assertTrue(root.children().stream().anyMatch(page -> page.title().equals("HUD")));
-        assertTrue(root.children().stream().anyMatch(page -> page.title().equals("Digging & goals")));
+        var digging = root.children().stream().filter(page -> page.title().equals("Digging & goals"))
+                .findFirst().orElseThrow();
+        var inline = digging.rowGroups().stream().flatMap(group -> group.rows().stream())
+                .map(SettingRow::label).toList();
+        assertTrue(inline.containsAll(List.of("Flat Digger", "Goal Tracking")));
     }
 
     @Test void everySettingOccursExactlyOnceWithItsOriginalConfigAndAction() throws Exception

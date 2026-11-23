@@ -10,10 +10,9 @@ Requires a warm Loom cache (assets, vanilla client, Maven libraries) and a JDK.
 Use --gradle-home, --java-home or JAVA_HOME (JAVA26_HOME for 26.x).
 --library-root optionally adds a read-only Maven-layout library cache.
 Only the runtime command starts a GUI. Build results and probe live under build/.
---ui requires the visible home Hotkeys and Website Link buttons, the named Tools grid,
-and Back at both wide and compact sizes. --ui --probe-only does not update the receipt.
-On 1.21.1, 1.21.4 and 1.21.6 the entry page is Everyday settings; test the category
-rail, inline rows, and both search exits instead of the home cards.
+--ui --probe-only exercises Everyday, all available rail categories, inline controls,
+header actions, tools, search and Collections at runtime without promoting a receipt.
+For an already distributed release candidate evidence is isolated from release receipts.
 """
 
 import argparse
@@ -27,22 +26,57 @@ import subprocess
 import sys
 import uuid
 import zipfile
+from collections import Counter
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-UI_SUITE = "visible-tools-v3"
-RAIL_SUITE = "visible-rail-v4"
-RAIL_VERSIONS = {"1.21.1", "1.21.4", "1.21.6"}
+UI_SUITE = "visible-rail-v5"
+HOME_V3 = "visible-tools-v3"
+RAIL_V4 = "visible-rail-v4"
 
 
-def ui_suite(mc):
-    return RAIL_SUITE if mc in RAIL_VERSIONS else UI_SUITE
+def released_suite(mc):
+    # The published 1.0.23 matrix had two different, fully evidenced contracts.
+    return RAIL_V4 if mc in {"1.21.1", "1.21.4", "1.21.6"} else HOME_V3
 
 
-def entry_page(mc):
-    return "everyday" if mc in RAIL_VERSIONS else "home"
+def entry_page(suite):
+    require(suite in (HOME_V3, RAIL_V4, UI_SUITE), "unrecognized UI suite")
+    return "home" if suite == HOME_V3 else "everyday"
+
+
+def evidence_dir(release):
+    out = ROOT / "build/verification" / release
+    staged = ROOT / "release-artifacts"
+    if release == "1.0.23" or (staged / release).is_dir() or (staged / (release + "-distribution")).is_dir():
+        return out / "candidates" / UI_SUITE
+    return out
+
+
+@contextmanager
+def client_slot():
+    import msvcrt
+    directory = ROOT / "build/verification"
+    directory.mkdir(parents=True, exist_ok=True)
+    # Windows releases this byte-range lock even when a verifier is interrupted.
+    with (directory / "fabric-client.lock").open("a+b") as slot:
+        slot.seek(0)
+        try:
+            msvcrt.locking(slot.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError as exc:
+            raise ValueError("another Fabric packaged client owns the slot; retry after it exits") from exc
+        try:
+            yield
+        finally:
+            slot.seek(0)
+            msvcrt.locking(slot.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def extra_categories(mc):
+    return ["HUD", "MiningVisuals", "WebsiteSync"] + ([] if mc == "1.17.1" else ["Social"])
 
 
 PROBE = r"""
@@ -252,7 +286,7 @@ def expected_tools(mc):
     return tools
 
 
-def expected_routes(mc):
+def expected_routes(mc, suite=UI_SUITE):
     tools = expected_tools(mc)
     routes = {s: "com.mmm.ui." + s for s in ("GoalSoundSettingsScreen", "PerimeterBlockListScreen", "SyncScoreboardScreen")}
     routes["picker"] = "com.mmm.ui.MmmColorEditorScreen"
@@ -261,38 +295,63 @@ def expected_routes(mc):
     if mc.startswith("1."):
         routes["ProgressShareScreen"] = "com.mmm.ui.ProgressShareScreen"
     for view in ("wide", "compact"):
-        entry = f"{view}-{entry_page(mc)}"
+        entry = f"{view}-{entry_page(suite)}"
         routes.update({f"{view}-tools-{name}": dest for name, dest in tools.items()})
         routes[entry + "-Hotkeys"] = tools["Hotkeys"]
         routes[entry + "-WebsiteLink"] = "com.mmm.ui.WebsiteLinkScreen"
         routes[entry] = routes[f"{view}-tools"] = "com.mmm.ui.MmmSettingsScreen"
-        if mc in RAIL_VERSIONS:
+        if suite != HOME_V3:
             routes[f"{view}-digging"] = routes[entry]
+        if suite == UI_SUITE:
+            routes.update({f"{view}-rail-{category}": routes[entry] for category in extra_categories(mc)})
     return routes
 
 
-def route_evidence(console, nonce, mc):
+def route_evidence(console, nonce, mc, suite=UI_SUITE):
     pairs = re.findall(r"MMM_UI_ROUTE " + re.escape(nonce) + r" ([\w-]+) ([.\w]+)(?=\s|$)", console)
     routes = dict(pairs)
-    expected = expected_routes(mc)
+    expected = expected_routes(mc, suite)
     require(len(routes) == len(pairs), "duplicate route evidence")
     require(routes == expected, f"wrong or missing visible routes: {sorted(expected.items() - routes.items())}; "
             f"unexpected: {sorted(routes.items() - expected.items())}")
     return routes
 
 
-def widget_evidence(console, nonce, mc, folder):
+def compact_sync_icon(region):
+    # The compact item icon can be nearly black. Compare its texture to the tile face,
+    # sampling at the same Y so a selection/background gradient is not mistaken for an icon.
+    region = region.convert("RGB")
+    w, h = region.size
+    if min(w, h) < 16:
+        return False
+    pixels = region.load()
+    colors, quadrants = Counter(), set()
+    xs, ys = range(w//4, w-w//4), range(h//4, h-h//4)
+    edge = max(2, w//10)
+    for y in ys:
+        sides = [pixels[x, y] for x in (edge, edge+1, w-edge-2, w-edge-1)]
+        for x in xs:
+            rgb = pixels[x, y]
+            if all(max(abs(a-b) for a, b in zip(rgb, face)) >= 12 for face in sides):
+                colors[rgb] += 1
+                quadrants.add((x < w//2, y < h//2))
+    return (sum(colors.values()) >= len(xs)*len(ys)//5 and len(quadrants) >= 3
+            and sum(count >= 3 for count in colors.values()) >= 3)
+
+
+def widget_evidence(console, nonce, mc, folder, suite=UI_SUITE):
     from PIL import Image, ImageStat
     expected = set()
     for view in ("wide", "compact"):
-        entry = f"{view}-{entry_page(mc)}"
+        entry = f"{view}-{entry_page(suite)}"
         expected.update((entry, key) for key in ("Hotkeys", "WebsiteLink", "Tools"))
         expected.update((view + "-tools", key) for key in expected_tools(mc))
         expected.update((view + "-tools-" + key, "Back") for key in expected_tools(mc))
         expected.add((entry + "-Hotkeys", "Back"))
-        if mc in RAIL_VERSIONS:
-            for page in (entry, view + "-digging", view + "-tools"):
-                expected.update((page, key) for key in ("Everyday", "Digging", "Tools"))
+        if suite != HOME_V3:
+            extra = extra_categories(mc) if suite == UI_SUITE else []
+            for page in (entry, view + "-digging", view + "-tools", *(f"{view}-rail-{k}" for k in extra)):
+                expected.update((page, key) for key in ("Everyday", "Digging", "Tools", *extra))
             expected.update(((entry, "MiningTracker"), (view + "-digging", "FlatDigger")))
     seen = {}
     pattern = r"MMM_UI_WIDGET " + re.escape(nonce) + r" ([\w-]+) (\w+)((?: -?\d+){6})(?=\s|$)"
@@ -304,25 +363,32 @@ def widget_evidence(console, nonce, mc, folder):
         with Image.open(folder / (shot + ".png")) as image:
             # Options force GUI scale 2. MC rounds odd framebuffer sizes up to GUI units.
             require(abs(2*sw - image.width) <= 1 and abs(2*sh - image.height) <= 1, f"wrong framebuffer for {shot}")
-            region = image.crop((2*x, 2*y, min(image.width, 2*(x+w)), min(image.height, 2*(y+h)))).convert("L")
-            dark, light = ImageStat.Stat(region).extrema[0]
-            require(light-dark >= 45 and sum(region.histogram()[145:]) >= 6, f"unpainted widget: {shot} {key}")
+            region = image.crop((2*x, 2*y, min(image.width, 2*(x+w)), min(image.height, 2*(y+h))))
+            if suite == UI_SUITE and shot.startswith("compact-") and key == "WebsiteSync":
+                painted = compact_sync_icon(region)
+            else:
+                gray = region.convert("L")
+                dark, light = ImageStat.Stat(gray).extrema[0]
+                painted = light-dark >= 45 and sum(gray.histogram()[145:]) >= 6
+            require(painted, f"unpainted widget: {shot} {key}")
         seen.setdefault(shot, {})[key] = [x, y, w, h, sw, sh]
     require({(s, k) for s, keys in seen.items() for k in keys} == expected, "missing visible widget evidence")
     return seen
 
 
-def ui_evidence(console, nonce, mc, folder):
-    routes = route_evidence(console, nonce, mc)
+def ui_evidence(console, nonce, mc, folder, suite=UI_SUITE):
+    routes = route_evidence(console, nonce, mc, suite)
     gated = re.findall(r"MMM_UI_GATED " + re.escape(nonce) + r" ([\w:-]+)", console)
     require(gated == (["ProgressShareScreen:no-world"] if mc.startswith("26.") else []), "wrong title-world gate")
     images = set(routes) | ({"collection-detail"} if gated else set())
     hashes = {s + ".png": digest(folder / (s + ".png")) for s in sorted(images)}
     for view in ("wide", "compact"):
-        pages = [entry_page(mc), "tools"] + (["digging"] if mc in RAIL_VERSIONS else [])
+        pages = [entry_page(suite), "tools"] + (["digging"] if suite != HOME_V3 else [])
+        if suite == UI_SUITE:
+            pages.extend("rail-" + k for k in extra_categories(mc))
         require(len({hashes[f"{view}-{page}.png"] for page in pages}) == len(pages), f"unchanged page framebuffer: {view}")
-    return dict(suite=ui_suite(mc), routes=routes, gated=gated, screenshots=hashes, screenshotDir=str(folder),
-                widgets=widget_evidence(console, nonce, mc, folder), picker=picker_evidence(folder / "picker.png"))
+    return dict(suite=suite, routes=routes, gated=gated, screenshots=hashes, screenshotDir=str(folder),
+                widgets=widget_evidence(console, nonce, mc, folder, suite), picker=picker_evidence(folder / "picker.png"))
 
 
 def picker_evidence(path):
@@ -417,7 +483,7 @@ def execute(args, wrapper, mc, release, artifact, out):
           "-Dhttps.proxyHost=127.0.0.1", "-Dhttps.proxyPort=9", f"-Djava.library.path={run / 'natives'}",
           f"-Dprobe.mc={mc}", f"-Dprobe.jar={staged}", f"-Dprobe.sha={sha}", f"-Dprobe.marker={marker}",
           f"-Dprobe.nonce={nonce}", f"-Dprobe.mod={meta['version']}", f"-Dprobe.ui={str(args.ui).lower()}",
-          f"-Dprobe.suite={ui_suite(mc)}",
+          f"-Dprobe.suite={UI_SUITE}",
           "-cp", os.pathsep.join(map(str, cp)), main, "--gameDir", str(game), "--assetsDir", str(assets),
           "--assetIndex", index, "--username", "PackagedTester", "--uuid", "4b826cccfd9e45d9b58d927da9d15074",
           "--accessToken", "0", "--version", mc, "--versionType", "release",
@@ -429,7 +495,7 @@ def execute(args, wrapper, mc, release, artifact, out):
     with log.open("xb") as console:
         code = subprocess.run([str(java), "@" + str(argfile)], env=env, cwd=game, stdout=console,
                               stderr=subprocess.STDOUT, timeout=args.timeout).returncode
-    expected = f"MMM_PACKAGED_PASS {nonce} {mc} {sha} screens" + (" " + ui_suite(mc) if args.ui else "")
+    expected = f"MMM_PACKAGED_PASS {nonce} {mc} {sha} screens" + (" " + UI_SUITE if args.ui else "")
     require(code == 0, f"client exited {code}; inspect {log}")
     require(marker.is_file() and marker.read_text() == expected and expected in log.read_text(errors="replace"),
             f"no matching fresh in-game and console marker; inspect {log}")
@@ -438,20 +504,21 @@ def execute(args, wrapper, mc, release, artifact, out):
     ui = {}
     if args.ui:
         ui = ui_evidence(log.read_text(errors="replace"), nonce, mc, game / "screenshots")
-        ui.update(routeCoverage="screen mouse input: home Hotkeys, Website Link, Tools grid, Back, search editors, Collections",
+        ui.update(routeCoverage="screen mouse input: header actions, full category rail and inline groups, Everyday and "
+                                "Digging toggles, Tools tiles and returns, global search editors and Back/Esc, Collections",
                   limits="synthetic title-screen context; no in-world editing, website login, exports, or exhaustive visual review")
-        if mc in RAIL_VERSIONS:
-            ui["routeCoverage"] = ("screen mouse input: header Hotkeys and Website Link, category rail, inline Everyday and "
-                                   "Digging toggles, Tools grid and Back, search editors and Back/Esc, Collections")
         print(json.dumps(ui["picker"]), flush=True)
-    if args.probe_only:
-        print(f"PROBED {wrapper} {sha} (diagnostic only, no release receipt)", flush=True)
-        return
     receipt = dict(status="pass", sha256=sha, loader="fabric", wrapper=wrapper, minecraft=mc, version=meta["version"],
                    loaderVersion=loader_ver, artifact=str(artifact), installed=str(staged), nonce=nonce, scope="screens",
                    checks=["production origin and code source", "title screen", "settings", "collections", "return to title"],
                    started=started, completed=timestamp(), exitCode=code, java=str(java), log=str(log),
                    marker=str(marker), gameLog=str(game / "logs/latest.log"), **ui)
+    if args.probe_only:
+        # Record successful process exit as well as in-game evidence, local to this unique run.
+        with (run / "probe-result.json").open("x", encoding="utf-8") as stream:
+            json.dump(dict(receipt, diagnostic=True), stream, indent=2)
+        print(f"PROBED {wrapper} {sha} (diagnostic only, no release receipt)", flush=True)
+        return
     temp = run / "receipt.json"
     temp.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
     temp.replace(out / (wrapper + "-packaged.json"))
@@ -480,7 +547,7 @@ def main():
     require(platform.system() == "Windows" and platform.machine().lower() in ("amd64", "x86_64"), "requires Windows x64")
     release = properties(ROOT / "release.properties")["mod_version"]
     require(re.fullmatch(r"\d+(\.\d+){2,}", release), "invalid mod_version")
-    out = ROOT / "build/verification" / release
+    out = evidence_dir(release)
     failed = False
     for wrapper, mc in wrappers.items():
         if a.wrapper and wrapper != a.wrapper:
@@ -496,11 +563,11 @@ def main():
                         and r["scope"] == "screens" and r["status"] == "pass" and r["loader"] == "fabric" and r["exitCode"] == 0
                         and r["sha256"] == digest(jar)
                         and (not a.sha256 or r["sha256"] == a.sha256.lower()), "receipt does not match current jar")
-                extended = r.get("suite") in {"routes-picker-v1", "routes-picker-v2", UI_SUITE, RAIL_SUITE}
-                require(not a.ui or r.get("suite") == ui_suite(mc), f"no {ui_suite(mc)} verification for these bytes")
+                extended = r.get("suite") in {"routes-picker-v1", "routes-picker-v2", HOME_V3, RAIL_V4, UI_SUITE}
+                require(not a.ui or r.get("suite") == UI_SUITE, f"no {UI_SUITE} verification for these bytes")
                 if extended:
-                    if r["suite"] == ui_suite(mc):
-                        ui = ui_evidence(Path(r["log"]).read_text(errors="replace"), r["nonce"], mc, Path(r["screenshotDir"]))
+                    if r["suite"] in (UI_SUITE, released_suite(mc)):
+                        ui = ui_evidence(Path(r["log"]).read_text(errors="replace"), r["nonce"], mc, Path(r["screenshotDir"]), r["suite"])
                         require(all(r.get(k) == v for k, v in ui.items()), "changed visible route/framebuffer evidence")
                     else:
                         require(all(digest(Path(r["screenshotDir"]) / name) == sha for name, sha in r["screenshots"].items()),
@@ -513,7 +580,8 @@ def main():
                 runtime(a, wrapper, mc)
                 print(f"{wrapper}: cached runtime inputs available (not a pass)")
             else:
-                execute(a, wrapper, mc, release, jar, out)
+                with client_slot():
+                    execute(a, wrapper, mc, release, jar, out)
         except (OSError, ValueError, KeyError, subprocess.SubprocessError, zipfile.BadZipFile) as exc:
             print(f"{wrapper}: {exc}", file=sys.stderr, flush=True)
             failed = True

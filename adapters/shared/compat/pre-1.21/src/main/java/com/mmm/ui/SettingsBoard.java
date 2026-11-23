@@ -69,16 +69,12 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
     private final Map<IConfigBase, BoardField> textFields = new IdentityHashMap<>();
     private IConfigBase movingToggle;
     private long toggleAt;
-    private final SettingsPage home;
+    private final SettingsNavigation.Page<SettingRow, SettingsSection> home;
     private final List<NavigationButton> categoryRail = new ArrayList<>();
     private long transitionAt;
-    private SettingsPage currentPage;
-    private final List<PageLocation> pageHistory = new ArrayList<>();
+    private SettingsNavigation.Page<SettingRow, SettingsSection> currentPage;
     private final List<NavigationButton> navigationButtons = new ArrayList<>();
     private final Map<ToolDirectory, NavigationButton> searchTools = new EnumMap<>(ToolDirectory.class);
-    private NavigationButton hotkeysButton;
-    private NavigationButton previewTopic;
-    private long previewSince;
     private BoardButton backButton;
     private double browseScrollY;
     private String hoveredDescription;
@@ -102,8 +98,8 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
         this.suppressAutomaticSearchInput = openedFromHotkey;
         this.openedAtMs = System.currentTimeMillis();
         this.sections.addAll(settingsInventory());
-        this.home = buildSettingsPages(this.sections);
-        this.currentPage = this.home;
+        this.home = SettingsNavigation.build(this.sections);
+        this.currentPage = this.home.initialCategory();
     }
 
     @Override
@@ -132,8 +128,9 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
             this.refreshVisibleSections();
         });
         this.addDrawableChild(this.searchField);
-        this.hotkeysButton = this.addDrawableChild(new NavigationButton(ToolDirectory.HOTKEYS.label, 56, FIELD_HEIGHT,
+        var hotkeys = this.addDrawableChild(new NavigationButton(ToolDirectory.HOTKEYS.label, 55, 19,
                 button -> openTool(ToolDirectory.HOTKEYS)));
+        hotkeys.setPosition(workspaceX() + workspaceWidth() - 167, 7);
         var website = this.addDrawableChild(new NavigationButton("Website Link", 82, 19, button -> openWebsiteLink()));
         website.setPosition(workspaceX() + workspaceWidth() - 107, 7);
         this.backButton = this.addDrawableChild(new NavigationButton("< Back", 48, 18, button -> this.goBack()));
@@ -145,10 +142,8 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
             result.visible = false;
             searchTools.put(tool, this.addDrawableChild(result));
         }
-        for (SettingsPage page : this.home.children()) {
+        for (var page : this.home.children()) {
             this.categoryRail.add(this.addDrawableChild(topicButton(page, true, () -> {
-                this.pageHistory.clear();
-                this.pageHistory.add(new PageLocation(this.home, 0));
                 this.searchField.setText("");
                 this.openPage(page);
             })));
@@ -252,7 +247,7 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
             }
         }
 
-        SettingsPage previousPage = this.currentPage;
+        var previousPage = this.currentPage;
         boolean handled = super.mouseClicked(mouseX, mouseY, button);
         // ParentElement focuses the clicked child after its callback, which may have removed it.
         if (previousPage != this.currentPage) this.resetPageFocus();
@@ -316,8 +311,7 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
                 this.searchField.setText("");
                 return true;
             }
-            if (!this.pageHistory.isEmpty()) this.goBack();
-            else this.close();
+            this.close();
             return true;
         }
 
@@ -344,7 +338,7 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
             return true;
         }
 
-        SettingsPage previousPage = this.currentPage;
+        var previousPage = this.currentPage;
         boolean handled = super.keyPressed(keyCode, scanCode, modifiers);
         if (previousPage != this.currentPage) this.resetPageFocus();
         return handled;
@@ -410,44 +404,40 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
 
     private int workspaceWidth() { return Math.min(650, width - 16); }
     private int workspaceX() { return (width - workspaceWidth()) / 2; }
-    private boolean railVisible() {
-        return width >= 530 && height >= TOP_HEIGHT + 40 + home.children().size() * 23 && currentPage != home;
-    }
-    private int contentX() { return workspaceX() + (railVisible() ? 134 : 0); }
-    private int contentWidth() { return workspaceWidth() - (railVisible() ? 134 : 0); }
-    private int navColumns() { return contentWidth() >= 300 ? 2 : 1; }
-    private boolean hasDossier() { return currentPage == home && contentWidth() >= 500 && height >= 276; }
-    private int dossierWidth() { return Math.min(218, contentWidth() / 3); }
-    private int topicStep() { return hasDossier() ? 54 : 41; }
+    private boolean wideRail() { return workspaceWidth() >= 510; }
+    private int railSpace() { return wideRail() ? 134 : 32; }
+    private int contentX() { return workspaceX() + railSpace(); }
+    private int contentWidth() { return workspaceWidth() - railSpace(); }
+    private int navColumns() { return contentWidth() >= 250 ? 2 : 1; }
+    private static final int TOOL_STEP = 41;
 
     private void drawTopBar(Canvas c, int mx, int my) {
         int left = workspaceX(), right = left + workspaceWidth();
         c.raw().fill(0, 0, width, TOP_HEIGHT, MmmUi.menuSurface(TOP_BAR));
         c.raw().fill(0, TOP_HEIGHT - 1, width, TOP_HEIGHT, CollectionBoardArt.LINE);
         c.raw().drawText(textRenderer, "MMM", left + 2, 13, CollectionBoardArt.ROSE, true);
-        c.raw().drawText(textRenderer, "/ Settings", left + 29, 13, TEXT, false);
+        if (workspaceWidth() >= 255) c.raw().drawText(textRenderer, "/ Settings", left + 29, 13, TEXT, false);
         if (width >= 510) {
             String status = syncStatusText();
-            MmmUi.drawTextRightWithin(c.raw(), textRenderer, status, right - 115, 13, workspaceWidth() / 3, MUTED, false);
+            MmmUi.drawTextRightWithin(c.raw(), textRenderer, status, right - 174, 13, Math.min(workspaceWidth() / 3, workspaceWidth() - 264), MUTED, false);
         }
         drawButtonShell(c, right - 20, 7, 20, 19, "X", mx, my, false);
         clickTargets.add(new ClickTarget(right - 20, 7, 20, 19, this::close));
     }
 
     private void layoutRail(Canvas c) {
-        boolean visible = railVisible();
-        int left = workspaceX(), top = TOP_HEIGHT + 15;
-        if (visible) {
-            c.raw().drawText(textRenderer, "CATEGORIES", left + 6, top, MUTED, false);
-            c.raw().fill(left + 125, top, left + 126, height - 10, CollectionBoardArt.LINE);
+        int left = workspaceX(), top = TOP_HEIGHT + 7;
+        if (wideRail() && height >= 254) {
+            c.raw().drawText(textRenderer, "CATEGORIES", left + 6, top + 5, MUTED, false);
+            top += 20;
         }
-        SettingsPage section = pageHistory.size() > 1 ? pageHistory.get(1).page() : currentPage;
+        c.raw().fill(contentX() - 6, top, contentX() - 5, height - 6, CollectionBoardArt.LINE);
+        int step = Math.max(1, Math.min(23, (height - top - 3) / Math.max(1, categoryRail.size())));
         for (int i = 0; i < categoryRail.size(); i++) {
             NavigationButton button = categoryRail.get(i);
-            button.visible = visible;
-            button.chosen = section == home.children().get(i);
-            button.setPosition(left, top + 17 + i * 23);
-            button.setWidth(120);
+            button.chosen = currentPage == home.children().get(i) && searchQuery.isBlank();
+            button.setPosition(left, top + i * step);
+            button.sizeRail(wideRail() ? 120 : 24, Math.max(1, Math.min(21, step - 1)));
         }
     }
 
@@ -464,20 +454,16 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
     {
         int y = viewportY + 10;
         boolean searching = !this.searchQuery.isBlank();
-        this.backButton.visible = searching || !this.pageHistory.isEmpty();
+        this.backButton.visible = searching;
         this.backButton.setPosition(x, y - 5);
         int titleX = x + (this.backButton.visible ? 53 : 0);
-        String title = searching ? "Search results" : this.currentPage == home ? "Controls & preferences" : this.currentPage.title();
-        if (!searching && pageHistory.size() > 1 && contentWidth() > 370)
-            title = pageHistory.get(pageHistory.size() - 1).page().title() + " / " + title;
+        String title = searching ? "Search results" : this.currentPage.title();
         MmmUi.drawTextWithin(context.raw(), this.textRenderer, title, titleX, y, width - (titleX - x) - 8, TEXT, false);
         if (this.textRenderer.getWidth(title) > width - (titleX - x) - 8
                 && this.contains(mouseX, mouseY, titleX, y, width - (titleX - x) - 8, 12)) this.hoveredDescription = title;
 
         int searchY = y + 18;
-        this.hotkeysButton.visible = this.currentPage == home && !searching;
-        this.hotkeysButton.setPosition(x + width - 10 - this.hotkeysButton.getWidth(), searchY);
-        int searchWidth = width - 10 - (this.hotkeysButton.visible ? this.hotkeysButton.getWidth() + 4 : 0);
+        int searchWidth = width - 10;
         boolean canClearSearch = this.searchQuery.isBlank() == false;
         int clearWidth = canClearSearch ? 20 : 0;
         this.searchField.setX(x + 5);
@@ -497,31 +483,22 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
 
         int gridY = y + CONTENT_HEADER_HEIGHT - (int) Math.round(this.scrollY);
         int cols = navColumns();
-        boolean showDossier = !searching && hasDossier();
-        int span = (width - 6 - (showDossier ? dossierWidth() + 6 : 0)) / cols;
+        int span = (width - 6) / cols;
         for (int i = 0; i < this.navigationButtons.size(); i++)
         {
             NavigationButton button = this.navigationButtons.get(i);
-            int buttonY = gridY + i / cols * topicStep();
+            int buttonY = gridY + i / cols * TOOL_STEP;
             button.setPosition(x + i % cols * span, buttonY);
             button.setWidth(span - 3);
             button.visible = !searching && buttonY >= y + CONTENT_HEADER_HEIGHT
                     && buttonY + button.getHeight() <= this.height - MmmUi.pagePad(this.width);
-            if (showDossier && button.visible && (BoardPlatform.keyboard()
-                    ? button.isFocused() : button.isMouseOver(mouseX, mouseY))) {
-                if (previewTopic != button) { previewTopic = button; previewSince = CollectionBoardArt.now(); }
-            }
             if (!button.visible && button.isFocused())
             {
                 BoardPlatform.unfocus(button);
                 if (this.getFocused() == button) this.setFocused(null);
             }
         }
-        if (showDossier && !navigationButtons.isEmpty()) {
-            if (previewTopic == null) { previewTopic = navigationButtons.get(0); previewSince = transitionAt; }
-            drawDossier(context,x + width - dossierWidth() - 6,y + CONTENT_HEADER_HEIGHT,dossierWidth(),previewTopic);
-        }
-        if (!searching && !this.currentPage.children().isEmpty()) return;
+        if (!searching && !navigationButtons.isEmpty()) return;
         if (this.visibleSections.isEmpty())
         {
             MmmUi.drawTextWithin(context.raw(), this.textRenderer, "No settings match your search.", x, gridY + 8, width, MUTED, false);
@@ -552,7 +529,11 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
             MmmUi.drawTextWithin(context.raw(), this.textRenderer, section.description(), x + CARD_PAD, y + 25, width - 32, MUTED, false);
         }
 
-        int rowY = y + (this.searchQuery.isBlank() ? 4 : 48);
+        if (this.searchQuery.isBlank() && !visibleSection.title().equals(currentPage.title())) {
+            MmmUi.drawTextWithin(context.raw(), textRenderer, visibleSection.title(), x + CARD_PAD, y + 5, width - 24, CollectionBoardArt.ROSE, false);
+            context.raw().fill(x + CARD_PAD, y + 17, x + width - CARD_PAD, y + 18, CollectionBoardArt.LINE);
+        }
+        int rowY = y + rowsOffset(visibleSection);
         for (SettingRow row : visibleSection.rows())
         {
             if (section.title().equals("Tools")) {
@@ -863,7 +844,7 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
     private void updateLayout()
     {
         int rowY = CONTENT_HEADER_HEIGHT;
-        if (this.searchQuery.isBlank()) rowY += (this.currentPage.children().size() + navColumns() - 1) / navColumns() * topicStep();
+        if (this.searchQuery.isBlank()) rowY += (this.navigationButtons.size() + navColumns() - 1) / navColumns() * TOOL_STEP;
         for (VisibleSection section : this.visibleSections)
         {
             rowY += this.sectionHeight(section) + GAP;
@@ -876,7 +857,13 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
 
     private int sectionHeight(VisibleSection section)
     {
-        return (this.searchQuery.isBlank() ? 4 : 48) + section.rows().size() * this.settingRowHeight() + CARD_PAD;
+        return rowsOffset(section) + section.rows().size() * this.settingRowHeight() + CARD_PAD;
+    }
+
+    private int rowsOffset(VisibleSection section)
+    {
+        if (!searchQuery.isBlank()) return 48;
+        return section.title().equals(currentPage.title()) ? 4 : 22;
     }
 
     private int settingRowHeight()
@@ -886,24 +873,17 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
 
     private void rebuildNavigationButtons()
     {
-        previewTopic = null;
         for (BoardButton button : this.navigationButtons) this.remove(button);
         this.navigationButtons.clear();
-        for (SettingsPage child : this.currentPage.children())
-        {
-            this.navigationButtons.add(this.addDrawableChild(topicButton(child, false, () -> {
-                ToolDirectory tool = toolForPage(child);
-                if (tool != null) {
-                    this.openTool(tool);
-                    return;
-                }
-                this.pageHistory.add(new PageLocation(this.currentPage, this.scrollY));
-                this.openPage(child);
-            })));
+        if (!"Tools".equals(currentPage.title())) return;
+        for (var child : currentPage.children()) {
+            ToolDirectory tool = toolForPage(child);
+            if (tool != null) this.navigationButtons.add(this.addDrawableChild(
+                    topicButton(child, false, () -> openTool(tool))));
         }
     }
 
-    static ToolDirectory toolForPage(SettingsPage page) {
+    static ToolDirectory toolForPage(SettingsNavigation.Page<SettingRow, SettingsSection> page) {
         return page.source() != null && page.source().title().equals("Tools") && page.rows().size() == 1
                 ? ToolDirectory.find(page.title()) : null;
     }
@@ -920,7 +900,7 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
         };
     }
 
-    private void openPage(SettingsPage page) {
+    private void openPage(SettingsNavigation.Page<SettingRow, SettingsSection> page) {
         this.currentPage = page;
         this.refreshVisibleSections();
         this.scrollY = 0;
@@ -929,7 +909,7 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
         this.rebuildNavigationButtons();
     }
 
-    private NavigationButton topicButton(SettingsPage page, boolean rail, Runnable action) {
+    private NavigationButton topicButton(SettingsNavigation.Page<SettingRow, SettingsSection> page, boolean rail, Runnable action) {
         ToolDirectory tool = toolForPage(page);
         String hint = tool != null ? tool.description : switch (page.title()) {
             case "Tools" -> page.children().size() + " tools";
@@ -957,51 +937,13 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
             case VISUALS, BLOCK_ESP -> Items.AMETHYST_SHARD;
             default -> Items.COMPARATOR;
         };
-        var button = new NavigationButton(page.title(), 120, rail ? 21 : topicStep() - 5, ignored -> action.run());
+        var button = new NavigationButton(page.title(), 120, rail ? 21 : TOOL_STEP - 5, ignored -> action.run());
         button.caption = rail && page.title().equals("Everyday settings") ? "Everyday" : page.title();
         button.hint = rail ? "" : hint;
         button.icon = new ItemStack(icon);
         button.order = rail ? 0 : navigationButtons.size();
-        button.fileNumber = (button.order + 1 < 10 ? "0" : "") + (button.order + 1);
-        if (!rail && hasDossier()) collectOptions(page,button.options);
-        else button.hintText(page.title() + ": " + hint);
+        if (!rail) button.hintText(page.title() + ": " + hint);
         return button;
-    }
-
-    private static void collectOptions(SettingsPage page, List<SettingRow> result) {
-        for (var row : page.rows()) if (row.config() != null || toolForPage(page) != null) result.add(row);
-        for (var child : page.children()) collectOptions(child,result);
-    }
-
-    private void drawDossier(Canvas c, int x, int y, int w, NavigationButton topic) {
-        int h = 155;
-        CollectionBoardArt.dossier(c,x,y,w,h);
-        long elapsed = CollectionBoardArt.now() - previewSince;
-        int tx = x+10, edge = x+w-10;
-        c.raw().drawText(textRenderer,"CATEGORY FILE",tx,y+12,MUTED,false);
-        MmmUi.drawTextRightWithin(c.raw(),textRenderer,topic.fileNumber,edge,y+12,30,CollectionBoardArt.ROSE,false);
-        int inset = Math.round(5*(1-CollectionBoardArt.reveal(elapsed,0)));
-        c.raw().drawItem(topic.icon,tx+inset,y+27);
-        MmmUi.drawTextWithin(c.raw(),textRenderer,topic.caption,tx+23+inset,y+32,w-45,TEXT,true);
-        c.raw().fill(tx,y+48,edge,y+49,CollectionBoardArt.LINE);
-        int shown = 0, modified = 0;
-        for (var row : topic.options) {
-            if (row.config() != null && row.config().isModified()) modified++;
-            if (shown == 4 || row.kind() == ControlKind.TEXT) continue;
-            String value = row.config() instanceof IConfigBoolean b ? (b.getBooleanValue() ? "On" : "Off")
-                    : row.config() instanceof ConfigOptionList list
-                    ? list.getOptionListValue().getDisplayName() : getConfigString(row.config());
-            int valueW = Math.min(w/3,textRenderer.getWidth(value));
-            int yy = y+59+shown*17;
-            int slide = Math.round(6*(1-CollectionBoardArt.reveal(elapsed,shown+1)));
-            MmmUi.drawTextWithin(c.raw(),textRenderer,row.label(),tx+slide,yy,edge-tx-valueW-slide-6,TEXT,false);
-            MmmUi.drawTextRightWithin(c.raw(),textRenderer,value,edge,yy,valueW,MUTED,false);
-            shown++;
-        }
-        c.raw().fill(tx,y+h-27,edge,y+h-26,CollectionBoardArt.LINE);
-        String footer = topic.caption.equals("Tools") ? topic.options.size() + " tools"
-                : modified == 0 ? "Default values" : modified + " customized";
-        c.raw().drawText(textRenderer,footer,tx,y+h-17,CollectionBoardArt.ROSE,false);
     }
 
     private void resetPageFocus()
@@ -1021,31 +963,8 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
 
     private void goBack()
     {
-        if (!this.searchQuery.isBlank())
-        {
-            this.searchField.setText("");
-            this.resetPageFocus();
-            return;
-        }
-        if (this.pageHistory.isEmpty()) return;
-        PageLocation previous = this.pageHistory.remove(pageHistory.size() - 1);
-        this.currentPage = previous.page();
-        this.refreshVisibleSections();
-        this.transitionAt = CollectionBoardArt.now();
-        this.scrollY = previous.scrollY();
+        this.searchField.setText("");
         this.resetPageFocus();
-        this.rebuildNavigationButtons();
-    }
-
-    static SettingsPage buildSettingsPages(List<SettingsSection> sections)
-    {
-        return adaptPage(SettingsNavigation.<SettingRow, SettingsSection>build(sections));
-    }
-
-    private static SettingsPage adaptPage(SettingsNavigation.Page<SettingRow, SettingsSection> page)
-    {
-        return new SettingsPage(page.title(), page.source(), page.rows(), page.children().stream()
-                .map(SettingsBoard::adaptPage).toList());
     }
 
     private static void organizeSections(List<SettingsSection> sections)
@@ -1090,17 +1009,23 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
         String query = this.searchQuery == null ? "" : this.searchQuery.trim().toLowerCase(Locale.ROOT);
         if (query.isEmpty())
         {
-            if (!this.currentPage.rows().isEmpty())
-                this.visibleSections.add(new VisibleSection(this.currentPage.source(), this.currentPage.rows()));
+            this.visibleSections.addAll(inlineSections(currentPage));
             return;
         }
         this.visibleSections.addAll(searchSections(this.sections, query));
     }
 
+    static List<VisibleSection> inlineSections(SettingsNavigation.Page<SettingRow, SettingsSection> category)
+    {
+        if ("Tools".equals(category.title())) return List.of();
+        return category.rowGroups().stream()
+                .map(group -> new VisibleSection(group.source(), group.rows(), group.title())).toList();
+    }
+
     static List<VisibleSection> searchSections(List<SettingsSection> sections, String query)
     {
         return SettingsNavigation.<SettingRow, SettingsSection>search(sections, query).stream()
-                .map(match -> new VisibleSection(match.section(), match.rows())).toList();
+                .map(match -> new VisibleSection(match.section(), match.rows(), match.section().title())).toList();
     }
 
     private void commitTextValue(SettingRow row, String value)
@@ -1409,22 +1334,11 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
         }
     }
 
-    record VisibleSection(SettingsSection section, List<SettingRow> rows)
-    {
-    }
-
-    record SettingsPage(String title, SettingsSection source, List<SettingRow> rows, List<SettingsPage> children)
-    {
-    }
-
-    private record PageLocation(SettingsPage page, double scrollY)
-    {
-    }
+    record VisibleSection(SettingsSection section, List<SettingRow> rows, String title) {}
 
     private final class NavigationButton extends BoardButton {
-        private final List<SettingRow> options = new ArrayList<>();
         private ItemStack icon = ItemStack.EMPTY;
-        private String caption, hint = "", fileNumber = "";
+        private String caption, hint = "";
         private int order;
         private boolean chosen;
         private long hoverFrame;
@@ -1434,6 +1348,11 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
             super(0, 0, width, height, BoardPlatform.literal(label), action);
             caption = label;
         }
+        private void sizeRail(int width, int height) {
+            this.setWidth(width);
+            this.height = height;
+        }
+
         @Override protected void renderFace(Canvas c, int mx, int my, float delta) {
             long now = CollectionBoardArt.now();
             boolean hot = BoardPlatform.keyboard() ? isFocused() : isMouseOver(mx, my);
@@ -1443,29 +1362,32 @@ abstract class SettingsBoard extends BoardPlatform.BoardScreen
             float enter = CollectionBoardArt.reveal(now - transitionAt, order);
             int x = getX(), y = getY(), w = getWidth(), h = getHeight();
             boolean slip = !hint.isEmpty();
-            boolean inspecting = slip && hasDossier() && previewTopic == this;
             var matrix = c.raw().getMatrices();
             matrix.push();
             try {
                 if (slip) {
                     c.raw().fill(x+3,y+h-3,x+w-2,y+h,CollectionBoardArt.BLACK);
                     // Flip the face into its fixed hit area; never animate the widget bounds.
-                    matrix.translate(x+w/2f,y+h/2f - (inspecting ? 1 : 0) - hover,0);
+                    matrix.translate(x+w/2f,y+h/2f - hover,0);
                     matrix.scale(1,.74f+.26f*enter,1);
                     matrix.translate(-x-w/2f,-y-h/2f,0);
                 }
                 int face = chosen ? MmmUi.accentSoft() : CollectionBoardArt.TILE;
-                if (inspecting) face = CollectionBoardArt.ACTIVE;
                 int surface = MmmUi.menuSurface(CollectionBoardArt.lerp(hover, face, 0xff443236));
                 if (slip) {
-                    CollectionBoardArt.plate(c,x,y+2,w,h-4,inspecting ? 0xff96545c : 0xff4c4245,surface);
-                    c.raw().fill(x+7,y,x+23,y+3,inspecting ? MmmUi.accent() : 0xff685156);
+                    CollectionBoardArt.plate(c,x,y+2,w,h-4,0xff4c4245,surface);
+                    c.raw().fill(x+7,y,x+23,y+3,0xff685156);
                 } else c.raw().fill(x,y,x+w,y+h,surface);
                 if (chosen || hot) c.raw().fill(x, y + 2, x + 2, y + h-2, MmmUi.accent());
                 if (isFocused()) c.raw().drawBorder(x, y, w, h, CollectionBoardArt.ROSE);
                 int tx = x + 6 + Math.round(4 * (1f - enter));
                 if (!icon.isEmpty()) {
                     int iy = y + (h - 16) / 2;
+                    if (w <= 24 && hint.isEmpty()) {
+                        c.raw().drawItem(icon, x + (w - 16) / 2, iy);
+                        if (hot) hoveredDescription = getMessage().getString();
+                        return;
+                    }
                     if (!hint.isEmpty()) c.raw().fill(tx, iy - 3, tx + 22, iy + 19, CollectionBoardArt.RAIL);
                     c.raw().drawItem(icon, tx + (hint.isEmpty() ? 0 : 3), iy);
                     tx += hint.isEmpty() ? 20 : 28;

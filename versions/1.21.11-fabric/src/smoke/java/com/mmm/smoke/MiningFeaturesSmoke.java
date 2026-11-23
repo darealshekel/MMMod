@@ -308,15 +308,26 @@ final class MiningFeaturesSmoke
                     if (!(client.currentScreen instanceof MmmSettingsScreen current)) throw new AssertionError("/mmm did not open settings");
                     settings = current;
                     ticks++;
-                    var buttons = (java.util.List<?>)field(settings,"navigationButtons");
-                    if (ticks == 5 || ticks == 19) {
+                    if (ticks == 5) {
+                        checkCategory("Everyday settings");
                         client.setNavigationType(net.minecraft.client.gui.navigation.GuiNavigationType.KEYBOARD_TAB);
-                        settings.setFocused((ButtonWidget)buttons.get(ticks == 5 ? 0 : 2));
+                        tabTo(settings, button(settings, "HUD"));
+                        checkCategory("Everyday settings");
+                        if (!settings.keyPressed(new net.minecraft.client.input.KeyInput(257, 0, 0)))
+                            throw new AssertionError("Enter did not activate the focused HUD rail button");
+                        checkCategory("HUD");
+                        if (settings.getFocused() != null) throw new AssertionError("Changing category retained stale focus");
                     }
+                    if (ticks == 19) tabTo(settings, button(settings, "HUD"));
                     if (ticks == 29) {
-                        if (field(settings,"previewTopic") != buttons.get(2)) throw new AssertionError("Keyboard focus did not inspect HUD settings");
-                        shot(client,"settings-category-board.png");
-                        verifySurface(client, "category slip", 0x96545c);
+                        var hud = button(settings, "HUD");
+                        if (settings.getFocused() != hud || !hud.isFocused()) throw new AssertionError("HUD rail lost keyboard focus");
+                        shot(client, "settings-category-board.png");
+                        verifySurface(client, "focused HUD rail border", 0xff9494, hud.getX(), hud.getY(), hud.getWidth(), 1);
+                        var hudX = (TextFieldWidget)((Map<?, ?>)field(settings, "textFields")).get(Configs.Generic.HUD_X);
+                        if (hudX == null || !hudX.isVisible()) throw new AssertionError("HUD X is not inline on HUD");
+                        click(settings, hudX.getX() + 2, hudX.getY() + 2);
+                        if (settings.getFocused() != hudX) throw new AssertionError("Inline HUD X did not receive focus");
                     }
                     if (ticks == 36) {
                         worldStone(240000);
@@ -351,7 +362,7 @@ final class MiningFeaturesSmoke
                     ticks = 0; phase = 32;
                 } else if (phase == 32 && ++ticks > 8) {
                     var entry = button(settings, "Website Link");
-                    settings.mouseClicked(new net.minecraft.client.gui.Click(entry.getX() + 4, entry.getY() + 4, new net.minecraft.client.input.MouseInput(0, 0)), false);
+                    click(settings, entry.getX() + 4, entry.getY() + 4);
                     if (!(client.currentScreen instanceof WebsiteLinkScreen)) throw new AssertionError("Header did not open account linking");
                     ticks = 0; phase = 33;
                 } else if (phase == 33 && ++ticks > 8) {
@@ -367,15 +378,32 @@ final class MiningFeaturesSmoke
                     checkBounds(account);
                     account.keyPressed(new net.minecraft.client.input.KeyInput(256, 0, 0));
                     if (client.currentScreen != settings) throw new AssertionError("Back did not restore settings");
-                    ((TextFieldWidget)field(settings, "searchField")).setText("Website Link");
+                    checkCategory("HUD");
+                    for (char c : "Website Link".toCharArray())
+                        if (!settings.charTyped(new net.minecraft.client.input.CharInput(c, 0)))
+                            throw new AssertionError("Settings did not accept search input");
                     ticks = 0; phase = 34;
                 } else if (phase == 34 && ++ticks > 5) {
                     if (surfaceError != null) throw new AssertionError(surfaceError);
                     if (checkedSurfaces != 2) return;
-                    var targets = (java.util.List<?>)field(settings, "clickTargets");
-                    var open = targets.getLast();
-                    settings.mouseClicked(new net.minecraft.client.gui.Click((int)field(open, "x") + 3, (int)field(open, "y") + 3, new net.minecraft.client.input.MouseInput(0, 0)), false);
+                    var search = (TextFieldWidget)field(settings, "searchField");
+                    if (!search.getText().equals("Website Link")) throw new AssertionError("Global search lost the query");
+                    // This exact query has one inline action below the search field; exclude header and clear buttons.
+                    Object open = null;
+                    for (var target : (java.util.List<?>)field(settings, "clickTargets")) {
+                        if ((int)field(target, "y") <= search.getY() + search.getHeight()) continue;
+                        if (open != null) throw new AssertionError("Ambiguous Website Link search actions");
+                        open = target;
+                    }
+                    if (open == null) throw new AssertionError("No inline Website Link search action");
+                    click(settings, (int)field(open, "x") + 3, (int)field(open, "y") + 3);
                     if (!(client.currentScreen instanceof WebsiteLinkScreen)) throw new AssertionError("Search did not open account linking");
+                    client.currentScreen.keyPressed(new net.minecraft.client.input.KeyInput(256, 0, 0));
+                    if (client.currentScreen != settings || !((TextFieldWidget)field(settings, "searchField")).getText().equals("Website Link"))
+                        throw new AssertionError("Back did not restore the Website Link search");
+                    settings.keyPressed(new net.minecraft.client.input.KeyInput(256, 0, 0));
+                    if (client.currentScreen != settings) throw new AssertionError("Clearing search closed settings");
+                    checkCategory("HUD");
                     phase = 99;
                     Files.writeString(Path.of("mmm-features-smoke-result.txt"), "PASS: inventory book, cursor safety, recipe layout, categories, grid, tiers, pagination, live updates, search, efficiency, responsive bounds, screenshots");
                     System.out.println("MMM_FEATURES_SMOKE_PASS"); client.scheduleStop();
@@ -394,6 +422,23 @@ final class MiningFeaturesSmoke
     private static ButtonWidget button(Screen screen, String label) {
         return screen.children().stream().filter(ButtonWidget.class::isInstance).map(ButtonWidget.class::cast)
                 .filter(b -> b.visible && b.getMessage().getString().equals(label)).findFirst().orElseThrow();
+    }
+    private void checkCategory(String title) throws Exception {
+        if (!((SettingsNavigation.Page<?, ?>)field(settings, "currentPage")).title().equals(title)
+                || !((TextFieldWidget)field(settings, "searchField")).getText().isEmpty())
+            throw new AssertionError("Expected the " + title + " category");
+    }
+    private static void tabTo(Screen screen, ButtonWidget target) {
+        for (int i = 0; i <= screen.children().size(); i++) {
+            if (screen.getFocused() == target && target.isFocused()) return;
+            screen.keyPressed(new net.minecraft.client.input.KeyInput(258, 0, 0));
+        }
+        throw new AssertionError("Tab could not reach " + target.getMessage().getString());
+    }
+    private static void click(Screen screen, double x, double y) {
+        var click = new net.minecraft.client.gui.Click(x, y, new net.minecraft.client.input.MouseInput(0, 0));
+        if (!screen.mouseClicked(click, false)) throw new AssertionError("Unhandled click at " + x + ", " + y);
+        screen.mouseReleased(click);
     }
     private static void checkCollectionPreferences(MinecraftClient client) throws Exception {
         var screen = new CollectionBookScreen(null);
@@ -546,12 +591,16 @@ final class MiningFeaturesSmoke
         ScreenshotRecorder.saveScreenshot(client.runDirectory, file, client.getFramebuffer(), 1, message -> {});
     }
     private void verifySurface(MinecraftClient client, String name, int rgb) {
+        verifySurface(client, name, rgb, 0, 0, client.currentScreen.width, client.currentScreen.height);
+    }
+    private void verifySurface(MinecraftClient client, String name, int rgb, int x, int y, int w, int h) {
+        int guiW = client.currentScreen.width, guiH = client.currentScreen.height;
         ScreenshotRecorder.takeScreenshot(client.getFramebuffer(), image -> {
             try (image) {
                 int count = 0;
-                for (int y = 0; y < image.getHeight() && count < 24; y++)
-                    for (int x = 0; x < image.getWidth() && count < 24; x++)
-                        if ((image.getColorArgb(x, y) & 0xffffff) == rgb) count++;
+                for (int py = y * image.getHeight() / guiH; py < (y + h) * image.getHeight() / guiH && count < 24; py++)
+                    for (int px = x * image.getWidth() / guiW; px < (x + w) * image.getWidth() / guiW && count < 24; px++)
+                        if ((image.getColorArgb(px, py) & 0xffffff) == rgb) count++;
                 if (count < 24) surfaceError = "Missing rendered " + name;
             } finally { checkedSurfaces++; }
         });

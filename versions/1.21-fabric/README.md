@@ -6,7 +6,7 @@ MMMod is the official client mod for [Manual Mining Maniacs](https://www.mmmania
 
 ## Supported Versions
 
-This folder builds **1.0.23 for Minecraft 1.21**: `mmm-1.0.23+1.21.jar`. See the [full guide](../../README.md), [Downloads](https://www.mmmaniacs.com/downloads) and [1.0.23 release](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23). Do not install a jar for a different Minecraft version.
+This folder builds **1.0.23 for Minecraft 1.21**: `mmm-1.0.23+1.21.jar`. See the [full guide](../../README.md), [Downloads](https://www.mmmaniacs.com/downloads) and [1.0.23 Hotfix 1 release](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23-hotfix.1). Do not install a jar for a different Minecraft version.
 
 ## Install
 
@@ -18,8 +18,8 @@ The button previews the top-center card and vanilla challenge-completion sound w
 It requires an open world. **Sound Alerts** controls achievement and goal sounds.
 
 Normal builds omit the preview control at compilation; `verifyAchievementPreviewIsolation` checks this.
-These changes are currently limited to the Minecraft 1.21 adapter and are not published.
-The settings overview keeps everyday controls open and other sections collapsed; search includes every section.
+The test button is exclusive to the local Minecraft 1.21 preview and is not included in release downloads.
+Settings opens directly to Everyday. Selecting another category shows its controls inline.
 
 ### Installation Steps
 

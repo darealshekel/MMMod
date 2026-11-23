@@ -2,7 +2,7 @@
 
 Current release: **1.0.23**. Install `mmm-1.0.23+1.21.6.jar`.
 
-[Download](https://github.com/darealshekel/MMMod/releases/download/v1.0.23/mmm-1.0.23%2B1.21.6.jar) | [Full guide](../../README.md) | [Release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23)
+[Download](https://github.com/darealshekel/MMMod/releases/download/v1.0.23-hotfix.1/mmm-1.0.23%2B1.21.6.jar) | [Full guide](../../README.md) | [Release notes](https://github.com/darealshekel/MMMod/releases/tag/v1.0.23-hotfix.1)
 
 ## Install
 
